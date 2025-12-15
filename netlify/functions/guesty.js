@@ -10,7 +10,7 @@ let tokenPromise = null;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function getToken() {
+async function getToken(retry = 0) {
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
   if (tokenPromise) return tokenPromise;
@@ -18,6 +18,8 @@ async function getToken() {
   if (!clientId || !clientSecret) {
     throw new Error("Missing Guesty credentials in environment variables");
   }
+
+  const maxRetries = 2;
 
   tokenPromise = fetch(`${guestyHost}/oauth2/token`, {
     method: "POST",
@@ -42,9 +44,9 @@ async function getToken() {
       return cachedToken;
     })
     .catch(async (err) => {
-      if (err.message === "RATE_LIMITED") {
-        await wait(1500);
-        return getToken();
+      if (err.message === "RATE_LIMITED" && retry < maxRetries) {
+        await wait(1500 * (retry + 1));
+        return getToken(retry + 1);
       }
       throw err;
     })
@@ -153,7 +155,12 @@ export const handler = async (event) => {
     }
 
     if (httpMethod === "POST" && resource === "book") {
-      const body = event.body ? JSON.parse(event.body) : {};
+      let body = {};
+      try {
+        body = event.body ? JSON.parse(event.body) : {};
+      } catch {
+        return json(400, { message: "Invalid JSON body" });
+      }
       const { listingId, checkIn, checkOut, adults = 1, children = 0, guest } = body;
       if (!listingId || !checkIn || !checkOut || !guest?.firstName || !guest?.lastName || !guest?.email) {
         return json(400, { message: "Missing required booking fields" });
