@@ -1,8 +1,17 @@
 // CommonJS Netlify function acting as the Guesty API proxy with timeouts and retries.
 
 const https = require("https");
-const fetch = require("node-fetch");
-const { AbortController } = require("node-fetch");
+// Use global fetch/AbortController if present (Node 18+); otherwise lazy-load node-fetch.
+const fetchFn = (...args) =>
+  globalThis.fetch
+    ? globalThis.fetch(...args)
+    : import("node-fetch").then(({ default: fetchImport }) => fetchImport(...args));
+
+const getAbortController = async () => {
+  if (globalThis.AbortController) return globalThis.AbortController;
+  const mod = await import("node-fetch");
+  return mod.AbortController;
+};
 
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
@@ -15,10 +24,11 @@ let tokenPromise = null;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+  const AbortController = await getAbortController();
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await fetchFn(url, {
       ...options,
       signal: controller.signal,
       agent: new https.Agent({ keepAlive: true }),
