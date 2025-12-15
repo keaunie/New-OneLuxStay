@@ -1,4 +1,6 @@
-// Netlify function acting as the Guesty API proxy.
+// CommonJS Netlify function acting as the Guesty API proxy with timeouts and retries.
+
+const https = require("https");
 
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
@@ -10,18 +12,26 @@ let tokenPromise = null;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal, agent: new https.Agent({ keepAlive: true }) });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+};
+
 async function getToken(retry = 0) {
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
   if (tokenPromise) return tokenPromise;
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing Guesty credentials in environment variables");
-  }
+  if (!clientId || !clientSecret) throw new Error("Missing Guesty credentials in environment variables");
 
   const maxRetries = 2;
 
-  tokenPromise = fetch(`${guestyHost}/oauth2/token`, {
+  tokenPromise = fetchWithTimeout(`${guestyHost}/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -57,17 +67,15 @@ async function getToken(retry = 0) {
   return tokenPromise;
 }
 
-async function guestyFetch(path, init = {}) {
+async function guestyFetch(path, init = {}, timeoutMs = 8000) {
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
     ...(init.headers || {}),
   };
-  if (init.body && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json";
-  }
+  if (init.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(`${guestyHost}${path}`, { ...init, headers });
+  const res = await fetchWithTimeout(`${guestyHost}${path}`, { ...init, headers }, timeoutMs);
   if (res.status === 429) throw new Error("RATE_LIMITED");
   if (!res.ok) {
     const text = await res.text();
@@ -82,26 +90,19 @@ const json = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
-export const handler = async (event) => {
+const normalizeResource = (path) => {
+  if (!path) return "";
+  const marker = "/.netlify/functions/guesty";
+  const idx = path.indexOf(marker);
+  let resource = idx >= 0 ? path.slice(idx + marker.length) : path;
+  resource = resource.replace(/^\/+/, "").replace(/^api\//, "");
+  return resource;
+};
+
+exports.handler = async (event) => {
   try {
     const { path, httpMethod, queryStringParameters } = event;
-
-    // Normalize path so resource is just the part after the function name.
-    const normalizeResource = () => {
-      if (!path) return "";
-      const marker = "/.netlify/functions/guesty";
-      const idx = path.indexOf(marker);
-      if (idx >= 0) {
-        return path
-          .slice(idx + marker.length)
-          .replace(/^\/+/, "")
-          .replace(/^api\//, "");
-      }
-      // fallback if Netlify rewrites differently
-      return path.replace(/^\/+/, "").replace(/^api\//, "");
-    };
-
-    const resource = normalizeResource();
+    const resource = normalizeResource(path);
 
     if (httpMethod === "GET" && (resource === "listings" || resource === "")) {
       const data = await guestyFetch("/api/listings");
@@ -124,7 +125,7 @@ export const handler = async (event) => {
       return json(200, { results: lightResults });
     }
 
-    if (httpMethod === "GET" && resource.match(/^listings\/[^/]+\/availability/)) {
+    if (httpMethod === "GET" && /^listings\/[^/]+\/availability/.test(resource)) {
       const [, listingId] = resource.split("/");
       const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
       if (!startDate || !endDate) return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
@@ -145,7 +146,7 @@ export const handler = async (event) => {
       }
     }
 
-    if (httpMethod === "GET" && resource.match(/^listings\/[^/]+\/price-estimate/)) {
+    if (httpMethod === "GET" && /^listings\/[^/]+\/price-estimate/.test(resource)) {
       const [, listingId] = resource.split("/");
       const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
       if (!startDate || !endDate) return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
