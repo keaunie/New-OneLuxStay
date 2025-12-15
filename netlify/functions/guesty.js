@@ -83,8 +83,23 @@ const json = (statusCode, body) => ({
 export const handler = async (event) => {
   try {
     const { path, httpMethod, queryStringParameters } = event;
-    const [, , , ...rest] = path.split("/"); // /api -> /.netlify/functions/guesty -> remainder
-    const resource = rest.join("/");
+
+    // Normalize path so resource is just the part after the function name.
+    const normalizeResource = () => {
+      if (!path) return "";
+      const marker = "/.netlify/functions/guesty";
+      const idx = path.indexOf(marker);
+      if (idx >= 0) {
+        return path
+          .slice(idx + marker.length)
+          .replace(/^\/+/, "")
+          .replace(/^api\//, "");
+      }
+      // fallback if Netlify rewrites differently
+      return path.replace(/^\/+/, "").replace(/^api\//, "");
+    };
+
+    const resource = normalizeResource();
 
     if (httpMethod === "GET" && (resource === "listings" || resource === "")) {
       const data = await guestyFetch("/api/listings");
@@ -108,7 +123,7 @@ export const handler = async (event) => {
     }
 
     if (httpMethod === "GET" && resource.match(/^listings\/[^/]+\/availability/)) {
-      const [_, listingId] = resource.split("/");
+      const [, listingId] = resource.split("/");
       const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
       if (!startDate || !endDate) return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
 
@@ -129,7 +144,7 @@ export const handler = async (event) => {
     }
 
     if (httpMethod === "GET" && resource.match(/^listings\/[^/]+\/price-estimate/)) {
-      const [_, listingId] = resource.split("/");
+      const [, listingId] = resource.split("/");
       const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
       if (!startDate || !endDate) return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
       const query = `listingId=${listingId}&startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`;
