@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['server/**/*.{js,jsx}'],
+    files: ['server/**/*.{js,jsx}', 'netlify/functions/**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

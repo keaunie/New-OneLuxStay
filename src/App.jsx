@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
+const apiBase = import.meta.env.VITE_API_BASE || "/api";
+
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
     ? value.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 })
@@ -32,7 +34,7 @@ function App() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/listings");
+        const res = await fetch(`${apiBase}/listings`);
         const json = await res.json();
         setListings(json.results || []);
         setActiveListingId((json.results || [])[0]?.id || "");
@@ -81,8 +83,8 @@ function App() {
       }).toString();
 
       const [availRes, priceRes] = await Promise.all([
-        fetch(`/api/listings/${listing.id}/availability?${qs}`),
-        fetch(`/api/listings/${listing.id}/price-estimate?${qs}`),
+        fetch(`${apiBase}/listings/${listing.id}/availability?${qs}`),
+        fetch(`${apiBase}/listings/${listing.id}/price-estimate?${qs}`),
       ]);
 
       const availJson = availRes.ok ? await availRes.json() : null;
@@ -142,7 +144,7 @@ function App() {
     setBookingState({ status: "loading", message: "" });
 
     try {
-      const res = await fetch("/api/book", {
+      const res = await fetch(`${apiBase}/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -422,6 +424,5 @@ function App() {
 }
 
 export default App;
-
 
 
