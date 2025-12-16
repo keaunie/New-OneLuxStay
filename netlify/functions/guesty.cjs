@@ -33,7 +33,6 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
     const res = await fetchFn(url, {
       ...options,
       signal: controller.signal,
-      agent: new https.Agent({ keepAlive: true }),
     });
     return res;
   } finally {
