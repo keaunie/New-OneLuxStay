@@ -214,7 +214,7 @@ const normalizeResource = (path) => {
   return resource;
 };
 
-export const handler = async (event) => {
+export async function handler(event) {
   try {
     const { path, httpMethod, queryStringParameters } = event;
     const resource = normalizeResource(path);
@@ -309,11 +309,11 @@ export const handler = async (event) => {
       return json(200, { results: listings });
     }
 
-    return json(404, { message: "Not Found" });
+      return json(404, { message: "Not Found" });
   } catch (err) {
     if (err.message === "RATE_LIMITED") {
       return json(429, { message: "Guesty rate limit hit. Please retry shortly." });
     }
     return json(500, { message: "Internal error", error: err.message });
   }
-};
+}
