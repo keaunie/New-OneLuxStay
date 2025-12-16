@@ -1,7 +1,7 @@
-// CommonJS Netlify function acting as the Guesty API proxy with timeouts and retries.
+// Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (ESM-friendly).
 
-const https = require("https");
-// Use global fetch/AbortController if present (Node 18+); otherwise lazy-load node-fetch.
+import https from "https";
+
 const fetchFn = (...args) =>
   globalThis.fetch
     ? globalThis.fetch(...args)
@@ -214,7 +214,7 @@ const normalizeResource = (path) => {
   return resource;
 };
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   try {
     const { path, httpMethod, queryStringParameters } = event;
     const resource = normalizeResource(path);
