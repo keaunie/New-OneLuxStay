@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
@@ -9,6 +12,15 @@ const port = process.env.PORT || 4000;
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
+const pmContentUrl = "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
+const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
+const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
+const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const tokenCacheFile = path.join(__dirname, "../.guesty-token-cache.json");
 
 app.use(cors());
 app.use(express.json());
@@ -16,13 +28,45 @@ app.use(express.json());
 let cachedToken = null;
 let tokenExpiresAt = 0;
 let tokenPromise = null;
+let pmCache = {};
+let pmContentPromise = null;
+const pmCacheTtlMs = 5 * 60 * 1000;
+const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const readTokenCache = async () => {
+  try {
+    const raw = await fs.readFile(tokenCacheFile, "utf-8");
+    const data = JSON.parse(raw);
+    if (!data?.accessToken || !data?.expiresAt) return null;
+    if (Date.now() >= data.expiresAt - 60_000) return null; // refresh 60s early
+    return data;
+  } catch {
+    return null;
+  }
+};
+
+const writeTokenCache = async (accessToken, expiresAt) => {
+  const payload = JSON.stringify({ accessToken, expiresAt }, null, 2);
+  try {
+    await fs.writeFile(tokenCacheFile, payload, "utf-8");
+  } catch (err) {
+    console.warn(`Failed to write token cache: ${err.message}`);
+  }
+};
 
 async function getToken() {
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
   if (tokenPromise) return tokenPromise;
+
+  const cachedFile = await readTokenCache();
+  if (cachedFile) {
+    cachedToken = cachedFile.accessToken;
+    tokenExpiresAt = cachedFile.expiresAt;
+    return cachedToken;
+  }
 
   if (!clientId || !clientSecret) {
     throw new Error("Missing Guesty credentials in environment variables");
@@ -50,6 +94,7 @@ async function getToken() {
     .then((json) => {
       cachedToken = json.access_token;
       tokenExpiresAt = Date.now() + (json.expires_in || 86_400) * 1000;
+      writeTokenCache(cachedToken, tokenExpiresAt);
       return cachedToken;
     })
     .catch(async (err) => {
@@ -90,6 +135,100 @@ async function guestyFetch(path, init = {}) {
 
   return res.json();
 }
+
+const fetchPmContent = async (lang = "en") => {
+  const now = Date.now();
+  const cacheEntry = pmCache[lang];
+  if (cacheEntry && now < cacheEntry.expiresAt - 60_000) return cacheEntry.data;
+  if (pmContentPromise) return pmContentPromise;
+  if (!pmAidCs || !pmRequestContext) {
+    throw new Error("Missing pm content headers in environment");
+  }
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "g-aid-cs": pmAidCs,
+    "x-request-context": pmRequestContext,
+    origin: pmOrigin,
+    referer: pmReferer,
+  };
+
+  const url = `${pmContentUrl}?lang=${encodeURIComponent(lang)}`;
+
+  pmContentPromise = fetch(url, { headers })
+    .then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`pm content error ${res.status}: ${text}`);
+      }
+      return res.json();
+    })
+    .then((json) => {
+      pmCache[lang] = { data: json, expiresAt: Date.now() + pmCacheTtlMs };
+      return json;
+    })
+    .finally(() => {
+      pmContentPromise = null;
+    });
+
+  return pmContentPromise;
+};
+
+const normalizePmListings = (pmData) => {
+  const stack = [pmData];
+  const listingsMap = new Map();
+
+  while (stack.length) {
+    const cur = stack.pop();
+    if (Array.isArray(cur)) {
+      stack.push(...cur);
+    } else if (isObject(cur)) {
+      const hasBeds = cur.title && (cur.bedrooms !== undefined || cur.bathrooms !== undefined || cur.beds !== undefined);
+      const id = cur._id || cur.id;
+      if (hasBeds && id && !listingsMap.has(id)) {
+        listingsMap.set(id, cur);
+      }
+      stack.push(...Object.values(cur));
+    }
+  }
+
+  const mapListing = (item) => {
+    const itemId = item._id || item.id;
+    const location =
+      item.address?.city || item.address?.state || item.address?.country
+        ? [item.address?.city, item.address?.state || item.address?.country].filter(Boolean).join(", ")
+        : item.address?.full || "";
+
+    const primaryPicture =
+      item.picture?.regular || item.picture?.large || item.picture?.thumbnail || item.picture?.original || "";
+
+    const gallery = Array.isArray(item.pictures)
+      ? item.pictures
+          .map((p) => p.original || p.regular || p.large || p.thumbnail)
+          .filter(Boolean)
+      : [];
+
+    return {
+      id: itemId,
+      title: item.title || "",
+      location,
+      picture: primaryPicture,
+      gallery,
+      accommodates: item.accommodates,
+      bedrooms: item.bedrooms,
+      bathrooms: item.bathrooms,
+      beds: item.beds,
+      basePrice: item.prices?.basePrice,
+      currency: item.prices?.currency || "USD",
+      cleaningFee: item.prices?.cleaningFee,
+      tags: item.tags || [],
+      propertyType: item.propertyType || "",
+      summary: item.publicDescription?.summary || "",
+    };
+  };
+
+  return Array.from(listingsMap.values()).map(mapListing);
+};
 
 app.get("/api/listings", async (_req, res) => {
   try {
@@ -187,6 +326,29 @@ app.post("/api/book", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(502).json({ message: "Booking failed", error: err.message });
+  }
+});
+
+app.get("/api/pm-content", async (req, res) => {
+  const { lang = "en" } = req.query;
+  try {
+    const data = await fetchPmContent(lang);
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load pm content", error: err.message });
+  }
+});
+
+app.get("/api/pm-available", async (req, res) => {
+  const { lang = "en" } = req.query;
+  try {
+    const data = await fetchPmContent(lang);
+    const listings = normalizePmListings(data);
+    res.json({ results: listings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load pm content", error: err.message });
   }
 });
 

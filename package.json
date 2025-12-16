@@ -10,7 +10,8 @@
     "start": "node server/index.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "guesty:token": "node scripts/get-guesty-token.js"
   },
   "dependencies": {
     "concurrently": "^9.2.1",

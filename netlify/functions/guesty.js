@@ -16,10 +16,19 @@ const getAbortController = async () => {
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
+const pmContentUrl = "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
+const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
+const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
+const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
 let tokenPromise = null;
+let pmCache = {};
+let pmContentPromise = null;
+const pmCacheTtlMs = 5 * 60 * 1000;
+const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -98,6 +107,96 @@ async function guestyFetch(path, init = {}, timeoutMs = 8000) {
     throw new Error(`Guesty API error ${res.status}: ${text}`);
   }
   return res.json();
+}
+
+async function fetchPmContent(lang = "en") {
+  const now = Date.now();
+  const cacheEntry = pmCache[lang];
+  if (cacheEntry && now < cacheEntry.expiresAt - 60_000) return cacheEntry.data;
+  if (pmContentPromise) return pmContentPromise;
+  if (!pmAidCs || !pmRequestContext) throw new Error("Missing pm content headers in environment variables");
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "g-aid-cs": pmAidCs,
+    "x-request-context": pmRequestContext,
+    origin: pmOrigin,
+    referer: pmReferer,
+  };
+
+  const url = `${pmContentUrl}?lang=${encodeURIComponent(lang)}`;
+
+  pmContentPromise = fetchWithTimeout(url, { headers })
+    .then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`pm content error ${res.status}: ${text}`);
+      }
+      return res.json();
+    })
+    .then((json) => {
+      pmCache[lang] = { data: json, expiresAt: Date.now() + pmCacheTtlMs };
+      return json;
+    })
+    .finally(() => {
+      pmContentPromise = null;
+    });
+
+  return pmContentPromise;
+}
+
+function normalizePmListings(pmData) {
+  const stack = [pmData];
+  const listingsMap = new Map();
+
+  while (stack.length) {
+    const cur = stack.pop();
+    if (Array.isArray(cur)) {
+      stack.push(...cur);
+    } else if (isObject(cur)) {
+      const hasBeds = cur.title && (cur.bedrooms !== undefined || cur.bathrooms !== undefined || cur.beds !== undefined);
+      const id = cur._id || cur.id;
+      if (hasBeds && id && !listingsMap.has(id)) listingsMap.set(id, cur);
+      stack.push(...Object.values(cur));
+    }
+  }
+
+  const mapListing = (item) => {
+    const itemId = item._id || item.id;
+    const location =
+      item.address?.city || item.address?.state || item.address?.country
+        ? [item.address?.city, item.address?.state || item.address?.country].filter(Boolean).join(", ")
+        : item.address?.full || "";
+
+    const primaryPicture =
+      item.picture?.regular || item.picture?.large || item.picture?.thumbnail || item.picture?.original || "";
+
+    const gallery = Array.isArray(item.pictures)
+      ? item.pictures
+          .map((p) => p.original || p.regular || p.large || p.thumbnail)
+          .filter(Boolean)
+      : [];
+
+    return {
+      id: itemId,
+      title: item.title || "",
+      location,
+      picture: primaryPicture,
+      gallery,
+      accommodates: item.accommodates,
+      bedrooms: item.bedrooms,
+      bathrooms: item.bathrooms,
+      beds: item.beds,
+      basePrice: item.prices?.basePrice,
+      currency: item.prices?.currency || "USD",
+      cleaningFee: item.prices?.cleaningFee,
+      tags: item.tags || [],
+      propertyType: item.propertyType || "",
+      summary: item.publicDescription?.summary || "",
+    };
+  };
+
+  return Array.from(listingsMap.values()).map(mapListing);
 }
 
 const json = (statusCode, body) => ({
@@ -195,6 +294,19 @@ exports.handler = async (event) => {
         body: JSON.stringify(payload),
       });
       return json(200, { message: "Booking created", data: result });
+    }
+
+    if (httpMethod === "GET" && resource === "pm-content") {
+      const lang = queryStringParameters?.lang || "en";
+      const data = await fetchPmContent(lang);
+      return json(200, data);
+    }
+
+    if (httpMethod === "GET" && resource === "pm-available") {
+      const lang = queryStringParameters?.lang || "en";
+      const data = await fetchPmContent(lang);
+      const listings = normalizePmListings(data);
+      return json(200, { results: listings });
     }
 
     return json(404, { message: "Not Found" });
