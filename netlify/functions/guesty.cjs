@@ -1,17 +1,11 @@
 // Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-const https = require("https");
-
-// Use global fetch/AbortController when available (Node 18/20). Fallback to node-fetch only if missing.
-const fetchFn = async (...args) => {
-  if (globalThis.fetch) return globalThis.fetch(...args);
-  const { default: fetchImport } = await import("node-fetch");
-  return fetchImport(...args);
-};
-const getAbortController = async () => {
-  if (globalThis.AbortController) return globalThis.AbortController;
-  const mod = await import("node-fetch");
-  return mod.AbortController;
+// Netlify runtime (Node 18/20) provides global fetch. Keep it simple to avoid stuck promises.
+const fetchFn = (...args) => {
+  if (!globalThis.fetch) {
+    throw new Error("Fetch is not available in this runtime");
+  }
+  return globalThis.fetch(...args);
 };
 
 const guestyHost = "https://booking.guesty.com";
@@ -33,20 +27,8 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
-  const AbortController = await getAbortController();
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetchFn(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    return res;
-  } finally {
-    clearTimeout(id);
-  }
-};
+// Basic fetch wrapper (no custom agent/timeout to avoid Lambda hangs).
+const fetchWithTimeout = async (url, options = {}) => fetchFn(url, options);
 
 async function getToken(retry = 0) {
   const now = Date.now();
@@ -224,24 +206,9 @@ module.exports.handler = async (event, context = {}) => {
     const resource = normalizeResource(path);
 
     if (httpMethod === "GET" && (resource === "listings" || resource === "")) {
-      const data = await guestyFetch("/api/listings");
-      const lightResults = (data?.results || []).map((item) => ({
-        id: item._id,
-        title: item.title,
-        location: item.address?.city ? `${item.address.city}, ${item.address.state || ""}`.trim() : "",
-        picture: item.picture?.regular || item.picture?.thumbnail || "",
-        accommodates: item.accommodates,
-        bedrooms: item.bedrooms,
-        bathrooms: item.bathrooms,
-        beds: item.beds,
-        basePrice: item.prices?.basePrice,
-        currency: item.prices?.currency || "USD",
-        cleaningFee: item.prices?.cleaningFee,
-        minNights: item.terms?.minNights || 1,
-        tags: item.tags || [],
-        timezone: item.timezone,
-      }));
-      return json(200, { results: lightResults });
+      const pmData = await fetchPmContent("en");
+      const listings = normalizePmListings(pmData);
+      return json(200, { results: listings });
     }
 
     if (httpMethod === "GET" && /^listings\/[^/]+\/availability/.test(resource)) {

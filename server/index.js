@@ -232,24 +232,9 @@ const normalizePmListings = (pmData) => {
 
 app.get("/api/listings", async (_req, res) => {
   try {
-    const data = await guestyFetch("/api/listings");
-    const lightResults = (data?.results || []).map((item) => ({
-      id: item._id,
-      title: item.title,
-      location: item.address?.city ? `${item.address.city}, ${item.address.state || ""}`.trim() : "",
-      picture: item.picture?.regular || item.picture?.thumbnail || "",
-      accommodates: item.accommodates,
-      bedrooms: item.bedrooms,
-      bathrooms: item.bathrooms,
-      beds: item.beds,
-      basePrice: item.prices?.basePrice,
-      currency: item.prices?.currency || "USD",
-      cleaningFee: item.prices?.cleaningFee,
-      minNights: item.terms?.minNights || 1,
-      tags: item.tags || [],
-      timezone: item.timezone,
-    }));
-    res.json({ results: lightResults });
+    const pmData = await fetchPmContent("en");
+    const listings = normalizePmListings(pmData);
+    res.json({ results: listings });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to load listings", error: err.message });
