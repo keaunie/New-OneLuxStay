@@ -1,7 +1,8 @@
-// Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (ESM-friendly).
+// Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-import https from "https";
+const https = require("https");
 
+// Use global fetch/AbortController if present (Node 18+); otherwise lazy-load node-fetch.
 const fetchFn = (...args) =>
   globalThis.fetch
     ? globalThis.fetch(...args)
@@ -214,7 +215,7 @@ const normalizeResource = (path) => {
   return resource;
 };
 
-export async function handler(event) {
+module.exports.handler = async (event) => {
   try {
     const { path, httpMethod, queryStringParameters } = event;
     const resource = normalizeResource(path);
@@ -309,11 +310,11 @@ export async function handler(event) {
       return json(200, { results: listings });
     }
 
-      return json(404, { message: "Not Found" });
+    return json(404, { message: "Not Found" });
   } catch (err) {
     if (err.message === "RATE_LIMITED") {
       return json(429, { message: "Guesty rate limit hit. Please retry shortly." });
     }
     return json(500, { message: "Internal error", error: err.message });
   }
-}
+};
