@@ -2,9 +2,17 @@
 
 const https = require("https");
 
-// Netlify runs on Node 18/20 with global fetch/AbortController available.
-const fetchFn = (...args) => globalThis.fetch(...args);
-const getAbortController = () => globalThis.AbortController;
+// Use global fetch/AbortController when available (Node 18/20). Fallback to node-fetch only if missing.
+const fetchFn = async (...args) => {
+  if (globalThis.fetch) return globalThis.fetch(...args);
+  const { default: fetchImport } = await import("node-fetch");
+  return fetchImport(...args);
+};
+const getAbortController = async () => {
+  if (globalThis.AbortController) return globalThis.AbortController;
+  const mod = await import("node-fetch");
+  return mod.AbortController;
+};
 
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
@@ -26,7 +34,7 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
-  const AbortController = getAbortController();
+  const AbortController = await getAbortController();
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -206,7 +214,11 @@ const normalizeResource = (path) => {
   return resource;
 };
 
-module.exports.handler = async (event) => {
+module.exports.handler = async (event, context = {}) => {
+  // Avoid keeping the Lambda open because of open sockets/timers.
+  if (typeof context.callbackWaitsForEmptyEventLoop === "boolean") {
+    context.callbackWaitsForEmptyEventLoop = false;
+  }
   try {
     const { path, httpMethod, queryStringParameters } = event;
     const resource = normalizeResource(path);
