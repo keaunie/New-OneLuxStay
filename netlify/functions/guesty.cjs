@@ -327,14 +327,14 @@ module.exports.handler = async (event, context = {}) => {
           message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
         });
       }
-      const payload = {
+     const payload = {
         listingId,
         checkInDateLocalized,
         checkOutDateLocalized,
         guestsCount,
         ...(guest ? { guest } : {}),
       };
-      const quote = await guestyFetch("https://app.guesty.com/api/pm-websites-backend/reservations/quotes", {
+      const quote = await guestyFetch("/api/reservations/quotes", {
         method: "POST",
         body: JSON.stringify(payload),
       });
