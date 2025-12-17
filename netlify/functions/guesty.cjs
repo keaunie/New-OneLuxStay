@@ -326,32 +326,7 @@ module.exports.handler = async (event, context = {}) => {
         ...(guest ? { guest } : {}),
       };
 
-      // Use the PM website quote endpoint first (matches the headers you provided that work in the browser).
-      try {
-        const quote = await fetchPmReservationQuote(payload);
-        const hasData = quote && typeof quote === "object" && Object.keys(quote).length > 0;
-        if (hasData) {
-          return json(200, { data: quote, source: "pm" });
-        }
-        // Empty response from PM, try booking below.
-      } catch (pmErr) {
-        // We still try booking below even if PM failed.
-        try {
-          const quote = await guestyFetch("/api/reservations/quotes", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          return json(200, { data: quote, source: "booking" });
-        } catch (bookingErr) {
-          return json(502, {
-            message: "Quote request failed",
-            pmError: pmErr.message,
-            bookingError: bookingErr.message,
-          });
-        }
-      }
-
-      // PM returned empty but no exception: fall back to booking API.
+      // Use Booking API (OAuth) quotes endpoint
       try {
         const quote = await guestyFetch("/api/reservations/quotes", {
           method: "POST",
@@ -359,11 +334,7 @@ module.exports.handler = async (event, context = {}) => {
         });
         return json(200, { data: quote, source: "booking" });
       } catch (bookingErr) {
-        return json(502, {
-          message: "Quote request failed",
-          pmError: "PM quote response was empty",
-          bookingError: bookingErr.message,
-        });
+        return json(502, { message: "Quote request failed", bookingError: bookingErr.message });
       }
     }
 
