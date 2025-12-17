@@ -474,13 +474,13 @@ const handleQuoteRequest = async (req, res) => {
 
   try {
     const payload = buildQuotePayload({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest });
-    const quote = await guestyFetch("/api/reservations/quotes", {
+    const quote = await guestyFetch("https://app.guesty.com/api/pm-websites-backend/reservations/quotes", {
       method: "POST",
       body: JSON.stringify(payload),
     });
 
     res.json({ data: quote });
-    
+
   } catch (err) {
     console.error(err);
     res.status(502).json({ message: "Quote request failed", error: err.message });
