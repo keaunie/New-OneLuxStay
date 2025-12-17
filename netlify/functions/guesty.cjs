@@ -138,9 +138,9 @@ async function fetchPmContent(lang = "en") {
   return pmContentPromise;
 }
 
-async function fetchPmReservationQuote(payload) {
+const fetchPmReservationQuote = async (payload) => {
   if (!pmAidCs || !pmRequestContext) {
-    throw new Error("Missing pm content headers in environment variables");
+    throw new Error("Missing pm content headers in environment");
   }
 
   const headers = {
@@ -169,7 +169,7 @@ async function fetchPmReservationQuote(payload) {
   } catch {
     throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
   }
-}
+};
 
 function normalizePmListings(pmData) {
   const stack = [pmData];
