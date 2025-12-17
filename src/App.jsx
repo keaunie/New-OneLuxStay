@@ -63,6 +63,17 @@ function App() {
     setSearch((prev) => ({ ...prev, [key]: value }));
   };
 
+  const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
   const checkAvailability = async (listing) => {
     if (!search.checkIn || !search.checkOut) {
       alert("Pick check-in and check-out dates first.");
@@ -83,9 +94,9 @@ function App() {
       }).toString();
 
       const [availRes, priceRes, quoteRes] = await Promise.all([
-        fetch(`${apiBase}/listings/${listing.id}/availability?${qs}`),
-        fetch(`${apiBase}/listings/${listing.id}/price-estimate?${qs}`),
-        fetch(`${apiBase}/quotes`, {
+        fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
+        fetchWithTimeout(`${apiBase}/listings/${listing.id}/price-estimate?${qs}`),
+        fetchWithTimeout(`${apiBase}/reservations/quotes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -144,10 +155,16 @@ function App() {
           raw: { availability: availJson, price: priceJson, quote: quoteData },
         },
       }));
-    } catch {
+    } catch (err) {
       setAvailability((prev) => ({
         ...prev,
-        [listing.id]: { status: "error", message: "Could not reach Guesty right now. Please retry." },
+        [listing.id]: {
+          status: "error",
+          message:
+            err?.name === "AbortError"
+              ? "Guesty timed out. Please retry."
+              : "Could not reach Guesty right now. Please retry.",
+        },
       }));
     }
   };

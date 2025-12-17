@@ -11,6 +11,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
 const guestyHost = "https://booking.guesty.com";
+const openApiHost = "https://open-api.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
 const pmContentUrl = "https://app.guesty.com/api/pm-websites-backend/engines/content";
@@ -22,6 +23,7 @@ const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxs
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const tokenCacheFile = path.join(__dirname, "../.guesty-token-cache.json");
+const openApiTokenCacheFile = path.join(__dirname, "../.guesty-openapi-token-cache.json");
 const openApiServer = "https://open-api.guesty.com/v1";
 
 app.use(cors());
@@ -32,10 +34,23 @@ let tokenExpiresAt = 0;
 let tokenPromise = null;
 let pmCache = {};
 let pmContentPromise = null;
+let openApiCachedToken = null;
+let openApiTokenExpiresAt = 0;
+let openApiTokenPromise = null;
 const pmCacheTtlMs = 5 * 60 * 1000;
 const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+};
 
 const readTokenCache = async () => {
   try {
@@ -58,6 +73,27 @@ const writeTokenCache = async (accessToken, expiresAt) => {
   }
 };
 
+const readOpenApiTokenCache = async () => {
+  try {
+    const raw = await fs.readFile(openApiTokenCacheFile, "utf-8");
+    const data = JSON.parse(raw);
+    if (!data?.accessToken || !data?.expiresAt) return null;
+    if (Date.now() >= data.expiresAt - 60_000) return null;
+    return data;
+  } catch {
+    return null;
+  }
+};
+
+const writeOpenApiTokenCache = async (accessToken, expiresAt) => {
+  const payload = JSON.stringify({ accessToken, expiresAt }, null, 2);
+  try {
+    await fs.writeFile(openApiTokenCacheFile, payload, "utf-8");
+  } catch (err) {
+    console.warn(`Failed to write open-api token cache: ${err.message}`);
+  }
+};
+
 async function getToken() {
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
@@ -74,7 +110,7 @@ async function getToken() {
     throw new Error("Missing Guesty credentials in environment variables");
   }
 
-  tokenPromise = fetch(`${guestyHost}/oauth2/token`, {
+  tokenPromise = fetchWithTimeout(`${guestyHost}/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -114,6 +150,60 @@ async function getToken() {
   return tokenPromise;
 }
 
+async function getOpenApiToken() {
+  const now = Date.now();
+  if (openApiCachedToken && now < openApiTokenExpiresAt - 60_000) return openApiCachedToken;
+  if (openApiTokenPromise) return openApiTokenPromise;
+
+  const cachedFile = await readOpenApiTokenCache();
+  if (cachedFile) {
+    openApiCachedToken = cachedFile.accessToken;
+    openApiTokenExpiresAt = cachedFile.expiresAt;
+    return openApiCachedToken;
+  }
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing Guesty credentials in environment variables");
+  }
+
+  openApiTokenPromise = fetchWithTimeout(`${openApiHost}/oauth2/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      scope: "open-api",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  })
+    .then(async (res) => {
+      if (res.status === 429) throw new Error("RATE_LIMITED");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Open API token request failed: ${res.status} ${text}`);
+      }
+      return res.json();
+    })
+    .then((json) => {
+      openApiCachedToken = json.access_token;
+      openApiTokenExpiresAt = Date.now() + ((json.expires_in || 86_400) - 300) * 1000; // refresh 5m early
+      writeOpenApiTokenCache(openApiCachedToken, openApiTokenExpiresAt);
+      return openApiCachedToken;
+    })
+    .catch(async (err) => {
+      if (err.message === "RATE_LIMITED") {
+        await wait(1500);
+        return getOpenApiToken();
+      }
+      throw err;
+    })
+    .finally(() => {
+      openApiTokenPromise = null;
+    });
+
+  return openApiTokenPromise;
+}
+
 async function guestyFetch(path, init = {}) {
   const token = await getToken();
   const headers = {
@@ -124,7 +214,7 @@ async function guestyFetch(path, init = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${guestyHost}${path}`, { ...init, headers });
+  const res = await fetchWithTimeout(`${guestyHost}${path}`, { ...init, headers });
 
   if (res.status === 429) {
     throw new Error("RATE_LIMITED");
@@ -157,7 +247,7 @@ const fetchPmContent = async (lang = "en") => {
 
   const url = `${pmContentUrl}?lang=${encodeURIComponent(lang)}`;
 
-  pmContentPromise = fetch(url, { headers })
+  pmContentPromise = fetchWithTimeout(url, { headers })
     .then(async (res) => {
       if (!res.ok) {
         const text = await res.text();
@@ -174,6 +264,35 @@ const fetchPmContent = async (lang = "en") => {
     });
 
   return pmContentPromise;
+};
+
+const fetchPmReservationQuote = async (payload) => {
+  if (!pmAidCs || !pmRequestContext) {
+    throw new Error("Missing pm content headers in environment");
+  }
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "content-type": "application/json",
+    "g-aid-cs": pmAidCs,
+    "x-request-context": pmRequestContext,
+    origin: pmOrigin,
+    referer: pmReferer,
+  };
+
+  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
+  }
+
+  return res.json();
 };
 
 const normalizePmListings = (pmData) => {
@@ -235,7 +354,7 @@ const normalizePmListings = (pmData) => {
 const createQuoteViaSdk = async (payload) => {
   // Configure per-call to avoid stale auth/server
   openApiDocs.server(openApiServer);
-  const token = await getToken();
+  const token = await getOpenApiToken();
   openApiDocs.auth(`Bearer ${token}`);
   const response = await openApiDocs.quotesOpenApiController_create(payload);
   // SDK returns { data, status, headers }; we only need the data payload
@@ -244,13 +363,13 @@ const createQuoteViaSdk = async (payload) => {
 
 const getQuoteViaSdk = async (quoteId) => {
   openApiDocs.server(openApiServer);
-  const token = await getToken();
+  const token = await getOpenApiToken();
   openApiDocs.auth(`Bearer ${token}`);
   const response = await openApiDocs.quotesOpenApiController_getQuote({ quoteId });
   return response?.data || response;
 };
 
-app.get("https://open-api.guesty.com/v1", async (_req, res) => {
+app.get("/api/listings", async (_req, res) => {
   try {
     const pmData = await fetchPmContent("en");
     const listings = normalizePmListings(pmData);
@@ -261,7 +380,7 @@ app.get("https://open-api.guesty.com/v1", async (_req, res) => {
   }
 });
 
-app.get("https://open-api.guesty.com/v1/:id/availability", async (req, res) => {
+app.get("/api/listings/:id/availability", async (req, res) => {
   const { id } = req.params;
   const { startDate, endDate, adults = 1 } = req.query;
 
@@ -288,7 +407,7 @@ app.get("https://open-api.guesty.com/v1/:id/availability", async (req, res) => {
   }
 });
 
-app.get("https://open-api.guesty.com/v1/:id/price-estimate", async (req, res) => {
+app.get("/api/listings/:id/price-estimate", async (req, res) => {
   const { id } = req.params;
   const { startDate, endDate, adults = 1, children = 0 } = req.query;
 
@@ -334,48 +453,34 @@ app.post("/api/book", async (req, res) => {
   }
 });
 
-app.post("/api/quotes", async (req, res) => {
-  const { listingId, checkIn, checkOut, adults = 1, children = 0, currency, source = "direct" } = req.body || {};
+const buildQuotePayload = ({ listingId, checkIn, checkOut, adults = 1, children = 0, coupons, guest }) => ({
+  listingId,
+  checkInDateLocalized: checkIn,
+  checkOutDateLocalized: checkOut,
+  guestsCount: Number(adults) + Number(children || 0),
+  ...(coupons ? { coupons } : {}),
+  ...(guest ? { guest } : {}),
+});
+
+const handleQuoteRequest = async (req, res) => {
+  const { listingId, checkIn, checkOut, adults = 1, children = 0, coupons, guest } = req.body || {};
   if (!listingId || !checkIn || !checkOut) {
     return res.status(400).json({ message: "listingId, checkIn, and checkOut are required" });
   }
 
   try {
-    const guestsCount = Number(adults) + Number(children || 0);
-    const payload = {
-      listingId,
-      checkInDateLocalized: checkIn,
-      checkOutDateLocalized: checkOut,
-      source,
-      guestsCount,
-      numberOfGuests: {
-        adults: Number(adults),
-        children: Number(children),
-      },
-    };
-
-    const metadata = {
-      mergeAccommodationFarePriceComponents: true,
-      includePaymentsTemplate: true,
-    };
-
-    let quote;
-    try {
-      quote = await createQuoteViaSdk(payload, metadata);
-    } catch (sdkErr) {
-      console.warn("SDK quote failed, falling back to direct fetch:", sdkErr.message);
-      quote = await guestyFetch("/v1/quotes", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-    }
+    const payload = buildQuotePayload({ listingId, checkIn, checkOut, adults, children, coupons, guest });
+    const quote = await fetchPmReservationQuote(payload);
 
     res.json({ message: "Quote created", data: quote });
   } catch (err) {
     console.error(err);
     res.status(502).json({ message: "Quote request failed", error: err.message });
   }
-});
+};
+
+app.post("/api/quotes", handleQuoteRequest);
+app.post("/api/reservations/quotes", handleQuoteRequest);
 
 app.get("/api/quotes/:id", async (req, res) => {
   const { id } = req.params;

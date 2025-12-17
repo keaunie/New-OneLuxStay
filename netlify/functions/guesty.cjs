@@ -29,8 +29,17 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Basic fetch wrapper (no custom agent/timeout to avoid Lambda hangs).
-const fetchWithTimeout = async (url, options = {}) => fetchFn(url, options);
+// Fetch with a hard timeout to avoid hanging Lambdas.
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchFn(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+};
 
 async function getToken(retry = 0) {
   const now = Date.now();
@@ -76,7 +85,7 @@ async function getToken(retry = 0) {
   return tokenPromise;
 }
 
-async function guestyFetch(path, init = {}, timeoutMs = 8000) {
+async function guestyFetch(path, init = {}, timeoutMs = 12000) {
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -127,6 +136,35 @@ async function fetchPmContent(lang = "en") {
     });
 
   return pmContentPromise;
+}
+
+async function fetchPmReservationQuote(payload) {
+  if (!pmAidCs || !pmRequestContext) {
+    throw new Error("Missing pm content headers in environment variables");
+  }
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "content-type": "application/json",
+    "g-aid-cs": pmAidCs,
+    "x-request-context": pmRequestContext,
+    origin: pmOrigin,
+    referer: pmReferer,
+  };
+
+  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
+  }
+
+  return res.json();
 }
 
 function normalizePmListings(pmData) {
@@ -182,22 +220,6 @@ function normalizePmListings(pmData) {
 
   return Array.from(listingsMap.values()).map(mapListing);
 }
-
-const createQuoteViaSdk = async (payload) => {
-  openApiDocs.server(openApiServer);
-  const token = await getToken();
-  openApiDocs.auth(`Bearer ${token}`);
-  const response = await openApiDocs.quotesOpenApiController_create(payload);
-  return response?.data || response;
-};
-
-const getQuoteViaSdk = async (quoteId) => {
-  openApiDocs.server(openApiServer);
-  const token = await getToken();
-  openApiDocs.auth(`Bearer ${token}`);
-  const response = await openApiDocs.quotesOpenApiController_getQuote({ quoteId });
-  return response?.data || response;
-};
 
 const json = (statusCode, body) => ({
   statusCode,
@@ -285,55 +307,34 @@ module.exports.handler = async (event, context = {}) => {
       return json(200, { message: "Booking created", data: result });
     }
 
-    if (httpMethod === "POST" && resource === "quotes") {
+    if (httpMethod === "POST" && (resource === "quotes" || resource === "reservations/quotes")) {
       let body = {};
       try {
         body = event.body ? JSON.parse(event.body) : {};
       } catch {
         return json(400, { message: "Invalid JSON body" });
       }
-      const { listingId, checkIn, checkOut, adults = 1, children = 0, currency } = body;
+      const { listingId, checkIn, checkOut, adults = 1, children = 0, coupons, guest } = body;
       if (!listingId || !checkIn || !checkOut) {
         return json(400, { message: "listingId, checkIn, and checkOut are required" });
       }
       const payload = {
         listingId,
-        checkIn,
-        checkOut,
-        numberOfAdults: Number(adults),
-        numberOfChildren: Number(children),
-        ...(currency ? { currency } : {}),
+        checkInDateLocalized: checkIn,
+        checkOutDateLocalized: checkOut,
+        guestsCount: Number(adults) + Number(children || 0),
+        ...(coupons ? { coupons } : {}),
+        ...(guest ? { guest } : {}),
       };
-      try {
-        const quote = await createQuoteViaSdk(payload);
-        return json(200, { message: "Quote created", data: quote });
-      } catch (sdkErr) {
-        try {
-          const quote = await guestyFetch("/v1/quotes", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          return json(200, { message: "Quote created", data: quote });
-        } catch (fallbackErr) {
-          return json(502, { message: "Quote request failed", error: fallbackErr.message, sdkError: sdkErr.message });
-        }
-      }
+      const quote = await fetchPmReservationQuote(payload);
+      return json(200, { message: "Quote created", data: quote });
     }
 
     if (httpMethod === "GET" && /^quotes\/[^/]+/.test(resource)) {
       const [, quoteId] = resource.split("/");
       if (!quoteId) return json(400, { message: "quote id is required" });
-      try {
-        const quote = await getQuoteViaSdk(quoteId);
-        return json(200, quote);
-      } catch (sdkErr) {
-        try {
-          const quote = await guestyFetch(`/v1/quotes/${encodeURIComponent(quoteId)}`);
-          return json(200, quote);
-        } catch (fallbackErr) {
-          return json(502, { message: "Failed to fetch quote", error: fallbackErr.message, sdkError: sdkErr.message });
-        }
-      }
+      const quote = await guestyFetch(`/v1/quotes/${encodeURIComponent(quoteId)}`);
+      return json(200, quote);
     }
 
     if (httpMethod === "GET" && resource === "pm-content") {
