@@ -488,7 +488,7 @@ const handleQuoteRequest = async (req, res) => {
 };
 
 app.post("/api/quotes", handleQuoteRequest);
-app.post("/api/reservations/quotes", handleQuoteRequest);
+app.post("https://app.guesty.com/api/pm-websites-backend/reservations/quotes", handleQuoteRequest);
 
 app.get("/api/quotes/:id", async (req, res) => {
   const { id } = req.params;
