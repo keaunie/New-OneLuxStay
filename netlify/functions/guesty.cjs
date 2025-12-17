@@ -1,15 +1,7 @@
 // Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-// Netlify runtime (Node 18/20) provides global fetch. Fall back to node-fetch if needed.
-let fetchFn = (...args) => globalThis.fetch(...args);
-try {
-  if (!globalThis.fetch) {
-    const nodeFetch = require("node-fetch");
-    fetchFn = (...args) => nodeFetch(...args);
-  }
-} catch {
-  // ignore, will fall back to global fetch
-}
+// Netlify runtime (Node 18/20) provides global fetch.
+const fetchFn = (...args) => globalThis.fetch(...args);
 
 // openApiDocs SDK is not used in Netlify to avoid bundling issues
 const guestyHost = "https://booking.guesty.com";
@@ -30,8 +22,16 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Simplest wrapper to avoid timeout races that can crash the Lambda.
-const fetchWithTimeout = async (url, options = {}) => fetchFn(url, options);
+// Fetch with hard timeout to avoid hanging Lambdas.
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchFn(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+};
 
 async function getToken(retry = 0) {
   const now = Date.now();
