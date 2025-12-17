@@ -30,12 +30,8 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Fetch with a hard timeout to avoid hanging Lambdas (no AbortController dependency).
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) =>
-  Promise.race([
-    fetchFn(url, options),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("FETCH_TIMEOUT")), timeoutMs)),
-  ]);
+// Simplest wrapper to avoid timeout races that can crash the Lambda.
+const fetchWithTimeout = async (url, options = {}) => fetchFn(url, options);
 
 async function getToken(retry = 0) {
   const now = Date.now();
@@ -314,12 +310,14 @@ module.exports.handler = async (event, context = {}) => {
       } catch {
         return json(400, { message: "Invalid JSON body" });
       }
+
       const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest } = body;
       if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
         return json(400, {
           message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
         });
       }
+
       const payload = {
         listingId,
         checkInDateLocalized,
@@ -327,21 +325,24 @@ module.exports.handler = async (event, context = {}) => {
         guestsCount: Number(guestsCount),
         ...(guest ? { guest } : {}),
       };
+
+      // Use the PM website quote endpoint first (matches the headers you provided that work in the browser).
       try {
-        const quote = await guestyFetch("/api/reservations/quotes", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        return json(200, { data: quote });
-      } catch (bookingErr) {
+        const quote = await fetchPmReservationQuote(payload);
+        return json(200, { data: quote, source: "pm" });
+      } catch (pmErr) {
+        // Fallback to Booking API with OAuth token if PM headers fail.
         try {
-          const quote = await fetchPmReservationQuote(payload);
-          return json(200, { data: quote, source: "pm" });
-        } catch (pmErr) {
+          const quote = await guestyFetch("/api/reservations/quotes", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          return json(200, { data: quote, source: "booking" });
+        } catch (bookingErr) {
           return json(502, {
             message: "Quote request failed",
-            bookingError: bookingErr.message,
             pmError: pmErr.message,
+            bookingError: bookingErr.message,
           });
         }
       }
