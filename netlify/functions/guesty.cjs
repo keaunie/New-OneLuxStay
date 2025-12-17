@@ -11,7 +11,7 @@ try {
   // ignore, will fall back to global fetch
 }
 
-const openApiDocs = require("@api/open-api-docs");
+// openApiDocs SDK is not used in Netlify to avoid bundling issues
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
@@ -20,8 +20,6 @@ const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
-const openApiServer = "https://open-api.guesty.com/v1";
-
 let cachedToken = null;
 let tokenExpiresAt = 0;
 let tokenPromise = null;
@@ -223,14 +221,6 @@ function normalizePmListings(pmData) {
   return Array.from(listingsMap.values()).map(mapListing);
 }
 
-const createQuoteViaSdk = async (payload) => {
-  openApiDocs.server(openApiServer);
-  const token = await getToken();
-  openApiDocs.auth(`Bearer ${token}`);
-  const response = await openApiDocs.quotesOpenApiController_create(payload);
-  return response?.data || response;
-};
-
 const json = (statusCode, body) => ({
   statusCode,
   headers: { "Content-Type": "application/json" },
@@ -337,24 +327,11 @@ module.exports.handler = async (event, context = {}) => {
         guestsCount,
         ...(guest ? { guest } : {}),
       };
-      try {
-        const quote = await createQuoteViaSdk(payload);
-        return json(200, { data: quote });
-      } catch (sdkErr) {
-        try {
-          const quote = await guestyFetch("/api/reservations/quotes", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          return json(200, { data: quote });
-        } catch (fallbackErr) {
-          return json(502, {
-            message: "Quote request failed",
-            error: fallbackErr.message,
-            sdkError: sdkErr.message,
-          });
-        }
-      }
+      const quote = await guestyFetch("/api/reservations/quotes", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      return json(200, { data: quote });
     }
 
     if (httpMethod === "GET" && /^quotes\/[^/]+/.test(resource)) {
