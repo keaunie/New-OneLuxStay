@@ -82,13 +82,26 @@ function App() {
         children: search.children,
       }).toString();
 
-      const [availRes, priceRes] = await Promise.all([
+      const [availRes, priceRes, quoteRes] = await Promise.all([
         fetch(`${apiBase}/listings/${listing.id}/availability?${qs}`),
         fetch(`${apiBase}/listings/${listing.id}/price-estimate?${qs}`),
+        fetch(`${apiBase}/quotes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            listingId: listing.id,
+            checkIn: search.checkIn,
+            checkOut: search.checkOut,
+            adults: Number(search.adults),
+            children: Number(search.children),
+          }),
+        }),
       ]);
 
       const availJson = availRes.ok ? await availRes.json() : null;
       const priceJson = priceRes.ok ? await priceRes.json() : null;
+      const quoteJson = quoteRes?.ok ? await quoteRes.json() : null;
+      const quoteData = quoteJson?.data || quoteJson || null;
 
       const isAvailable =
         availJson?.isAvailable ??
@@ -96,7 +109,18 @@ function App() {
         (typeof availJson?.status === "string" ? availJson.status === "AVAILABLE" : undefined) ??
         (Array.isArray(availJson?.availability) ? availJson.availability.every((d) => d.isAvailable) : undefined);
 
+      const quoteTotalRaw =
+        quoteData?.total ??
+        quoteData?.price?.total ??
+        quoteData?.price?.totalAmount ??
+        quoteData?.price?.totalPrice ??
+        (typeof quoteData?.price?.total === "object" ? quoteData.price.total.amount : null) ??
+        (typeof quoteData?.amount === "number" ? quoteData.amount : null);
+
+      const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
+
       const nightly =
+        (quoteTotal && nights ? quoteTotal / nights : undefined) ??
         priceJson?.pricePerNight ??
         priceJson?.nightlyRate ??
         priceJson?.averagePrice ??
@@ -104,6 +128,7 @@ function App() {
         listing.basePrice;
 
       const total =
+        quoteTotal ??
         priceJson?.total ??
         priceJson?.price?.total ??
         (nightly && nights ? nightly * nights + (listing.cleaningFee || 0) : null);
@@ -115,8 +140,8 @@ function App() {
           available: isAvailable,
           nightly,
           total,
-          currency: priceJson?.currency || listing.currency || "USD",
-          raw: { availability: availJson, price: priceJson },
+          currency: quoteData?.currency || quoteData?.price?.currency || priceJson?.currency || listing.currency || "USD",
+          raw: { availability: availJson, price: priceJson, quote: quoteData },
         },
       }));
     } catch {
@@ -424,5 +449,3 @@ function App() {
 }
 
 export default App;
-
-

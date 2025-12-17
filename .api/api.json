@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "open-api-docs",
+      "source": "@open-api-docs/v1.0#1cyb8z2qmf5g848p",
+      "integrity": "sha512-Yhmb1L0HLaFM8HlVOB/HUFZ3jJkC5ER1Q4gsz/yC99Qb7gmwwcVRRixLOD/5Hn7cdpgR8r36qn417kVrUOMKWg==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}

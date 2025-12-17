@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import openApiDocs from "@api/open-api-docs";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxs
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const tokenCacheFile = path.join(__dirname, "../.guesty-token-cache.json");
+const openApiServer = "https://open-api.guesty.com/v1";
 
 app.use(cors());
 app.use(express.json());
@@ -204,8 +206,8 @@ const normalizePmListings = (pmData) => {
 
     const gallery = Array.isArray(item.pictures)
       ? item.pictures
-          .map((p) => p.original || p.regular || p.large || p.thumbnail)
-          .filter(Boolean)
+        .map((p) => p.original || p.regular || p.large || p.thumbnail)
+        .filter(Boolean)
       : [];
 
     return {
@@ -228,6 +230,24 @@ const normalizePmListings = (pmData) => {
   };
 
   return Array.from(listingsMap.values()).map(mapListing);
+};
+
+const createQuoteViaSdk = async (payload) => {
+  // Configure per-call to avoid stale auth/server
+  openApiDocs.server(openApiServer);
+  const token = await getToken();
+  openApiDocs.auth(`Bearer ${token}`);
+  const response = await openApiDocs.quotesOpenApiController_create(payload);
+  // SDK returns { data, status, headers }; we only need the data payload
+  return response?.data || response;
+};
+
+const getQuoteViaSdk = async (quoteId) => {
+  openApiDocs.server(openApiServer);
+  const token = await getToken();
+  openApiDocs.auth(`Bearer ${token}`);
+  const response = await openApiDocs.quotesOpenApiController_getQuote({ quoteId });
+  return response?.data || response;
 };
 
 app.get("/api/listings", async (_req, res) => {
@@ -311,6 +331,67 @@ app.post("/api/book", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(502).json({ message: "Booking failed", error: err.message });
+  }
+});
+
+app.post("/api/quotes", async (req, res) => {
+  const { listingId, checkIn, checkOut, adults = 1, children = 0, currency, source = "direct" } = req.body || {};
+  if (!listingId || !checkIn || !checkOut) {
+    return res.status(400).json({ message: "listingId, checkIn, and checkOut are required" });
+  }
+
+  try {
+    const guestsCount = Number(adults) + Number(children || 0);
+    const payload = {
+      listingId,
+      checkInDateLocalized: checkIn,
+      checkOutDateLocalized: checkOut,
+      source,
+      guestsCount,
+      numberOfGuests: {
+        adults: Number(adults),
+        children: Number(children),
+      },
+    };
+
+    const metadata = {
+      mergeAccommodationFarePriceComponents: true,
+      includePaymentsTemplate: true,
+    };
+
+    let quote;
+    try {
+      quote = await createQuoteViaSdk(payload, metadata);
+    } catch (sdkErr) {
+      console.warn("SDK quote failed, falling back to direct fetch:", sdkErr.message);
+      quote = await guestyFetch("/v1/quotes", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+
+    res.json({ message: "Quote created", data: quote });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ message: "Quote request failed", error: err.message });
+  }
+});
+
+app.get("/api/quotes/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ message: "quote id is required" });
+  try {
+    let quote;
+    try {
+      quote = await getQuoteViaSdk(id);
+    } catch (sdkErr) {
+      console.warn("SDK get quote failed, falling back to direct fetch:", sdkErr.message);
+      quote = await guestyFetch(`/v1/quotes/${encodeURIComponent(id)}`);
+    }
+    res.json(quote);
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ message: "Failed to fetch quote", error: err.message });
   }
 });
 

@@ -14,6 +14,7 @@
     "guesty:token": "node scripts/get-guesty-token.js"
   },
   "dependencies": {
+    "@api/open-api-docs": "file:.api/apis/open-api-docs",
     "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

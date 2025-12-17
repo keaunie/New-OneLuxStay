@@ -8,6 +8,7 @@ const fetchFn = (...args) => {
   return globalThis.fetch(...args);
 };
 
+const openApiDocs = require("@api/open-api-docs");
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
@@ -16,6 +17,7 @@ const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+const openApiServer = "https://open-api.guesty.com/v1";
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
@@ -181,6 +183,22 @@ function normalizePmListings(pmData) {
   return Array.from(listingsMap.values()).map(mapListing);
 }
 
+const createQuoteViaSdk = async (payload, metadata = {}) => {
+  openApiDocs.server(openApiServer);
+  const token = await getToken();
+  openApiDocs.auth(`Bearer ${token}`);
+  const response = await openApiDocs.quotesOpenApiController_create(payload, metadata);
+  return response?.data || response;
+};
+
+const getQuoteViaSdk = async (quoteId) => {
+  openApiDocs.server(openApiServer);
+  const token = await getToken();
+  openApiDocs.auth(`Bearer ${token}`);
+  const response = await openApiDocs.quotesOpenApiController_getQuote({ quoteId });
+  return response?.data || response;
+};
+
 const json = (statusCode, body) => ({
   statusCode,
   headers: { "Content-Type": "application/json" },
@@ -265,6 +283,65 @@ module.exports.handler = async (event, context = {}) => {
         body: JSON.stringify(payload),
       });
       return json(200, { message: "Booking created", data: result });
+    }
+
+    if (httpMethod === "POST" && resource === "quotes") {
+      let body = {};
+      try {
+        body = event.body ? JSON.parse(event.body) : {};
+      } catch {
+        return json(400, { message: "Invalid JSON body" });
+      }
+      const { listingId, checkIn, checkOut, adults = 1, children = 0, source = "direct" } = body;
+      if (!listingId || !checkIn || !checkOut) {
+        return json(400, { message: "listingId, checkIn, and checkOut are required" });
+      }
+      const guestsCount = Number(adults) + Number(children || 0);
+      const payload = {
+        listingId,
+        checkInDateLocalized: checkIn,
+        checkOutDateLocalized: checkOut,
+        source,
+        guestsCount,
+        numberOfGuests: {
+          adults: Number(adults),
+          children: Number(children),
+        },
+      };
+      const metadata = {
+        mergeAccommodationFarePriceComponents: true,
+        includePaymentsTemplate: true,
+      };
+      try {
+        const quote = await createQuoteViaSdk(payload, metadata);
+        return json(200, { message: "Quote created", data: quote });
+      } catch (sdkErr) {
+        try {
+          const quote = await guestyFetch("/v1/quotes", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          return json(200, { message: "Quote created", data: quote });
+        } catch (fallbackErr) {
+          return json(502, { message: "Quote request failed", error: fallbackErr.message, sdkError: sdkErr.message });
+        }
+      }
+    }
+
+    if (httpMethod === "GET" && /^quotes\/[^/]+/.test(resource)) {
+      const [, quoteId] = resource.split("/");
+      if (!quoteId) return json(400, { message: "quote id is required" });
+      try {
+        const quote = await getQuoteViaSdk(quoteId);
+        return json(200, quote);
+      } catch (sdkErr) {
+        try {
+          const quote = await guestyFetch(`/v1/quotes/${encodeURIComponent(quoteId)}`);
+          return json(200, quote);
+        } catch (fallbackErr) {
+          return json(502, { message: "Failed to fetch quote", error: fallbackErr.message, sdkError: sdkErr.message });
+        }
+      }
     }
 
     if (httpMethod === "GET" && resource === "pm-content") {
