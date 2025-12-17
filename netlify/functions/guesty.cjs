@@ -311,7 +311,7 @@ module.exports.handler = async (event, context = {}) => {
         return json(400, { message: "Invalid JSON body" });
       }
 
-      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest } = body;
+      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest, coupons } = body;
       if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
         return json(400, {
           message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
@@ -324,27 +324,20 @@ module.exports.handler = async (event, context = {}) => {
         checkOutDateLocalized,
         guestsCount: Number(guestsCount),
         ...(guest ? { guest } : {}),
+        ...(coupons ? { coupons } : {}),
       };
 
-      // Use the PM website quote endpoint first (matches the headers you provided that work in the browser).
       try {
-        const quote = await fetchPmReservationQuote(payload);
-        return json(200, { data: quote, source: "pm" });
-      } catch (pmErr) {
-        // Fallback to Booking API with OAuth token if PM headers fail.
-        try {
-          const quote = await guestyFetch("/api/reservations/quotes", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          return json(200, { data: quote, source: "booking" });
-        } catch (bookingErr) {
-          return json(502, {
-            message: "Quote request failed",
-            pmError: pmErr.message,
-            bookingError: bookingErr.message,
-          });
-        }
+        const quote = await guestyFetch("/api/reservations/quotes", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        return json(200, { data: quote, source: "booking" });
+      } catch (bookingErr) {
+        return json(502, {
+          message: "Quote request failed",
+          bookingError: bookingErr.message,
+        });
       }
     }
 
