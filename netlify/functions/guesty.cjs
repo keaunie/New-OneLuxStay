@@ -1,12 +1,17 @@
 // Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-// Netlify runtime (Node 18/20) provides global fetch. Keep it simple to avoid stuck promises.
-const fetchFn = (...args) => {
+// Ensure fetch/AbortController exist (Netlify may run Node versions without global fetch)
+let fetchFn = (...args) => globalThis.fetch(...args);
+let AbortCtrl = globalThis.AbortController;
+try {
   if (!globalThis.fetch) {
-    throw new Error("Fetch is not available in this runtime");
+    const nodeFetch = require("node-fetch");
+    fetchFn = (...args) => nodeFetch(...args);
+    AbortCtrl = nodeFetch.AbortController;
   }
-  return globalThis.fetch(...args);
-};
+} catch {
+  // ignore, will fall back to global fetch if present
+}
 
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
@@ -29,7 +34,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Fetch with a hard timeout to avoid hanging Lambdas.
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
-  const controller = new AbortController();
+  const controller = AbortCtrl ? new AbortCtrl() : new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetchFn(url, { ...options, signal: controller.signal });
