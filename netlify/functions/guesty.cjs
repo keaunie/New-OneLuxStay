@@ -1,6 +1,6 @@
 // Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-// Use built-in fetch if available; otherwise fall back to node-fetch.
+// Netlify runtime (Node 18/20) provides global fetch. Fall back to node-fetch if needed.
 let fetchFn = (...args) => globalThis.fetch(...args);
 try {
   if (!globalThis.fetch) {
@@ -8,9 +8,10 @@ try {
     fetchFn = (...args) => nodeFetch(...args);
   }
 } catch {
-  /* noop */
+  // ignore, will fall back to global fetch
 }
 
+const openApiDocs = require("@api/open-api-docs");
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
@@ -19,6 +20,7 @@ const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+const openApiServer = "https://open-api.guesty.com/v1";
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
@@ -30,13 +32,12 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Simplified fetch wrapper with a hard timeout (no AbortController dependency).
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
-  return Promise.race([
+// Fetch with a hard timeout to avoid hanging Lambdas (no AbortController dependency).
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) =>
+  Promise.race([
     fetchFn(url, options),
     new Promise((_, reject) => setTimeout(() => reject(new Error("FETCH_TIMEOUT")), timeoutMs)),
   ]);
-};
 
 async function getToken(retry = 0) {
   const now = Date.now();
@@ -222,6 +223,14 @@ function normalizePmListings(pmData) {
   return Array.from(listingsMap.values()).map(mapListing);
 }
 
+const createQuoteViaSdk = async (payload) => {
+  openApiDocs.server(openApiServer);
+  const token = await getToken();
+  openApiDocs.auth(`Bearer ${token}`);
+  const response = await openApiDocs.quotesOpenApiController_create(payload);
+  return response?.data || response;
+};
+
 const json = (statusCode, body) => ({
   statusCode,
   headers: { "Content-Type": "application/json" },
@@ -321,18 +330,31 @@ module.exports.handler = async (event, context = {}) => {
           message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
         });
       }
-     const payload = {
+      const payload = {
         listingId,
         checkInDateLocalized,
         checkOutDateLocalized,
         guestsCount,
         ...(guest ? { guest } : {}),
       };
-      const quote = await guestyFetch("/api/reservations/quotes", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      return json(200, { data: quote });
+      try {
+        const quote = await createQuoteViaSdk(payload);
+        return json(200, { data: quote });
+      } catch (sdkErr) {
+        try {
+          const quote = await guestyFetch("/api/reservations/quotes", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          return json(200, { data: quote });
+        } catch (fallbackErr) {
+          return json(502, {
+            message: "Quote request failed",
+            error: fallbackErr.message,
+            sdkError: sdkErr.message,
+          });
+        }
+      }
     }
 
     if (httpMethod === "GET" && /^quotes\/[^/]+/.test(resource)) {
