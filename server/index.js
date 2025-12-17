@@ -474,7 +474,7 @@ const handleQuoteRequest = async (req, res) => {
 
   try {
     const payload = buildQuotePayload({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest });
-    const quote = await guestyFetch("https://app.guesty.com/api/pm-websites-backend/reservations/quotes", {
+    const quote = await guestyFetch("https://booking.guesty.com/api/reservations/quotes", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -488,7 +488,7 @@ const handleQuoteRequest = async (req, res) => {
 };
 
 app.post("/api/quotes", handleQuoteRequest);
-app.post("https://app.guesty.com/api/pm-websites-backend/reservations/quotes", handleQuoteRequest);
+app.post("https://booking.guesty.com/api/reservations/quotes", handleQuoteRequest);
 
 app.get("/api/quotes/:id", async (req, res) => {
   const { id } = req.params;
