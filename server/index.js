@@ -457,30 +457,30 @@ app.post("/api/book", async (req, res) => {
   }
 });
 
-const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount }) => ({
+const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest }) => ({
   listingId,
   checkInDateLocalized,
   checkOutDateLocalized,
   guestsCount,
+  ...(guest ? { guest } : {}),
 });
 
 const handleQuoteRequest = async (req, res) => {
-  const {
-    listingId,
-    checkInDateLocalized,
-    checkOutDateLocalized,
-    guestsCount,
-  } = req.body || {};
+  const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest } = req.body || {};
 
   if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
     return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required" });
   }
 
   try {
-    const payload = buildQuotePayload({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount });
-    const quote = await fetchPmReservationQuote(payload);
+    const payload = buildQuotePayload({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest });
+    const quote = await guestyFetch("/api/reservations/quotes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
 
-    res.json({ message: "Quote created", data: quote });
+    res.json({ data: quote });
+    
   } catch (err) {
     console.error(err);
     res.status(502).json({ message: "Quote request failed", error: err.message });

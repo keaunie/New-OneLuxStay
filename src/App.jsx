@@ -108,7 +108,6 @@ function App() {
       ]);
 
       const availJson = availRes.ok ? await availRes.json() : null;
-      const priceJson = null;
       const quoteJson = quoteRes?.ok ? await quoteRes.json() : null;
       const quoteData = quoteJson?.data || quoteJson || null;
 
@@ -118,7 +117,17 @@ function App() {
         (typeof availJson?.status === "string" ? availJson.status === "AVAILABLE" : undefined) ??
         (Array.isArray(availJson?.availability) ? availJson.availability.every((d) => d.isAvailable) : undefined);
 
+      const quoteMoney =
+        quoteData?.rates?.ratePlans?.[0]?.ratePlan?.money ||
+        quoteData?.rates?.ratePlans?.[0]?.money ||
+        quoteData?.money ||
+        null;
+
+      const quoteDays = quoteData?.rates?.ratePlans?.[0]?.days || [];
+      const quoteCurrency = quoteMoney?.currency || quoteDays[0]?.currency || listing.currency || "USD";
+
       const quoteTotalRaw =
+        quoteMoney?.subTotalPrice ??
         quoteData?.total ??
         quoteData?.price?.total ??
         quoteData?.price?.totalAmount ??
@@ -128,19 +137,13 @@ function App() {
 
       const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
 
-      const nightly =
-        (quoteTotal && nights ? quoteTotal / nights : undefined) ??
-        priceJson?.pricePerNight ??
-        priceJson?.nightlyRate ??
-        priceJson?.averagePrice ??
-        priceJson?.basePrice ??
-        listing.basePrice;
+      const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
+      const quoteNightly =
+        (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
+        (quoteDays[0]?.price ?? quoteDays[0]?.manualPrice ?? quoteDays[0]?.basePrice);
 
-      const total =
-        quoteTotal ??
-        priceJson?.total ??
-        priceJson?.price?.total ??
-        (nightly && nights ? nightly * nights + (listing.cleaningFee || 0) : null);
+      const nightly = quoteNightly ?? listing.basePrice;
+      const total = quoteTotal ?? (nightly && nights ? nightly * nights + (listing.cleaningFee || 0) : null);
 
       setAvailability((prev) => ({
         ...prev,
@@ -149,8 +152,8 @@ function App() {
           available: isAvailable,
           nightly,
           total,
-          currency: quoteData?.currency || quoteData?.price?.currency || priceJson?.currency || listing.currency || "USD",
-          raw: { availability: availJson, price: priceJson, quote: quoteData },
+          currency: quoteCurrency,
+          raw: { availability: availJson, quote: quoteData },
         },
       }));
     } catch (err) {

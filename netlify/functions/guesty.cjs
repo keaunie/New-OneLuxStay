@@ -143,14 +143,14 @@ async function fetchPmReservationQuote(payload) {
     throw new Error("Missing pm content headers in environment variables");
   }
 
-  const headers = {
-    accept: "application/json, text/plain, */*",
-    "content-type": "application/json",
-    "g-aid-cs": pmAidCs,
-    "x-request-context": pmRequestContext,
-    origin: pmOrigin,
-    referer: pmReferer,
-  };
+  // const headers = {
+  //   accept: "application/json, text/plain, */*",
+  //   "content-type": "application/json",
+  //   "g-aid-cs": pmAidCs,
+  //   "x-request-context": pmRequestContext,
+  //   origin: pmOrigin,
+  //   referer: pmReferer,
+  // };
 
   const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
   const res = await fetchWithTimeout(url, {
@@ -199,8 +199,8 @@ function normalizePmListings(pmData) {
 
     const gallery = Array.isArray(item.pictures)
       ? item.pictures
-          .map((p) => p.original || p.regular || p.large || p.thumbnail)
-          .filter(Boolean)
+        .map((p) => p.original || p.regular || p.large || p.thumbnail)
+        .filter(Boolean)
       : [];
 
     return {
@@ -318,12 +318,7 @@ module.exports.handler = async (event, context = {}) => {
       } catch {
         return json(400, { message: "Invalid JSON body" });
       }
-      const {
-        listingId,
-        checkInDateLocalized,
-        checkOutDateLocalized,
-        guestsCount,
-      } = body;
+      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest } = body;
       if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
         return json(400, {
           message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
@@ -334,9 +329,13 @@ module.exports.handler = async (event, context = {}) => {
         checkInDateLocalized,
         checkOutDateLocalized,
         guestsCount,
+        ...(guest ? { guest } : {}),
       };
-      const quote = await fetchPmReservationQuote(payload);
-      return json(200, { message: "Quote created", data: quote });
+      const quote = await guestyFetch("/api/reservations/quotes", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      return json(200, { data: quote });
     }
 
     if (httpMethod === "GET" && /^quotes\/[^/]+/.test(resource)) {
