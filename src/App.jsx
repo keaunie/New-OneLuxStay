@@ -93,24 +93,22 @@ function App() {
         children: search.children,
       }).toString();
 
-      const [availRes, priceRes, quoteRes] = await Promise.all([
+      const [availRes, quoteRes] = await Promise.all([
         fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
-        fetchWithTimeout(`${apiBase}/listings/${listing.id}/price-estimate?${qs}`),
         fetchWithTimeout(`${apiBase}/reservations/quotes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             listingId: listing.id,
-            checkIn: search.checkIn,
-            checkOut: search.checkOut,
-            adults: Number(search.adults),
-            children: Number(search.children),
+            checkInDateLocalized: search.checkIn,
+            checkOutDateLocalized: search.checkOut,
+            guestsCount: String(Number(search.adults) + Number(search.children || 0)),
           }),
         }),
       ]);
 
       const availJson = availRes.ok ? await availRes.json() : null;
-      const priceJson = priceRes.ok ? await priceRes.json() : null;
+      const priceJson = null;
       const quoteJson = quoteRes?.ok ? await quoteRes.json() : null;
       const quoteData = quoteJson?.data || quoteJson || null;
 

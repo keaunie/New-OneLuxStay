@@ -159,12 +159,16 @@ async function fetchPmReservationQuote(payload) {
     body: JSON.stringify(payload),
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
     throw new Error(`pm reservations quote error ${res.status}: ${text}`);
   }
-
-  return res.json();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
+  }
 }
 
 function normalizePmListings(pmData) {
@@ -314,17 +318,22 @@ module.exports.handler = async (event, context = {}) => {
       } catch {
         return json(400, { message: "Invalid JSON body" });
       }
-      const { listingId, checkIn, checkOut, adults = 1, children = 0, coupons, guest } = body;
-      if (!listingId || !checkIn || !checkOut) {
-        return json(400, { message: "listingId, checkIn, and checkOut are required" });
+      const {
+        listingId,
+        checkInDateLocalized,
+        checkOutDateLocalized,
+        guestsCount,
+      } = body;
+      if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
+        return json(400, {
+          message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
+        });
       }
       const payload = {
         listingId,
-        checkInDateLocalized: checkIn,
-        checkOutDateLocalized: checkOut,
-        guestsCount: Number(adults) + Number(children || 0),
-        ...(coupons ? { coupons } : {}),
-        ...(guest ? { guest } : {}),
+        checkInDateLocalized,
+        checkOutDateLocalized,
+        guestsCount,
       };
       const quote = await fetchPmReservationQuote(payload);
       return json(200, { message: "Quote created", data: quote });

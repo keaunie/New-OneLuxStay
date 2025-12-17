@@ -287,12 +287,16 @@ const fetchPmReservationQuote = async (payload) => {
     body: JSON.stringify(payload),
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
     throw new Error(`pm reservations quote error ${res.status}: ${text}`);
   }
-
-  return res.json();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
+  }
 };
 
 const normalizePmListings = (pmData) => {
@@ -453,23 +457,27 @@ app.post("/api/book", async (req, res) => {
   }
 });
 
-const buildQuotePayload = ({ listingId, checkIn, checkOut, adults = 1, children = 0, coupons, guest }) => ({
+const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount }) => ({
   listingId,
-  checkInDateLocalized: checkIn,
-  checkOutDateLocalized: checkOut,
-  guestsCount: Number(adults) + Number(children || 0),
-  ...(coupons ? { coupons } : {}),
-  ...(guest ? { guest } : {}),
+  checkInDateLocalized,
+  checkOutDateLocalized,
+  guestsCount,
 });
 
 const handleQuoteRequest = async (req, res) => {
-  const { listingId, checkIn, checkOut, adults = 1, children = 0, coupons, guest } = req.body || {};
-  if (!listingId || !checkIn || !checkOut) {
-    return res.status(400).json({ message: "listingId, checkIn, and checkOut are required" });
+  const {
+    listingId,
+    checkInDateLocalized,
+    checkOutDateLocalized,
+    guestsCount,
+  } = req.body || {};
+
+  if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
+    return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required" });
   }
 
   try {
-    const payload = buildQuotePayload({ listingId, checkIn, checkOut, adults, children, coupons, guest });
+    const payload = buildQuotePayload({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount });
     const quote = await fetchPmReservationQuote(payload);
 
     res.json({ message: "Quote created", data: quote });
@@ -525,4 +533,9 @@ app.get("/api/pm-available", async (req, res) => {
 
 app.listen(port, () => {
   console.log(`API server running on http://localhost:${port}`);
+});
+
+// Simple root handler to indicate the API is running.
+app.get("/", (_req, res) => {
+  res.send("API is running. Use /api/* endpoints (e.g., /api/listings).");
 });
