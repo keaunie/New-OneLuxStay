@@ -1,7 +1,27 @@
 // Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-// Netlify runtime (Node 18/20) provides global fetch.
-const fetchFn = (...args) => globalThis.fetch(...args);
+// Ensure we always have fetch/AbortController (Node 18+ has them, but add a safe fallback).
+let fetchFn = null;
+let AbortCtrl = null;
+let fetchInitPromise = null;
+
+const ensureFetch = async () => {
+  if (fetchFn && AbortCtrl) return { fetchFn, AbortCtrl };
+  if (fetchInitPromise) return fetchInitPromise;
+  fetchInitPromise = (async () => {
+    if (typeof globalThis.fetch === "function") {
+      fetchFn = (...args) => globalThis.fetch(...args);
+      AbortCtrl = globalThis.AbortController || AbortController;
+      return { fetchFn, AbortCtrl };
+    }
+    // Fallback to node-fetch if not present
+    const mod = await import("node-fetch");
+    fetchFn = mod.default || mod;
+    AbortCtrl = mod.AbortController;
+    return { fetchFn, AbortCtrl };
+  })();
+  return fetchInitPromise;
+};
 
 // openApiDocs SDK is not used in Netlify to avoid bundling issues
 const guestyHost = "https://booking.guesty.com";
@@ -24,7 +44,8 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Fetch with hard timeout to avoid hanging Lambdas.
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
-  const controller = new AbortController();
+  const { fetchFn, AbortCtrl } = await ensureFetch();
+  const controller = AbortCtrl ? new AbortCtrl() : new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetchFn(url, { ...options, signal: controller.signal });
