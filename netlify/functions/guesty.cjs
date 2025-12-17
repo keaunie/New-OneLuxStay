@@ -1,27 +1,15 @@
 // Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
-// Ensure we always have fetch/AbortController (Node 18+ has them, but add a safe fallback).
-let fetchFn = null;
-let AbortCtrl = null;
-let fetchInitPromise = null;
-
-const ensureFetch = async () => {
-  if (fetchFn && AbortCtrl) return { fetchFn, AbortCtrl };
-  if (fetchInitPromise) return fetchInitPromise;
-  fetchInitPromise = (async () => {
-    if (typeof globalThis.fetch === "function") {
-      fetchFn = (...args) => globalThis.fetch(...args);
-      AbortCtrl = globalThis.AbortController || AbortController;
-      return { fetchFn, AbortCtrl };
-    }
-    // Fallback to node-fetch if not present
-    const mod = await import("node-fetch");
-    fetchFn = mod.default || mod;
-    AbortCtrl = mod.AbortController;
-    return { fetchFn, AbortCtrl };
-  })();
-  return fetchInitPromise;
-};
+// Netlify runtime (Node 18/20) provides global fetch. Fall back to node-fetch if needed.
+let fetchFn = (...args) => globalThis.fetch(...args);
+try {
+  if (!globalThis.fetch) {
+    const nodeFetch = require("node-fetch");
+    fetchFn = (...args) => nodeFetch(...args);
+  }
+} catch {
+  // ignore, will fall back to global fetch
+}
 
 // openApiDocs SDK is not used in Netlify to avoid bundling issues
 const guestyHost = "https://booking.guesty.com";
@@ -42,17 +30,8 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Fetch with hard timeout to avoid hanging Lambdas.
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
-  const { fetchFn, AbortCtrl } = await ensureFetch();
-  const controller = AbortCtrl ? new AbortCtrl() : new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetchFn(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(id);
-  }
-};
+// Simplest wrapper to avoid timeout races that can crash the Lambda.
+const fetchWithTimeout = async (url, options = {}) => fetchFn(url, options);
 
 async function getToken(retry = 0) {
   const now = Date.now();
@@ -347,15 +326,25 @@ module.exports.handler = async (event, context = {}) => {
         ...(guest ? { guest } : {}),
       };
 
-      // Use Booking API (OAuth) quotes endpoint
+      // Use the PM website quote endpoint first (matches the headers you provided that work in the browser).
       try {
-        const quote = await guestyFetch("/api/reservations/quotes", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        return json(200, { data: quote, source: "booking" });
-      } catch (bookingErr) {
-        return json(502, { message: "Quote request failed", bookingError: bookingErr.message });
+        const quote = await fetchPmReservationQuote(payload);
+        return json(200, { data: quote, source: "pm" });
+      } catch (pmErr) {
+        // Fallback to Booking API with OAuth token if PM headers fail.
+        try {
+          const quote = await guestyFetch("/api/reservations/quotes", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          return json(200, { data: quote, source: "booking" });
+        } catch (bookingErr) {
+          return json(502, {
+            message: "Quote request failed",
+            pmError: pmErr.message,
+            bookingError: bookingErr.message,
+          });
+        }
       }
     }
 
