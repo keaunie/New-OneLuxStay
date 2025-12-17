@@ -457,23 +457,31 @@ app.post("/api/book", async (req, res) => {
   }
 });
 
-const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest }) => ({
+const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest, coupons }) => ({
   listingId,
   checkInDateLocalized,
   checkOutDateLocalized,
   guestsCount,
   ...(guest ? { guest } : {}),
+  ...(coupons ? { coupons } : {}),
 });
 
 const handleQuoteRequest = async (req, res) => {
-  const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest } = req.body || {};
+  const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest, coupons } = req.body || {};
 
   if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
     return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required" });
   }
 
   try {
-    const payload = buildQuotePayload({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest });
+    const payload = buildQuotePayload({
+      listingId,
+      checkInDateLocalized,
+      checkOutDateLocalized,
+      guestsCount: Number(guestsCount),
+      guest,
+      coupons,
+    });
     const quote = await guestyFetch("https://booking.guesty.com/api/reservations/quotes", {
       method: "POST",
       body: JSON.stringify(payload),
