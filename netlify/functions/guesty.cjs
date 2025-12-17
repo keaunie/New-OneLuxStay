@@ -8,7 +8,6 @@ const fetchFn = (...args) => {
   return globalThis.fetch(...args);
 };
 
-const openApiDocs = require("@api/open-api-docs");
 const guestyHost = "https://booking.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
@@ -17,7 +16,6 @@ const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
-const openApiServer = "https://open-api.guesty.com/v1";
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
