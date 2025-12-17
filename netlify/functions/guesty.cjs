@@ -30,8 +30,13 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Simplified fetch wrapper (no AbortController to avoid platform issues).
-const fetchWithTimeout = async (url, options = {}) => fetchFn(url, options);
+// Simplified fetch wrapper with a hard timeout (no AbortController dependency).
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+  return Promise.race([
+    fetchFn(url, options),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("FETCH_TIMEOUT")), timeoutMs)),
+  ]);
+};
 
 async function getToken(retry = 0) {
   const now = Date.now();
