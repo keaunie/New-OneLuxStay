@@ -334,7 +334,7 @@ module.exports.handler = async (event, context = {}) => {
         guestsCount,
         ...(guest ? { guest } : {}),
       };
-      const quote = await guestyFetch("/api/reservations/quotes", {
+      const quote = await guestyFetch("https://app.guesty.com/api/pm-websites-backend/reservations/quotes", {
         method: "POST",
         body: JSON.stringify(payload),
       });
