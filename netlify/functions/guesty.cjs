@@ -324,14 +324,27 @@ module.exports.handler = async (event, context = {}) => {
         listingId,
         checkInDateLocalized,
         checkOutDateLocalized,
-        guestsCount,
+        guestsCount: Number(guestsCount),
         ...(guest ? { guest } : {}),
       };
-      const quote = await guestyFetch("/api/reservations/quotes", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      return json(200, { data: quote });
+      try {
+        const quote = await guestyFetch("/api/reservations/quotes", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        return json(200, { data: quote });
+      } catch (bookingErr) {
+        try {
+          const quote = await fetchPmReservationQuote(payload);
+          return json(200, { data: quote, source: "pm" });
+        } catch (pmErr) {
+          return json(502, {
+            message: "Quote request failed",
+            bookingError: bookingErr.message,
+            pmError: pmErr.message,
+          });
+        }
+      }
     }
 
     if (httpMethod === "GET" && /^quotes\/[^/]+/.test(resource)) {
