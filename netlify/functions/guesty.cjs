@@ -183,11 +183,11 @@ function normalizePmListings(pmData) {
   return Array.from(listingsMap.values()).map(mapListing);
 }
 
-const createQuoteViaSdk = async (payload, metadata = {}) => {
+const createQuoteViaSdk = async (payload) => {
   openApiDocs.server(openApiServer);
   const token = await getToken();
   openApiDocs.auth(`Bearer ${token}`);
-  const response = await openApiDocs.quotesOpenApiController_create(payload, metadata);
+  const response = await openApiDocs.quotesOpenApiController_create(payload);
   return response?.data || response;
 };
 
@@ -292,28 +292,20 @@ module.exports.handler = async (event, context = {}) => {
       } catch {
         return json(400, { message: "Invalid JSON body" });
       }
-      const { listingId, checkIn, checkOut, adults = 1, children = 0, source = "direct" } = body;
+      const { listingId, checkIn, checkOut, adults = 1, children = 0, currency } = body;
       if (!listingId || !checkIn || !checkOut) {
         return json(400, { message: "listingId, checkIn, and checkOut are required" });
       }
-      const guestsCount = Number(adults) + Number(children || 0);
       const payload = {
         listingId,
-        checkInDateLocalized: checkIn,
-        checkOutDateLocalized: checkOut,
-        source,
-        guestsCount,
-        numberOfGuests: {
-          adults: Number(adults),
-          children: Number(children),
-        },
-      };
-      const metadata = {
-        mergeAccommodationFarePriceComponents: true,
-        includePaymentsTemplate: true,
+        checkIn,
+        checkOut,
+        numberOfAdults: Number(adults),
+        numberOfChildren: Number(children),
+        ...(currency ? { currency } : {}),
       };
       try {
-        const quote = await createQuoteViaSdk(payload, metadata);
+        const quote = await createQuoteViaSdk(payload);
         return json(200, { message: "Quote created", data: quote });
       } catch (sdkErr) {
         try {

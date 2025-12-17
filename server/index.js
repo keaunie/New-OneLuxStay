@@ -250,7 +250,7 @@ const getQuoteViaSdk = async (quoteId) => {
   return response?.data || response;
 };
 
-app.get("/api/listings", async (_req, res) => {
+app.get("https://open-api.guesty.com/v1", async (_req, res) => {
   try {
     const pmData = await fetchPmContent("en");
     const listings = normalizePmListings(pmData);
@@ -261,7 +261,7 @@ app.get("/api/listings", async (_req, res) => {
   }
 });
 
-app.get("/api/listings/:id/availability", async (req, res) => {
+app.get("https://open-api.guesty.com/v1/:id/availability", async (req, res) => {
   const { id } = req.params;
   const { startDate, endDate, adults = 1 } = req.query;
 
@@ -288,7 +288,7 @@ app.get("/api/listings/:id/availability", async (req, res) => {
   }
 });
 
-app.get("/api/listings/:id/price-estimate", async (req, res) => {
+app.get("https://open-api.guesty.com/v1/:id/price-estimate", async (req, res) => {
   const { id } = req.params;
   const { startDate, endDate, adults = 1, children = 0 } = req.query;
 
