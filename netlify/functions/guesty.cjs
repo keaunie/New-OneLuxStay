@@ -95,7 +95,7 @@ async function getToken(retry = 0) {
   return tokenPromise;
 }
 
-async function guestyFetch(path, init = {}, timeoutMs = 12000) {
+async function guestyFetch(path, init = {}, timeoutMs = 8000) {
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -275,6 +275,10 @@ module.exports.handler = async (event, context = {}) => {
     const path = event?.path || event?.rawUrl || "";
     const { httpMethod, queryStringParameters } = event || {};
     const resource = normalizeResource(path);
+
+    if (!httpMethod) {
+      return json(400, { message: "Missing httpMethod" });
+    }
 
     if (httpMethod === "GET" && (resource === "listings" || resource === "")) {
       const pmData = await fetchPmContent("en");
