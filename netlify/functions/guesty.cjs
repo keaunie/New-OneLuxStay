@@ -338,7 +338,7 @@ module.exports.handler = async (event, context = {}) => {
 
       // Use the PM website quote endpoint first (matches the headers you provided that work in the browser).
       try {
-        // const quote = await fetchPmReservationQuote(payload);
+        
 
         // Fallback to Booking API with OAuth token if PM headers fail.
         try {
@@ -356,6 +356,7 @@ module.exports.handler = async (event, context = {}) => {
         }
 
       } catch (pmErr) {
+        const quote = await fetchPmReservationQuote(payload);
         return json(200, { data: quote, source: "pm" });
         // // Fallback to Booking API with OAuth token if PM headers fail.
         // try {
