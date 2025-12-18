@@ -281,7 +281,7 @@ const fetchPmReservationQuote = async (payload) => {
       referer: pmReferer,
     };
 
-    const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+    const url = "https://open-api.guesty.com/v1/quotes";
     const res = await fetchWithTimeout(url, {
       method: "POST",
       headers,
