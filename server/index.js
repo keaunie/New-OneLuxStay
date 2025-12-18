@@ -384,6 +384,7 @@ app.get("/api/listings", async (_req, res) => {
   }
 });
 
+
 app.get("/api/listings/:id/availability", async (req, res) => {
   const { id } = req.params;
   const { startDate, endDate, adults = 1 } = req.query;
@@ -495,7 +496,7 @@ const handleQuoteRequest = async (req, res) => {
   }
 };
 
-app.post("/api/quotes", handleQuoteRequest);
+// app.post("/api/quotes", handleQuoteRequest);
 app.post("https://booking.guesty.com/api/reservations/quotes", handleQuoteRequest);
 
 app.get("/api/quotes/:id", async (req, res) => {
