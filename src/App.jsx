@@ -102,6 +102,7 @@ function App() {
             listingId: listing.id,
             checkInDateLocalized: search.checkIn,
             checkOutDateLocalized: search.checkOut,
+            source: "manual",
             guestsCount: String(Number(search.adults) + Number(search.children || 0)),
           }),
         }),
