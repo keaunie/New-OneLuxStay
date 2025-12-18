@@ -496,7 +496,8 @@ const handleQuoteRequest = async (req, res) => {
   }
 };
 
-app.post("/api/quotes", handleQuoteRequest);
+// Allow frontend to call the same handler using the Guesty-style path.
+app.post("/api/reservations/quotes", handleQuoteRequest);
 
 app.get("/api/quotes/:id", async (req, res) => {
   const { id } = req.params;
