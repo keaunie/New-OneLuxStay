@@ -35,7 +35,7 @@ class TimeoutError extends Error {
 }
 
 // Fetch with a hard timeout to avoid hanging Lambdas.
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 9000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -95,7 +95,7 @@ async function getToken(retry = 0) {
   return tokenPromise;
 }
 
-async function guestyFetch(path, init = {}, timeoutMs = 8000) {
+async function guestyFetch(path, init = {}, timeoutMs = 9000) {
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -256,8 +256,19 @@ const json = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
-const normalizeResource = (path) => {
-  if (!path) return "";
+const normalizeResource = (pathInput) => {
+  if (!pathInput) return "";
+  let path = pathInput;
+  try {
+    // If a full URL was passed (e.g., rawUrl), extract just the pathname.
+    if (path.startsWith("http")) {
+      const u = new URL(path);
+      path = u.pathname;
+    }
+  } catch {
+    // ignore URL parse errors and fall back to the raw string
+  }
+
   const marker = "/.netlify/functions/guesty";
   const idx = path.indexOf(marker);
   let resource = idx >= 0 ? path.slice(idx + marker.length) : path;
@@ -272,10 +283,9 @@ module.exports.handler = async (event, context = {}) => {
   }
 
   try {
-    const path = event?.path || event?.rawUrl || "";
+    const path = typeof event?.path === "string" && event.path ? event.path : event?.rawUrl || "";
     const { httpMethod, queryStringParameters } = event || {};
     const resource = normalizeResource(path);
-
     if (!httpMethod) {
       return json(400, { message: "Missing httpMethod" });
     }
