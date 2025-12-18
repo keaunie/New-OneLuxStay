@@ -149,50 +149,35 @@ async function fetchPmContent(lang = "en") {
 }
 
 async function fetchPmReservationQuote(payload) {
-  // First try the booking API with OAuth (cached via guestyFetch).
+  if (!pmAidCs || !pmRequestContext) {
+    throw new Error("Missing pm content headers in environment variables");
+  }
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "content-type": "application/json",
+    "g-aid-cs": pmAidCs,
+    "x-request-context": pmRequestContext,
+    origin: pmOrigin,
+    referer: pmReferer,
+  };
+
+  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
+  }
+  if (!text) return {};
   try {
-    const res = await guestyFetch("/api/reservations/quotes", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return res || {};
-  } catch (err) {
-    const msg = err?.message || "";
-    const statusMatch = msg.match(/Guesty API error (\d+)/);
-    const statusCode = statusMatch ? Number(statusMatch[1]) : null;
-
-    // If unauthorized and PM headers are available, retry via pm-websites backend.
-    if ((statusCode === 401 || statusCode === 403) && pmAidCs && pmRequestContext) {
-      const headers = {
-        accept: "application/json, text/plain, */*",
-        "content-type": "application/json",
-        "g-aid-cs": pmAidCs,
-        "x-request-context": pmRequestContext,
-        origin: pmOrigin,
-        referer: pmReferer,
-      };
-
-      const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
-      const res = await fetchWithTimeout(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      const text = await res.text();
-      if (!res.ok) {
-        throw new Error(`pm reservations quote error ${res.status}: ${text}`);
-      }
-      if (!text) return {};
-      try {
-        return JSON.parse(text);
-      } catch {
-        throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
-      }
-    }
-
-    // Otherwise bubble the original error.
-    throw err;
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
   }
 }
 

@@ -483,10 +483,7 @@ const handleQuoteRequest = async (req, res) => {
       guest,
       coupons,
     });
-    const quote = await guestyFetch("/api/reservations/quotes", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const quote = await fetchPmReservationQuote(payload);
 
     res.json({ data: quote });
 
