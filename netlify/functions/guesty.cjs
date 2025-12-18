@@ -35,7 +35,7 @@ class TimeoutError extends Error {
 }
 
 // Fetch with a hard timeout to avoid hanging Lambdas.
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 9000) => {
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -158,7 +158,7 @@ async function fetchPmReservationQuote(payload) {
     return res || {};
   } catch (err) {
     const msg = err?.message || "";
-    const statusMatch = msg.match(/Guesty API error (\\d+)/);
+    const statusMatch = msg.match(/Guesty API error (\d+)/);
     const statusCode = statusMatch ? Number(statusMatch[1]) : null;
 
     // If unauthorized and PM headers are available, retry via pm-websites backend.
