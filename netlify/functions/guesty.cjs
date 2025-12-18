@@ -149,36 +149,58 @@ async function fetchPmContent(lang = "en") {
 }
 
 async function fetchPmReservationQuote(payload) {
-  if (!pmAidCs || !pmRequestContext) {
-    throw new Error("Missing pm content headers in environment variables");
-  }
+  const tryPm = async () => {
+    if (!pmAidCs || !pmRequestContext) {
+      throw new Error("Missing pm content headers in environment variables");
+    }
 
-  const headers = {
-    accept: "application/json, text/plain, */*",
-    "content-type": "application/json",
-    "g-aid-cs": pmAidCs,
-    "x-request-context": pmRequestContext,
-    origin: pmOrigin,
-    referer: pmReferer,
+    const headers = {
+      accept: "application/json, text/plain, */*",
+      "content-type": "application/json",
+      "g-aid-cs": pmAidCs,
+      "x-request-context": pmRequestContext,
+      origin: pmOrigin,
+      referer: pmReferer,
+    };
+
+    const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`pm reservations quote error ${res.status}: ${text}`);
+    }
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
+    }
   };
 
-  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
-  const res = await fetchWithTimeout(url, {
+  // Primary: PM endpoint. Fallback: booking API with OAuth token.
+  try {
+    const pmResult = await tryPm();
+    if (pmResult && Object.keys(pmResult).length > 0) return pmResult;
+  } catch (err) {
+    const msg = err?.message || "";
+    const statusMatch = msg.match(/pm reservations quote error (\d+)/);
+    const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+    // Only fall through on auth errors; bubble other failures.
+    if (statusCode !== 401 && statusCode !== 403) {
+      throw err;
+    }
+  }
+
+  const bookingResult = await guestyFetch("/api/reservations/quotes", {
     method: "POST",
-    headers,
     body: JSON.stringify(payload),
   });
-
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
-  }
+  return bookingResult || {};
 }
 
 function normalizePmListings(pmData) {
