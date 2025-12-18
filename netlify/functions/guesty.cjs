@@ -27,13 +27,25 @@ const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+class TimeoutError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "TimeoutError";
+  }
+}
+
 // Fetch with a hard timeout to avoid hanging Lambdas.
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 9000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetchFn(url, { ...options, signal: controller.signal });
     return res;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new TimeoutError(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
   } finally {
     clearTimeout(id);
   }
@@ -377,6 +389,9 @@ module.exports.handler = async (event, context = {}) => {
 
     return json(404, { message: "Not Found" });
   } catch (err) {
+    if (err.name === "TimeoutError") {
+      return json(504, { message: err.message || "Request timed out" });
+    }
     if (err.message === "RATE_LIMITED") {
       return json(429, { message: "Guesty rate limit hit. Please retry shortly." });
     }
