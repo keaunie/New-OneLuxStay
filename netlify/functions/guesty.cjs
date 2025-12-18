@@ -144,7 +144,7 @@ const fetchPmReservationQuote = async (payload) => {
     referer: pmReferer,
   };
 
-  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const url = "https://booking.guesty.com/api/reservations/quotes";
   const res = await fetchWithTimeout(url, {
     method: "POST",
     headers,
@@ -338,7 +338,7 @@ module.exports.handler = async (event, context = {}) => {
 
       // Use the PM website quote endpoint first (matches the headers you provided that work in the browser).
       try {
-        
+
 
         // Fallback to Booking API with OAuth token if PM headers fail.
         try {
