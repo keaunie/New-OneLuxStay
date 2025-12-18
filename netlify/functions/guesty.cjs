@@ -182,25 +182,23 @@ async function fetchPmReservationQuote(payload) {
     }
   };
 
-  // Primary: PM endpoint. Fallback: booking API with OAuth token.
+  // Primary: Booking API with OAuth token. Fallback: PM endpoint on 401/403.
   try {
-    const pmResult = await tryPm();
-    if (pmResult && Object.keys(pmResult).length > 0) return pmResult;
+    const bookingResult = await guestyFetch("/api/reservations/quotes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (bookingResult && Object.keys(bookingResult).length > 0) return bookingResult;
   } catch (err) {
     const msg = err?.message || "";
-    const statusMatch = msg.match(/pm reservations quote error (\d+)/);
+    const statusMatch = msg.match(/Guesty API error (\d+)/);
     const statusCode = statusMatch ? Number(statusMatch[1]) : null;
-    // Only fall through on auth errors; bubble other failures.
-    if (statusCode !== 401 && statusCode !== 403) {
-      throw err;
-    }
+    // Only fall back on auth errors; bubble others.
+    if (statusCode !== 401 && statusCode !== 403) throw err;
   }
 
-  const bookingResult = await guestyFetch("/api/reservations/quotes", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return bookingResult || {};
+  const pmResult = await tryPm();
+  return pmResult || {};
 }
 
 function normalizePmListings(pmData) {

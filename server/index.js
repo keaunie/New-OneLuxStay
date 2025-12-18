@@ -267,36 +267,54 @@ const fetchPmContent = async (lang = "en") => {
 };
 
 const fetchPmReservationQuote = async (payload) => {
-  if (!pmAidCs || !pmRequestContext) {
-    throw new Error("Missing pm content headers in environment");
-  }
+  const tryPm = async () => {
+    if (!pmAidCs || !pmRequestContext) {
+      throw new Error("Missing pm content headers in environment");
+    }
 
-  const headers = {
-    accept: "application/json, text/plain, */*",
-    "content-type": "application/json",
-    "g-aid-cs": pmAidCs,
-    "x-request-context": pmRequestContext,
-    origin: pmOrigin,
-    referer: pmReferer,
+    const headers = {
+      accept: "application/json, text/plain, */*",
+      "content-type": "application/json",
+      "g-aid-cs": pmAidCs,
+      "x-request-context": pmRequestContext,
+      origin: pmOrigin,
+      referer: pmReferer,
+    };
+
+    const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`pm reservations quote error ${res.status}: ${text}`);
+    }
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
+    }
   };
 
-  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
-  }
-  if (!text) return {};
+  // Primary: Booking API via OAuth; fallback to PM on 401/403.
   try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
+    const bookingResult = await guestyFetch("/api/reservations/quotes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (bookingResult && Object.keys(bookingResult).length > 0) return bookingResult;
+  } catch (err) {
+    const msg = err?.message || "";
+    const match = msg.match(/Guesty API error (\d+)/);
+    const statusCode = match ? Number(match[1]) : null;
+    if (statusCode !== 401 && statusCode !== 403) throw err;
   }
+
+  return tryPm();
 };
 
 const normalizePmListings = (pmData) => {
