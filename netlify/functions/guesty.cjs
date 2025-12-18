@@ -272,7 +272,8 @@ module.exports.handler = async (event, context = {}) => {
   }
 
   try {
-    const { path, httpMethod, queryStringParameters } = event;
+    const path = event?.path || event?.rawUrl || "";
+    const { httpMethod, queryStringParameters } = event || {};
     const resource = normalizeResource(path);
 
     if (httpMethod === "GET" && (resource === "listings" || resource === "")) {
