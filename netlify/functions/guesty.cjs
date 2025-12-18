@@ -366,7 +366,7 @@ module.exports.handler = async (event, context = {}) => {
         return json(400, { message: "Invalid JSON body" });
       }
 
-      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest, coupons } = body;
+      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = body;
 
       if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
         return json(400, {
@@ -379,6 +379,7 @@ module.exports.handler = async (event, context = {}) => {
         checkInDateLocalized,
         checkOutDateLocalized,
         guestsCount: Number(guestsCount),
+        source: source || "manual",
         ...(guest ? { guest } : {}),
         ...(coupons ? { coupons } : {}),
       };

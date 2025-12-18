@@ -458,17 +458,18 @@ app.post("/api/book", async (req, res) => {
   }
 });
 
-const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest, coupons }) => ({
+const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source = "manual", guest, coupons }) => ({
   listingId,
   checkInDateLocalized,
   checkOutDateLocalized,
   guestsCount,
+  source,
   ...(guest ? { guest } : {}),
   ...(coupons ? { coupons } : {}),
 });
 
 const handleQuoteRequest = async (req, res) => {
-  const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, guest, coupons } = req.body || {};
+  const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = req.body || {};
 
   if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
     return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required" });
@@ -480,6 +481,7 @@ const handleQuoteRequest = async (req, res) => {
       checkInDateLocalized,
       checkOutDateLocalized,
       guestsCount: Number(guestsCount),
+      source: source || "manual",
       guest,
       coupons,
     });
