@@ -137,36 +137,12 @@ async function fetchPmContent(lang = "en") {
 }
 
 async function fetchPmReservationQuote(payload) {
-  if (!pmAidCs || !pmRequestContext) {
-    throw new Error("Missing pm content headers in environment variables");
-  }
-
-  const headers = {
-    accept: "application/json, text/plain, */*",
-    "content-type": "application/json",
-    "g-aid-cs": pmAidCs,
-    "x-request-context": pmRequestContext,
-    origin: pmOrigin,
-    referer: pmReferer,
-  };
-
-  const url = "https://booking.guesty.com/api/reservations/quotes";
-  const res = await fetchWithTimeout(url, {
+  // Now hitting booking.guesty.com, which requires the OAuth bearer token (guestyFetch handles caching).
+  const res = await guestyFetch("/api/reservations/quotes", {
     method: "POST",
-    headers,
     body: JSON.stringify(payload),
   });
-
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
-  }
+  return res || {};
 }
 
 function normalizePmListings(pmData) {
