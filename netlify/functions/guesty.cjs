@@ -289,7 +289,7 @@ module.exports.handler = async (event, context = {}) => {
     context.callbackWaitsForEmptyEventLoop = false;
   }
 
-  try {
+  const handle = async () => {
     const path = typeof event?.path === "string" && event.path ? event.path : event?.rawUrl || "";
     const { httpMethod, queryStringParameters } = event || {};
     const resource = normalizeResource(path);
@@ -411,6 +411,18 @@ module.exports.handler = async (event, context = {}) => {
     }
 
     return json(404, { message: "Not Found" });
+  };
+
+  try {
+    // Hard overall timeout to avoid Lambda being killed without a response.
+    const overallTimeoutMs = 9000;
+    const result = await Promise.race([
+      handle(),
+      wait(overallTimeoutMs).then(() => {
+        throw new TimeoutError(`Overall handler timed out after ${overallTimeoutMs}ms`);
+      }),
+    ]);
+    return result;
   } catch (err) {
     if (err.name === "TimeoutError") {
       return json(504, { message: err.message || "Request timed out" });
