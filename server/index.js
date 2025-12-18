@@ -483,7 +483,7 @@ const handleQuoteRequest = async (req, res) => {
       guest,
       coupons,
     });
-    const quote = await guestyFetch("https://booking.guesty.com/api/reservations/quotes", {
+    const quote = await guestyFetch("/api/reservations/quotes", {
       method: "POST",
       body: JSON.stringify(payload),
     });

@@ -150,7 +150,7 @@ async function fetchPmReservationQuote(payload) {
     referer: pmReferer,
   };
 
-  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const url = "https://booking.guesty.com/api/reservations/quotes";
   const res = await fetchWithTimeout(url, {
     method: "POST",
     headers,
