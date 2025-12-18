@@ -1,4 +1,4 @@
-// Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
+﻿// Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
 // Netlify runtime (Node 18/20) provides global fetch. Keep it simple to avoid stuck promises.
 const fetchFn = (...args) => {
@@ -137,12 +137,36 @@ async function fetchPmContent(lang = "en") {
 }
 
 async function fetchPmReservationQuote(payload) {
-  // Now hitting booking.guesty.com, which requires the OAuth bearer token (guestyFetch handles caching).
-  const res = await guestyFetch("/api/reservations/quotes", {
+  if (!pmAidCs || !pmRequestContext) {
+    throw new Error("Missing pm content headers in environment variables");
+  }
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "content-type": "application/json",
+    "g-aid-cs": pmAidCs,
+    "x-request-context": pmRequestContext,
+    origin: pmOrigin,
+    referer: pmReferer,
+  };
+
+  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const res = await fetchWithTimeout(url, {
     method: "POST",
+    headers,
     body: JSON.stringify(payload),
   });
-  return res || {};
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`pm reservations quote error ${res.status}: ${text}`);
+  }
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
+  }
 }
 
 function normalizePmListings(pmData) {
