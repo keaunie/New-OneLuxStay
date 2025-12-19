@@ -1,3 +1,4 @@
+// Local Express API that mirrors the Netlify function behavior for dev/testing against Guesty.
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -41,6 +42,7 @@ const pmCacheTtlMs = 5 * 60 * 1000;
 const isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Abort-based fetch wrapper so upstream calls cannot hang the server.
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -95,6 +97,7 @@ const writeOpenApiTokenCache = async (accessToken, expiresAt) => {
 };
 
 async function getToken() {
+  // Client-credentials token for booking.guesty.com, cached in memory and disk.
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
   if (tokenPromise) return tokenPromise;
@@ -151,6 +154,7 @@ async function getToken() {
 }
 
 async function getOpenApiToken() {
+  // Client-credentials token for the Open API (used only by the SDK helpers).
   const now = Date.now();
   if (openApiCachedToken && now < openApiTokenExpiresAt - 60_000) return openApiCachedToken;
   if (openApiTokenPromise) return openApiTokenPromise;
@@ -205,6 +209,7 @@ async function getOpenApiToken() {
 }
 
 async function guestyFetch(path, init = {}) {
+  // Thin wrapper that injects the booking API bearer token and throws on non-2xx.
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -228,6 +233,7 @@ async function guestyFetch(path, init = {}) {
   return res.json();
 }
 
+// Cached pull of PM website content (listings data) with pm headers.
 const fetchPmContent = async (lang = "en") => {
   const now = Date.now();
   const cacheEntry = pmCache[lang];
@@ -266,6 +272,7 @@ const fetchPmContent = async (lang = "en") => {
   return pmContentPromise;
 };
 
+// Quote creation via PM websites backend (no OAuth; uses pm headers).
 const fetchPmReservationQuote = async (payload) => {
   if (!pmAidCs || !pmRequestContext) {
     throw new Error("Missing pm content headers in environment");
@@ -300,6 +307,7 @@ const fetchPmReservationQuote = async (payload) => {
   }
 };
 
+// Walk the PM content tree and extract listing records in a flat array.
 const normalizePmListings = (pmData) => {
   const stack = [pmData];
   const listingsMap = new Map();
@@ -356,6 +364,7 @@ const normalizePmListings = (pmData) => {
   return Array.from(listingsMap.values()).map(mapListing);
 };
 
+// Optional fallback: create quote through Open API SDK (rarely used).
 const createQuoteViaSdk = async (payload) => {
   // Configure per-call to avoid stale auth/server
   openApiDocs.server(openApiServer);
@@ -432,6 +441,7 @@ app.get("/api/listings/:id/price-estimate", async (req, res) => {
 });
 
 app.post("/api/book", async (req, res) => {
+  // Creates a booking via the booking API using the bearer token.
   const { listingId, checkIn, checkOut, adults = 1, children = 0, guest } = req.body || {};
   if (!listingId || !checkIn || !checkOut || !guest?.firstName || !guest?.lastName || !guest?.email) {
     return res.status(400).json({ message: "Missing required booking fields" });
@@ -470,6 +480,7 @@ const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocali
 });
 
 const handleQuoteRequest = async (req, res) => {
+  // Creates a quote to lock pricing; primary path is PM backend with pm headers.
   const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = req.body || {};
 
   if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
