@@ -364,6 +364,83 @@ const normalizePmListings = (pmData) => {
   return Array.from(listingsMap.values()).map(mapListing);
 };
 
+const normalizePmQuotes = (pmData) => {
+  if (!pmData) return null;
+
+  const quote = pmData.quote || pmData;
+
+  const ratePlans =
+    quote?.rates?.ratePlans?.map((rp) => {
+      const ratePlan = rp.ratePlan || {};
+      const money = ratePlan.money || {};
+
+      return {
+        inquiryId: rp.inquiryId,
+        ratePlanId: ratePlan._id,
+        name: ratePlan.name,
+        cancellationPolicy: ratePlan.cancellationPolicy,
+        minNights: ratePlan.minNights,
+        currency: money.currency,
+
+        pricing: {
+          accommodation: money.fareAccommodation,
+          accommodationAdjusted: money.fareAccommodationAdjusted,
+          cleaningFee: money.fareCleaning,
+          totalFees: money.totalFees,
+          subtotal: money.subTotalPrice,
+          taxes: money.totalTaxes,
+          hostPayout: money.hostPayout,
+          hostPayoutUsd: money.hostPayoutUsd,
+          invoiceItems: money.invoiceItems || [],
+        },
+
+        days:
+          rp.days?.map((d) => ({
+            date: d.date,
+            price: d.price,
+            basePrice: d.basePrice,
+            manualPrice: d.manualPrice,
+            minNights: d.minNights,
+            maxNights: d.maxNights,
+            currency: d.currency,
+          })) || [],
+      };
+    }) || [];
+
+  return {
+    id: quote._id,
+    status: quote.status,
+    createdAt: quote.createdAt,
+    expiresAt: quote.expiresAt,
+
+    accountId: quote.accountId,
+    channel: quote.channel,
+    source: quote.source,
+
+    unitTypeId: quote.unitTypeId,
+    guestsCount: quote.guestsCount,
+
+    checkIn: quote.checkInDateLocalized,
+    checkOut: quote.checkOutDateLocalized,
+
+    numberOfGuests: quote.numberOfGuests,
+
+    stay:
+      quote.stay?.map((s) => ({
+        unitTypeId: s.unitTypeId,
+        checkIn: s.checkInDateLocalized,
+        checkOut: s.checkOutDateLocalized,
+        guestsCount: s.guestsCount,
+        eta: s.eta,
+        etd: s.etd,
+      })) || [],
+
+    ratePlans,
+    coupons: quote.coupons || [],
+    promotions: quote.promotions || {},
+  };
+};
+
 // Optional fallback: create quote through Open API SDK (rarely used).
 const createQuoteViaSdk = async (payload) => {
   // Configure per-call to avoid stale auth/server
@@ -393,6 +470,18 @@ app.get("/api/listings", async (_req, res) => {
     res.status(500).json({ message: "Failed to load listings", error: err.message });
   }
 });
+
+app.post("/api/reservations/quotes", async (_req, res) => {
+  try {
+    const pmData = await fetchPmContent("en");
+    const quotes = normalizePmQuotes(pmData);
+    res.json({ results: quotes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load Quotes", error: err.message });
+  }
+});
+
 
 
 app.get("/api/listings/:id/availability", async (req, res) => {
@@ -440,93 +529,93 @@ app.get("/api/listings/:id/price-estimate", async (req, res) => {
   }
 });
 
-app.post("/api/book", async (req, res) => {
-  // Creates a booking via the booking API using the bearer token.
-  const { listingId, checkIn, checkOut, adults = 1, children = 0, guest } = req.body || {};
-  if (!listingId || !checkIn || !checkOut || !guest?.firstName || !guest?.lastName || !guest?.email) {
-    return res.status(400).json({ message: "Missing required booking fields" });
-  }
+// app.post("/api/book", async (req, res) => {
+//   // Creates a booking via the booking API using the bearer token.
+//   const { listingId, checkIn, checkOut, adults = 1, children = 0, guest } = req.body || {};
+//   if (!listingId || !checkIn || !checkOut || !guest?.firstName || !guest?.lastName || !guest?.email) {
+//     return res.status(400).json({ message: "Missing required booking fields" });
+//   }
 
-  try {
-    const payload = {
-      listingId,
-      checkIn,
-      checkOut,
-      numberOfAdults: Number(adults),
-      numberOfChildren: Number(children),
-      guest,
-    };
+//   try {
+//     const payload = {
+//       listingId,
+//       checkIn,
+//       checkOut,
+//       numberOfAdults: Number(adults),
+//       numberOfChildren: Number(children),
+//       guest,
+//     };
 
-    const result = await guestyFetch("/api/reservations", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+//     const result = await guestyFetch("/api/reservations", {
+//       method: "POST",
+//       body: JSON.stringify(payload),
+//     });
 
-    res.json({ message: "Booking created", data: result });
-  } catch (err) {
-    console.error(err);
-    res.status(502).json({ message: "Booking failed", error: err.message });
-  }
-});
+//     res.json({ message: "Booking created", data: result });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(502).json({ message: "Booking failed", error: err.message });
+//   }
+// });
 
-const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source = "manual", guest, coupons }) => ({
-  listingId,
-  checkInDateLocalized,
-  checkOutDateLocalized,
-  guestsCount,
-  source,
-  ...(guest ? { guest } : {}),
-  ...(coupons ? { coupons } : {}),
-});
+// const buildQuotePayload = ({ listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source = "manual", guest, coupons }) => ({
+//   listingId,
+//   checkInDateLocalized,
+//   checkOutDateLocalized,
+//   guestsCount,
+//   source,
+//   ...(guest ? { guest } : {}),
+//   ...(coupons ? { coupons } : {}),
+// });
 
-const handleQuoteRequest = async (req, res) => {
-  // Creates a quote to lock pricing; primary path is PM backend with pm headers.
-  const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = req.body || {};
+// const handleQuoteRequest = async (req, res) => {
+//   // Creates a quote to lock pricing; primary path is PM backend with pm headers.
+//   const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = req.body || {};
 
-  if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
-    return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required" });
-  }
+//   if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
+//     return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required" });
+//   }
 
-  try {
-    const payload = buildQuotePayload({
-      listingId,
-      checkInDateLocalized,
-      checkOutDateLocalized,
-      guestsCount: Number(guestsCount),
-      source: source || "manual",
-      guest,
-      coupons,
-    });
-    const quote = await fetchPmReservationQuote(payload);
+//   try {
+//     const payload = buildQuotePayload({
+//       listingId,
+//       checkInDateLocalized,
+//       checkOutDateLocalized,
+//       guestsCount: Number(guestsCount),
+//       source: source || "manual",
+//       guest,
+//       coupons,
+//     });
+//     const quote = await fetchPmReservationQuote(payload);
 
-    res.json({ data: quote });
+//     res.json({ data: quote });
 
-  } catch (err) {
-    console.error(err);
-    res.status(502).json({ message: "Quote request failed", error: err.message });
-  }
-};
+//   } catch (err) {
+//     console.error(err);
+//     res.status(502).json({ message: "Quote request failed", error: err.message });
+//   }
+// };
 
-// Allow frontend to call the same handler using the Guesty-style path.
-app.post("/api/reservations/quotes", handleQuoteRequest);
+// // Allow frontend to call the same handler using the Guesty-style path.
+// app.post("/api/reservations/quotes", handleQuoteRequest);
 
-app.get("/api/quotes/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!id) return res.status(400).json({ message: "quote id is required" });
-  try {
-    let quote;
-    try {
-      quote = await getQuoteViaSdk(id);
-    } catch (sdkErr) {
-      console.warn("SDK get quote failed, falling back to direct fetch:", sdkErr.message);
-      quote = await guestyFetch(`/v1/quotes/${encodeURIComponent(id)}`);
-    }
-    res.json(quote);
-  } catch (err) {
-    console.error(err);
-    res.status(502).json({ message: "Failed to fetch quote", error: err.message });
-  }
-});
+// app.get("/api/quotes/:id", async (req, res) => {
+//   const { id } = req.params;
+//   if (!id) return res.status(400).json({ message: "quote id is required" });
+//   try {
+//     let quote;
+//     try {
+//       quote = await getQuoteViaSdk(id);
+//     } catch (sdkErr) {
+//       console.warn("SDK get quote failed, falling back to direct fetch:", sdkErr.message);
+//       quote = await guestyFetch(`/v1/quotes/${encodeURIComponent(id)}`);
+//     }
+//     res.json(quote);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(502).json({ message: "Failed to fetch quote", error: err.message });
+//   }
+// });
 
 app.get("/api/pm-content", async (req, res) => {
   const { lang = "en" } = req.query;

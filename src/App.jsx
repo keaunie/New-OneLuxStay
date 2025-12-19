@@ -94,7 +94,7 @@ function App() {
       }).toString();
 
       const [availRes, quoteRes] = await Promise.all([
-        fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
+        // fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
         fetchWithTimeout(`${apiBase}/reservations/quotes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
