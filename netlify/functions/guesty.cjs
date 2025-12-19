@@ -1,6 +1,7 @@
 ﻿// Netlify function acting as the Guesty API proxy with timeouts, retries, and PM content support (CommonJS).
 
 // Netlify runtime (Node 18/20) provides global fetch. Keep it simple to avoid stuck promises.
+// Netlify runtime (Node 18/20) provides global fetch. Keep it simple to avoid stuck promises.
 const fetchFn = (...args) => {
   if (!globalThis.fetch) {
     throw new Error("Fetch is not available in this runtime");
@@ -52,6 +53,7 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 9000) => {
 };
 
 async function getToken(retry = 0) {
+  // Client-credentials token for booking.guesty.com; cached with small retry/backoff.
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
   if (tokenPromise) return tokenPromise;
@@ -96,6 +98,7 @@ async function getToken(retry = 0) {
 }
 
 async function guestyFetch(path, init = {}, timeoutMs = 9000) {
+  // Inject bearer token and throw on non-2xx for booking API calls.
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -112,6 +115,7 @@ async function guestyFetch(path, init = {}, timeoutMs = 9000) {
   return res.json();
 }
 
+// Cached PM website content (listings) using pm headers.
 async function fetchPmContent(lang = "en") {
   const now = Date.now();
   const cacheEntry = pmCache[lang];
@@ -148,6 +152,7 @@ async function fetchPmContent(lang = "en") {
   return pmContentPromise;
 }
 
+// Quote creation via PM websites backend (no OAuth; pm headers only).
 async function fetchPmReservationQuote(payload) {
   if (!pmAidCs || !pmRequestContext) {
     throw new Error("Missing pm content headers in environment variables");
@@ -182,6 +187,7 @@ async function fetchPmReservationQuote(payload) {
   }
 }
 
+// Walk the PM content tree and extract listing-like records.
 function normalizePmListings(pmData) {
   const stack = [pmData];
   const listingsMap = new Map();
