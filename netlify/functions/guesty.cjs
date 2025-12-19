@@ -476,8 +476,8 @@ module.exports.handler = async (event, context = {}) => {
       // return json(200, { message: "Quote created", data: quote });
 
       const pmData = await fetchPmContent("en");
-      const listings = normalizePmListings(pmData);
-      return json(200, { results: listings });
+      const quotes = normalizePmQuotes(pmData);
+      return json(200, { results: quotes });
     }
 
     return json(404, { message: "Not Found" });
