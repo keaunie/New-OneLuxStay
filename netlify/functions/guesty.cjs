@@ -386,7 +386,7 @@ module.exports.handler = async (event, context = {}) => {
         checkInDateLocalized,
         checkOutDateLocalized,
         guestsCount: Number(guestsCount),
-        source: source || "manual",
+        // source: source || "manual",
         ...(guest ? { guest } : {}),
         ...(coupons ? { coupons } : {}),
       };
