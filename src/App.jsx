@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/api";
+const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index/api";
 
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
@@ -106,7 +106,6 @@ function App() {
             checkInDateLocalized: search.checkIn,
             checkOutDateLocalized: search.checkOut,
             guestsCount: Number(search.adults) + Number(search.children || 0),
-
           }),
         }),
       ]);
