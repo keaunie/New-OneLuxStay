@@ -14,8 +14,6 @@ dotenv.config();
 const OPEN_API_TOKEN_FILE = "/tmp/guesty-openapi-token.json";
 const BOOKING_TOKEN_FILE = "/tmp/guesty-booking-token.json";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index/api";
-
 /* =======================
    APP SETUP
 ======================= */

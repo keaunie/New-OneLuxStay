@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
+const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 
 
 const formatCurrency = (value, currency = "USD") =>
@@ -36,7 +36,7 @@ function App() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/listings`);
+        const res = await fetch(`${apiBase}/api/listings`);
         const json = await res.json();
         setListings(json.results || []);
         setActiveListingId((json.results || [])[0]?.id || "");
@@ -97,7 +97,7 @@ function App() {
 
       const [availRes, quoteRes] = await Promise.all([
         // fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
-        fetchWithTimeout(`${apiBase}/reservations/quotes`, {
+        fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
