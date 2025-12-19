@@ -3,8 +3,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 import serverless from "serverless-http";
 import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
 
 dotenv.config();
 
@@ -12,12 +10,10 @@ dotenv.config();
    NETLIFY SAFE PATHS
 ======================= */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Netlify allows /tmp for caching
+// Netlify only allows writing to /tmp
 const OPEN_API_TOKEN_FILE = "/tmp/guesty-openapi-token.json";
 const BOOKING_TOKEN_FILE = "/tmp/guesty-booking-token.json";
+
 
 /* =======================
    APP SETUP
