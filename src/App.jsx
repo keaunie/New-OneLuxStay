@@ -11,12 +11,13 @@ const formatCurrency = (value, currency = "USD") =>
 const initialSearch = {
   checkIn: "",
   checkOut: "",
-  adults: 2,
+  adults: 1,
   children: 0,
 };
 
 function App() {
   const [listings, setListings] = useState([]);
+  const [quote, setQuotes] = useState([]);
   const [loadingListings, setLoadingListings] = useState(true);
   const [listingsError, setListingsError] = useState("");
   const [search, setSearch] = useState(initialSearch);
@@ -97,20 +98,22 @@ function App() {
         // fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
         fetchWithTimeout(`${apiBase}/reservations/quotes`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             listingId: listing.id,
             checkInDateLocalized: search.checkIn,
             checkOutDateLocalized: search.checkOut,
-            // source: "manual",
-            guestsCount: String(Number(search.adults) + Number(search.children || 0)),
+            guestsCount: Number(search.adults) + Number(search.children || 0),
+
           }),
         }),
       ]);
 
       const availJson = availRes.ok ? await availRes.json() : null;
       const quoteJson = quoteRes?.ok ? await quoteRes.json() : null;
-      const quoteData = quoteJson?.data || quoteJson || null;
+      const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
 
       const isAvailable =
         availJson?.isAvailable ??
@@ -417,11 +420,10 @@ function App() {
                   </div>
                   <button
                     onClick={() => setActiveListingId(listing.id)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      isActive
-                        ? "border-emerald-400 bg-emerald-500/20 text-emerald-100"
-                        : "border-white/10 bg-white/10 text-slate-200 hover:border-emerald-400/60"
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
+                      ? "border-emerald-400 bg-emerald-500/20 text-emerald-100"
+                      : "border-white/10 bg-white/10 text-slate-200 hover:border-emerald-400/60"
+                      }`}
                   >
                     {isActive ? "Selected" : "Select"}
                   </button>

@@ -245,84 +245,6 @@ function normalizePmListings(pmData) {
 }
 
 
-const normalizePmQuotes = (pmData) => {
-  if (!pmData) return null;
-
-  const quote = pmData.quote || pmData;
-
-  const ratePlans =
-    quote?.rates?.ratePlans?.map((rp) => {
-      const ratePlan = rp.ratePlan || {};
-      const money = ratePlan.money || {};
-
-      return {
-        inquiryId: rp.inquiryId,
-        ratePlanId: ratePlan._id,
-        name: ratePlan.name,
-        cancellationPolicy: ratePlan.cancellationPolicy,
-        minNights: ratePlan.minNights,
-        currency: money.currency,
-
-        pricing: {
-          accommodation: money.fareAccommodation,
-          accommodationAdjusted: money.fareAccommodationAdjusted,
-          cleaningFee: money.fareCleaning,
-          totalFees: money.totalFees,
-          subtotal: money.subTotalPrice,
-          taxes: money.totalTaxes,
-          hostPayout: money.hostPayout,
-          hostPayoutUsd: money.hostPayoutUsd,
-          invoiceItems: money.invoiceItems || [],
-        },
-
-        days:
-          rp.days?.map((d) => ({
-            date: d.date,
-            price: d.price,
-            basePrice: d.basePrice,
-            manualPrice: d.manualPrice,
-            minNights: d.minNights,
-            maxNights: d.maxNights,
-            currency: d.currency,
-          })) || [],
-      };
-    }) || [];
-
-  return {
-    id: quote._id,
-    status: quote.status,
-    createdAt: quote.createdAt,
-    expiresAt: quote.expiresAt,
-
-    accountId: quote.accountId,
-    channel: quote.channel,
-    source: quote.source,
-
-    unitTypeId: quote.unitTypeId,
-    guestsCount: quote.guestsCount,
-
-    checkIn: quote.checkInDateLocalized,
-    checkOut: quote.checkOutDateLocalized,
-
-    numberOfGuests: quote.numberOfGuests,
-
-    stay:
-      quote.stay?.map((s) => ({
-        unitTypeId: s.unitTypeId,
-        checkIn: s.checkInDateLocalized,
-        checkOut: s.checkOutDateLocalized,
-        guestsCount: s.guestsCount,
-        eta: s.eta,
-        etd: s.etd,
-      })) || [],
-
-    ratePlans,
-    coupons: quote.coupons || [],
-    promotions: quote.promotions || {},
-  };
-};
-
-
 const json = (statusCode, body) => ({
   statusCode,
   headers: { "Content-Type": "application/json" },
@@ -382,41 +304,71 @@ module.exports.handler = async (event, context = {}) => {
       return json(200, { results: listings });
     }
 
-    if (httpMethod === "GET" && /^listings\/[^/]+\/availability/.test(resource)) {
-      const [, listingId] = resource.split("/");
-      const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
-      if (!startDate || !endDate) {
-        return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
-      }
+    // if (httpMethod === "GET" && /^listings\/[^/]+\/availability/.test(resource)) {
+    //   const [, listingId] = resource.split("/");
+    //   const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
+    //   if (!startDate || !endDate) {
+    //     return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
+    //   }
 
-      try {
-        const query = `listingId=${listingId}&startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`;
-        const primary = await guestyFetch(`/api/availability-pricing/availability?${query}`);
-        return json(200, primary);
-      } catch {
-        try {
-          const fallback = await guestyFetch(
-            `/api/availability/${listingId}?startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`,
-          );
-          return json(200, fallback);
-        } catch (fallbackErr) {
-          return json(502, { message: "Unable to fetch availability from Guesty", error: fallbackErr.message });
-        }
-      }
-    }
+    //   try {
+    //     const query = `listingId=${listingId}&startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`;
+    //     const primary = await guestyFetch(`/api/availability-pricing/availability?${query}`);
+    //     return json(200, primary);
+    //   } catch {
+    //     try {
+    //       const fallback = await guestyFetch(
+    //         `/api/availability/${listingId}?startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`,
+    //       );
+    //       return json(200, fallback);
+    //     } catch (fallbackErr) {
+    //       return json(502, { message: "Unable to fetch availability from Guesty", error: fallbackErr.message });
+    //     }
+    //   }
+    // }
 
-    if (httpMethod === "GET" && /^listings\/[^/]+\/price-estimate/.test(resource)) {
-      const [, listingId] = resource.split("/");
-      const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
-      if (!startDate || !endDate) {
-        return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
-      }
-      const query = `listingId=${listingId}&startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`;
-      const estimate = await guestyFetch(`/api/availability-pricing/price-estimate?${query}`);
-      return json(200, estimate);
-    }
+    // if (httpMethod === "GET" && /^listings\/[^/]+\/price-estimate/.test(resource)) {
+    //   const [, listingId] = resource.split("/");
+    //   const { startDate, endDate, adults = 1, children = 0 } = queryStringParameters || {};
+    //   if (!startDate || !endDate) {
+    //     return json(400, { message: "startDate and endDate are required (YYYY-MM-DD)" });
+    //   }
+    //   const query = `listingId=${listingId}&startDate=${startDate}&endDate=${endDate}&adults=${adults}&children=${children}`;
+    //   const estimate = await guestyFetch(`/api/availability-pricing/price-estimate?${query}`);
+    //   return json(200, estimate);
+    // }
 
-    if (httpMethod === "POST" && resource === "book") {
+    // if (httpMethod === "POST" && resource === "book") {
+    //   let body = {};
+    //   try {
+    //     body = event.body ? JSON.parse(event.body) : {};
+    //   } catch {
+    //     return json(400, { message: "Invalid JSON body" });
+    //   }
+
+    //   const { listingId, checkIn, checkOut, adults = 1, children = 0, guest } = body;
+    //   if (!listingId || !checkIn || !checkOut || !guest?.firstName || !guest?.lastName || !guest?.email) {
+    //     return json(400, { message: "Missing required booking fields" });
+    //   }
+
+    //   const payload = {
+    //     listingId,
+    //     checkIn,
+    //     checkOut,
+    //     numberOfAdults: Number(adults),
+    //     numberOfChildren: Number(children),
+    //     guest,
+    //   };
+
+    //   const result = await guestyFetch("/api/reservations", {
+    //     method: "POST",
+    //     body: JSON.stringify(payload),
+    //   });
+
+    //   return json(200, { message: "Booking created", data: result });
+    // }
+
+    if (httpMethod === "POST" && resource === "reservations/quotes") {
       let body = {};
       try {
         body = event.body ? JSON.parse(event.body) : {};
@@ -424,60 +376,27 @@ module.exports.handler = async (event, context = {}) => {
         return json(400, { message: "Invalid JSON body" });
       }
 
-      const { listingId, checkIn, checkOut, adults = 1, children = 0, guest } = body;
-      if (!listingId || !checkIn || !checkOut || !guest?.firstName || !guest?.lastName || !guest?.email) {
-        return json(400, { message: "Missing required booking fields" });
+      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount } = body;
+
+      if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
+        return json(400, {
+          message: "listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount required",
+        });
       }
 
       const payload = {
         listingId,
-        checkIn,
-        checkOut,
-        numberOfAdults: Number(adults),
-        numberOfChildren: Number(children),
-        guest,
+        checkInDateLocalized,
+        checkOutDateLocalized,
+        guestsCount: {
+          adults: Number(guestsCount) || 1,
+          children: 0,
+          infants: 0,
+        },
       };
 
-      const result = await guestyFetch("/api/reservations", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      return json(200, { message: "Booking created", data: result });
-    }
-
-    if (httpMethod === "POST" && (resource === "quotes" || resource === "reservations/quotes")) {
-      // let body = {};
-      // try {
-      //   body = event.body ? JSON.parse(event.body) : {};
-      // } catch {
-      //   return json(400, { message: "Invalid JSON body" });
-      // }
-
-      // const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = body;
-
-      // if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
-      //   return json(400, {
-      //     message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
-      //   });
-      // }
-
-      // const payload = {
-      //   listingId,
-      //   checkInDateLocalized,
-      //   checkOutDateLocalized,
-      //   guestsCount: Number(guestsCount),
-      //   // source: source || "manual",
-      //   ...(guest ? { guest } : {}),
-      //   ...(coupons ? { coupons } : {}),
-      // };
-
-      // const quote = await fetchPmReservationQuote(payload);
-      // return json(200, { message: "Quote created", data: quote });
-
-      const pmData = await fetchPmContent("en");
-      const quotes = normalizePmQuotes(pmData);
-      return json(200, { results: quotes });
+      const quote = await fetchPmReservationQuote(payload);
+      return json(200, { results: quote });
     }
 
     return json(404, { message: "Not Found" });

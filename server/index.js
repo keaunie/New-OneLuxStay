@@ -16,7 +16,7 @@ const openApiHost = "https://open-api.guesty.com";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
 const pmContentUrl = "https://app.guesty.com/api/pm-websites-backend/engines/content";
-const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
+const pmAidCs = process.env.GUESTY_PM_G_AID_CS || "G-89C7E-9FB65-B6F69";
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
@@ -278,6 +278,14 @@ const fetchPmReservationQuote = async (payload) => {
     throw new Error("Missing pm content headers in environment");
   }
 
+  // 🔒 Validate required fields before sending
+  const required = ["listingId", "checkInDateLocalized", "checkOutDateLocalized"];
+  for (const key of required) {
+    if (!payload?.[key]) {
+      throw new Error(`Missing required payload field: ${key}`);
+    }
+  }
+
   const headers = {
     accept: "application/json, text/plain, */*",
     "content-type": "application/json",
@@ -287,25 +295,25 @@ const fetchPmReservationQuote = async (payload) => {
     referer: pmReferer,
   };
 
-  // Direct PM quotes endpoint; do not send Authorization.
-  const url = "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+  const url =
+    "https://app.guesty.com/api/pm-websites-backend/reservations/quotes";
+
   const res = await fetchWithTimeout(url, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload), // ✅ FIXED
   });
 
   const text = await res.text();
+
   if (!res.ok) {
     throw new Error(`pm reservations quote error ${res.status}: ${text}`);
   }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`pm reservations quote parse error: ${text.slice(0, 200)}`);
-  }
+
+  return text ? JSON.parse(text) : { text };
 };
+
+
 
 // Walk the PM content tree and extract listing records in a flat array.
 const normalizePmListings = (pmData) => {
@@ -365,49 +373,35 @@ const normalizePmListings = (pmData) => {
 };
 
 const normalizePmQuotes = (pmData) => {
-  if (!pmData) return null;
+  const stack = [pmData];
+  const quotesMap = new Map();
 
-  const quote = pmData.quote || pmData;
+  while (stack.length) {
+    const cur = stack.pop();
 
-  const ratePlans =
-    quote?.rates?.ratePlans?.map((rp) => {
-      const ratePlan = rp.ratePlan || {};
-      const money = ratePlan.money || {};
+    if (Array.isArray(cur)) {
+      stack.push(...cur);
+      continue;
+    }
 
-      return {
-        inquiryId: rp.inquiryId,
-        ratePlanId: ratePlan._id,
-        name: ratePlan.name,
-        cancellationPolicy: ratePlan.cancellationPolicy,
-        minNights: ratePlan.minNights,
-        currency: money.currency,
+    if (!isObject(cur)) continue;
 
-        pricing: {
-          accommodation: money.fareAccommodation,
-          accommodationAdjusted: money.fareAccommodationAdjusted,
-          cleaningFee: money.fareCleaning,
-          totalFees: money.totalFees,
-          subtotal: money.subTotalPrice,
-          taxes: money.totalTaxes,
-          hostPayout: money.hostPayout,
-          hostPayoutUsd: money.hostPayoutUsd,
-          invoiceItems: money.invoiceItems || [],
-        },
+    const isQuote =
+      cur._id &&
+      cur.expiresAt &&
+      Array.isArray(cur.stay) &&
+      cur.stay.length > 0 &&
+      cur.rates?.ratePlans;
 
-        days:
-          rp.days?.map((d) => ({
-            date: d.date,
-            price: d.price,
-            basePrice: d.basePrice,
-            manualPrice: d.manualPrice,
-            minNights: d.minNights,
-            maxNights: d.maxNights,
-            currency: d.currency,
-          })) || [],
-      };
-    }) || [];
 
-  return {
+    if (isQuote && !quotesMap.has(cur._id)) {
+      quotesMap.set(cur._id, cur);
+    }
+
+    stack.push(...Object.values(cur));
+  }
+
+  const mapQuote = (quote) => ({
     id: quote._id,
     status: quote.status,
     createdAt: quote.createdAt,
@@ -425,21 +419,59 @@ const normalizePmQuotes = (pmData) => {
 
     numberOfGuests: quote.numberOfGuests,
 
-    stay:
-      quote.stay?.map((s) => ({
-        unitTypeId: s.unitTypeId,
-        checkIn: s.checkInDateLocalized,
-        checkOut: s.checkOutDateLocalized,
-        guestsCount: s.guestsCount,
-        eta: s.eta,
-        etd: s.etd,
-      })) || [],
+    stay: quote.stay.map((s) => ({
+      unitTypeId: s.unitTypeId,
+      checkIn: s.checkInDateLocalized,
+      checkOut: s.checkOutDateLocalized,
+      guestsCount: s.guestsCount,
+      eta: s.eta,
+      etd: s.etd,
+    })),
 
-    ratePlans,
+    ratePlans: quote.rates.ratePlans.map((rp) => {
+      const plan = rp.ratePlan || {};
+      const money = plan.money || {};
+
+      return {
+        inquiryId: rp.inquiryId,
+        ratePlanId: plan._id,
+        name: plan.name,
+        cancellationPolicy: plan.cancellationPolicy,
+        minNights: plan.minNights,
+
+        currency: money.currency,
+
+        pricing: {
+          accommodation: money.fareAccommodation,
+          accommodationAdjusted: money.fareAccommodationAdjusted,
+          cleaningFee: money.fareCleaning,
+          totalFees: money.totalFees,
+          subtotal: money.subTotalPrice,
+          taxes: money.totalTaxes,
+          hostPayout: money.hostPayout,
+          hostPayoutUsd: money.hostPayoutUsd,
+          invoiceItems: money.invoiceItems || [],
+        },
+
+        days: rp.days.map((d) => ({
+          date: d.date,
+          price: d.price,
+          basePrice: d.basePrice,
+          manualPrice: d.manualPrice,
+          minNights: d.minNights,
+          maxNights: d.maxNights,
+          currency: d.currency,
+        })),
+      };
+    }),
+
     coupons: quote.coupons || [],
     promotions: quote.promotions || {},
-  };
+  });
+
+  return Array.from(quotesMap.values()).map(mapQuote);
 };
+
 
 // Optional fallback: create quote through Open API SDK (rarely used).
 const createQuoteViaSdk = async (payload) => {
@@ -471,14 +503,70 @@ app.get("/api/listings", async (_req, res) => {
   }
 });
 
-app.post("/api/reservations/quotes", async (_req, res) => {
+const buildQuotePayload = ({
+  listingId,
+  checkInDateLocalized,
+  checkOutDateLocalized,
+  guestsCount,
+  guest,
+  coupons,
+}) => ({
+  listingId,
+  checkInDateLocalized,
+  checkOutDateLocalized,
+  guestsCount: Number(guestsCount), // ✅ MUST BE NUMBER
+  ...(guest ? { guest } : {}),
+  ...(coupons ? { coupons } : {}),
+});
+
+
+
+
+// app.post("/api/reservations/quotes", async (_req, res) => {
+//   const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount } = _req.body || {};
+
+//   if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
+//     return res.status(400).json({ message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required kupal" });
+//   }
+
+//   try {
+//     const payload = buildQuotePayload({
+//       listingId,
+//       checkInDateLocalized,
+//       checkOutDateLocalized,
+//       guestsCount: Number(guestsCount),
+//     });
+
+//     const pmData = await fetchPmReservationQuote(payload)
+//     console.log("RAW PM QUOTE:", JSON.stringify(pmData, null, 2));
+//     const quotes = normalizePmQuotes(pmData);
+//     res.json({ results: quotes });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Failed to load Quotes", error: err.message });
+//   }
+// });
+
+
+app.post("/api/reservations/quotes", async (req, res) => {
   try {
-    const pmData = await fetchPmContent("en");
-    const quotes = normalizePmQuotes(pmData);
-    res.json({ results: quotes });
+    const payload = {
+      listingId: req.body.listingId,
+      checkInDateLocalized: req.body.checkInDateLocalized,
+      checkOutDateLocalized: req.body.checkOutDateLocalized,
+      guestsCount: Number(req.body.guestsCount),
+    };
+
+    const pmData = await fetchPmReservationQuote(payload);
+
+    // 🔥 RETURN RAW DATA — NO NORMALIZATION
+    return res.json({ raw: pmData });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to load Quotes", error: err.message });
+    console.error("QUOTE ERROR:", err);
+    return res.status(500).json({
+      message: "Failed to load Quotes",
+      error: err.message,
+    });
   }
 });
 
