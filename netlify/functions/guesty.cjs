@@ -15,8 +15,10 @@ const clientSecret = process.env.GUESTY_CLIENT_SECRET;
 const pmContentUrl = "https://app.guesty.com/api/pm-websites-backend/engines/content";
 const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
-const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
-const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+// const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
+// const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+const pmOrigin = "https://reservations.oneluxstay.com";
+const pmReferer = "https://reservations.oneluxstay.com/";
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
