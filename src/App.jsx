@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/";
 
 
 const formatCurrency = (value, currency = "USD") =>
