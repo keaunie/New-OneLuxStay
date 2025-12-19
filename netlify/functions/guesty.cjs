@@ -244,6 +244,85 @@ function normalizePmListings(pmData) {
   return Array.from(listingsMap.values()).map(mapListing);
 }
 
+
+const normalizePmQuotes = (pmData) => {
+  if (!pmData) return null;
+
+  const quote = pmData.quote || pmData;
+
+  const ratePlans =
+    quote?.rates?.ratePlans?.map((rp) => {
+      const ratePlan = rp.ratePlan || {};
+      const money = ratePlan.money || {};
+
+      return {
+        inquiryId: rp.inquiryId,
+        ratePlanId: ratePlan._id,
+        name: ratePlan.name,
+        cancellationPolicy: ratePlan.cancellationPolicy,
+        minNights: ratePlan.minNights,
+        currency: money.currency,
+
+        pricing: {
+          accommodation: money.fareAccommodation,
+          accommodationAdjusted: money.fareAccommodationAdjusted,
+          cleaningFee: money.fareCleaning,
+          totalFees: money.totalFees,
+          subtotal: money.subTotalPrice,
+          taxes: money.totalTaxes,
+          hostPayout: money.hostPayout,
+          hostPayoutUsd: money.hostPayoutUsd,
+          invoiceItems: money.invoiceItems || [],
+        },
+
+        days:
+          rp.days?.map((d) => ({
+            date: d.date,
+            price: d.price,
+            basePrice: d.basePrice,
+            manualPrice: d.manualPrice,
+            minNights: d.minNights,
+            maxNights: d.maxNights,
+            currency: d.currency,
+          })) || [],
+      };
+    }) || [];
+
+  return {
+    id: quote._id,
+    status: quote.status,
+    createdAt: quote.createdAt,
+    expiresAt: quote.expiresAt,
+
+    accountId: quote.accountId,
+    channel: quote.channel,
+    source: quote.source,
+
+    unitTypeId: quote.unitTypeId,
+    guestsCount: quote.guestsCount,
+
+    checkIn: quote.checkInDateLocalized,
+    checkOut: quote.checkOutDateLocalized,
+
+    numberOfGuests: quote.numberOfGuests,
+
+    stay:
+      quote.stay?.map((s) => ({
+        unitTypeId: s.unitTypeId,
+        checkIn: s.checkInDateLocalized,
+        checkOut: s.checkOutDateLocalized,
+        guestsCount: s.guestsCount,
+        eta: s.eta,
+        etd: s.etd,
+      })) || [],
+
+    ratePlans,
+    coupons: quote.coupons || [],
+    promotions: quote.promotions || {},
+  };
+};
+
+
 const json = (statusCode, body) => ({
   statusCode,
   headers: { "Content-Type": "application/json" },
@@ -368,33 +447,37 @@ module.exports.handler = async (event, context = {}) => {
     }
 
     if (httpMethod === "POST" && (resource === "quotes" || resource === "reservations/quotes")) {
-      let body = {};
-      try {
-        body = event.body ? JSON.parse(event.body) : {};
-      } catch {
-        return json(400, { message: "Invalid JSON body" });
-      }
+      // let body = {};
+      // try {
+      //   body = event.body ? JSON.parse(event.body) : {};
+      // } catch {
+      //   return json(400, { message: "Invalid JSON body" });
+      // }
 
-      const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = body;
+      // const { listingId, checkInDateLocalized, checkOutDateLocalized, guestsCount, source, guest, coupons } = body;
 
-      if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
-        return json(400, {
-          message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
-        });
-      }
+      // if (!listingId || !checkInDateLocalized || !checkOutDateLocalized || guestsCount === undefined) {
+      //   return json(400, {
+      //     message: "listingId, checkInDateLocalized, checkOutDateLocalized, and guestsCount are required",
+      //   });
+      // }
 
-      const payload = {
-        listingId,
-        checkInDateLocalized,
-        checkOutDateLocalized,
-        guestsCount: Number(guestsCount),
-        // source: source || "manual",
-        ...(guest ? { guest } : {}),
-        ...(coupons ? { coupons } : {}),
-      };
+      // const payload = {
+      //   listingId,
+      //   checkInDateLocalized,
+      //   checkOutDateLocalized,
+      //   guestsCount: Number(guestsCount),
+      //   // source: source || "manual",
+      //   ...(guest ? { guest } : {}),
+      //   ...(coupons ? { coupons } : {}),
+      // };
 
-      const quote = await fetchPmReservationQuote(payload);
-      return json(200, { message: "Quote created", data: quote });
+      // const quote = await fetchPmReservationQuote(payload);
+      // return json(200, { message: "Quote created", data: quote });
+
+      const pmData = await fetchPmContent("en");
+      const listings = normalizePmListings(pmData);
+      return json(200, { results: listings });
     }
 
     return json(404, { message: "Not Found" });
