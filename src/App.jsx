@@ -36,7 +36,8 @@ function App() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/listings`);
+        const res = await fetch(`${apiBase}/api/listings`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
         setListings(json.results || []);
         setActiveListingId((json.results || [])[0]?.id || "");
@@ -69,7 +70,7 @@ function App() {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { ...options, signal: controller.signal });
+      const res = await fetch(url, { cache: "no-store", ...options, signal: controller.signal });
       return res;
     } finally {
       clearTimeout(id);
@@ -81,6 +82,11 @@ function App() {
       alert("Pick check-in and check-out dates first.");
       return;
     }
+    const adultsNum = Number.parseInt(search.adults, 10);
+    const childrenNum = Number.parseInt(search.children, 10);
+    const adults = Number.isFinite(adultsNum) ? Math.max(1, adultsNum) : 1;
+    const children = Number.isFinite(childrenNum) ? Math.max(0, childrenNum) : 0;
+    const guests = adults + children;
 
     setAvailability((prev) => ({
       ...prev,
@@ -95,24 +101,26 @@ function App() {
         children: search.children,
       }).toString();
 
-      const [availRes, quoteRes] = await Promise.all([
-        // fetchWithTimeout(`${apiBase}/listings/${listing.id}/availability?${qs}`),
-        fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            listingId: listing.id,
-            checkInDateLocalized: search.checkIn,
-            checkOutDateLocalized: search.checkOut,
-            guestsCount: Number(search.adults) + Number(search.children || 0),
-          }),
+      const quoteRes = await fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          listingId: listing.id,
+          checkInDateLocalized: search.checkIn,
+          checkOutDateLocalized: search.checkOut,
+          guestsCount: guests,
         }),
-      ]);
+      });
 
-      const availJson = availRes.ok ? await availRes.json() : null;
-      const quoteJson = quoteRes?.ok ? await quoteRes.json() : null;
+      if (!quoteRes.ok) {
+        const errText = await quoteRes.text();
+        throw new Error(errText || `Quote failed with ${quoteRes.status}`);
+      }
+
+      const availJson = null;
+      const quoteJson = await quoteRes.json();
       const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
 
       const isAvailable =

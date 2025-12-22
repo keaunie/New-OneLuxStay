@@ -3,6 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import serverless from "serverless-http";
 import fs from "fs/promises";
+import os from "os";
+import path from "path";
 
 dotenv.config();
 
@@ -10,9 +12,10 @@ dotenv.config();
    NETLIFY SAFE PATHS
 ======================= */
 
-// Netlify only allows writing to /tmp
-const OPEN_API_TOKEN_FILE = "/tmp/guesty-openapi-token.json";
-const BOOKING_TOKEN_FILE = "/tmp/guesty-booking-token.json";
+// Netlify allows writing to /tmp; in local dev use the OS tmp dir (Windows safe)
+const TMP_DIR = os.tmpdir();
+const OPEN_API_TOKEN_FILE = path.join(TMP_DIR, "guesty-openapi-token.json");
+const BOOKING_TOKEN_FILE = path.join(TMP_DIR, "guesty-booking-token.json");
 
 /* =======================
    APP SETUP
@@ -21,12 +24,21 @@ const BOOKING_TOKEN_FILE = "/tmp/guesty-booking-token.json";
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.disable("etag");
+app.use((_req, res, next) => {
+    // Prevent conditional requests that return 304 with empty bodies
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    next();
+});
 
 /* =======================
    ENV & CONSTANTS
 ======================= */
 
 const OPEN_API_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
+const OPEN_API_BASE = "https://open-api.guesty.com/v1";
 const BOOKING_TOKEN_URL = "https://booking.guesty.com/oauth2/token";
 const BOOKING_API_BASE = "https://booking.guesty.com/api";
 
@@ -220,16 +232,24 @@ function normalizePmListings(pmData) {
 ======================= */
 
 async function createQuote(payload) {
-    const token = await getBookingEngineToken();
+    // Booking API 404s in some tenants; open-api quotes is stable for pricing.
+    const token = await getOpenApiToken();
 
-    const res = await fetch(`${BOOKING_API_BASE}/reservationQuotes`, {
+    const res = await fetch(`${OPEN_API_BASE}/quotes`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
             accept: "application/json",
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+            listingId: payload.unitTypeId,
+            checkInDateLocalized: payload.checkInDateLocalized,
+            checkOutDateLocalized: payload.checkOutDateLocalized,
+            numberOfGuests: payload.numberOfGuests,
+            guestsCount: payload.guestsCount, // include for back-compat validation
+            source: "website",
+        }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -257,6 +277,9 @@ app.post("/api/reservations/quotes", async (req, res) => {
         guestsCount,
     } = req.body || {};
 
+    const guestsNum = Number.parseInt(guestsCount, 10);
+    const guests = Number.isFinite(guestsNum) ? Math.max(1, guestsNum) : 1;
+
     if (!listingId || !checkInDateLocalized || !checkOutDateLocalized) {
         return res.status(400).json({ message: "Missing quote parameters" });
     }
@@ -266,9 +289,8 @@ app.post("/api/reservations/quotes", async (req, res) => {
             unitTypeId: listingId,
             checkInDateLocalized,
             checkOutDateLocalized,
-            numberOfGuests: {
-                numberOfAdults: Number(guestsCount) || 1,
-            },
+            numberOfGuests: { numberOfAdults: guests, numberOfChildren: 0 },
+            guestsCount: guests,
             source: "website",
         });
 
@@ -282,4 +304,5 @@ app.post("/api/reservations/quotes", async (req, res) => {
    NETLIFY EXPORT
 ======================= */
 
-export const handler = serverless(app);
+// Respect Netlify function mount path so Express routes remain at /api/*
+export const handler = serverless(app, { basePath: "/.netlify/functions/index" });
