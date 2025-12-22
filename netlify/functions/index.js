@@ -212,12 +212,30 @@ function normalizePmListings(pmData) {
 
     return [...map.values()].map((l) => ({
         id: l._id || l.id,
+        unitTypeId: l.unitTypeId || l._id || l.id,
         title: l.title,
         picture:
             l.picture?.original ||
             l.picture?.large ||
             l.picture?.regular ||
             "",
+        city: l.address?.city || l.location?.city || l.timezone || "",
+        photos: Array.isArray(l.pictures)
+            ? l.pictures
+                  .map((p) => p?.original || p?.large || p?.regular || p?.url || p)
+                  .filter(Boolean)
+            : Array.isArray(l.gallery)
+              ? l.gallery
+                    .map((p) => p?.original || p?.large || p?.regular || p?.url || p)
+                    .filter(Boolean)
+              : [],
+        address:
+            l.address?.full ||
+            l.address?.formattedAddress ||
+            l.address?.address ||
+            [l.address?.street, l.address?.city, l.address?.state, l.address?.country]
+                .filter(Boolean)
+                .join(", "),
         bedrooms: l.bedrooms,
         bathrooms: l.bathrooms,
         accommodates: l.accommodates,
@@ -225,6 +243,144 @@ function normalizePmListings(pmData) {
         currency: l.prices?.currency || "USD",
         cleaningFee: l.prices?.cleaningFee,
     }));
+}
+
+/* =======================
+   AVAILABILITY (OPEN API)
+======================= */
+
+async function fetchAvailability({ listingId, unitTypeId, startDate, endDate, guests = 1, city = "" }) {
+    let data;
+    let fallbackResponse;
+    const errors = [];
+
+    // Try booking-engine availability with unitTypeId if possible
+    const beId = unitTypeId || listingId;
+    try {
+        const beToken = await getBookingEngineToken();
+        const beUrl = `${BOOKING_API_BASE}/v2/unit-types/${encodeURIComponent(
+            beId
+        )}/availability/timeframe?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+        const beRes = await fetch(beUrl, {
+            headers: { Authorization: `Bearer ${beToken}`, accept: "application/json" },
+        });
+        if (beRes.ok) {
+            data = await beRes.json();
+        } else {
+            errors.push({ source: "booking", status: beRes.status, body: await beRes.text().catch(() => ""), id: beId });
+        }
+    } catch (err) {
+        errors.push({ source: "booking-token", error: err.message || String(err) });
+    }
+
+    // Open API timeframe
+    if (!data) {
+        const token = await getOpenApiToken();
+        const timeframeUrl = `${OPEN_API_BASE}/listings/${encodeURIComponent(
+            listingId
+        )}/availability/timeframe?startDate=${encodeURIComponent(
+            startDate
+        )}&endDate=${encodeURIComponent(endDate)}`;
+
+        let res = await fetch(timeframeUrl, {
+            headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+        });
+
+        if (res.ok) {
+            data = await res.json();
+        } else {
+            errors.push({ source: "openapi-timeframe", status: res.status, body: await res.text().catch(() => "") });
+        // Fallback: search listings with "available" filter and explicit fields (no city filter to avoid mismatches)
+            const available = {
+                checkIn: startDate,
+                checkOut: endDate,
+                minOccupancy: guests || 1,
+            };
+        const searchUrl = `${OPEN_API_BASE}/listings?ids=${encodeURIComponent(
+            listingId
+        )}&fields=_id availability availabilityStatus prices terms title address unitTypeId&available=${encodeURIComponent(
+            JSON.stringify(available)
+        )}`;
+            res = await fetch(searchUrl, {
+                headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+            });
+            if (res.ok) {
+                const searchJson = await res.json();
+                fallbackResponse = searchJson;
+                data = Array.isArray(searchJson?.results) ? searchJson.results[0] || null : searchJson;
+            } else {
+                errors.push({ source: "openapi-search-id", status: res.status, body: await res.text().catch(() => "") });
+            }
+
+            // If still nothing and city provided, try city-only query for availability and pick match
+        if (!data && city) {
+            const cityUrl = `${OPEN_API_BASE}/listings?city=${encodeURIComponent(
+                city
+            )}&fields=_id availability availabilityStatus prices terms title address unitTypeId&available=${encodeURIComponent(
+                JSON.stringify(available)
+            )}`;
+                const cityRes = await fetch(cityUrl, {
+                    headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+                });
+                if (cityRes.ok) {
+                    const cityJson = await cityRes.json();
+                    fallbackResponse = fallbackResponse || cityJson;
+                    const found =
+                        Array.isArray(cityJson?.results) && cityJson.results.find((r) => r._id === listingId);
+                    data = found || (Array.isArray(cityJson?.results) ? cityJson.results[0] : null);
+                } else {
+                    errors.push({ source: "openapi-search-city", status: cityRes.status, body: await cityRes.text().catch(() => "") });
+                }
+            }
+
+            // If still nothing, try search by unitTypeId as ids
+            if (!data && unitTypeId && unitTypeId !== listingId) {
+                const idUrl = `${OPEN_API_BASE}/listings?ids=${encodeURIComponent(
+                    unitTypeId
+                )}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+                    JSON.stringify(available)
+                )}${city ? `&city=${encodeURIComponent(city)}` : ""}`;
+                const idRes = await fetch(idUrl, {
+                    headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+                });
+                if (idRes.ok) {
+                    const idJson = await idRes.json();
+                    fallbackResponse = fallbackResponse || idJson;
+                    data = Array.isArray(idJson?.results) ? idJson.results[0] || null : data;
+                } else {
+                    errors.push({ source: "openapi-search-unitTypeId", status: idRes.status, body: await idRes.text().catch(() => "") });
+                }
+            }
+        }
+    }
+
+    const days =
+        data?.availability ||
+        data?.data?.availability ||
+        data?.data ||
+        (Array.isArray(data) ? data : []);
+
+    const isAvailable =
+        Array.isArray(days) && days.length
+            ? days.every((d) => {
+                  const flag =
+                      d?.isAvailable ??
+                      d?.available ??
+                      (typeof d?.status === "string"
+                          ? d.status.toUpperCase() !== "BLOCKED" &&
+                            d.status.toUpperCase() !== "UNAVAILABLE"
+                          : undefined);
+                  return flag !== false;
+              })
+            : typeof data?.availabilityStatus === "string"
+              ? data.availabilityStatus.toUpperCase() === "AVAILABLE"
+              : Array.isArray(data?.results)
+                ? data.results.length > 0
+                : typeof fallbackResponse?.count === "number"
+                  ? fallbackResponse.count > 0
+                  : undefined;
+
+    return { isAvailable, availability: days, raw: data || fallbackResponse, errors };
 }
 
 /* =======================
@@ -297,6 +453,29 @@ app.post("/api/reservations/quotes", async (req, res) => {
         res.json({ results: [quote] });
     } catch (e) {
         res.status(502).json({ message: "Quote failed", error: e.message });
+    }
+});
+
+app.get("/api/listings/:id/availability", async (req, res) => {
+    const listingId = req.params.id;
+    const { startDate, endDate, guests = 1, city = "", unitTypeId = "" } = req.query || {};
+
+    if (!listingId || !startDate || !endDate) {
+        return res.status(400).json({ message: "Missing availability parameters" });
+    }
+
+    try {
+        const availability = await fetchAvailability({
+            listingId,
+            unitTypeId: unitTypeId || listingId,
+            startDate,
+            endDate,
+            guests: Number(guests) || 1,
+            city,
+        });
+        res.json(availability);
+    } catch (e) {
+        res.status(502).json({ message: "Availability failed", error: e.message });
     }
 });
 

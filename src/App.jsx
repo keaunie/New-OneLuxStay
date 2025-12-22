@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -16,12 +17,291 @@ const initialSearch = {
   children: 0,
 };
 
+const locationOptions = [
+  { value: "", label: "All", image: "" },
+  {
+    value: "Antwerp",
+    label: "Antwerpen",
+    image: "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=200&q=60",
+  },
+  {
+    value: "Dubai",
+    label: "Dubai",
+    image: "https://images.unsplash.com/photo-1474623700587-1c221f7b2a1f?auto=format&fit=crop&w=200&q=60",
+  },
+  {
+    value: "Los Angeles",
+    label: "Los Angeles",
+    image: "https://images.unsplash.com/photo-1507925921958-8a62f3d1a50d?auto=format&fit=crop&w=200&q=60",
+  },
+  {
+    value: "Hollywood",
+    label: "Hollywood",
+    image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=200&q=60",
+  },
+  {
+    value: "Redondo Beach",
+    label: "Redondo Beach",
+    image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=200&q=60",
+  },
+  {
+    value: "Miami Beach",
+    label: "Miami Beach",
+    image: "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=200&q=60",
+  },
+];
+
+const toISODate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const deriveCity = (listing) => {
+  const text = `${listing.address || ""} ${listing.location || ""} ${listing.title || ""} ${listing.timezone || ""}`.toLowerCase();
+  if (text.includes("hollywood")) return "Hollywood";
+  if (text.includes("los angeles")) return "Los Angeles";
+  if (text.includes("redondo beach")) return "Redondo Beach";
+  if (text.includes("miami beach")) return "Miami Beach";
+  if (text.includes("dubai")) return "Dubai";
+  if (text.includes("antwerp") || text.includes("antwerpen")) return "Antwerp";
+  if (text.includes("miami")) return "Miami Beach";
+  return "";
+};
+
+const formatDisplayDate = (value) => {
+  if (!value) return "Add date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Add date";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+function DateRangePicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState(() =>
+    value.start ? new Date(value.start) : new Date(),
+  );
+  const ref = useRef(null);
+  const portalRef = useRef(null);
+  const [portalStyle, setPortalStyle] = useState(null);
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
+
+  const startDate = value.start ? new Date(value.start) : null;
+  const endDate = value.end ? new Date(value.end) : null;
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (
+        !open ||
+        !ref.current ||
+        ref.current.contains(e.target) ||
+        (portalRef.current && portalRef.current.contains(e.target))
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+    const handleEsc = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const updatePosition = () => {
+      if (!ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      setPortalStyle({
+        position: "fixed",
+        top: rect.bottom + 12,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    };
+    if (open) {
+      updatePosition();
+      window.addEventListener("resize", updatePosition);
+      window.addEventListener("scroll", updatePosition, true);
+    }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [open]);
+
+  const days = [];
+  const firstDay = new Date(view.getFullYear(), view.getMonth(), 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+
+  for (let i = 0; i < startOffset; i += 1) days.push(null);
+  for (let i = 1; i <= daysInMonth; i += 1) {
+    days.push(new Date(view.getFullYear(), view.getMonth(), i));
+  }
+
+  const isSameDay = (a, b) =>
+    a &&
+    b &&
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const inRange = (day) => {
+    if (!day || !startDate) return false;
+    if (startDate && endDate) return day >= startDate && day <= endDate;
+    return isSameDay(day, startDate);
+  };
+
+  const handleDayClick = (day) => {
+    if (!day) return;
+    let nextStart = startDate;
+    let nextEnd = endDate;
+    if (!startDate || (startDate && endDate)) {
+      nextStart = day;
+      nextEnd = null;
+    } else if (day < startDate) {
+      nextStart = day;
+      nextEnd = null;
+    } else {
+      nextEnd = day;
+    }
+    onChange({
+      start: nextStart ? toISODate(nextStart) : "",
+      end: nextEnd ? toISODate(nextEnd) : "",
+    });
+  };
+
+  const goMonth = (delta) => {
+    const next = new Date(view);
+    next.setMonth(view.getMonth() + delta);
+    setView(next);
+  };
+
+  return (
+    <div className="relative z-30" ref={ref}>
+      <div className="grid grid-cols-2 gap-3">
+        {["Check-in", "Check-out"].map((label, idx) => {
+          const val = idx === 0 ? value.start : value.end;
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setOpen((p) => !p)}
+              className="flex flex-col items-start rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-left text-sm text-white transition hover:border-emerald-400/60"
+            >
+              <span className="text-xs uppercase tracking-wide text-emerald-200">{label}</span>
+              <span className="text-sm text-white">{formatDisplayDate(val)}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {open && portalStyle && portalTarget &&
+        createPortal(
+          (
+            <div
+              className="w-full max-w-md rounded-2xl border border-white/15 bg-slate-950/95 p-4 shadow-2xl backdrop-blur"
+              style={portalStyle}
+              ref={portalRef}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {view.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+                  </p>
+                  <p className="text-xs text-slate-400">Select a check-in and check-out date</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => goMonth(-1)}
+                    className="rounded-lg bg-amber-400 px-2 py-1 text-slate-900 font-semibold shadow"
+                  >
+                    {"<"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goMonth(1)}
+                    className="rounded-lg bg-amber-400 px-2 py-1 text-slate-900 font-semibold shadow"
+                  >
+                    {">"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-7 text-center text-xs text-slate-400">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                  <span key={d} className="py-1">
+                    {d}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-1 grid grid-cols-7 gap-1">
+                {days.map((day, idx) => {
+                  const iso = day ? toISODate(day) : `empty-${idx}`;
+                  const selectedStart = day && isSameDay(day, startDate);
+                  const selectedEnd = day && isSameDay(day, endDate);
+                  const inSelectedRange = inRange(day);
+                  const isPast = day ? day < today : true;
+
+                  return (
+                    <button
+                      key={iso}
+                      type="button"
+                      disabled={!day || isPast}
+                      onClick={() => handleDayClick(day)}
+                      className={[
+                        "relative flex h-10 items-center justify-center rounded-lg text-sm transition",
+                        !day
+                          ? "cursor-default text-transparent"
+                          : isPast
+                            ? "cursor-not-allowed text-slate-600 border border-white/5 bg-slate-900/50"
+                            : "text-white hover:border-amber-300",
+                        inSelectedRange && !isPast
+                          ? "bg-amber-400/20 border border-amber-300/40"
+                          : "border border-white/5",
+                        selectedStart || selectedEnd ? "bg-amber-400 text-slate-900 font-semibold" : "",
+                      ].join(" ")}
+                    >
+                      {day ? day.getDate() : ""}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
+                <span>
+                  {startDate
+                    ? `Check-in: ${formatDisplayDate(value.start)}`
+                    : "Pick a check-in date"}
+                </span>
+                <span>
+                  {endDate ? `Check-out: ${formatDisplayDate(value.end)}` : "Pick a check-out date"}
+                </span>
+              </div>
+            </div>
+          ),
+          portalTarget,
+        )}
+    </div>
+  );
+}
+
 function App() {
   const [listings, setListings] = useState([]);
   const [quote, setQuotes] = useState([]);
   const [loadingListings, setLoadingListings] = useState(true);
   const [listingsError, setListingsError] = useState("");
   const [search, setSearch] = useState(initialSearch);
+  const [locationFilter, setLocationFilter] = useState("");
   const [availability, setAvailability] = useState({});
   const [activeListingId, setActiveListingId] = useState("");
   const [bookingInfo, setBookingInfo] = useState({
@@ -62,6 +342,12 @@ function App() {
     [activeListingId, listings],
   );
 
+  const filteredListings = useMemo(() => {
+    return listings
+      .map((l) => ({ ...l, _city: deriveCity(l) }))
+      .filter((l) => (!locationFilter ? true : l._city === locationFilter));
+  }, [listings, locationFilter]);
+
   const handleSearchChange = (key, value) => {
     setSearch((prev) => ({ ...prev, [key]: value }));
   };
@@ -97,37 +383,54 @@ function App() {
       const qs = new URLSearchParams({
         startDate: search.checkIn,
         endDate: search.checkOut,
-        adults: search.adults,
-        children: search.children,
+        guests,
+        unitTypeId: listing.unitTypeId || listing.id,
       }).toString();
 
-      const quoteRes = await fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          listingId: listing.id,
-          checkInDateLocalized: search.checkIn,
-          checkOutDateLocalized: search.checkOut,
-          guestsCount: guests,
+      const [availRes, quoteRes] = await Promise.all([
+        fetchWithTimeout(`${apiBase}/api/listings/${listing.id}/availability?${qs}`),
+        fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            listingId: listing.id,
+            checkInDateLocalized: search.checkIn,
+            checkOutDateLocalized: search.checkOut,
+            guestsCount: guests,
+          }),
         }),
-      });
+      ]);
 
       if (!quoteRes.ok) {
         const errText = await quoteRes.text();
         throw new Error(errText || `Quote failed with ${quoteRes.status}`);
       }
+      if (!availRes.ok) {
+        const errText = await availRes.text();
+        throw new Error(errText || `Availability failed with ${availRes.status}`);
+      }
 
-      const availJson = null;
+      const availJson = await availRes.json();
       const quoteJson = await quoteRes.json();
       const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
 
       const isAvailable =
         availJson?.isAvailable ??
         availJson?.available ??
-        (typeof availJson?.status === "string" ? availJson.status === "AVAILABLE" : undefined) ??
-        (Array.isArray(availJson?.availability) ? availJson.availability.every((d) => d.isAvailable) : undefined);
+        (typeof availJson?.status === "string" ? availJson.status.toUpperCase() === "AVAILABLE" : undefined) ??
+        (Array.isArray(availJson?.availability)
+          ? availJson.availability.every((d) => {
+              const flag =
+                d?.isAvailable ??
+                d?.available ??
+                (typeof d?.status === "string"
+                  ? !["BLOCKED", "UNAVAILABLE"].includes(d.status.toUpperCase())
+                  : undefined);
+              return flag !== false;
+            })
+          : undefined);
 
       const quoteMoney =
         quoteData?.rates?.ratePlans?.[0]?.ratePlan?.money ||
@@ -156,6 +459,7 @@ function App() {
 
       const nightly = quoteNightly ?? listing.basePrice;
       const total = quoteTotal ?? (nightly && nights ? nightly * nights + (listing.cleaningFee || 0) : null);
+      const quoteNights = quotedNights || nights || null;
 
       setAvailability((prev) => ({
         ...prev,
@@ -164,6 +468,7 @@ function App() {
           available: isAvailable,
           nightly,
           total,
+          nights: quoteNights,
           currency: quoteCurrency,
           raw: { availability: availJson, quote: quoteData },
         },
@@ -253,23 +558,14 @@ function App() {
         <div className="mt-6 grid gap-4 md:grid-cols-[2fr,1fr]">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg backdrop-blur">
             <p className="text-sm font-semibold text-white mb-3">Search dates</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr,1fr,1fr] gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-300">Check-in</label>
-                <input
-                  type="date"
-                  value={search.checkIn}
-                  onChange={(e) => handleSearchChange("checkIn", e.target.value)}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-300">Check-out</label>
-                <input
-                  type="date"
-                  value={search.checkOut}
-                  onChange={(e) => handleSearchChange("checkOut", e.target.value)}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                <label className="text-xs text-slate-300 mb-1">Dates</label>
+                <DateRangePicker
+                  value={{ start: search.checkIn, end: search.checkOut }}
+                  onChange={({ start, end }) =>
+                    setSearch((prev) => ({ ...prev, checkIn: start, checkOut: end }))
+                  }
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -367,8 +663,46 @@ function App() {
 
       <main className="max-w-6xl mx-auto px-6 pb-14">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Available units</h2>
-          <p className="text-xs text-slate-400">Images load lazily to stay fast on slow networks.</p>
+          <div>
+            <h2 className="text-xl font-semibold text-white">Available units</h2>
+            <p className="text-xs text-slate-400">Filter by destination or browse all listings.</p>
+          </div>
+        </div>
+
+        <div
+          className="mb-5 rounded-2xl border border-white/10 bg-slate-900/50 p-3 backdrop-blur"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(17,24,39,0.8), rgba(17,24,39,0.6)), url('https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=1200&q=60')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="flex flex-wrap gap-3">
+            {locationOptions
+              .filter((opt) => opt.value !== "")
+              .map((opt) => {
+                const isActive = locationFilter === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => setLocationFilter((cur) => (cur === opt.value ? "" : opt.value))}
+                    className={`flex items-center gap-3 rounded-full px-3 py-2 text-sm font-semibold uppercase tracking-wide transition ${
+                      isActive
+                        ? "bg-emerald-400/90 text-slate-900 shadow-lg shadow-emerald-400/30"
+                        : "bg-black/50 text-white hover:bg-white/20 border border-white/10"
+                    }`}
+                  >
+                    <span className="h-8 w-8 overflow-hidden rounded-full border border-white/20 bg-white/10">
+                      {opt.image ? (
+                        <img src={opt.image} alt={opt.label} className="h-full w-full object-cover" />
+                      ) : null}
+                    </span>
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+          </div>
         </div>
 
         {loadingListings && (
@@ -390,7 +724,7 @@ function App() {
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {listings.map((listing) => {
+          {filteredListings.map((listing) => {
             const status = availability[listing.id] || {};
             const isActive = activeListingId === listing.id;
 
@@ -418,7 +752,7 @@ function App() {
                 <div className="mt-3 flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-emerald-200">
-                      {listing.location || listing.timezone || "OneLuxStay"}
+                      {listing._city || listing.location || listing.timezone || "OneLuxStay"}
                     </p>
                     <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
                     <p className="text-sm text-slate-300">
@@ -437,6 +771,10 @@ function App() {
                   </button>
                 </div>
 
+                {listing.address && (
+                  <p className="mt-2 text-xs text-slate-400">Address: {listing.address}</p>
+                )}
+
                 <div className="mt-3 flex items-center gap-2 text-sm text-slate-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   {status.status === "ready" && status.available !== false && (
@@ -450,6 +788,24 @@ function App() {
                   {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
                   {status.status === undefined && <span>Click “Check price” to fetch live availability</span>}
                 </div>
+
+                {status.status === "ready" && status.available !== false && (
+                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
+                    <div className="flex justify-between">
+                      <span>Quote total</span>
+                      <span className="font-semibold text-white">
+                        {status.total
+                          ? formatCurrency(status.total, status.currency)
+                          : formatCurrency(status.nightly, status.currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mt-1 text-slate-400">
+                      <span>
+                        Nights: {status.nights || nights || "—"} • Nightly: {formatCurrency(status.nightly, status.currency)}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
