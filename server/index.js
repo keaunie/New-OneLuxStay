@@ -280,6 +280,16 @@ app.post("/api/reservations/quotes", async (req, res) => {
 });
 
 /* =======================
+   STATIC FRONTEND (DIST)
+======================= */
+
+const distDir = path.join(__dirname, "../dist");
+app.use(express.static(distDir));
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(distDir, "index.html"));
+});
+
+/* =======================
    START
 ======================= */
 
