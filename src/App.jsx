@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./App.css";
 
-// Default to Netlify path; fall back to /api for self-hosted environments
-const apiBase = import.meta.env.VITE_API_BASE || "/api" || "/.netlify/functions/index";
+// API base: set VITE_API_BASE for Netlify (e.g., "/.netlify/functions/index"); leave empty for same-origin /api
+const apiBase = import.meta.env.VITE_API_BASE ?? "";
 
 
 const formatCurrency = (value, currency = "USD") =>
