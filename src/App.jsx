@@ -224,6 +224,7 @@ function App() {
   const [search, setSearch] = useState(initialSearch);
   const [availability, setAvailability] = useState({});
   const [activeListingId, setActiveListingId] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
   const [bookingInfo, setBookingInfo] = useState({
     firstName: "",
     lastName: "",
@@ -262,6 +263,33 @@ function App() {
     () => listings.find((l) => l.id === activeListingId || l._id === activeListingId),
     [activeListingId, listings],
   );
+
+  const cityOptions = useMemo(
+    () => ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo", "Miami"],
+    [],
+  );
+
+  const filteredListings = useMemo(() => {
+    if (!cityFilter) return listings;
+    const target = cityFilter.toLowerCase();
+    return listings.filter((l) => {
+      const address = l.address || {};
+      const parts = [
+        address.city,
+        address.state,
+        address.country,
+        address.street,
+        address.line1,
+        address.full,
+        l.city,
+        l.location?.city,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return parts.includes(target);
+    });
+  }, [listings, cityFilter]);
 
   const handleSearchChange = (key, value) => {
     setSearch((prev) => ({ ...prev, [key]: value }));
@@ -580,7 +608,24 @@ function App() {
       <main className="max-w-6xl mx-auto px-6 pb-14">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">Available units</h2>
-          <p className="text-xs text-slate-400">Images load lazily to stay fast on slow networks.</p>
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-slate-400">Filter by city</label>
+            <select
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-white outline-none focus:border-emerald-400"
+            >
+              <option value="">All cities</option>
+              {cityOptions.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 hidden sm:block">
+              Images load lazily to stay fast on slow networks.
+            </p>
+          </div>
         </div>
 
         {loadingListings && (
@@ -602,7 +647,7 @@ function App() {
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {listings.map((listing) => {
+          {filteredListings.map((listing) => {
             const status = availability[listing.id] || {};
             const isActive = activeListingId === listing.id;
 

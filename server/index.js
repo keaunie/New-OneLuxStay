@@ -22,16 +22,6 @@ const openApiServer = "https://open-api.guesty.com/v1";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
 
-const pmContentUrl =
-  "https://app.guesty.com/api/pm-websites-backend/engines/content";
-
-const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
-const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
-const pmOrigin =
-  process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
-const pmReferer =
-  process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
-
 if (!clientId || !clientSecret) {
   throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
 }
@@ -66,6 +56,40 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
 };
 
 const isObject = (v) => v && typeof v === "object" && !Array.isArray(v);
+
+const collectPhotoUrls = (listing) => {
+  const urls = [];
+  const seen = new Set();
+  const isLikelyUrl = (v) => typeof v === "string" && /^(https?:)?\/\//.test(v.trim());
+  const push = (v) => {
+    const url = typeof v === "string" ? v.trim() : "";
+    if (!url || !isLikelyUrl(url) || seen.has(url)) return;
+    seen.add(url);
+    urls.push(url);
+  };
+  const walk = (v) => {
+    if (!v) return;
+    if (typeof v === "string") {
+      push(v);
+      return;
+    }
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+    if (isObject(v)) {
+      ["original", "large", "regular", "url", "src", "href"].forEach((k) => walk(v[k]));
+      ["pictures", "images", "photos", "gallery", "media"].forEach((k) => walk(v[k]));
+    }
+  };
+  walk(listing.picture);
+  walk(listing.pictures);
+  walk(listing.images);
+  walk(listing.photos);
+  walk(listing.gallery);
+  walk(listing.media);
+  return urls;
+};
 
 /* =======================
    BOOKING API TOKEN
@@ -164,55 +188,50 @@ async function getOpenApiToken() {
   return openApiToken;
 }
 
-/* =======================
-   PM CONTENT (LISTINGS)
-======================= */
+async function fetchOpenApiListingsAll() {
+  const token = await getOpenApiToken();
+  const results = [];
+  const limit = 50;
+  let skip = 0;
+  let total = Infinity;
 
-async function fetchPmContent(lang = "en") {
-  const headers = {
-    accept: "application/json",
-    "g-aid-cs": pmAidCs,
-    "x-request-context": pmRequestContext,
-    origin: pmOrigin,
-    referer: pmReferer,
-  };
-
-  const res = await fetchWithTimeout(
-    `${pmContentUrl}?lang=${encodeURIComponent(lang)}`,
-    { headers }
-  );
-
-  if (!res.ok) {
-    throw new Error(`PM content error: ${await res.text()}`);
+  while (skip < total) {
+    const qs = new URLSearchParams({
+      limit: String(limit),
+      skip: String(skip),
+      fields: "title address pictures images photos accommodates bedrooms bathrooms prices city location",
+      sort: "-createdAt",
+    });
+    const res = await fetchWithTimeout(`${openApiServer}/listings?${qs}`, {
+      headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const json = await res.json();
+    if (Array.isArray(json?.results)) results.push(...json.results);
+    total = Number.isFinite(json?.count) ? json.count : results.length;
+    if (!Array.isArray(json?.results) || json.results.length < limit) break;
+    skip += limit;
   }
 
-  return res.json();
+  return results;
 }
 
-function normalizePmListings(pmData) {
-  const stack = [pmData];
-  const map = new Map();
-
-  while (stack.length) {
-    const cur = stack.pop();
-    if (Array.isArray(cur)) stack.push(...cur);
-    else if (isObject(cur)) {
-      const id = cur._id || cur.id;
-      if (cur.title && cur.bedrooms !== undefined && id) {
-        map.set(id, cur);
-      }
-      stack.push(...Object.values(cur));
-    }
-  }
-
-  return [...map.values()].map((l) => ({
+function normalizeOpenApiListings(listings) {
+  return listings.map((l) => ({
     id: l._id || l.id,
     title: l.title,
     picture:
       l.picture?.original ||
       l.picture?.large ||
       l.picture?.regular ||
+      l.pictures?.[0]?.regular ||
+      l.pictures?.[0]?.thumbnail ||
       "",
+    photos: collectPhotoUrls(l),
+    address: l.address || null,
+    city: l.address?.city || l.city || l.location?.city || "",
+    state: l.address?.state || l.state || "",
+    country: l.address?.country || l.country || "",
     basePrice: l.prices?.basePrice,
     currency: l.prices?.currency || "USD",
     cleaningFee: l.prices?.cleaningFee,
@@ -241,10 +260,15 @@ async function createQuoteOpenApi(payload) {
    ROUTES
 ======================= */
 
-app.get("/api/listings", async (_req, res) => {
+app.get("/api/listings", async (req, res) => {
   try {
-    const pm = await fetchPmContent("en");
-    res.json({ results: normalizePmListings(pm) });
+    const raw = await fetchOpenApiListingsAll();
+    const merged = normalizeOpenApiListings(raw);
+    const city = String(req.query.city || "").trim().toLowerCase();
+    const filtered = city
+      ? merged.filter((l) => String(l.city || "").toLowerCase() === city)
+      : merged;
+    res.json({ results: filtered });
   } catch (e) {
     res.status(500).json({ message: "Listings failed", error: e.message });
   }
