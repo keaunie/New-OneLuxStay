@@ -213,7 +213,7 @@ async function fetchOpenApiListingsAll() {
         const qs = new URLSearchParams({
             limit: String(limit),
             skip: String(skip),
-            fields: "title address pictures images photos accommodates bedrooms bathrooms prices city location",
+            fields: "title address pictures images photos accommodates bedrooms bathrooms prices city location status",
             sort: "-createdAt",
         });
         const res = await fetchWithTimeout(`${OPEN_API_BASE}/listings?${qs}`, {
@@ -252,6 +252,7 @@ function normalizeOpenApiListings(listings) {
         basePrice: l.prices?.basePrice,
         currency: l.prices?.currency || "USD",
         cleaningFee: l.prices?.cleaningFee,
+        status: l.status,
     }));
 }
 
@@ -291,7 +292,7 @@ async function createQuote(payload) {
 app.get("/api/listings", async (req, res) => {
   try {
     const raw = await fetchOpenApiListingsAll();
-    const merged = normalizeOpenApiListings(raw);
+    const merged = normalizeOpenApiListings(raw).filter((l) => l.status === "published");
     const city = String(req.query.city || "").trim().toLowerCase();
     const filtered = city
       ? merged.filter((l) => String(l.city || "").toLowerCase() === city)
