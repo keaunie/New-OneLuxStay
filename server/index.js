@@ -42,18 +42,15 @@ const OPEN_API_BASE = "https://open-api.guesty.com/v1";
 const BOOKING_TOKEN_URL = "https://booking.guesty.com/oauth2/token";
 const BOOKING_API_BASE = "https://booking.guesty.com/api";
 
-const PM_CONTENT_URL =
-    "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const PM_CONTENT_URL ="https://app.guesty.com/api/pm-websites-backend/engines/content";
 
 const CLIENT_ID = process.env.GUESTY_CLIENT_ID;
 const CLIENT_SECRET = process.env.GUESTY_CLIENT_SECRET;
 
 const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
-const pmOrigin =
-    process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
-const pmReferer =
-    process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+const pmOrigin = process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
+const pmReferer = process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
