@@ -272,25 +272,7 @@ function App() {
   const filteredListings = useMemo(() => {
     if (!cityFilter) return listings;
     const target = cityFilter.toLowerCase();
-    return listings.filter((l) => {
-      const address = l.address || {};
-      const parts = [
-        l.title,
-        address.city,
-        address.state,
-        address.country,
-        address.street,
-        address.line1,
-        address.full,
-        address.county,
-        l.city,
-        l.location?.city,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return parts.includes(target);
-    });
+    return listings.filter((l) => String(l.city || "").trim().toLowerCase() === target);
   }, [listings, cityFilter]);
 
   const handleSearchChange = (key, value) => {

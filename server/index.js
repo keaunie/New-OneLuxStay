@@ -266,25 +266,7 @@ app.get("/api/listings", async (req, res) => {
     const merged = normalizeOpenApiListings(raw);
     const city = String(req.query.city || "").trim().toLowerCase();
     const filtered = city
-      ? merged.filter((l) => {
-        const address = l.address || {};
-        const haystack = [
-          l.title,
-          address.city,
-          address.state,
-          address.country,
-          address.street,
-          address.line1,
-          address.full,
-          address.county,
-          l.city,
-          l.location?.city,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(city);
-      })
+      ? merged.filter((l) => String(l.city || "").toLowerCase() === city)
       : merged;
     res.json({ results: filtered });
   } catch (e) {
