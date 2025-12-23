@@ -275,12 +275,14 @@ function App() {
     return listings.filter((l) => {
       const address = l.address || {};
       const parts = [
+        l.title,
         address.city,
         address.state,
         address.country,
         address.street,
         address.line1,
         address.full,
+        address.county,
         l.city,
         l.location?.city,
       ]
