@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+// const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+const apiBase = import.meta.env.VITE_API_BASE || "https://oneluxstayprop.netlify.app/.netlify/functions/index";
 
 
 const formatCurrency = (value, currency = "USD") =>
