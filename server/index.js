@@ -199,7 +199,7 @@ async function fetchOpenApiListingsAll() {
     const qs = new URLSearchParams({
       limit: String(limit),
       skip: String(skip),
-      fields: "title address pictures images photos accommodates bedrooms bathrooms prices city location status",
+      fields: "title address pictures images photos accommodates bedrooms bathrooms prices city location",
       sort: "-createdAt",
     });
     const res = await fetchWithTimeout(`${openApiServer}/listings?${qs}`, {
@@ -238,7 +238,6 @@ function normalizeOpenApiListings(listings) {
     bedrooms: l.bedrooms,
     bathrooms: l.bathrooms,
     accommodates: l.accommodates,
-    status: l.status,
   }));
 }
 
@@ -264,7 +263,7 @@ async function createQuoteOpenApi(payload) {
 app.get("/api/listings", async (req, res) => {
   try {
     const raw = await fetchOpenApiListingsAll();
-    const merged = normalizeOpenApiListings(raw).filter((l) => l.status === "published");
+    const merged = normalizeOpenApiListings(raw);
     const city = String(req.query.city || "").trim().toLowerCase();
     const filtered = city
       ? merged.filter((l) => String(l.city || "").toLowerCase() === city)
