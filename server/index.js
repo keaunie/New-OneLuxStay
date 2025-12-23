@@ -250,6 +250,72 @@ app.get("/api/listings", async (_req, res) => {
   }
 });
 
+app.get("/api/listings/:id/availability", async (req, res) => {
+  const { id } = req.params;
+  const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
+
+  if (!id || !startDate || !endDate) {
+    return res.status(400).json({ message: "Missing availability parameters" });
+  }
+
+  const errors = [];
+
+  try {
+    const token = await getOpenApiToken();
+    const available = JSON.stringify({
+      checkIn: startDate,
+      checkOut: endDate,
+      minOccupancy: Number(minOccupancy) || 1,
+    });
+
+    const tryQuery = async (query) => {
+      const url = `${openApiHost}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+        available
+      )}`;
+      const response = await fetchWithTimeout(url, {
+        headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+      });
+      if (!response.ok) {
+        errors.push({ status: response.status, body: await response.text().catch(() => "") });
+        return null;
+      }
+      const json = await response.json();
+      if (Array.isArray(json?.results) && json.results.length > 0) return json;
+      errors.push({ status: 200, body: "No results" });
+      return null;
+    };
+
+    // 1) Try by ids
+    let json =
+      (await tryQuery(`ids=${encodeURIComponent(id)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)) ||
+      // 2) Try by city only
+      (city ? await tryQuery(`city=${encodeURIComponent(city)}`) : null) ||
+      // 3) Try by unitTypeId if provided
+      (unitTypeId
+        ? await tryQuery(`ids=${encodeURIComponent(unitTypeId)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)
+        : null);
+
+    if (!json) {
+      return res.json({ isAvailable: false, availability: [], raw: null, errors });
+    }
+
+    const record = Array.isArray(json?.results) ? json.results[0] : null;
+    const days = record?.availability || [];
+    const status = record?.availabilityStatus;
+    const isAvailable =
+      Array.isArray(days) && days.length
+        ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
+        : record
+          ? typeof status === "string"
+            ? status.toUpperCase() === "AVAILABLE"
+            : true // record exists, no availability entries: treat as available
+          : false; // no record: not available
+    res.json({ isAvailable, availability: days, raw: json, errors });
+  } catch (e) {
+    res.status(502).json({ message: "Availability failed", error: e.message, errors });
+  }
+});
+
 app.post("/api/reservations/quotes", async (req, res) => {
   const {
     listingId,

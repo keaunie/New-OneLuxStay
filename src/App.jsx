@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -14,6 +14,205 @@ const initialSearch = {
   checkOut: "",
   adults: 1,
   children: 0,
+};
+
+const parseDate = (value) => {
+  if (!value) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const toISODate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const formatDisplayDate = (value) => {
+  const d = parseDate(value);
+  if (!d) return "Add date";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
+const DateRangePicker = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const [view, setView] = useState(() => parseDate(value.checkIn) || today);
+  const containerRef = useRef(null);
+
+  const startDate = parseDate(value.checkIn);
+  const endDate = parseDate(value.checkOut);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (!open) return;
+      if (containerRef.current && containerRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    const handleEsc = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const base = startDate || today;
+    setView((prev) => {
+      const sameMonth = prev.getFullYear() === base.getFullYear() && prev.getMonth() === base.getMonth();
+      return sameMonth ? prev : base;
+    });
+  }, [open, startDate, today]);
+
+  const buildMonth = (baseDate) => {
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startOffset = first.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = Array(startOffset).fill(null);
+    for (let i = 1; i <= daysInMonth; i += 1) cells.push(new Date(year, month, i));
+    return { year, month, cells };
+  };
+
+  const isSameDay = (a, b) =>
+    a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const inRange = (day) => {
+    if (!day || !startDate) return false;
+    if (startDate && endDate) return day >= startDate && day <= endDate;
+    return isSameDay(day, startDate);
+  };
+
+  const handleDayClick = (day) => {
+    if (!day || day < today) return;
+    let nextStart = startDate;
+    let nextEnd = endDate;
+    if (!startDate || (startDate && endDate)) {
+      nextStart = day;
+      nextEnd = null;
+    } else if (day < startDate) {
+      nextStart = day;
+      nextEnd = null;
+    } else {
+      nextEnd = day;
+    }
+    onChange({
+      checkIn: nextStart ? toISODate(nextStart) : "",
+      checkOut: nextEnd ? toISODate(nextEnd) : "",
+    });
+    if (nextStart && nextEnd) setOpen(false);
+  };
+
+  const { year, month, cells } = buildMonth(view);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-300">Check-in</label>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="w-full rounded-lg border border-white/15 bg-slate-900/70 px-3 py-2 text-left text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            {formatDisplayDate(value.checkIn)}
+          </button>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-300">Check-out</label>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="w-full rounded-lg border border-white/15 bg-slate-900/70 px-3 py-2 text-left text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            {formatDisplayDate(value.checkOut)}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="absolute left-0 z-50 mt-3 w-[320px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
+          <div className="flex items-center justify-between px-4 py-3 text-white">
+            <div className="font-semibold text-lg">
+              {new Date(year, month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                className="h-9 w-9 rounded-md bg-amber-400 text-slate-900 font-bold"
+              >
+                {"<"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                className="h-9 w-9 rounded-md bg-amber-400 text-slate-900 font-bold"
+              >
+                {">"}
+              </button>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300 mb-2">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                <div key={d}>{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {cells.map((day, idx) => {
+                const disabled = !day || day < today;
+                const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
+                const between = inRange(day) && !selected;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handleDayClick(day)}
+                    className={`h-10 rounded-lg border text-sm transition ${
+                      disabled
+                        ? "border-transparent text-slate-600"
+                        : selected
+                          ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
+                          : between
+                            ? "border-amber-400/50 bg-amber-400/10 text-white"
+                            : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
+                    }`}
+                  >
+                    {day ? day.getDate() : ""}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
+              <button
+                type="button"
+                onClick={() => onChange({ checkIn: "", checkOut: "" })}
+                className="rounded-md border border-white/10 bg-slate-800 px-3 py-2 hover:border-amber-300"
+              >
+                Clear dates
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-md bg-amber-400 px-3 py-2 font-semibold text-slate-900 hover:bg-amber-300"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 function App() {
@@ -52,8 +251,9 @@ function App() {
 
   const nights = useMemo(() => {
     if (!search.checkIn || !search.checkOut) return 0;
-    const start = new Date(search.checkIn);
-    const end = new Date(search.checkOut);
+    const start = parseDate(search.checkIn);
+    const end = parseDate(search.checkOut);
+    if (!start || !end) return 0;
     return Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
   }, [search.checkIn, search.checkOut]);
 
@@ -101,6 +301,22 @@ function App() {
         children: search.children,
       }).toString();
 
+      let availJson = null;
+      try {
+        const availRes = await fetchWithTimeout(
+          `${apiBase}/api/listings/${listing.id}/availability?${new URLSearchParams({
+            startDate: search.checkIn,
+            endDate: search.checkOut,
+            minOccupancy: guests,
+          }).toString()}`,
+        );
+        if (availRes.ok) {
+          availJson = await availRes.json();
+        }
+      } catch {
+        // ignore availability failure; fall back to quote result
+      }
+
       const quoteRes = await fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
         method: "POST",
         headers: {
@@ -119,7 +335,6 @@ function App() {
         throw new Error(errText || `Quote failed with ${quoteRes.status}`);
       }
 
-      const availJson = null;
       const quoteJson = await quoteRes.json();
       const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
 
@@ -127,7 +342,9 @@ function App() {
         availJson?.isAvailable ??
         availJson?.available ??
         (typeof availJson?.status === "string" ? availJson.status === "AVAILABLE" : undefined) ??
-        (Array.isArray(availJson?.availability) ? availJson.availability.every((d) => d.isAvailable) : undefined);
+        (Array.isArray(availJson?.availability)
+          ? availJson.availability.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
+          : undefined);
 
       const quoteMoney =
         quoteData?.rates?.ratePlans?.[0]?.ratePlan?.money ||
@@ -251,25 +468,19 @@ function App() {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-[2fr,1fr]">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg backdrop-blur">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg backdrop-blur relative">
             <p className="text-sm font-semibold text-white mb-3">Search dates</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-300">Check-in</label>
-                <input
-                  type="date"
-                  value={search.checkIn}
-                  onChange={(e) => handleSearchChange("checkIn", e.target.value)}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-300">Check-out</label>
-                <input
-                  type="date"
-                  value={search.checkOut}
-                  onChange={(e) => handleSearchChange("checkOut", e.target.value)}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+              <div className="lg:col-span-2">
+                <DateRangePicker
+                  value={search}
+                  onChange={(val) =>
+                    setSearch((prev) => ({
+                      ...prev,
+                      checkIn: val.checkIn,
+                      checkOut: val.checkOut,
+                    }))
+                  }
                 />
               </div>
               <div className="flex flex-col gap-1">
