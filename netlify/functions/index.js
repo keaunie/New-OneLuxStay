@@ -75,6 +75,30 @@ const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
     }
 };
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const AVAILABILITY_CACHE_TTL_MS = 10 * 60_000;
+const AVAILABILITY_CACHE_MAX = 500;
+const availabilityCache = new Map();
+
+const getAvailabilityCache = (key) => {
+    const entry = availabilityCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        availabilityCache.delete(key);
+        return null;
+    }
+    return entry.value;
+};
+
+const setAvailabilityCache = (key, value) => {
+    if (availabilityCache.size >= AVAILABILITY_CACHE_MAX) {
+        const firstKey = availabilityCache.keys().next().value;
+        if (firstKey) availabilityCache.delete(firstKey);
+    }
+    availabilityCache.set(key, { value, expiresAt: Date.now() + AVAILABILITY_CACHE_TTL_MS });
+};
+
 const readCache = async (file) => {
     try {
         const raw = await fs.readFile(file, "utf-8");
@@ -270,36 +294,52 @@ app.get("/api/listings", async (_req, res) => {
 });
 
 app.get("/api/listings/:id/availability", async (req, res) => {
-    const { id } = req.params;
-    const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
+  const { id } = req.params;
+  const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
 
-    if (!id || !startDate || !endDate) {
-        return res.status(400).json({ message: "Missing availability parameters" });
-    }
+  if (!id || !startDate || !endDate) {
+    return res.status(400).json({ message: "Missing availability parameters" });
+  }
 
-    const errors = [];
+  const errors = [];
+  const cacheKey = [
+    "availability",
+    id,
+    startDate,
+    endDate,
+    minOccupancy,
+    city,
+    unitTypeId,
+  ].join("|");
+  const cached = getAvailabilityCache(cacheKey);
+  if (cached) return res.json({ ...cached, cached: true });
 
-    try {
-        const token = await getOpenApiToken();
-        const available = JSON.stringify({
-            checkIn: startDate,
+  try {
+    const token = await getOpenApiToken();
+    const available = JSON.stringify({
+      checkIn: startDate,
             checkOut: endDate,
             minOccupancy: Number(minOccupancy) || 1,
         });
 
-        const tryQuery = async (query) => {
-            const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
-                available
-            )}`;
-            const response = await fetchWithTimeout(url, {
-                headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-            });
-            if (!response.ok) {
-                errors.push({ status: response.status, body: await response.text().catch(() => "") });
-                return null;
-            }
-            const json = await response.json();
-            if (Array.isArray(json?.results) && json.results.length > 0) return json;
+    const tryQuery = async (query) => {
+      const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+        available
+      )}`;
+      const response = await fetchWithTimeout(url, {
+        headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+      });
+      if (response.status === 429) {
+        const retryAfter = Number(response.headers.get("retry-after") || 0);
+        await wait(retryAfter > 0 ? retryAfter * 1000 : 800);
+        return tryQuery(query);
+      }
+      if (!response.ok) {
+        errors.push({ status: response.status, body: await response.text().catch(() => "") });
+        return null;
+      }
+      const json = await response.json();
+      if (Array.isArray(json?.results) && json.results.length > 0) return json;
             errors.push({ status: 200, body: "No results" });
             return null;
         };
@@ -326,10 +366,12 @@ app.get("/api/listings/:id/availability", async (req, res) => {
                         ? status.toUpperCase() === "AVAILABLE"
                         : true
                     : false;
-        res.json({ isAvailable, availability: days, raw: json, errors });
-    } catch (e) {
-        res.status(502).json({ message: "Availability failed", error: e.message, errors });
-    }
+    const payload = { isAvailable, availability: days, raw: json, errors };
+    setAvailabilityCache(cacheKey, payload);
+    res.json(payload);
+  } catch (e) {
+    res.status(502).json({ message: "Availability failed", error: e.message, errors });
+  }
 });
 
 app.post("/api/reservations/quotes", async (req, res) => {

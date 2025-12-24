@@ -16,7 +16,7 @@ const port = process.env.PORT || 4000;
 ======================= */
 
 const guestyHost = "https://booking.guesty.com";
-const openApiHost = "https://open-api.guesty.com/v1";
+const openApiHost = "https://open-api.guesty.com";
 const openApiServer = "https://open-api.guesty.com/v1";
 
 const clientId = process.env.GUESTY_CLIENT_ID;
@@ -66,6 +66,28 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
 };
 
 const isObject = (v) => v && typeof v === "object" && !Array.isArray(v);
+
+const AVAILABILITY_CACHE_TTL_MS = 10 * 60_000;
+const AVAILABILITY_CACHE_MAX = 500;
+const availabilityCache = new Map();
+
+const getAvailabilityCache = (key) => {
+    const entry = availabilityCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        availabilityCache.delete(key);
+        return null;
+    }
+    return entry.value;
+};
+
+const setAvailabilityCache = (key, value) => {
+    if (availabilityCache.size >= AVAILABILITY_CACHE_MAX) {
+        const firstKey = availabilityCache.keys().next().value;
+        if (firstKey) availabilityCache.delete(firstKey);
+    }
+    availabilityCache.set(key, { value, expiresAt: Date.now() + AVAILABILITY_CACHE_TTL_MS });
+};
 
 /* =======================
    BOOKING API TOKEN
@@ -137,7 +159,7 @@ async function getOpenApiToken() {
         }
     } catch { }
 
-    const res = await fetchWithTimeout(`${openApiHost}/oauth2/token`, {
+  const res = await fetchWithTimeout(`${openApiHost}/oauth2/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -259,6 +281,17 @@ app.get("/api/listings/:id/availability", async (req, res) => {
     }
 
     const errors = [];
+    const cacheKey = [
+        "availability",
+        id,
+        startDate,
+        endDate,
+        minOccupancy,
+        city,
+        unitTypeId,
+    ].join("|");
+    const cached = getAvailabilityCache(cacheKey);
+    if (cached) return res.json({ ...cached, cached: true });
 
     try {
         const token = await getOpenApiToken();
@@ -275,6 +308,11 @@ app.get("/api/listings/:id/availability", async (req, res) => {
             const response = await fetchWithTimeout(url, {
                 headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
             });
+            if (response.status === 429) {
+                const retryAfter = Number(response.headers.get("retry-after") || 0);
+                await wait(retryAfter > 0 ? retryAfter * 1000 : 800);
+                return tryQuery(query);
+            }
             if (!response.ok) {
                 errors.push({ status: response.status, body: await response.text().catch(() => "") });
                 return null;
@@ -310,7 +348,9 @@ app.get("/api/listings/:id/availability", async (req, res) => {
                         ? status.toUpperCase() === "AVAILABLE"
                         : true // record exists, no availability entries: treat as available
                     : false; // no record: not available
-        res.json({ isAvailable, availability: days, raw: json, errors });
+        const payload = { isAvailable, availability: days, raw: json, errors };
+        setAvailabilityCache(cacheKey, payload);
+        res.json(payload);
     } catch (e) {
         res.status(502).json({ message: "Availability failed", error: e.message, errors });
     }
