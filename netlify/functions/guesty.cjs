@@ -1,4 +1,4 @@
-﻿﻿const fetchFn = (...args) => {
+﻿const fetchFn = (...args) => {
   if (!globalThis.fetch) throw new Error("Fetch not available");
   return globalThis.fetch(...args);
 };
@@ -91,13 +91,23 @@ function normalizePmListings(pmData) {
 
   return [...map.values()].map((l) => ({
     id: l._id,
+    _id: l._id,
     title: l.title,
-    picture: l.picture?.original || "",
+    nickname: l.nickname,
+    accommodates: l.accommodates,
+    accountId: l.accountId,
+    address: l.address,
+    bathrooms: l.bathrooms,
+    bedrooms: l.bedrooms,
+    beds: l.beds,
+    propertyType: l.propertyType,
+    tags: l.tags,
+    picture: l.picture || {},
+    pictures: Array.isArray(l.pictures) ? l.pictures : [],
+    prices: l.prices,
     basePrice: l.prices?.basePrice,
     currency: l.prices?.currency || "USD",
-    bedrooms: l.bedrooms,
-    bathrooms: l.bathrooms,
-    accommodates: l.accommodates,
+    publicDescription: l.publicDescription,
   }));
 }
 

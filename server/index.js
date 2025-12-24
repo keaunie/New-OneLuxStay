@@ -65,8 +65,6 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
     }
 };
 
-const isObject = (v) => v && typeof v === "object" && !Array.isArray(v);
-
 const AVAILABILITY_CACHE_TTL_MS = 10 * 60_000;
 const AVAILABILITY_CACHE_MAX = 500;
 const availabilityCache = new Map();
@@ -218,7 +216,7 @@ function normalizePmListings(pmData) {
     while (stack.length) {
         const cur = stack.pop();
         if (Array.isArray(cur)) stack.push(...cur);
-        else if (isObject(cur)) {
+        else if (cur && typeof cur === "object") {
             const id = cur._id || cur.id;
             if (cur.title && cur.bedrooms !== undefined && id) {
                 map.set(id, cur);
