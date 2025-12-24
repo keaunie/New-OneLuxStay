@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
-// const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
-const apiBase = import.meta.env.VITE_API_BASE || "https://oneluxstayprop.netlify.app/.netlify/functions/index";
+const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 
 
 const formatCurrency = (value, currency = "USD") =>
@@ -178,15 +177,14 @@ const DateRangePicker = ({ value, onChange }) => {
                     type="button"
                     disabled={disabled}
                     onClick={() => handleDayClick(day)}
-                    className={`h-10 rounded-lg border text-sm transition ${
-                      disabled
-                        ? "border-transparent text-slate-600"
-                        : selected
-                          ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
-                          : between
-                            ? "border-amber-400/50 bg-amber-400/10 text-white"
-                            : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
-                    }`}
+                    className={`h-10 rounded-lg border text-sm transition ${disabled
+                      ? "border-transparent text-slate-600"
+                      : selected
+                        ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
+                        : between
+                          ? "border-amber-400/50 bg-amber-400/10 text-white"
+                          : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
+                      }`}
                   >
                     {day ? day.getDate() : ""}
                   </button>
@@ -224,7 +222,6 @@ function App() {
   const [search, setSearch] = useState(initialSearch);
   const [availability, setAvailability] = useState({});
   const [activeListingId, setActiveListingId] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
   const [bookingInfo, setBookingInfo] = useState({
     firstName: "",
     lastName: "",
@@ -263,17 +260,6 @@ function App() {
     () => listings.find((l) => l.id === activeListingId || l._id === activeListingId),
     [activeListingId, listings],
   );
-
-  const cityOptions = useMemo(
-    () => ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo", "Miami"],
-    [],
-  );
-
-  const filteredListings = useMemo(() => {
-    if (!cityFilter) return listings;
-    const target = cityFilter.toLowerCase();
-    return listings.filter((l) => String(l.city || "").trim().toLowerCase() === target);
-  }, [listings, cityFilter]);
 
   const handleSearchChange = (key, value) => {
     setSearch((prev) => ({ ...prev, [key]: value }));
@@ -592,24 +578,7 @@ function App() {
       <main className="max-w-6xl mx-auto px-6 pb-14">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">Available units</h2>
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-slate-400">Filter by city</label>
-            <select
-              value={cityFilter}
-              onChange={(e) => setCityFilter(e.target.value)}
-              className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-white outline-none focus:border-emerald-400"
-            >
-              <option value="">All cities</option>
-              {cityOptions.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-400 hidden sm:block">
-              Images load lazily to stay fast on slow networks.
-            </p>
-          </div>
+          <p className="text-xs text-slate-400">Images load lazily to stay fast on slow networks.</p>
         </div>
 
         {loadingListings && (
@@ -631,7 +600,7 @@ function App() {
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {filteredListings.map((listing) => {
+          {listings.map((listing) => {
             const status = availability[listing.id] || {};
             const isActive = activeListingId === listing.id;
 

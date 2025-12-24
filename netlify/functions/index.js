@@ -42,10 +42,18 @@ const OPEN_API_BASE = "https://open-api.guesty.com/v1";
 const BOOKING_TOKEN_URL = "https://booking.guesty.com/oauth2/token";
 const BOOKING_API_BASE = "https://booking.guesty.com/api";
 
+const PM_CONTENT_URL =
+    "https://app.guesty.com/api/pm-websites-backend/engines/content";
 
 const CLIENT_ID = process.env.GUESTY_CLIENT_ID;
 const CLIENT_SECRET = process.env.GUESTY_CLIENT_SECRET;
 
+const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
+const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
+const pmOrigin =
+    process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
+const pmReferer =
+    process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
@@ -57,40 +65,6 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 
 const isObject = (v) => v && typeof v === "object" && !Array.isArray(v);
 
-const collectPhotoUrls = (listing) => {
-    const urls = [];
-    const seen = new Set();
-    const isLikelyUrl = (v) => typeof v === "string" && /^(https?:)?\/\//.test(v.trim());
-    const push = (v) => {
-        const url = typeof v === "string" ? v.trim() : "";
-        if (!url || !isLikelyUrl(url) || seen.has(url)) return;
-        seen.add(url);
-        urls.push(url);
-    };
-    const walk = (v) => {
-        if (!v) return;
-        if (typeof v === "string") {
-            push(v);
-            return;
-        }
-        if (Array.isArray(v)) {
-            v.forEach(walk);
-            return;
-        }
-        if (isObject(v)) {
-            ["original", "large", "regular", "url", "src", "href"].forEach((k) => walk(v[k]));
-            ["pictures", "images", "photos", "gallery", "media"].forEach((k) => walk(v[k]));
-        }
-    };
-    walk(listing.picture);
-    walk(listing.pictures);
-    walk(listing.images);
-    walk(listing.photos);
-    walk(listing.gallery);
-    walk(listing.media);
-    return urls;
-};
-
 const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -99,30 +73,6 @@ const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
     } finally {
         clearTimeout(id);
     }
-};
-
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-
-const AVAILABILITY_CACHE_TTL_MS = 60_000;
-const AVAILABILITY_CACHE_MAX = 500;
-const availabilityCache = new Map();
-
-const getAvailabilityCache = (key) => {
-    const entry = availabilityCache.get(key);
-    if (!entry) return null;
-    if (Date.now() > entry.expiresAt) {
-        availabilityCache.delete(key);
-        return null;
-    }
-    return entry.value;
-};
-
-const setAvailabilityCache = (key, value) => {
-    if (availabilityCache.size >= AVAILABILITY_CACHE_MAX) {
-        const firstKey = availabilityCache.keys().next().value;
-        if (firstKey) availabilityCache.delete(firstKey);
-    }
-    availabilityCache.set(key, { value, expiresAt: Date.now() + AVAILABILITY_CACHE_TTL_MS });
 };
 
 const readCache = async (file) => {
@@ -226,98 +176,54 @@ async function getBookingEngineToken() {
    PM CONTENT (LISTINGS)
 ======================= */
 
-async function fetchOpenApiListingsAll() {
-    const token = await getOpenApiToken();
-    const results = [];
-    const limit = 50;
-    let skip = 0;
-    let total = Infinity;
+async function fetchPmContent(lang = "en") {
+    const res = await fetchWithTimeout(
+        `${PM_CONTENT_URL}?lang=${encodeURIComponent(lang)}`,
+        {
+            headers: {
+                accept: "application/json",
+                "g-aid-cs": pmAidCs,
+                "x-request-context": pmRequestContext,
+                origin: pmOrigin,
+                referer: pmReferer,
+            },
+        }
+    );
 
-    while (skip < total) {
-        const qs = new URLSearchParams({
-            limit: String(limit),
-            skip: String(skip),
-            fields: "title address pictures images photos accommodates bedrooms bathrooms prices city location status",
-            sort: "-createdAt",
-        });
-        const res = await fetchWithTimeout(`${OPEN_API_BASE}/listings?${qs}`, {
-            headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        if (Array.isArray(json?.results)) results.push(...json.results);
-        total = Number.isFinite(json?.count) ? json.count : results.length;
-        if (!Array.isArray(json?.results) || json.results.length < limit) break;
-        skip += limit;
-    }
-
-    return results;
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
-function normalizeOpenApiListings(listings) {
-    return listings.map((l) => ({
+function normalizePmListings(pmData) {
+    const stack = [pmData];
+    const map = new Map();
+
+    while (stack.length) {
+        const cur = stack.pop();
+        if (Array.isArray(cur)) stack.push(...cur);
+        else if (isObject(cur)) {
+            const id = cur._id || cur.id;
+            if (cur.title && cur.bedrooms !== undefined && id) {
+                map.set(id, cur);
+            }
+            stack.push(...Object.values(cur));
+        }
+    }
+
+    return [...map.values()].map((l) => ({
         id: l._id || l.id,
         title: l.title,
         picture:
             l.picture?.original ||
             l.picture?.large ||
             l.picture?.regular ||
-            l.pictures?.[0]?.regular ||
-            l.pictures?.[0]?.thumbnail ||
             "",
-        photos: collectPhotoUrls(l),
-        address: l.address || null,
-        city: l.address?.city || l.city || l.location?.city || "",
-        state: l.address?.state || l.state || "",
-        country: l.address?.country || l.country || "",
         bedrooms: l.bedrooms,
         bathrooms: l.bathrooms,
         accommodates: l.accommodates,
         basePrice: l.prices?.basePrice,
         currency: l.prices?.currency || "USD",
         cleaningFee: l.prices?.cleaningFee,
-        status: l.status,
-    }));
-}
-
-async function fetchBookingListings(params = {}) {
-    const token = await getBookingEngineToken();
-    const qs = new URLSearchParams(params);
-    const res = await fetchWithTimeout(`${BOOKING_API_BASE}/listings?${qs}`, {
-        headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-}
-
-function normalizeBookingListings(payload) {
-    const results =
-        payload?.results ||
-        payload?.listings ||
-        payload?.data?.results ||
-        (Array.isArray(payload) ? payload : []);
-
-    return results.map((l) => ({
-        id: l._id || l.id,
-        title: l.title || l.nickname || l.name,
-        picture:
-            l.picture?.original ||
-            l.picture?.large ||
-            l.picture?.regular ||
-            l.pictures?.[0]?.regular ||
-            l.pictures?.[0]?.thumbnail ||
-            "",
-        photos: collectPhotoUrls(l),
-        address: l.address || null,
-        city: l.address?.city || l.city || l.location?.city || "",
-        state: l.address?.state || l.state || "",
-        country: l.address?.country || l.country || "",
-        bedrooms: l.bedrooms,
-        bathrooms: l.bathrooms,
-        accommodates: l.accommodates,
-        basePrice: l.prices?.basePrice || l.basePrice,
-        currency: l.prices?.currency || l.currency || "USD",
-        cleaningFee: l.prices?.cleaningFee || l.cleaningFee,
     }));
 }
 
@@ -354,106 +260,83 @@ async function createQuote(payload) {
    ROUTES
 ======================= */
 
-app.get("/api/listings", async (req, res) => {
-  try {
-    const raw = await fetchBookingListings({ limit: String(req.query.limit || 100) });
-    const merged = normalizeBookingListings(raw);
-    const city = String(req.query.city || "").trim().toLowerCase();
-    const filtered = city
-      ? merged.filter((l) => String(l.city || "").toLowerCase() === city)
-      : merged;
-    res.json({ results: filtered });
-  } catch (e) {
-    res.status(500).json({ message: "Listings failed", error: e.message });
-  }
+app.get("/api/listings", async (_req, res) => {
+    try {
+        const pm = await fetchPmContent("en");
+        res.json({ results: normalizePmListings(pm) });
+    } catch (e) {
+        res.status(500).json({ message: "Listings failed", error: e.message });
+    }
 });
 
 app.get("/api/listings/:id/availability", async (req, res) => {
-  const { id } = req.params;
-  const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
+    const { id } = req.params;
+    const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
 
-  if (!id || !startDate || !endDate) {
-    return res.status(400).json({ message: "Missing availability parameters" });
-  }
-
-  const errors = [];
-  const cacheKey = [
-    "availability",
-    id,
-    startDate,
-    endDate,
-    minOccupancy,
-    city,
-    unitTypeId,
-  ].join("|");
-  const cached = getAvailabilityCache(cacheKey);
-  if (cached) return res.json({ ...cached, cached: true });
-
-  try {
-    const token = await getOpenApiToken();
-    const available = JSON.stringify({
-      checkIn: startDate,
-      checkOut: endDate,
-      minOccupancy: Number(minOccupancy) || 1,
-    });
-
-    const tryQuery = async (query) => {
-      const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
-        available
-      )}`;
-      const response = await fetchWithTimeout(url, {
-        headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-      });
-      if (response.status === 429) {
-        const retryAfter = Number(response.headers.get("retry-after") || 0);
-        await wait(retryAfter > 0 ? retryAfter * 1000 : 800);
-        return tryQuery(query);
-      }
-      if (!response.ok) {
-        errors.push({ status: response.status, body: await response.text().catch(() => "") });
-        return null;
-      }
-      const json = await response.json();
-      if (Array.isArray(json?.results) && json.results.length > 0) return json;
-      errors.push({ status: 200, body: "No results" });
-      return null;
-    };
-
-    let json =
-      (await tryQuery(`ids=${encodeURIComponent(id)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)) ||
-      (city ? await tryQuery(`city=${encodeURIComponent(city)}`) : null) ||
-      (unitTypeId
-        ? await tryQuery(`ids=${encodeURIComponent(unitTypeId)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)
-        : null);
-
-    if (!json) {
-      return res.json({ isAvailable: false, availability: [], raw: null, errors });
+    if (!id || !startDate || !endDate) {
+        return res.status(400).json({ message: "Missing availability parameters" });
     }
 
-    const record = Array.isArray(json?.results) ? json.results[0] : null;
-    const days = record?.availability || [];
-    const status = record?.availabilityStatus;
-    const isAvailable =
-      Array.isArray(days) && days.length
-        ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
-        : record
-          ? typeof status === "string"
-            ? status.toUpperCase() === "AVAILABLE"
-            : true
-          : false;
-    const payload = { isAvailable, availability: days, raw: json, errors };
-    setAvailabilityCache(cacheKey, payload);
-    res.json(payload);
-  } catch (e) {
-    res.status(502).json({ message: "Availability failed", error: e.message, errors });
-  }
+    const errors = [];
+
+    try {
+        const token = await getOpenApiToken();
+        const available = JSON.stringify({
+            checkIn: startDate,
+            checkOut: endDate,
+            minOccupancy: Number(minOccupancy) || 1,
+        });
+
+        const tryQuery = async (query) => {
+            const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+                available
+            )}`;
+            const response = await fetchWithTimeout(url, {
+                headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+            });
+            if (!response.ok) {
+                errors.push({ status: response.status, body: await response.text().catch(() => "") });
+                return null;
+            }
+            const json = await response.json();
+            if (Array.isArray(json?.results) && json.results.length > 0) return json;
+            errors.push({ status: 200, body: "No results" });
+            return null;
+        };
+
+        let json =
+            (await tryQuery(`ids=${encodeURIComponent(id)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)) ||
+            (city ? await tryQuery(`city=${encodeURIComponent(city)}`) : null) ||
+            (unitTypeId
+                ? await tryQuery(`ids=${encodeURIComponent(unitTypeId)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)
+                : null);
+
+        if (!json) {
+            return res.json({ isAvailable: false, availability: [], raw: null, errors });
+        }
+
+        const record = Array.isArray(json?.results) ? json.results[0] : null;
+        const days = record?.availability || [];
+        const status = record?.availabilityStatus;
+        const isAvailable =
+            Array.isArray(days) && days.length
+                ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
+                : record
+                    ? typeof status === "string"
+                        ? status.toUpperCase() === "AVAILABLE"
+                        : true
+                    : false;
+        res.json({ isAvailable, availability: days, raw: json, errors });
+    } catch (e) {
+        res.status(502).json({ message: "Availability failed", error: e.message, errors });
+    }
 });
 
 app.post("/api/reservations/quotes", async (req, res) => {
-  const {
-    listingId,
-    checkInDateLocalized,
-    checkOutDateLocalized,
+    const {
+        listingId,
+        checkInDateLocalized,
+        checkOutDateLocalized,
         guestsCount,
     } = req.body || {};
 

@@ -1,4 +1,4 @@
-﻿const fetchFn = (...args) => {
+﻿﻿const fetchFn = (...args) => {
   if (!globalThis.fetch) throw new Error("Fetch not available");
   return globalThis.fetch(...args);
 };
@@ -30,40 +30,6 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 9000) => {
   } finally {
     clearTimeout(id);
   }
-};
-
-const collectPhotoUrls = (listing) => {
-  const urls = [];
-  const seen = new Set();
-  const isLikelyUrl = (v) => typeof v === "string" && /^(https?:)?\/\//.test(v.trim());
-  const push = (v) => {
-    const url = typeof v === "string" ? v.trim() : "";
-    if (!url || !isLikelyUrl(url) || seen.has(url)) return;
-    seen.add(url);
-    urls.push(url);
-  };
-  const walk = (v) => {
-    if (!v) return;
-    if (typeof v === "string") {
-      push(v);
-      return;
-    }
-    if (Array.isArray(v)) {
-      v.forEach(walk);
-      return;
-    }
-    if (v && typeof v === "object") {
-      ["original", "large", "regular", "url", "src", "href"].forEach((k) => walk(v[k]));
-      ["pictures", "images", "photos", "gallery", "media"].forEach((k) => walk(v[k]));
-    }
-  };
-  walk(listing.picture);
-  walk(listing.pictures);
-  walk(listing.images);
-  walk(listing.photos);
-  walk(listing.gallery);
-  walk(listing.media);
-  return urls;
 };
 
 /* =========================
@@ -127,11 +93,6 @@ function normalizePmListings(pmData) {
     id: l._id,
     title: l.title,
     picture: l.picture?.original || "",
-    photos: collectPhotoUrls(l),
-    address: l.address || null,
-    city: l.address?.city || l.city || l.location?.city || "",
-    state: l.address?.state || l.state || "",
-    country: l.address?.country || l.country || "",
     basePrice: l.prices?.basePrice,
     currency: l.prices?.currency || "USD",
     bedrooms: l.bedrooms,
@@ -158,12 +119,7 @@ module.exports.handler = async (event) => {
     /* LISTINGS */
     if (method === "GET" && path === "/listings") {
       const pm = await fetchPmContent("en");
-      const listings = normalizePmListings(pm);
-      const city = String(event.queryStringParameters?.city || "").trim().toLowerCase();
-      const filtered = city
-        ? listings.filter((l) => String(l.city || "").toLowerCase() === city)
-        : listings;
-      return json(200, { results: filtered });
+      return json(200, { results: normalizePmListings(pm) });
     }
 
     /* QUOTES (OPEN API) */
