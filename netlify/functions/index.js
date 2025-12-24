@@ -280,6 +280,47 @@ function normalizeOpenApiListings(listings) {
     }));
 }
 
+async function fetchBookingListings(params = {}) {
+    const token = await getBookingEngineToken();
+    const qs = new URLSearchParams(params);
+    const res = await fetchWithTimeout(`${BOOKING_API_BASE}/listings?${qs}`, {
+        headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+}
+
+function normalizeBookingListings(payload) {
+    const results =
+        payload?.results ||
+        payload?.listings ||
+        payload?.data?.results ||
+        (Array.isArray(payload) ? payload : []);
+
+    return results.map((l) => ({
+        id: l._id || l.id,
+        title: l.title || l.nickname || l.name,
+        picture:
+            l.picture?.original ||
+            l.picture?.large ||
+            l.picture?.regular ||
+            l.pictures?.[0]?.regular ||
+            l.pictures?.[0]?.thumbnail ||
+            "",
+        photos: collectPhotoUrls(l),
+        address: l.address || null,
+        city: l.address?.city || l.city || l.location?.city || "",
+        state: l.address?.state || l.state || "",
+        country: l.address?.country || l.country || "",
+        bedrooms: l.bedrooms,
+        bathrooms: l.bathrooms,
+        accommodates: l.accommodates,
+        basePrice: l.prices?.basePrice || l.basePrice,
+        currency: l.prices?.currency || l.currency || "USD",
+        cleaningFee: l.prices?.cleaningFee || l.cleaningFee,
+    }));
+}
+
 /* =======================
    QUOTES (BOOKING ENGINE)
 ======================= */
@@ -315,8 +356,8 @@ async function createQuote(payload) {
 
 app.get("/api/listings", async (req, res) => {
   try {
-    const raw = await fetchOpenApiListingsAll();
-    const merged = normalizeOpenApiListings(raw).filter((l) => l.status === "published");
+    const raw = await fetchBookingListings({ limit: String(req.query.limit || 100) });
+    const merged = normalizeBookingListings(raw);
     const city = String(req.query.city || "").trim().toLowerCase();
     const filtered = city
       ? merged.filter((l) => String(l.city || "").toLowerCase() === city)
