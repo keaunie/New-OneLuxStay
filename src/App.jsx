@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -6,7 +6,12 @@ const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
-    ? value.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 })
+    ? value.toLocaleString("en-US", {
+        style: "currency",
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
     : "--";
 
 const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
@@ -268,7 +273,7 @@ function App() {
         setListings(json.results || []);
         setActiveListingId((json.results || [])[0]?.id || "");
       } catch {
-        setListingsError("Unable to load units from Guesty.");
+        setListingsError("Unable to load units from Guesty�");
       } finally {
         setLoadingListings(false);
       }
@@ -315,6 +320,7 @@ function App() {
     const match = cityFilter.toLowerCase();
     return listings.filter((l) => normalizeCity(l).toLowerCase() === match);
   }, [cityFilter, listings]);
+  const availableCount = filteredListings.length;
 
   useEffect(() => {
     if (!activeListingId && filteredListings[0]) {
@@ -411,33 +417,76 @@ function App() {
           ? availJson.availability.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
           : undefined);
 
-      const quoteMoney =
-        quoteData?.rates?.ratePlans?.[0]?.ratePlan?.money ||
-        quoteData?.rates?.ratePlans?.[0]?.money ||
+      const ratePlan = quoteData?.rates?.ratePlans?.[0];
+      const rpMoney =
+        ratePlan?.money?.money ||
+        ratePlan?.money ||
+        quoteData?.money?.money ||
         quoteData?.money ||
         null;
+      const quoteMoney = rpMoney || null;
 
-      const quoteDays = quoteData?.rates?.ratePlans?.[0]?.days || [];
+      const quoteDays = ratePlan?.days || [];
       const quoteCurrency = quoteMoney?.currency || quoteDays[0]?.currency || listing.currency || "USD";
+
+      const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
+      const daySum = Array.isArray(quoteDays)
+        ? quoteDays.reduce((sum, d) => {
+          const price = d?.price ?? d?.manualPrice ?? d?.basePrice;
+          return sum + (typeof price === "number" ? price : 0);
+        }, 0)
+        : null;
 
       const quoteTotalRaw =
         quoteMoney?.subTotalPrice ??
+        quoteMoney?.totalPrice ??
+        quoteMoney?.total ??
         quoteData?.total ??
         quoteData?.price?.total ??
         quoteData?.price?.totalAmount ??
         quoteData?.price?.totalPrice ??
         (typeof quoteData?.price?.total === "object" ? quoteData.price.total.amount : null) ??
-        (typeof quoteData?.amount === "number" ? quoteData.amount : null);
+        (typeof quoteData?.amount === "number" ? quoteData.amount : null) ??
+        (typeof daySum === "number" && quotedNights ? daySum + (listing.cleaningFee || 0) : null);
 
       const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
 
-      const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
       const quoteNightly =
         (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
+        (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
         (quoteDays[0]?.price ?? quoteDays[0]?.manualPrice ?? quoteDays[0]?.basePrice);
 
       const nightly = quoteNightly ?? listing.basePrice;
       const total = quoteTotal ?? (nightly && nights ? nightly * nights + (listing.cleaningFee || 0) : null);
+
+      const hostPayout =
+        typeof quoteMoney?.hostPayout === "number"
+          ? quoteMoney.hostPayout
+          : typeof quoteMoney?.hostPayoutUsd === "number"
+            ? quoteMoney.hostPayoutUsd
+            : null;
+
+      const breakdown = (() => {
+        const items = quoteMoney?.invoiceItems;
+        if (!Array.isArray(items)) return null;
+        const acc = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0, deposit: 0 };
+        items.forEach((item) => {
+          const amt = typeof item?.amount === "number" ? item.amount : null;
+          if (amt === null) return;
+          const t = (item?.normalType || item?.type || "").toUpperCase();
+          if (t === "AF" || t === "ACCOMMODATION_FARE") acc.accommodation += amt;
+          else if (t === "CF" || t === "CLEANING_FEE") acc.cleaning += amt;
+          else if (t === "OCT" || t === "TAX" || t === "OCCUPANCY_TAX") acc.taxes += amt;
+          else if (t === "AFE" || t === "ADDITIONAL") {
+            const second = (item?.secondIdentifier || "").toUpperCase();
+            if (second === "DEPOSIT") acc.deposit += amt;
+            else acc.fees += amt;
+          } else {
+            acc.fees += amt;
+          }
+        });
+        return acc;
+      })();
 
       setAvailability((prev) => ({
         ...prev,
@@ -446,6 +495,8 @@ function App() {
           available: isAvailable,
           nightly,
           total,
+          hostPayout,
+          breakdown,
           currency: quoteCurrency,
           raw: { availability: availJson, quote: quoteData },
         },
@@ -505,7 +556,7 @@ function App() {
         throw new Error(errJson.message || "Booking failed");
       }
 
-      setBookingState({ status: "success", message: "Booking request sent to Guesty." });
+      setBookingState({ status: "success", message: "Booking request sent to Guesty�" });
     } catch (err) {
       setBookingState({ status: "error", message: err.message });
     }
@@ -630,7 +681,7 @@ function App() {
               disabled={bookingState.status === "loading"}
               className="mt-3 w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
             >
-              {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
+              {bookingState.status === "loading" ? "Sending to Guesty�.." : "Book this stay"}
             </button>
             {selectedListing && (
               <p className="mt-2 text-xs text-slate-200">
@@ -643,7 +694,9 @@ function App() {
 
       <main className="max-w-6xl mx-auto px-6 pb-14">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">Available units</h2>
+          <h2 className="text-xl font-semibold text-white">
+            Available units {availableCount > 0 ? `(${availableCount})` : ""}
+          </h2>
           <p className="text-xs text-slate-400">Images load lazily to stay fast on slow networks.</p>
         </div>
 
@@ -655,11 +708,10 @@ function App() {
                 <button
                   key={city}
                   onClick={() => setCityFilter(city)}
-                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${
-                    active
-                      ? "border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-lg shadow-emerald-500/20"
-                      : "border-white/10 bg-white/5 text-slate-200 hover:border-emerald-400/40 hover:text-white"
-                  }`}
+                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
+                    ? "border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-lg shadow-emerald-500/20"
+                    : "border-white/10 bg-white/5 text-slate-200 hover:border-emerald-400/40 hover:text-white"
+                    }`}
                 >
                   {image && (
                     <span className="h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800">
@@ -695,6 +747,8 @@ function App() {
           {filteredListings.map((listing) => {
             const status = availability[listing.id] || {};
             const isActive = activeListingId === listing.id;
+            const displayTotal = status.hostPayout ?? status.total;
+            const displayNightly = status.nightly ?? listing.basePrice;
 
             return (
               <article
@@ -716,6 +770,7 @@ function App() {
                   <div className="absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
                     Sleeps {listing.accommodates} · {listing.bedrooms} BR · {listing.bathrooms} BA
                   </div>
+
                 </div>
                 <div className="mt-3 flex items-start justify-between gap-2">
                   <div>
@@ -725,7 +780,7 @@ function App() {
                     <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
                     <p className="text-sm text-slate-300">
                       From {formatCurrency(listing.basePrice, listing.currency)} / night · Cleaning{" "}
-                      {formatCurrency(listing.cleaningFee, listing.currency)}
+                      From {formatCurrency(listing.basePrice, listing.currency)} / night · Cleaning{" "}
                     </p>
                   </div>
                   <button
@@ -743,8 +798,9 @@ function App() {
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   {status.status === "ready" && status.available !== false && (
                     <span>
-                      Available · {formatCurrency(status.nightly ?? listing.basePrice, status.currency)} avg/night{" "}
-                      {status.total ? `· ${formatCurrency(status.total, status.currency)} total` : ""}
+                      Available · {formatCurrency(displayNightly, status.currency)} avg/night{" "}
+                      {displayTotal ? `· ${formatCurrency(displayTotal, status.currency)} total` : ""}
+                      {status.hostPayout ? " (host payout)" : ""}
                     </span>
                   )}
                   {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
@@ -752,6 +808,27 @@ function App() {
                   {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
                   {status.status === undefined && <span>Click “Check price” to fetch live availability</span>}
                 </div>
+
+                {status.status === "ready" && status.available !== false && status.breakdown && (
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-300">
+                    {status.breakdown.accommodation > 0 && (
+                      <span>Stay: {formatCurrency(status.breakdown.accommodation, status.currency)}</span>
+                    )}
+                    {status.breakdown.cleaning > 0 && (
+                      <span>Cleaning: {formatCurrency(status.breakdown.cleaning, status.currency)}</span>
+                    )}
+                    {status.breakdown.taxes > 0 && (
+                      <span>Taxes: {formatCurrency(status.breakdown.taxes, status.currency)}</span>
+                    )}
+                    {status.breakdown.fees > 0 && (
+                      <span>Fees: {formatCurrency(status.breakdown.fees, status.currency)}</span>
+                    )}
+                    {status.breakdown.deposit > 0 && (
+                      <span>Deposit: {formatCurrency(status.breakdown.deposit, status.currency)}</span>
+                    )}
+                  </div>
+                )}
+
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -780,3 +857,30 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
