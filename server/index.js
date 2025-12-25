@@ -22,8 +22,8 @@ const openApiServer = "https://open-api.guesty.com/v1";
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
 
-const pmContentUrl =
-    "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const pmListingsUrl =
+    "https://app.guesty.com/api/pm-websites-backend/listings";
 
 const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
@@ -31,6 +31,12 @@ const pmOrigin =
     process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer =
     process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+const pmContentUrl =
+    "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
+const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
+const pmLangRaw = process.env.GUESTY_PM_LANG || "";
+const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
 
 if (!clientId || !clientSecret) {
     throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
@@ -188,58 +194,135 @@ async function getOpenApiToken() {
    PM CONTENT (LISTINGS)
 ======================= */
 
-async function fetchPmContent(lang = "en") {
-    const headers = {
-        accept: "application/json",
-        "g-aid-cs": pmAidCs,
-        "x-request-context": pmRequestContext,
-        origin: pmOrigin,
-        referer: pmReferer,
-    };
-
-    const res = await fetchWithTimeout(
-        `${pmContentUrl}?lang=${encodeURIComponent(lang)}`,
-        { headers }
-    );
-
-    if (!res.ok) {
-        throw new Error(`PM content error: ${await res.text()}`);
+async function fetchPmListings(options = {}) {
+    // Use Open API listings only (no PM listings endpoint)
+    const openApiList = await fetchOpenApiListings(options);
+    if (!Array.isArray(openApiList) || openApiList.length === 0) {
+        throw new Error("Open API listings returned no results");
     }
-
-    return res.json();
+    return openApiList;
 }
 
-function normalizePmListings(pmData) {
-    const stack = [pmData];
+function normalizePmListings(listings) {
+    const list = Array.isArray(listings) ? listings : [];
     const map = new Map();
 
-    while (stack.length) {
-        const cur = stack.pop();
-        if (Array.isArray(cur)) stack.push(...cur);
-        else if (cur && typeof cur === "object") {
-            const id = cur._id || cur.id;
-            if (cur.title && cur.bedrooms !== undefined && id) {
-                map.set(id, cur);
-            }
-            stack.push(...Object.values(cur));
-        }
-    }
+    list.forEach((l) => {
+        const id = l._id || l.id;
+        if (id && l.title) map.set(id, l);
+    });
+
+    const inferCity = (l) =>
+        l.city ||
+        l.address?.city ||
+        l.address?.full ||
+        l.location ||
+        "";
 
     return [...map.values()].map((l) => ({
         id: l._id || l.id,
         title: l.title,
+        nickname: l.nickname,
+        accommodates: l.accommodates,
+        accountId: l.accountId,
+        address: l.address,
+        city: inferCity(l),
+        bathrooms: l.bathrooms,
+        bedrooms: l.bedrooms,
+        beds: l.beds,
+        propertyType: l.propertyType,
+        tags: l.tags,
+        timezone: l.timezone,
         picture:
             l.picture?.original ||
             l.picture?.large ||
             l.picture?.regular ||
+            l.picture?.thumbnail ||
+            l.picture ||
             "",
+        pictures: Array.isArray(l.pictures) ? l.pictures : [],
+        prices: l.prices,
         basePrice: l.prices?.basePrice,
         currency: l.prices?.currency || "USD",
         cleaningFee: l.prices?.cleaningFee,
-        bedrooms: l.bedrooms,
-        bathrooms: l.bathrooms,
-        accommodates: l.accommodates,
+        publicDescription: l.publicDescription,
+        reviews: l.reviews,
+        roomType: l.roomType,
     }));
+}
+
+const extractFromPmContent = (pmData) => {
+    const stack = [pmData];
+    const out = [];
+    while (stack.length) {
+        const cur = stack.pop();
+        if (Array.isArray(cur)) {
+            stack.push(...cur);
+        } else if (cur && typeof cur === "object") {
+            if ((cur._id || cur.id) && cur.title) out.push(cur);
+            stack.push(...Object.values(cur));
+        }
+    }
+    return out;
+};
+
+async function fetchOpenApiListings({
+    checkIn,
+    checkOut,
+    minOccupancy = 1,
+    city = "",
+    tags = "",
+    ids = "",
+    limit = 50,
+} = {}) {
+    try {
+        const token = await getOpenApiToken();
+        const headers = {
+            accept: "application/json",
+            Authorization: `Bearer ${token}`,
+        };
+        const results = [];
+        let cursor = "";
+        let guard = 0;
+
+        do {
+            const qs = new URLSearchParams();
+            qs.set("limit", String(limit));
+            qs.set("sort", "-createdAt");
+            qs.set(
+                "fields",
+                "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
+            );
+            if (checkIn && checkOut) {
+                qs.set(
+                    "available",
+                    JSON.stringify({
+                        checkIn,
+                        checkOut,
+                        minOccupancy: Number(minOccupancy) || 1,
+                    }),
+                );
+            }
+            if (city) qs.set("city", city);
+            if (tags) qs.set("tags", tags);
+            if (ids) qs.set("ids", ids);
+            if (cursor) qs.set("cursor", cursor);
+
+            const res = await fetchWithTimeout(`${openApiServer}/listings?${qs.toString()}`, { headers });
+            if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                throw new Error(body || res.status);
+            }
+            const json = await res.json();
+            if (Array.isArray(json?.results)) results.push(...json.results);
+            cursor = json?.pagination?.cursor?.next || "";
+            guard += 1;
+        } while (cursor && guard < 25);
+
+        return results;
+    } catch {
+        return [];
+    }
 }
 
 /* =======================
@@ -261,9 +344,27 @@ async function createQuoteOpenApi(payload) {
    ROUTES
 ======================= */
 
-app.get("/api/listings", async (_req, res) => {
+app.get("/api/listings", async (req, res) => {
     try {
-        const pm = await fetchPmContent("en");
+        const {
+            checkIn,
+            checkOut,
+            minOccupancy = 1,
+            city = "",
+            tags = "",
+            ids = "",
+            limit = 50,
+        } = req.query || {};
+
+        const pm = await fetchPmListings({
+            checkIn,
+            checkOut,
+            minOccupancy,
+            city,
+            tags,
+            ids,
+            limit,
+        });
         res.json({ results: normalizePmListings(pm) });
     } catch (e) {
         res.status(500).json({ message: "Listings failed", error: e.message });

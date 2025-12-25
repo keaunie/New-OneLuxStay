@@ -44,8 +44,8 @@ const OPEN_API_BASE = "https://open-api.guesty.com/v1";
 const BOOKING_TOKEN_URL = "https://booking.guesty.com/oauth2/token";
 const BOOKING_API_BASE = "https://booking.guesty.com/api";
 
-const PM_CONTENT_URL =
-    "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const PM_LISTINGS_URL =
+    "https://app.guesty.com/api/pm-websites-backend/listings";
 
 const CLIENT_ID = process.env.GUESTY_CLIENT_ID;
 const CLIENT_SECRET = process.env.GUESTY_CLIENT_SECRET;
@@ -56,6 +56,13 @@ const pmOrigin =
     process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
 const pmReferer =
     process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
+const PM_CONTENT_URL =
+    "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const OPEN_API_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
+const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
+const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
+const pmLangRaw = process.env.GUESTY_PM_LANG || "";
+const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
@@ -260,28 +267,17 @@ async function getBookingEngineToken() {
    PM CONTENT (LISTINGS)
 ======================= */
 
-async function fetchPmContent(lang = "en") {
-    const res = await fetchWithTimeout(
-        `${PM_CONTENT_URL}?lang=${encodeURIComponent(lang)}`,
-        {
-            headers: {
-                accept: "application/json",
-                "g-aid-cs": pmAidCs,
-                "x-request-context": pmRequestContext,
-                origin: pmOrigin,
-                referer: pmReferer,
-            },
-        }
-    );
-
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+async function fetchPmListings(options = {}) {
+    // Use Open API listings only
+    const openApiList = await fetchOpenApiListings(options);
+    if (!Array.isArray(openApiList) || openApiList.length === 0) {
+        throw new Error("Open API listings returned no results");
+    }
+    return normalizePmListings(openApiList);
 }
 
-function normalizePmListings(pmData) {
-    const stack = [pmData];
-    const map = new Map();
-
+function normalizePmListings(listings) {
+    const list = Array.isArray(listings) ? listings : [];
     const knownCities = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
 
     const inferCity = (l) => {
@@ -295,25 +291,20 @@ function normalizePmListings(pmData) {
         if (tagCity) return tagCity;
         if (titleLower) {
             const match = knownCities.find((c) => titleLower.includes(c));
-            if (match) return match
-                .split(" ")
-                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                .join(" ");
+            if (match)
+                return match
+                    .split(" ")
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" ");
         }
         return "";
     };
 
-    while (stack.length) {
-        const cur = stack.pop();
-        if (Array.isArray(cur)) stack.push(...cur);
-        else if (cur && typeof cur === "object") {
-            const id = cur._id || cur.id;
-            if (cur.title && id) {
-                map.set(id, cur);
-            }
-            stack.push(...Object.values(cur));
-        }
-    }
+    const map = new Map();
+    list.forEach((l) => {
+        const id = l._id || l.id;
+        if (id && l.title) map.set(id, l);
+    });
 
     return [...map.values()].map((l) => {
         const city = inferCity(l);
@@ -331,10 +322,12 @@ function normalizePmListings(pmData) {
             beds: l.beds,
             propertyType: l.propertyType,
             tags: l.tags,
+            timezone: l.timezone,
             picture:
                 l.picture?.original ||
                 l.picture?.large ||
                 l.picture?.regular ||
+                l.picture?.thumbnail ||
                 l.picture ||
                 {},
             pictures: Array.isArray(l.pictures) ? l.pictures : [],
@@ -343,9 +336,84 @@ function normalizePmListings(pmData) {
             currency: l.prices?.currency || "USD",
             cleaningFee: l.prices?.cleaningFee,
             publicDescription: l.publicDescription,
+            reviews: l.reviews,
+            roomType: l.roomType,
         };
     });
 }
+
+const extractFromPmContent = (pmData) => {
+    const stack = [pmData];
+    const out = [];
+    while (stack.length) {
+        const cur = stack.pop();
+        if (Array.isArray(cur)) stack.push(...cur);
+        else if (cur && typeof cur === "object") {
+            if ((cur._id || cur.id) && cur.title) out.push(cur);
+            stack.push(...Object.values(cur));
+        }
+    }
+    return out;
+};
+
+const fetchOpenApiListings = async ({
+    checkIn,
+    checkOut,
+    minOccupancy = 1,
+    city = "",
+    tags = "",
+    ids = "",
+    limit = 50,
+} = {}) => {
+    try {
+        const token = await getOpenApiToken();
+        const headers = {
+            accept: "application/json",
+            Authorization: `Bearer ${token}`,
+        };
+        const results = [];
+        let cursor = "";
+        let guard = 0;
+
+        do {
+            const qs = new URLSearchParams();
+            qs.set("limit", String(limit));
+            qs.set("sort", "-createdAt");
+            qs.set(
+                "fields",
+                "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
+            );
+            if (checkIn && checkOut) {
+                qs.set(
+                    "available",
+                    JSON.stringify({
+                        checkIn,
+                        checkOut,
+                        minOccupancy: Number(minOccupancy) || 1,
+                    })
+                );
+            }
+            if (city) qs.set("city", city);
+            if (tags) qs.set("tags", tags);
+            if (ids) qs.set("ids", ids);
+            if (cursor) qs.set("cursor", cursor);
+
+            const res = await fetchWithTimeout(`${OPEN_API_LISTINGS_URL}?${qs.toString()}`, { headers });
+            if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                throw new Error(body || res.status);
+            }
+            const json = await res.json();
+            if (Array.isArray(json?.results)) results.push(...json.results);
+            cursor = json?.pagination?.cursor?.next || "";
+            guard += 1;
+        } while (cursor && guard < 25);
+
+        return results;
+    } catch {
+        return [];
+    }
+};
 
 /* =======================
    QUOTES (BOOKING ENGINE)
@@ -403,9 +471,27 @@ async function createQuote(payload) {
    ROUTES
 ======================= */
 
-app.get("/api/listings", async (_req, res) => {
+app.get("/api/listings", async (req, res) => {
     try {
-        const pm = await fetchPmContent("en");
+        const {
+            checkIn,
+            checkOut,
+            minOccupancy = 1,
+            city = "",
+            tags = "",
+            ids = "",
+            limit = 50,
+        } = req.query || {};
+
+        const pm = await fetchPmListings({
+            checkIn,
+            checkOut,
+            minOccupancy,
+            city,
+            tags,
+            ids,
+            limit,
+        });
         const results = normalizePmListings(pm);
         res.json({ results });
     } catch (e) {

@@ -5,8 +5,15 @@
 
 const openApiHost = "https://open-api.guesty.com";
 const openApiServer = "https://open-api.guesty.com/v1";
+const pmListingsUrl =
+  "https://app.guesty.com/api/pm-websites-backend/listings";
 const pmContentUrl =
   "https://app.guesty.com/api/pm-websites-backend/engines/content";
+const openApiListingsUrl = "https://open-api.guesty.com/v1/listings";
+const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
+const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
+const pmLangRaw = process.env.GUESTY_PM_LANG || "";
+const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
 
 const clientId = process.env.GUESTY_CLIENT_ID;
 const clientSecret = process.env.GUESTY_CLIENT_SECRET;
@@ -62,36 +69,27 @@ async function getOpenApiToken() {
    PM CONTENT
 ========================= */
 
-async function fetchPmContent(lang = "en") {
-  const res = await fetchWithTimeout(
-    `${pmContentUrl}?lang=${encodeURIComponent(lang)}`,
-    {
-      headers: {
-        accept: "application/json",
-        "g-aid-cs": pmAidCs,
-        "x-request-context": pmRequestContext,
-      },
-    },
-  );
-
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+async function fetchPmListings(options = {}) {
+  // Use Open API listings only
+  const openApiList = await fetchOpenApiListings(options);
+  if (!Array.isArray(openApiList) || openApiList.length === 0) {
+    throw new Error("Open API listings returned no results");
+  }
+  return normalizePmListings(openApiList);
 }
 
-function normalizePmListings(pmData) {
-  const stack = [pmData];
+function normalizePmListings(listings) {
+  const list = Array.isArray(listings) ? listings : [];
   const map = new Map();
 
-  while (stack.length) {
-    const cur = stack.pop();
-    if (Array.isArray(cur)) stack.push(...cur);
-    else if (cur?.title && cur?._id) map.set(cur._id, cur);
-    else if (cur && typeof cur === "object") stack.push(...Object.values(cur));
-  }
+  list.forEach((l) => {
+    const id = l._id || l.id;
+    if (id && l.title) map.set(id, l);
+  });
 
   return [...map.values()].map((l) => ({
-    id: l._id,
-    _id: l._id,
+    id: l._id || l.id,
+    _id: l._id || l.id,
     title: l.title,
     nickname: l.nickname,
     accommodates: l.accommodates,
@@ -102,14 +100,95 @@ function normalizePmListings(pmData) {
     beds: l.beds,
     propertyType: l.propertyType,
     tags: l.tags,
-    picture: l.picture || {},
+    picture:
+      l.picture?.original ||
+      l.picture?.large ||
+      l.picture?.regular ||
+      l.picture?.thumbnail ||
+      l.picture ||
+      {},
     pictures: Array.isArray(l.pictures) ? l.pictures : [],
     prices: l.prices,
     basePrice: l.prices?.basePrice,
     currency: l.prices?.currency || "USD",
     publicDescription: l.publicDescription,
+    reviews: l.reviews,
+    roomType: l.roomType,
   }));
 }
+
+const fetchOpenApiListings = async ({
+  checkIn,
+  checkOut,
+  minOccupancy = 1,
+  city = "",
+  tags = "",
+  ids = "",
+  limit = 50,
+} = {}) => {
+  try {
+    const token = await getOpenApiToken();
+    const headers = {
+      accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    const results = [];
+    let cursor = "";
+    let guard = 0;
+
+    do {
+      const qs = new URLSearchParams();
+      qs.set("limit", String(limit));
+      qs.set("sort", "-createdAt");
+      qs.set(
+        "fields",
+        "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
+      );
+      if (checkIn && checkOut) {
+        qs.set(
+          "available",
+          JSON.stringify({
+            checkIn,
+            checkOut,
+            minOccupancy: Number(minOccupancy) || 1,
+          })
+        );
+      }
+      if (city) qs.set("city", city);
+      if (tags) qs.set("tags", tags);
+      if (ids) qs.set("ids", ids);
+      if (cursor) qs.set("cursor", cursor);
+
+      const res = await fetchWithTimeout(`${openApiListingsUrl}?${qs.toString()}`, { headers });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(body || res.status);
+      }
+      const json = await res.json();
+      if (Array.isArray(json?.results)) results.push(...json.results);
+      cursor = json?.pagination?.cursor?.next || "";
+      guard += 1;
+    } while (cursor && guard < 25);
+
+    return results;
+  } catch {
+    return [];
+  }
+};
+
+const extractFromPmContent = (pmData) => {
+  const stack = [pmData];
+  const out = [];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (Array.isArray(cur)) stack.push(...cur);
+    else if (cur && typeof cur === "object") {
+      if ((cur._id || cur.id) && cur.title) out.push(cur);
+      stack.push(...Object.values(cur));
+    }
+  }
+  return out;
+};
 
 /* =========================
    NETLIFY HANDLER
@@ -128,7 +207,26 @@ module.exports.handler = async (event) => {
 
     /* LISTINGS */
     if (method === "GET" && path === "/listings") {
-      const pm = await fetchPmContent("en");
+      const params = event.queryStringParameters || {};
+      const {
+        checkIn,
+        checkOut,
+        minOccupancy = 1,
+        city = "",
+        tags = "",
+        ids = "",
+        limit = 50,
+      } = params;
+
+      const pm = await fetchPmListings({
+        checkIn,
+        checkOut,
+        minOccupancy,
+        city,
+        tags,
+        ids,
+        limit,
+      });
       return json(200, { results: normalizePmListings(pm) });
     }
 
