@@ -263,6 +263,9 @@ function App() {
   });
   const [bookingState, setBookingState] = useState({ status: "idle", message: "" });
   const [cityFilter, setCityFilter] = useState("All");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalListing, setModalListing] = useState(null);
+  const [modalHero, setModalHero] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -273,7 +276,7 @@ function App() {
         setListings(json.results || []);
         setActiveListingId((json.results || [])[0]?.id || "");
       } catch {
-        setListingsError("Unable to load units from Guesty�");
+        setListingsError("Unable to load units from Guesty?");
       } finally {
         setLoadingListings(false);
       }
@@ -321,6 +324,11 @@ function App() {
     return listings.filter((l) => normalizeCity(l).toLowerCase() === match);
   }, [cityFilter, listings]);
   const availableCount = filteredListings.length;
+
+  const modalAvailability = useMemo(() => {
+    if (!modalListing) return null;
+    return availability[modalListing.id] || null;
+  }, [modalListing, availability]);
 
   useEffect(() => {
     if (!activeListingId && filteredListings[0]) {
@@ -515,6 +523,14 @@ function App() {
     }
   };
 
+  const handleOpenModal = (listing) => {
+    setModalListing(listing);
+    setModalHero(listing.picture);
+    setIsModalOpen(true);
+    setActiveListingId(listing.id);
+    checkAvailability(listing);
+  };
+
   const handleBook = async () => {
     if (!activeListingId) {
       alert("Select a unit first.");
@@ -556,7 +572,7 @@ function App() {
         throw new Error(errJson.message || "Booking failed");
       }
 
-      setBookingState({ status: "success", message: "Booking request sent to Guesty�" });
+      setBookingState({ status: "success", message: "Booking request sent to Guesty?" });
     } catch (err) {
       setBookingState({ status: "error", message: err.message });
     }
@@ -565,7 +581,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-50">
       <div className="absolute inset-0 -z-10 opacity-30 bg-[radial-gradient(circle_at_10%_20%,#22c55e_0,#0f172a_35%),radial-gradient(circle_at_80%_0,#38bdf8_0,#0f172a_40%),radial-gradient(circle_at_50%_80%,#8b5cf6_0,#0f172a_45%)]" />
-      <header className="max-w-6xl mx-auto px-6 pt-10 pb-8">
+      <header className="relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
         <div className="flex flex-col gap-4 md:gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-emerald-300">OneLuxStay</p>
@@ -583,7 +599,7 @@ function App() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-[2fr,1fr]">
+        <div className="mt-6">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg backdrop-blur relative">
             <p className="text-sm font-semibold text-white mb-3">Search dates</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -627,68 +643,6 @@ function App() {
               </p>
             </div>
           </div>
-
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-lg backdrop-blur">
-            <p className="text-sm font-semibold text-white">Booking</p>
-            <p className="text-xs text-emerald-200 mt-1">
-              Choose a unit below and submit. We send it through Guesty instantly.
-            </p>
-            {bookingState.status === "success" && (
-              <div className="mt-3 rounded-lg bg-emerald-600/20 border border-emerald-500/50 px-3 py-2 text-xs text-emerald-100">
-                {bookingState.message}
-              </div>
-            )}
-            {bookingState.status === "error" && (
-              <div className="mt-3 rounded-lg bg-rose-600/20 border border-rose-500/40 px-3 py-2 text-xs text-rose-100">
-                {bookingState.message}
-              </div>
-            )}
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-              <input
-                placeholder="First name"
-                value={bookingInfo.firstName}
-                onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
-                className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
-              />
-              <input
-                placeholder="Last name"
-                value={bookingInfo.lastName}
-                onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
-                className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={bookingInfo.email}
-                onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
-                className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
-              />
-              <input
-                placeholder="Phone"
-                value={bookingInfo.phone}
-                onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
-                className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
-              />
-              <input
-                placeholder="Notes / requests"
-                value={bookingInfo.notes}
-                onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
-                className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
-              />
-            </div>
-            <button
-              onClick={handleBook}
-              disabled={bookingState.status === "loading"}
-              className="mt-3 w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
-            >
-              {bookingState.status === "loading" ? "Sending to Guesty�.." : "Book this stay"}
-            </button>
-            {selectedListing && (
-              <p className="mt-2 text-xs text-slate-200">
-                Selected unit: <span className="text-white font-semibold">{selectedListing.title}</span>
-              </p>
-            )}
-          </div>
         </div>
       </header>
 
@@ -697,7 +651,6 @@ function App() {
           <h2 className="text-xl font-semibold text-white">
             Available units {availableCount > 0 ? `(${availableCount})` : ""}
           </h2>
-          <p className="text-xs text-slate-400">Images load lazily to stay fast on slow networks.</p>
         </div>
 
         {cityOptions.length > 1 && (
@@ -746,7 +699,6 @@ function App() {
         <div className="grid gap-5 sm:grid-cols-2">
           {filteredListings.map((listing) => {
             const status = availability[listing.id] || {};
-            const isActive = activeListingId === listing.id;
             const displayTotal = status.hostPayout ?? status.total;
             const displayNightly = status.nightly ?? listing.basePrice;
 
@@ -768,44 +720,35 @@ function App() {
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
                   <div className="absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
-                    Sleeps {listing.accommodates} · {listing.bedrooms} BR · {listing.bathrooms} BA
+                    Sleeps {listing.accommodates} {listing.bedrooms} BR  ·  {listing.bathrooms} BA
                   </div>
 
                 </div>
-                <div className="mt-3 flex items-start justify-between gap-2">
+                <div className="mt-3">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-emerald-200">
                       {listing.location || listing.timezone || "OneLuxStay"}
                     </p>
                     <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
                     <p className="text-sm text-slate-300">
-                      From {formatCurrency(listing.basePrice, listing.currency)} / night · Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
+                      From {formatCurrency(listing.basePrice, listing.currency)} / night  ·  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
                     </p>
                   </div>
-                  <button
-                    onClick={() => setActiveListingId(listing.id)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${isActive
-                      ? "border-emerald-400 bg-emerald-500/20 text-emerald-100"
-                      : "border-white/10 bg-white/10 text-slate-200 hover:border-emerald-400/60"
-                      }`}
-                  >
-                    {isActive ? "Selected" : "Select"}
-                  </button>
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 text-sm text-slate-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   {status.status === "ready" && status.available !== false && (
                     <span>
-                      Available · {formatCurrency(displayNightly, status.currency)} avg/night{" "}
-                      {displayTotal ? `· ${formatCurrency(displayTotal, status.currency)} total` : ""}
-                      {status.hostPayout ? " (host payout)" : ""}
+                      Available  ·  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
+                      {displayTotal ? ` ·  ${formatCurrency(displayTotal, status.currency)} total` : ""}
+                      {status.hostPayout ? " " : ""}
                     </span>
                   )}
                   {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
-                  {status.status === "loading" && <span>Checking Guesty…</span>}
+                  {status.status === "loading" && <span>Checking Guesty · </span>}
                   {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
-                  {status.status === undefined && <span>Click “Check price” to fetch live availability</span>}
+                  {status.status === undefined && <span>Click  · Check price ·  to fetch live availability</span>}
                 </div>
 
                 {status.status === "ready" && status.available !== false && status.breakdown && (
@@ -831,7 +774,7 @@ function App() {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
-                    onClick={() => checkAvailability(listing)}
+                    onClick={() => handleOpenModal(listing)}
                     className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white border border-white/10 hover:border-emerald-400/60 transition"
                   >
                     Check price & availability
@@ -851,11 +794,169 @@ function App() {
           })}
         </div>
       </main>
+
+      {isModalOpen && modalListing && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-slate-950/70 px-3 py-6 sm:px-4 sm:py-10 backdrop-blur">
+          <div className="relative w-full max-w-full sm:max-w-5xl rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
+            <button
+              onClick={() => {
+                setIsModalOpen(false);
+                setModalListing(null);
+              }}
+              className="absolute right-3 top-3 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:border-emerald-400"
+            >
+              Close
+            </button>
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col gap-1">
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Listing details</p>
+                <h3 className="text-2xl font-semibold text-white">{modalListing.title}</h3>
+                <p className="text-sm text-slate-300">
+                  {normalizeCity(modalListing) || modalListing.location || modalListing.propertyType || "OneLuxStay"}
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-[3fr,2fr]">
+                <div className="space-y-4 min-w-0">
+                  <div className="overflow-hidden rounded-xl border border-white/10 bg-slate-800">
+                    <img
+                      src={modalHero || modalListing.picture}
+                      alt={modalListing.title}
+                      className="h-56 w-full min-w-0 object-cover sm:h-80"
+                      loading="lazy"
+                    />
+                  </div>
+                  {Array.isArray(modalListing.pictures) && modalListing.pictures.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 overflow-hidden">
+                      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                        {modalListing.pictures.map((pic) => {
+                          const src = pic.original || pic.thumbnail || modalListing.picture;
+                          return (
+                            <button
+                              key={pic._id || pic.original || pic.thumbnail}
+                              onClick={() => setModalHero(src)}
+                              className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                            >
+                              <img
+                                src={src}
+                                alt={pic.caption || modalListing.title}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+                  <div>
+                    <p className="font-semibold text-white">Description</p>
+                    <p className="mt-1 whitespace-pre-line text-slate-300">
+                      {modalListing.publicDescription?.summary || "No description provided."}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <span>Bedrooms: {modalListing.bedrooms ?? "--"}</span>
+                    <span>Bathrooms: {modalListing.bathrooms ?? "--"}</span>
+                    <span>Accommodates: {modalListing.accommodates ?? "--"}</span>
+                    <span>Property type: {modalListing.propertyType || "--"}</span>
+                  </div>
+                  {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p className="text-emerald-300">
+                        Available  ·  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
+                        {modalAvailability.hostPayout
+                          ? ` ·  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
+                          : modalAvailability.total
+                            ? ` ·  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
+                            : ""}
+                      </p>
+                      {modalAvailability.breakdown && (
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-300">
+                          {modalAvailability.breakdown.accommodation > 0 && (
+                            <span>Stay: {formatCurrency(modalAvailability.breakdown.accommodation, modalAvailability.currency)}</span>
+                          )}
+                          {modalAvailability.breakdown.cleaning > 0 && (
+                            <span>Cleaning: {formatCurrency(modalAvailability.breakdown.cleaning, modalAvailability.currency)}</span>
+                          )}
+                          {modalAvailability.breakdown.taxes > 0 && (
+                            <span>Taxes: {formatCurrency(modalAvailability.breakdown.taxes, modalAvailability.currency)}</span>
+                          )}
+                          {modalAvailability.breakdown.fees > 0 && (
+                            <span>Fees: {formatCurrency(modalAvailability.breakdown.fees, modalAvailability.currency)}</span>
+                          )}
+                          {modalAvailability.breakdown.deposit > 0 && (
+                            <span>Deposit: {formatCurrency(modalAvailability.breakdown.deposit, modalAvailability.currency)}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {modalAvailability?.status === "ready" && modalAvailability?.available === false && (
+                    <p className="text-rose-300">Not available for your dates.</p>
+                  )}
+                  {modalAvailability?.status === "loading" && <p className="text-slate-300">Checking Guesty · </p>}
+
+                  {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm font-semibold text-white">Booking</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      <input
+                        placeholder="First name"
+                        value={bookingInfo.firstName}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                      />
+                      <input
+                        placeholder="Last name"
+                        value={bookingInfo.lastName}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={bookingInfo.email}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                      />
+                      <input
+                        placeholder="Phone"
+                        value={bookingInfo.phone}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                      />
+                      <input
+                        placeholder="Notes / requests"
+                        value={bookingInfo.notes}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
+                        className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <button
+                      onClick={handleBook}
+                      disabled={bookingState.status === "loading"}
+                      className="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+                    >
+                      {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
+                    </button>
+                  </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default App;
+
 
 
 
