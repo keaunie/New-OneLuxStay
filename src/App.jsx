@@ -7,11 +7,11 @@ const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
     ? value.toLocaleString("en-US", {
-        style: "currency",
-        currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
     : "--";
 
 const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
@@ -779,8 +779,7 @@ function App() {
                     </p>
                     <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
                     <p className="text-sm text-slate-300">
-                      From {formatCurrency(listing.basePrice, listing.currency)} / night · Cleaning{" "}
-                      From {formatCurrency(listing.basePrice, listing.currency)} / night · Cleaning{" "}
+                      From {formatCurrency(listing.basePrice, listing.currency)} / night · Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
                     </p>
                   </div>
                   <button
