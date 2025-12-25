@@ -9,6 +9,33 @@ const formatCurrency = (value, currency = "USD") =>
     ? value.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 })
     : "--";
 
+const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+
+const normalizeCity = (listing) => {
+  const titleLower = typeof listing.title === "string" ? listing.title.toLowerCase() : "";
+  if (titleLower.includes("hollywood")) return "Hollywood";
+
+  const primary = listing.city || listing.address?.city;
+  if (primary) return primary.trim();
+
+  const tagCity =
+    Array.isArray(listing.tags) &&
+    listing.tags.find((t) => typeof t === "string" && KNOWN_CITIES.includes(t.toLowerCase()));
+  if (tagCity) return tagCity.trim();
+
+  if (titleLower) {
+    const match = KNOWN_CITIES.find((c) => titleLower.includes(c));
+    if (match) {
+      return match
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+  }
+
+  return (listing.address?.full || "").trim();
+};
+
 const initialSearch = {
   checkIn: "",
   checkOut: "",
@@ -230,6 +257,7 @@ function App() {
     notes: "",
   });
   const [bookingState, setBookingState] = useState({ status: "idle", message: "" });
+  const [cityFilter, setCityFilter] = useState("All");
 
   useEffect(() => {
     const load = async () => {
@@ -260,6 +288,44 @@ function App() {
     () => listings.find((l) => l.id === activeListingId || l._id === activeListingId),
     [activeListingId, listings],
   );
+
+  const cityOptions = useMemo(() => {
+    const map = new Map();
+    const forced = ["Hollywood", "Redondo Beach"];
+    listings.forEach((l) => {
+      const city = normalizeCity(l);
+      if (!city) return;
+      if (!map.has(city)) {
+        const img =
+          l.picture ||
+          (Array.isArray(l.pictures) && l.pictures[0]?.thumbnail) ||
+          (Array.isArray(l.pictures) && l.pictures[0]?.original) ||
+          "";
+        map.set(city, { city, image: img });
+      }
+    });
+    forced.forEach((city) => {
+      if (!map.has(city)) map.set(city, { city, image: "" });
+    });
+    return [{ city: "All", image: "" }, ...Array.from(map.values())];
+  }, [listings]);
+
+  const filteredListings = useMemo(() => {
+    if (cityFilter === "All") return listings;
+    const match = cityFilter.toLowerCase();
+    return listings.filter((l) => normalizeCity(l).toLowerCase() === match);
+  }, [cityFilter, listings]);
+
+  useEffect(() => {
+    if (!activeListingId && filteredListings[0]) {
+      setActiveListingId(filteredListings[0].id);
+      return;
+    }
+    const exists = filteredListings.some((l) => l.id === activeListingId);
+    if (!exists && filteredListings[0]) {
+      setActiveListingId(filteredListings[0].id);
+    }
+  }, [filteredListings, activeListingId]);
 
   const handleSearchChange = (key, value) => {
     setSearch((prev) => ({ ...prev, [key]: value }));
@@ -581,6 +647,32 @@ function App() {
           <p className="text-xs text-slate-400">Images load lazily to stay fast on slow networks.</p>
         </div>
 
+        {cityOptions.length > 1 && (
+          <div className="mb-5 flex flex-wrap gap-3">
+            {cityOptions.map(({ city, image }) => {
+              const active = cityFilter === city;
+              return (
+                <button
+                  key={city}
+                  onClick={() => setCityFilter(city)}
+                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${
+                    active
+                      ? "border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-lg shadow-emerald-500/20"
+                      : "border-white/10 bg-white/5 text-slate-200 hover:border-emerald-400/40 hover:text-white"
+                  }`}
+                >
+                  {image && (
+                    <span className="h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800">
+                      <img src={image} alt={city} className="h-full w-full object-cover" loading="lazy" />
+                    </span>
+                  )}
+                  <span>{city.toUpperCase()}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {loadingListings && (
           <div className="grid gap-4 sm:grid-cols-2">
             {[1, 2].map((item) => (
@@ -600,7 +692,7 @@ function App() {
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {listings.map((listing) => {
+          {filteredListings.map((listing) => {
             const status = availability[listing.id] || {};
             const isActive = activeListingId === listing.id;
 

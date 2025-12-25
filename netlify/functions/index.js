@@ -282,44 +282,69 @@ function normalizePmListings(pmData) {
     const stack = [pmData];
     const map = new Map();
 
+    const knownCities = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+
+    const inferCity = (l) => {
+        const titleLower = typeof l.title === "string" ? l.title.toLowerCase() : "";
+        if (titleLower.includes("hollywood")) return "Hollywood";
+        const fromAddress = l.address?.city || l.city || l.location || l.address?.full || "";
+        if (fromAddress) return fromAddress;
+        const tagCity =
+            Array.isArray(l.tags) &&
+            l.tags.find((t) => typeof t === "string" && knownCities.includes(t.toLowerCase()));
+        if (tagCity) return tagCity;
+        if (titleLower) {
+            const match = knownCities.find((c) => titleLower.includes(c));
+            if (match) return match
+                .split(" ")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" ");
+        }
+        return "";
+    };
+
     while (stack.length) {
         const cur = stack.pop();
         if (Array.isArray(cur)) stack.push(...cur);
         else if (cur && typeof cur === "object") {
             const id = cur._id || cur.id;
-            if (cur.title && cur.bedrooms !== undefined && id) {
+            if (cur.title && id) {
                 map.set(id, cur);
             }
             stack.push(...Object.values(cur));
         }
     }
 
-    return [...map.values()].map((l) => ({
-        id: l._id || l.id,
-        _id: l._id || l.id,
-        title: l.title,
-        nickname: l.nickname,
-        accommodates: l.accommodates,
-        accountId: l.accountId,
-        address: l.address,
-        bathrooms: l.bathrooms,
-        bedrooms: l.bedrooms,
-        beds: l.beds,
-        propertyType: l.propertyType,
-        tags: l.tags,
-        picture:
-            l.picture?.original ||
-            l.picture?.large ||
-            l.picture?.regular ||
-            l.picture ||
-            {},
-        pictures: Array.isArray(l.pictures) ? l.pictures : [],
-        prices: l.prices,
-        basePrice: l.prices?.basePrice,
-        currency: l.prices?.currency || "USD",
-        cleaningFee: l.prices?.cleaningFee,
-        publicDescription: l.publicDescription,
-    }));
+    return [...map.values()].map((l) => {
+        const city = inferCity(l);
+        return {
+            id: l._id || l.id,
+            _id: l._id || l.id,
+            title: l.title,
+            nickname: l.nickname,
+            accommodates: l.accommodates,
+            accountId: l.accountId,
+            address: l.address,
+            city,
+            bathrooms: l.bathrooms,
+            bedrooms: l.bedrooms,
+            beds: l.beds,
+            propertyType: l.propertyType,
+            tags: l.tags,
+            picture:
+                l.picture?.original ||
+                l.picture?.large ||
+                l.picture?.regular ||
+                l.picture ||
+                {},
+            pictures: Array.isArray(l.pictures) ? l.pictures : [],
+            prices: l.prices,
+            basePrice: l.prices?.basePrice,
+            currency: l.prices?.currency || "USD",
+            cleaningFee: l.prices?.cleaningFee,
+            publicDescription: l.publicDescription,
+        };
+    });
 }
 
 /* =======================
@@ -381,7 +406,8 @@ async function createQuote(payload) {
 app.get("/api/listings", async (_req, res) => {
     try {
         const pm = await fetchPmContent("en");
-        res.json({ results: normalizePmListings(pm) });
+        const results = normalizePmListings(pm);
+        res.json({ results });
     } catch (e) {
         res.status(500).json({ message: "Listings failed", error: e.message });
     }
