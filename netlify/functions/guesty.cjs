@@ -129,13 +129,50 @@ const fetchOpenApiListings = async ({
   tags = "",
   ids = "",
   limit = 50,
-} = {}) => {
+  } = {}) => {
   try {
     const token = await getOpenApiToken();
     const headers = {
       accept: "application/json",
       Authorization: `Bearer ${token}`,
     };
+    const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
+    const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 1200);
+    let activeCount = 0;
+    let lastStart = 0;
+    const pending = [];
+    const schedule = () =>
+      new Promise((resolve) => {
+        const run = () => {
+          if (activeCount >= MAX_CONCURRENT) {
+            pending.push(run);
+            return;
+          }
+          const now = Date.now();
+          const waitMs = Math.max(0, lastStart + MIN_INTERVAL_MS - now);
+          const start = () => {
+            activeCount += 1;
+            lastStart = Date.now();
+            resolve(() => {
+              activeCount = Math.max(0, activeCount - 1);
+              const next = pending.shift();
+              if (next) next();
+            });
+          };
+          if (waitMs > 0) setTimeout(start, waitMs);
+          else start();
+        };
+        run();
+      });
+    const withLimit = async (fn) => {
+      const release = await schedule();
+      try {
+        return await fn();
+      } finally {
+        release();
+      }
+    };
+
     const results = [];
     let cursor = "";
     let guard = 0;
@@ -163,12 +200,28 @@ const fetchOpenApiListings = async ({
       if (ids) qs.set("ids", ids);
       if (cursor) qs.set("cursor", cursor);
 
-      const res = await fetchWithTimeout(`${openApiListingsUrl}?${qs.toString()}`, { headers });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(body || res.status);
-      }
-      const json = await res.json();
+      const fetchPage = async (attempt = 0) => {
+        const res = await withLimit(() =>
+          fetchWithTimeout(`${openApiListingsUrl}?${qs.toString()}`, { headers })
+        );
+        if (res.status === 429) {
+          const retryAfter = Number(res.headers.get("retry-after") || 0);
+          if (attempt >= 4) throw new Error("Rate limited by Guesty (listings)");
+          const backoff =
+            retryAfter > 0
+              ? retryAfter * 1000
+              : Math.min(5000, 700 * 2 ** attempt) + Math.random() * 200;
+          await wait(backoff);
+          return fetchPage(attempt + 1);
+        }
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(body || res.status);
+        }
+        return res.json();
+      };
+
+      const json = await fetchPage();
       if (Array.isArray(json?.results)) results.push(...json.results);
       cursor = json?.pagination?.cursor?.next || "";
       guard += 1;

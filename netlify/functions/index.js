@@ -400,12 +400,28 @@ const fetchOpenApiListings = async ({
             if (ids) qs.set("ids", ids);
             if (cursor) qs.set("cursor", cursor);
 
-            const res = await fetchWithTimeout(`${OPEN_API_LISTINGS_URL}?${qs.toString()}`, { headers });
-            if (!res.ok) {
-                const body = await res.text().catch(() => "");
-                throw new Error(body || res.status);
-            }
-            const json = await res.json();
+            const fetchPage = async (attempt = 0) => {
+                const res = await withLimit(() =>
+                    fetchWithTimeout(`${OPEN_API_LISTINGS_URL}?${qs.toString()}`, { headers })
+                );
+                if (res.status === 429) {
+                    const retryAfter = Number(res.headers.get("retry-after") || 0);
+                    if (attempt >= 4) throw new Error("Rate limited by Guesty (listings)");
+                    const backoff =
+                        retryAfter > 0
+                            ? retryAfter * 1000
+                            : Math.min(5000, 700 * 2 ** attempt) + Math.random() * 200;
+                    await wait(backoff);
+                    return fetchPage(attempt + 1);
+                }
+                if (!res.ok) {
+                    const body = await res.text().catch(() => "");
+                    throw new Error(body || res.status);
+                }
+                return res.json();
+            };
+
+            const json = await fetchPage();
             if (Array.isArray(json?.results)) results.push(...json.results);
             cursor = json?.pagination?.cursor?.next || "";
             guard += 1;
