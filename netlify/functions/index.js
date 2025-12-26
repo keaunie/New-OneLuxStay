@@ -383,6 +383,9 @@ const fetchOpenApiListings = async ({
                 "fields",
                 "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
             );
+            qs.set("active", "true");
+            qs.set("pmsActive", "true");
+            qs.set("listed", "true");
             if (checkIn && checkOut) {
                 qs.set(
                     "available",

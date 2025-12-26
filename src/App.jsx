@@ -153,7 +153,15 @@ const DateRangePicker = ({ value, onChange }) => {
     if (nextStart && nextEnd) setOpen(false);
   };
 
-  const { year, month, cells } = buildMonth(view);
+  const primaryMonth = buildMonth(view);
+  const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
+  const monthLabel = `${new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })} - ${new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })}`;
 
   return (
     <div className="relative" ref={containerRef}>
@@ -181,11 +189,9 @@ const DateRangePicker = ({ value, onChange }) => {
       </div>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-3 w-[320px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
-          <div className="flex items-center justify-between px-4 py-3 text-white">
-            <div className="font-semibold text-lg">
-              {new Date(year, month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-            </div>
+        <div className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
+          <div className="flex items-center justify-between px-4 py-3 text-white border-b border-white/5">
+            <div className="font-semibold text-lg">{monthLabel}</div>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -203,36 +209,50 @@ const DateRangePicker = ({ value, onChange }) => {
               </button>
             </div>
           </div>
-          <div className="px-4 pb-4">
-            <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300 mb-2">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                <div key={d}>{d}</div>
+          <div className="flex flex-col gap-4 px-4 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[primaryMonth, secondaryMonth].map((monthObj) => (
+                <div key={`${monthObj.year}-${monthObj.month}`} className="space-y-2">
+                  <div className="flex items-center justify-between text-white font-semibold">
+                    <span>
+                      {new Date(monthObj.year, monthObj.month, 1).toLocaleDateString(undefined, {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                      <div key={d}>{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-2">
+                    {monthObj.cells.map((day, idx) => {
+                      const disabled = !day || day < today;
+                      const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
+                      const between = inRange(day) && !selected;
+                      return (
+                        <button
+                          key={`${monthObj.year}-${monthObj.month}-${idx}`}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => handleDayClick(day)}
+                          className={`h-10 rounded-lg border text-sm transition ${disabled
+                            ? "border-transparent text-slate-600"
+                            : selected
+                              ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
+                              : between
+                                ? "border-amber-400/50 bg-amber-400/10 text-white"
+                                : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
+                            }`}
+                        >
+                          {day ? day.getDate() : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
-            </div>
-            <div className="grid grid-cols-7 gap-2">
-              {cells.map((day, idx) => {
-                const disabled = !day || day < today;
-                const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
-                const between = inRange(day) && !selected;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => handleDayClick(day)}
-                    className={`h-10 rounded-lg border text-sm transition ${disabled
-                      ? "border-transparent text-slate-600"
-                      : selected
-                        ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
-                        : between
-                          ? "border-amber-400/50 bg-amber-400/10 text-white"
-                          : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
-                      }`}
-                  >
-                    {day ? day.getDate() : ""}
-                  </button>
-                );
-              })}
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
               <button
