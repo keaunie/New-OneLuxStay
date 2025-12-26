@@ -144,6 +144,7 @@ const fetchOpenApiListings = async ({
   limit = 50,
 } = {}) => {
   try {
+    const MAX_LISTINGS_LIMIT = Number(process.env.GUESTY_LISTINGS_LIMIT || 20);
     const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit });
     const cached = getListingsCache(cacheKey);
     if (cached) return cached;
@@ -155,7 +156,7 @@ const fetchOpenApiListings = async ({
     };
 
     const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
-    const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 2000);
+    const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 3500);
     let activeCount = 0;
     let lastStart = 0;
     const pending = [];
@@ -192,12 +193,13 @@ const fetchOpenApiListings = async ({
     };
 
     const results = [];
+    const pageLimit = Math.max(1, Math.min(Number(limit) || 50, MAX_LISTINGS_LIMIT));
     let cursor = "";
     let guard = 0;
 
     do {
       const qs = new URLSearchParams();
-      qs.set("limit", String(limit));
+      qs.set("limit", String(pageLimit));
       qs.set("sort", "-createdAt");
       qs.set(
         "fields",
@@ -228,7 +230,7 @@ const fetchOpenApiListings = async ({
           const backoff =
             retryAfter > 0
               ? retryAfter * 1000
-              : Math.min(5000, 700 * 2 ** attempt) + Math.random() * 200;
+              : Math.min(6000, 900 * 2 ** attempt) + Math.random() * 400;
           await wait(backoff);
           return fetchPage(attempt + 1);
         }

@@ -97,6 +97,7 @@ const QUOTE_CACHE_TTL_MS =
 
 const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
 let listingsCache = { key: "", expiresAt: 0, data: null };
+const MAX_LISTINGS_LIMIT = Number(process.env.GUESTY_LISTINGS_LIMIT || 20);
 
 const getListingsCache = (key) => {
     if (!listingsCache.data) return null;
@@ -114,7 +115,7 @@ const setListingsCache = (key, data) => {
 
 // Simple limiter: cap concurrent Guesty calls and pace to N per second
 const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
-const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 2000); // default ~1 req/2s
+const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 3500); // slower by default to avoid 429s
 let activeCount = 0;
 let lastStart = 0;
 const pendingQueue = [];
@@ -400,9 +401,11 @@ const fetchOpenApiListings = async ({
         let cursor = "";
         let guard = 0;
 
+        const pageLimit = Math.max(1, Math.min(Number(limit) || 50, MAX_LISTINGS_LIMIT));
+
         do {
             const qs = new URLSearchParams();
-            qs.set("limit", String(limit));
+            qs.set("limit", String(pageLimit));
             qs.set("sort", "-createdAt");
             qs.set(
                 "fields",
@@ -435,7 +438,7 @@ const fetchOpenApiListings = async ({
                     const backoff =
                         retryAfter > 0
                             ? retryAfter * 1000
-                            : Math.min(5000, 700 * 2 ** attempt) + Math.random() * 200;
+                            : Math.min(6000, 900 * 2 ** attempt) + Math.random() * 400;
                     await wait(backoff);
                     return fetchPage(attempt + 1);
                 }
