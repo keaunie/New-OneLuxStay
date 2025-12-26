@@ -55,6 +55,17 @@ const parseDate = (value) => {
   return new Date(y, m - 1, d);
 };
 
+const parseHiddenList = (value = "") =>
+  value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+const HIDDEN_LISTING_IDS = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_IDS);
+const HIDDEN_LISTING_TITLES = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_TITLES).map((t) =>
+  t.toLowerCase(),
+);
+
 const toISODate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -273,8 +284,16 @@ function App() {
         const res = await fetch(`${apiBase}/api/listings`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
-        setListings(json.results || []);
-        setActiveListingId((json.results || [])[0]?.id || "");
+        const sanitizedListings = (json.results || []).filter((listing) => {
+          const id = listing.id || listing._id;
+          const title = typeof listing.title === "string" ? listing.title.toLowerCase() : "";
+          if (id && HIDDEN_LISTING_IDS.includes(id)) return false;
+          if (title && HIDDEN_LISTING_TITLES.some((hidden) => title.includes(hidden))) return false;
+          return true;
+        });
+
+        setListings(sanitizedListings);
+        setActiveListingId(sanitizedListings[0]?.id || "");
       } catch {
         setListingsError("Unable to load units from Guesty?");
       } finally {
@@ -956,8 +975,6 @@ function App() {
 }
 
 export default App;
-
-
 
 
 
