@@ -5,6 +5,7 @@ import serverless from "serverless-http";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
+import Stripe from "stripe";
 
 dotenv.config();
 
@@ -63,6 +64,9 @@ const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
 const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
 const pmLangRaw = process.env.GUESTY_PM_LANG || "";
 const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
+const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
+const appOrigin = process.env.APP_ORIGIN || "";
+const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" }) : null;
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
@@ -537,6 +541,62 @@ app.get("/api/listings", async (req, res) => {
         res.json({ results });
     } catch (e) {
         res.status(500).json({ message: "Listings failed", error: e.message });
+    }
+});
+
+app.post("/api/checkout", async (req, res) => {
+    if (!stripe) {
+        return res.status(500).json({ message: "Stripe not configured" });
+    }
+
+    try {
+        const {
+            listingId,
+            listingTitle,
+            checkIn,
+            checkOut,
+            amount,
+            currency = "USD",
+            guests = 1,
+        } = req.body || {};
+
+        if (!listingId || !checkIn || !checkOut) {
+            return res.status(400).json({ message: "Missing checkout parameters" });
+        }
+        if (!amount || Number(amount) <= 0) {
+            return res.status(400).json({ message: "Missing or invalid amount" });
+        }
+
+        const origin = req.headers.origin || appOrigin || "http://localhost:8888";
+        const session = await stripe.checkout.sessions.create({
+            mode: "payment",
+            payment_method_types: ["card"],
+            line_items: [
+                {
+                    quantity: 1,
+                    price_data: {
+                        currency,
+                        unit_amount: Math.round(Number(amount) * 100),
+                        product_data: {
+                            name: listingTitle || "Stay booking",
+                            description: `Check-in: ${checkIn} | Check-out: ${checkOut} | Guests: ${guests}`,
+                        },
+                    },
+                },
+            ],
+            metadata: {
+                listingId,
+                checkIn,
+                checkOut,
+                guests: String(guests),
+            },
+            success_url: `${origin}/?payment=success`,
+            cancel_url: `${origin}/?payment=cancel`,
+        });
+
+        res.json({ url: session.url });
+    } catch (e) {
+        res.status(500).json({ message: "Checkout failed", error: e.message });
     }
 });
 

@@ -584,34 +584,52 @@ function App() {
       return;
     }
 
+    const avail = availability[activeListingId];
+    if (!avail || avail.status !== "ready" || avail.available === false) {
+      alert("This unit is not available for the selected dates yet.");
+      return;
+    }
+
+    const amount = avail.hostPayout ?? avail.total;
+    const currency = avail.currency || selectedListing?.currency || "USD";
+    if (!amount || amount <= 0) {
+      alert("Pricing is missing. Please refresh availability.");
+      return;
+    }
+
+    const guestsTotal =
+      (Number.isFinite(Number(search.adults)) ? Number(search.adults) : 1) +
+      (Number.isFinite(Number(search.children)) ? Number(search.children) : 0);
+
     setBookingState({ status: "loading", message: "" });
 
     try {
-      const res = await fetch(`${apiBase}/book`, {
+      const res = await fetch(`${apiBase}/api/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           listingId: activeListingId,
+          listingTitle: selectedListing?.title,
           checkIn: search.checkIn,
           checkOut: search.checkOut,
-          adults: Number(search.adults),
-          children: Number(search.children),
-          guest: {
-            firstName: bookingInfo.firstName,
-            lastName: bookingInfo.lastName,
-            email: bookingInfo.email,
-            phone: bookingInfo.phone,
-            notes: bookingInfo.notes,
-          },
+          guests: guestsTotal,
+          amount,
+          currency,
+          guest: bookingInfo,
         }),
       });
 
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || "Booking failed");
+        throw new Error(json.message || "Booking failed");
       }
 
-      setBookingState({ status: "success", message: "Booking request sent to Guesty?" });
+      if (json.url) {
+        window.location.href = json.url;
+        return;
+      }
+
+      setBookingState({ status: "success", message: "Redirecting to payment..." });
     } catch (err) {
       setBookingState({ status: "error", message: err.message });
     }
@@ -740,6 +758,7 @@ function App() {
             const status = availability[listing.id] || {};
             const displayTotal = status.hostPayout ?? status.total;
             const displayNightly = status.nightly ?? listing.basePrice;
+            const canBook = status.status === "ready" && status.available !== false;
 
             return (
               <article
@@ -818,15 +837,17 @@ function App() {
                   >
                     Check price & availability
                   </button>
-                  <button
-                    onClick={() => {
-                      setActiveListingId(listing.id);
-                      checkAvailability(listing);
-                    }}
-                    className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
-                  >
-                    Book this stay
-                  </button>
+                  {canBook && (
+                    <button
+                      onClick={() => {
+                        setActiveListingId(listing.id);
+                        handleBook();
+                      }}
+                      className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+                    >
+                      Book this stay
+                    </button>
+                  )}
                 </div>
               </article>
             );
