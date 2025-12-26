@@ -322,8 +322,9 @@ async function fetchOpenApiListings({
         } while (cursor && guard < 25);
 
         return results;
-    } catch {
-        return [];
+    } catch (err) {
+        console.error("Open API listings fetch failed", err?.message || err);
+        throw err;
     }
 }
 

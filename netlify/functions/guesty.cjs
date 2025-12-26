@@ -23,6 +23,10 @@ const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 let openApiToken = null;
 let openApiExp = 0;
 
+if (!clientId || !clientSecret) {
+  throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
+}
+
 /* =========================
    UTILS
 ========================= */
@@ -171,8 +175,9 @@ const fetchOpenApiListings = async ({
     } while (cursor && guard < 25);
 
     return results;
-  } catch {
-    return [];
+  } catch (err) {
+    console.error("Open API listings fetch failed", err?.message || err);
+    throw err;
   }
 };
 
