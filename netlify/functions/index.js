@@ -114,7 +114,7 @@ const setListingsCache = (key, data) => {
 
 // Simple limiter: cap concurrent Guesty calls and pace to N per second
 const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
-const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 1200); // default <1 req/sec
+const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 2000); // default ~1 req/2s
 let activeCount = 0;
 let lastStart = 0;
 const pendingQueue = [];

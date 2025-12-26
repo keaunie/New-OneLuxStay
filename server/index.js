@@ -81,6 +81,61 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
 const AVAILABILITY_CACHE_TTL_MS = 10 * 60_000;
 const AVAILABILITY_CACHE_MAX = 500;
 const availabilityCache = new Map();
+const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
+let listingsCache = { key: "", expiresAt: 0, data: null };
+
+const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
+const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 2000);
+let activeCount = 0;
+let lastStart = 0;
+const pendingQueue = [];
+
+const schedule = () =>
+    new Promise((resolve) => {
+        const run = () => {
+            if (activeCount >= MAX_CONCURRENT) {
+                pendingQueue.push(run);
+                return;
+            }
+            const now = Date.now();
+            const waitMs = Math.max(0, lastStart + MIN_INTERVAL_MS - now);
+            const start = () => {
+                activeCount += 1;
+                lastStart = Date.now();
+                resolve(() => {
+                    activeCount = Math.max(0, activeCount - 1);
+                    const next = pendingQueue.shift();
+                    if (next) next();
+                });
+            };
+            if (waitMs > 0) setTimeout(start, waitMs);
+            else start();
+        };
+        run();
+    });
+
+const withLimit = async (fn) => {
+    const release = await schedule();
+    try {
+        return await fn();
+    } finally {
+        release();
+    }
+};
+
+const getListingsCache = (key) => {
+    if (!listingsCache.data) return null;
+    if (listingsCache.key !== key) return null;
+    if (Date.now() > listingsCache.expiresAt) {
+        listingsCache = { key: "", expiresAt: 0, data: null };
+        return null;
+    }
+    return listingsCache.data;
+};
+
+const setListingsCache = (key, data) => {
+    listingsCache = { key, data, expiresAt: Date.now() + LISTINGS_CACHE_TTL_MS };
+};
 
 const getAvailabilityCache = (key) => {
     const entry = availabilityCache.get(key);
@@ -283,6 +338,10 @@ async function fetchOpenApiListings({
     limit = 50,
 } = {}) {
     try {
+        const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit });
+        const cached = getListingsCache(cacheKey);
+        if (cached) return cached;
+
         const token = await getOpenApiToken();
         const headers = {
             accept: "application/json",
@@ -317,17 +376,34 @@ async function fetchOpenApiListings({
             if (ids) qs.set("ids", ids);
             if (cursor) qs.set("cursor", cursor);
 
-            const res = await fetchWithTimeout(`${openApiServer}/listings?${qs.toString()}`, { headers });
-            if (!res.ok) {
-                const body = await res.text().catch(() => "");
-                throw new Error(body || res.status);
-            }
-            const json = await res.json();
+            const fetchPage = async (attempt = 0) => {
+                const res = await withLimit(() =>
+                    fetchWithTimeout(`${openApiServer}/listings?${qs.toString()}`, { headers })
+                );
+                if (res.status === 429) {
+                    const retryAfter = Number(res.headers.get("retry-after") || 0);
+                    if (attempt >= 4) throw new Error("Rate limited by Guesty (listings)");
+                    const backoff =
+                        retryAfter > 0
+                            ? retryAfter * 1000
+                            : Math.min(5000, 700 * 2 ** attempt) + Math.random() * 200;
+                    await wait(backoff);
+                    return fetchPage(attempt + 1);
+                }
+                if (!res.ok) {
+                    const body = await res.text().catch(() => "");
+                    throw new Error(body || res.status);
+                }
+                return res.json();
+            };
+
+            const json = await fetchPage();
             if (Array.isArray(json?.results)) results.push(...json.results);
             cursor = json?.pagination?.cursor?.next || "";
             guard += 1;
         } while (cursor && guard < 25);
 
+        setListingsCache(cacheKey, results);
         return results;
     } catch (err) {
         console.error("Open API listings fetch failed", err?.message || err);
