@@ -163,7 +163,7 @@ async function getOpenApiToken() {
         }
     } catch { }
 
-  const res = await fetchWithTimeout(`${openApiHost}/oauth2/token`, {
+    const res = await fetchWithTimeout(`${openApiHost}/oauth2/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -294,7 +294,6 @@ async function fetchOpenApiListings({
                 "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
             );
             qs.set("active", "true");
-            qs.set("pmsActive", "true");
             qs.set("listed", "true");
             if (checkIn && checkOut) {
                 qs.set(

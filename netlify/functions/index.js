@@ -384,7 +384,6 @@ const fetchOpenApiListings = async ({
                 "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
             );
             qs.set("active", "true");
-            qs.set("pmsActive", "true");
             qs.set("listed", "true");
             if (checkIn && checkOut) {
                 qs.set(
@@ -503,63 +502,63 @@ app.get("/api/listings", async (req, res) => {
 });
 
 app.get("/api/listings/:id/availability", async (req, res) => {
-  const { id } = req.params;
-  const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
+    const { id } = req.params;
+    const { startDate, endDate, minOccupancy = 1, city = "", unitTypeId = "" } = req.query || {};
 
-  if (!id || !startDate || !endDate) {
-    return res.status(400).json({ message: "Missing availability parameters" });
-  }
+    if (!id || !startDate || !endDate) {
+        return res.status(400).json({ message: "Missing availability parameters" });
+    }
 
-  const errors = [];
-  const cacheKey = [
-    "availability",
-    id,
-    startDate,
-    endDate,
-    minOccupancy,
-    city,
-    unitTypeId,
-  ].join("|");
-  const cached = getAvailabilityCache(cacheKey);
-  if (cached) return res.json({ ...cached, cached: true });
+    const errors = [];
+    const cacheKey = [
+        "availability",
+        id,
+        startDate,
+        endDate,
+        minOccupancy,
+        city,
+        unitTypeId,
+    ].join("|");
+    const cached = getAvailabilityCache(cacheKey);
+    if (cached) return res.json({ ...cached, cached: true });
 
-  try {
-    const token = await getOpenApiToken();
-    const available = JSON.stringify({
-      checkIn: startDate,
+    try {
+        const token = await getOpenApiToken();
+        const available = JSON.stringify({
+            checkIn: startDate,
             checkOut: endDate,
             minOccupancy: Number(minOccupancy) || 1,
         });
 
-    const tryQuery = async (query, attempt = 0) => {
-      const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
-        available
-      )}`;
-      const response = await withLimit(() =>
-        fetchWithTimeout(url, {
-          headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-        })
-      );
-      if (response.status === 429) {
-        const retryAfter = Number(response.headers.get("retry-after") || 0);
-        errors.push({ status: 429, body: "Rate limited", attempt });
-        if (attempt >= 4) {
-          return null;
-        }
-        // exponential backoff with jitter, fall back to Retry-After if provided
-        const backoff =
-          retryAfter > 0
-            ? retryAfter * 1000
-            : Math.min(4000, 600 * 2 ** attempt) + Math.random() * 200;
-        await wait(backoff);
-        return tryQuery(query, attempt + 1);
-      }
-      if (!response.ok) {
-        errors.push({ status: response.status, body: await response.text().catch(() => "") });
-        return null;
-      }
-      const json = await response.json();
-      if (Array.isArray(json?.results) && json.results.length > 0) return json;
+        const tryQuery = async (query, attempt = 0) => {
+            const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+                available
+            )}`;
+            const response = await withLimit(() =>
+                fetchWithTimeout(url, {
+                    headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+                })
+            );
+            if (response.status === 429) {
+                const retryAfter = Number(response.headers.get("retry-after") || 0);
+                errors.push({ status: 429, body: "Rate limited", attempt });
+                if (attempt >= 4) {
+                    return null;
+                }
+                // exponential backoff with jitter, fall back to Retry-After if provided
+                const backoff =
+                    retryAfter > 0
+                        ? retryAfter * 1000
+                        : Math.min(4000, 600 * 2 ** attempt) + Math.random() * 200;
+                await wait(backoff);
+                return tryQuery(query, attempt + 1);
+            }
+            if (!response.ok) {
+                errors.push({ status: response.status, body: await response.text().catch(() => "") });
+                return null;
+            }
+            const json = await response.json();
+            if (Array.isArray(json?.results) && json.results.length > 0) return json;
             errors.push({ status: 200, body: "No results" });
             return null;
         };
@@ -591,12 +590,12 @@ app.get("/api/listings/:id/availability", async (req, res) => {
                         ? status.toUpperCase() === "AVAILABLE"
                         : true
                     : false;
-    const payload = { isAvailable, availability: days, raw: json, errors };
-    setAvailabilityCache(cacheKey, payload);
-    res.json(payload);
-  } catch (e) {
-    res.status(502).json({ message: "Availability failed", error: e.message, errors });
-  }
+        const payload = { isAvailable, availability: days, raw: json, errors };
+        setAvailabilityCache(cacheKey, payload);
+        res.json(payload);
+    } catch (e) {
+        res.status(502).json({ message: "Availability failed", error: e.message, errors });
+    }
 });
 
 app.post("/api/reservations/quotes", async (req, res) => {
