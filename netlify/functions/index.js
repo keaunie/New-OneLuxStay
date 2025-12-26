@@ -529,7 +529,7 @@ app.get("/api/listings/:id/availability", async (req, res) => {
         });
 
     const tryQuery = async (query, attempt = 0) => {
-      const url = `${BOOKING_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+      const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
         available
       )}`;
       const response = await withLimit(() =>
