@@ -903,6 +903,17 @@ function App() {
                     <span>Accommodates: {modalListing.accommodates ?? "--"}</span>
                     <span>Property type: {modalListing.propertyType || "--"}</span>
                   </div>
+                  <div className="text-sm text-slate-200">
+                    <p className="font-semibold text-white">Dates</p>
+                    <p className="mt-1">
+                      {search.checkIn && search.checkOut
+                        ? `${formatDisplayDate(search.checkIn)} → ${formatDisplayDate(search.checkOut)}${nights
+                          ? ` (${nights} night${nights === 1 ? "" : "s"})`
+                          : ""
+                        }`
+                        : "No dates selected"}
+                    </p>
+                  </div>
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                     <div className="mt-2 space-y-1 text-sm">
                       <p className="text-emerald-300">
