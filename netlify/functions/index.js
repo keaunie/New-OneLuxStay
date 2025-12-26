@@ -91,6 +91,23 @@ const quoteCache = new Map();
 const QUOTE_CACHE_TTL_MS =
     Number(process.env.GUESTY_QUOTE_CACHE_TTL_MS || 15 * 60_000); // default 15 min
 
+const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
+let listingsCache = { key: "", expiresAt: 0, data: null };
+
+const getListingsCache = (key) => {
+    if (!listingsCache.data) return null;
+    if (listingsCache.key !== key) return null;
+    if (Date.now() > listingsCache.expiresAt) {
+        listingsCache = { key: "", expiresAt: 0, data: null };
+        return null;
+    }
+    return listingsCache.data;
+};
+
+const setListingsCache = (key, data) => {
+    listingsCache = { key, data, expiresAt: Date.now() + LISTINGS_CACHE_TTL_MS };
+};
+
 // Simple limiter: cap concurrent Guesty calls and pace to N per second
 const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
 const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 1200); // default <1 req/sec
@@ -366,6 +383,10 @@ const fetchOpenApiListings = async ({
     limit = 50,
 } = {}) => {
     try {
+        const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit });
+        const cached = getListingsCache(cacheKey);
+        if (cached) return cached;
+
         const token = await getOpenApiToken();
         const headers = {
             accept: "application/json",
@@ -427,6 +448,7 @@ const fetchOpenApiListings = async ({
             guard += 1;
         } while (cursor && guard < 25);
 
+        setListingsCache(cacheKey, results);
         return results;
     } catch (err) {
         console.error("Open API listings fetch failed", err?.message || err);

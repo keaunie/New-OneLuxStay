@@ -23,9 +23,22 @@ const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
 let openApiToken = null;
 let openApiExp = 0;
 
-if (!clientId || !clientSecret) {
-  throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
-}
+const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
+let listingsCache = { key: "", expiresAt: 0, data: null };
+
+const getListingsCache = (key) => {
+  if (!listingsCache.data) return null;
+  if (listingsCache.key !== key) return null;
+  if (Date.now() > listingsCache.expiresAt) {
+    listingsCache = { key: "", expiresAt: 0, data: null };
+    return null;
+  }
+  return listingsCache.data;
+};
+
+const setListingsCache = (key, data) => {
+  listingsCache = { key, data, expiresAt: Date.now() + LISTINGS_CACHE_TTL_MS };
+};
 
 /* =========================
    UTILS
@@ -129,13 +142,18 @@ const fetchOpenApiListings = async ({
   tags = "",
   ids = "",
   limit = 50,
-  } = {}) => {
+} = {}) => {
   try {
+    const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit });
+    const cached = getListingsCache(cacheKey);
+    if (cached) return cached;
+
     const token = await getOpenApiToken();
     const headers = {
       accept: "application/json",
       Authorization: `Bearer ${token}`,
     };
+
     const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
     const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 1200);
     let activeCount = 0;
@@ -227,6 +245,7 @@ const fetchOpenApiListings = async ({
       guard += 1;
     } while (cursor && guard < 25);
 
+    setListingsCache(cacheKey, results);
     return results;
   } catch (err) {
     console.error("Open API listings fetch failed", err?.message || err);
