@@ -636,12 +636,12 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-50">
-      <div className="absolute inset-0 -z-10 opacity-30 bg-[radial-gradient(circle_at_10%_20%,#22c55e_0,#0f172a_35%),radial-gradient(circle_at_80%_0,#38bdf8_0,#0f172a_40%),radial-gradient(circle_at_50%_80%,#8b5cf6_0,#0f172a_45%)]" />
+    <div className="min-h-screen bg-gradient-to-b from-[#050505] via-[#0a0a0a] to-[#050505] text-[#f6f0e5]">
+      <div className="absolute inset-0 -z-10 opacity-50 bg-[radial-gradient(circle_at_15%_20%,#b68d2d_0,#0a0a0a_38%),radial-gradient(circle_at_80%_0,#f1c55d_0,#0a0a0a_42%),radial-gradient(circle_at_50%_82%,#d4b04c_0,#050505_48%)]" />
       <header className="relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
         <div className="flex flex-col gap-4 md:gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-emerald-300">OneLuxStay</p>
+            <p className="text-sm uppercase tracking-[0.2em] text-amber-300">OneLuxStay</p>
             <h1 className="text-3xl md:text-4xl font-semibold text-white leading-tight">
               Direct booking portal connected to Guesty
             </h1>
@@ -651,7 +651,7 @@ function App() {
           </div>
           <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-200 backdrop-blur">
             <p className="font-semibold text-white">API status</p>
-            <p className="text-emerald-300">Connected to Guesty Booking API</p>
+            <p className="text-amber-300">Connected to Guesty Booking API</p>
             <p className="text-xs text-slate-400">Token cached to reduce bandwidth + rate limits</p>
           </div>
         </div>
@@ -679,7 +679,7 @@ function App() {
                   min="1"
                   value={search.adults}
                   onChange={(e) => handleSearchChange("adults", Number(e.target.value))}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -689,12 +689,12 @@ function App() {
                   min="0"
                   value={search.children}
                   onChange={(e) => handleSearchChange("children", Number(e.target.value))}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
                 />
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
               <p>
                 {nights > 0 ? `${nights} night stay selected` : "Select dates to check availability & rates"}
               </p>
@@ -719,8 +719,8 @@ function App() {
                   key={city}
                   onClick={() => setCityFilter(city)}
                   className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
-                    ? "border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-lg shadow-emerald-500/20"
-                    : "border-white/10 bg-white/5 text-slate-200 hover:border-emerald-400/40 hover:text-white"
+                    ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
+                    : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
                     }`}
                 >
                   {image && (
@@ -763,7 +763,7 @@ function App() {
             return (
               <article
                 key={listing.id}
-                className="group rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg transition hover:border-emerald-400/40"
+                className="group rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg transition hover:border-amber-400/40"
               >
                 <div className="relative overflow-hidden rounded-xl bg-slate-900">
                   {listing.picture ? (
@@ -784,7 +784,7 @@ function App() {
                 </div>
                 <div className="mt-3">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-emerald-200">
+                    <p className="text-xs uppercase tracking-wide text-amber-200">
                       {listing.location || listing.timezone || "OneLuxStay"}
                     </p>
                     <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
@@ -795,7 +795,7 @@ function App() {
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 text-sm text-slate-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
                   {status.status === "ready" && status.available !== false && (
                     <span>
                       Available  ·  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
@@ -833,7 +833,7 @@ function App() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     onClick={() => handleOpenModal(listing)}
-                    className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white border border-white/10 hover:border-emerald-400/60 transition"
+                    className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white border border-white/10 hover:border-amber-400/60 transition"
                   >
                     Check price & availability
                   </button>
@@ -843,7 +843,7 @@ function App() {
                         setActiveListingId(listing.id);
                         handleBook();
                       }}
-                      className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+                      className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300"
                     >
                       Book this stay
                     </button>
@@ -863,13 +863,13 @@ function App() {
                 setIsModalOpen(false);
                 setModalListing(null);
               }}
-              className="absolute right-3 top-3 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:border-emerald-400"
+              className="absolute right-3 top-3 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:border-amber-400"
             >
               Close
             </button>
             <div className="p-4 sm:p-6">
               <div className="flex flex-col gap-1">
-                <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Listing details</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-amber-300">Listing details</p>
                 <h3 className="text-2xl font-semibold text-white">{modalListing.title}</h3>
                 <p className="text-sm text-slate-300">
                   {normalizeCity(modalListing) || modalListing.location || modalListing.propertyType || "OneLuxStay"}
@@ -895,7 +895,7 @@ function App() {
                             <button
                               key={pic._id || pic.original || pic.thumbnail}
                               onClick={() => setModalHero(src)}
-                              className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                              className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
                             >
                               <img
                                 src={src}
@@ -937,7 +937,7 @@ function App() {
                   </div>
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                     <div className="mt-2 space-y-1 text-sm">
-                      <p className="text-emerald-300">
+                      <p className="text-amber-300">
                         Available  ·  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
                         {modalAvailability.hostPayout
                           ? ` ·  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
@@ -979,38 +979,38 @@ function App() {
                         placeholder="First name"
                         value={bookingInfo.firstName}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         placeholder="Last name"
                         value={bookingInfo.lastName}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         type="email"
                         placeholder="Email"
                         value={bookingInfo.email}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         placeholder="Phone"
                         value={bookingInfo.phone}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         placeholder="Notes / requests"
                         value={bookingInfo.notes}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
-                        className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-emerald-400"
+                        className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                     </div>
                     <button
                       onClick={handleBook}
                       disabled={bookingState.status === "loading"}
-                      className="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+                      className="w-full rounded-lg bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300 disabled:opacity-60"
                     >
                       {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
                     </button>
