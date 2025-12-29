@@ -856,29 +856,29 @@ function App() {
       </main>
 
       {isModalOpen && modalListing && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-slate-950/70 px-3 py-6 sm:px-4 sm:py-10 backdrop-blur">
-          <div className="relative w-full max-w-full sm:max-w-5xl rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-[#020202]/80 px-3 py-6 sm:px-4 sm:py-10 backdrop-blur">
+          <div className="relative w-full max-w-full sm:max-w-5xl rounded-2xl border border-amber-400/25 bg-[#0a0a0a]/95 shadow-[0_20px_80px_rgba(0,0,0,0.8)] overflow-hidden">
             <button
               onClick={() => {
                 setIsModalOpen(false);
                 setModalListing(null);
               }}
-              className="absolute right-3 top-3 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:border-amber-400"
+              className="absolute right-3 top-3 rounded-full border border-amber-300/50 bg-white/5 px-3 py-1 text-xs font-semibold text-white hover:border-amber-400 hover:bg-amber-400/10"
             >
               Close
             </button>
-            <div className="p-4 sm:p-6">
+            <div className="p-4 sm:p-6 space-y-4">
               <div className="flex flex-col gap-1">
                 <p className="text-xs uppercase tracking-[0.2em] text-amber-300">Listing details</p>
                 <h3 className="text-2xl font-semibold text-white">{modalListing.title}</h3>
-                <p className="text-sm text-slate-300">
+                <p className="text-sm text-amber-100/80">
                   {normalizeCity(modalListing) || modalListing.location || modalListing.propertyType || "OneLuxStay"}
                 </p>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[3fr,2fr]">
                 <div className="space-y-4 min-w-0">
-                  <div className="overflow-hidden rounded-xl border border-white/10 bg-slate-800">
+                  <div className="overflow-hidden rounded-xl border border-amber-300/20 bg-black/40">
                     <img
                       src={modalHero || modalListing.picture}
                       alt={modalListing.title}
@@ -887,7 +887,7 @@ function App() {
                     />
                   </div>
                   {Array.isArray(modalListing.pictures) && modalListing.pictures.length > 0 && (
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 overflow-hidden">
+                    <div className="rounded-xl border border-amber-300/20 bg-black/30 p-3 overflow-hidden">
                       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                         {modalListing.pictures.map((pic) => {
                           const src = pic.original || pic.thumbnail || modalListing.picture;
@@ -895,7 +895,7 @@ function App() {
                             <button
                               key={pic._id || pic.original || pic.thumbnail}
                               onClick={() => setModalHero(src)}
-                              className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-amber-200/20 bg-[#0f0f0f] focus:outline-none focus:ring-2 focus:ring-amber-400"
                             >
                               <img
                                 src={src}
@@ -911,21 +911,21 @@ function App() {
                   )}
                 </div>
 
-                <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+                <div className="space-y-4 rounded-xl border border-amber-300/20 bg-[#0d0d0d]/95 p-4 text-sm text-amber-50">
                   <div>
-                    <p className="font-semibold text-white">Description</p>
-                    <p className="mt-1 whitespace-pre-line text-slate-300">
+                    <p className="font-semibold text-amber-200">Description</p>
+                    <p className="mt-1 whitespace-pre-line text-amber-100/80">
                       {modalListing.publicDescription?.summary || "No description provided."}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-amber-100/80">
                     <span>Bedrooms: {modalListing.bedrooms ?? "--"}</span>
                     <span>Bathrooms: {modalListing.bathrooms ?? "--"}</span>
                     <span>Accommodates: {modalListing.accommodates ?? "--"}</span>
                     <span>Property type: {modalListing.propertyType || "--"}</span>
                   </div>
-                  <div className="text-sm text-slate-200">
-                    <p className="font-semibold text-white">Dates</p>
+                  <div className="text-sm text-amber-100/90">
+                    <p className="font-semibold text-amber-200">Dates</p>
                     <p className="mt-1">
                       {search.checkIn && search.checkOut
                         ? `${formatDisplayDate(search.checkIn)} → ${formatDisplayDate(search.checkOut)}${nights
@@ -946,7 +946,7 @@ function App() {
                             : ""}
                       </p>
                       {modalAvailability.breakdown && (
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-300">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-amber-100/80">
                           {modalAvailability.breakdown.accommodation > 0 && (
                             <span>Stay: {formatCurrency(modalAvailability.breakdown.accommodation, modalAvailability.currency)}</span>
                           )}
@@ -969,11 +969,11 @@ function App() {
                   {modalAvailability?.status === "ready" && modalAvailability?.available === false && (
                     <p className="text-rose-300">Not available for your dates.</p>
                   )}
-                  {modalAvailability?.status === "loading" && <p className="text-slate-300">Checking Guesty · </p>}
+                  {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty · </p>}
 
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-sm font-semibold text-white">Booking</p>
+                    <p className="text-sm font-semibold text-amber-200">Booking</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                       <input
                         placeholder="First name"
