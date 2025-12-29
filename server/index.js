@@ -382,7 +382,12 @@ async function fetchOpenApiListings({
                 );
                 if (res.status === 429) {
                     const retryAfter = Number(res.headers.get("retry-after") || 0);
-                    if (attempt >= 4) throw new Error("Rate limited by Guesty (listings)");
+                    if (attempt >= 4) {
+                        const err = new Error("Rate limited by Guesty (listings)");
+                        err.rateLimited = true;
+                        err.status = 429;
+                        throw err;
+                    }
                     const backoff =
                         retryAfter > 0
                             ? retryAfter * 1000
@@ -407,6 +412,10 @@ async function fetchOpenApiListings({
         return results;
     } catch (err) {
         console.error("Open API listings fetch failed", err?.message || err);
+        if (err?.status === 429 || err?.rateLimited) {
+            err.rateLimited = true;
+            err.status = err.status || 429;
+        }
         throw err;
     }
 }
@@ -453,7 +462,11 @@ app.get("/api/listings", async (req, res) => {
         });
         res.json({ results: normalizePmListings(pm) });
     } catch (e) {
-        res.status(500).json({ message: "Listings failed", error: e.message });
+        const status = e?.status === 429 || e?.rateLimited ? 429 : 500;
+        res.status(status).json({
+            message: status === 429 ? "Rate limited by Guesty" : "Listings failed",
+            error: e.message,
+        });
     }
 });
 
