@@ -400,6 +400,17 @@ function App() {
       alert("Pick check-in and check-out dates first.");
       return;
     }
+    const requestKey = `${listing.id}:${search.checkIn}:${search.checkOut}:${search.adults}:${search.children}`;
+    const existing = availability[listing.id];
+    const isSameQuery =
+      existing &&
+      existing.lastQuery &&
+      existing.lastQuery === requestKey;
+    const isFresh =
+      isSameQuery && existing.timestamp && Date.now() - existing.timestamp < 2 * 60 * 1000;
+    if (isFresh || (existing && existing.status === "loading" && isSameQuery)) {
+      return;
+    }
     const adultsNum = Number.parseInt(search.adults, 10);
     const childrenNum = Number.parseInt(search.children, 10);
     const adults = Number.isFinite(adultsNum) ? Math.max(1, adultsNum) : 1;
@@ -408,7 +419,7 @@ function App() {
 
     setAvailability((prev) => ({
       ...prev,
-      [listing.id]: { status: "loading" },
+      [listing.id]: { status: "loading", lastQuery: requestKey, timestamp: Date.now() },
     }));
 
     try {
@@ -545,6 +556,8 @@ function App() {
           hostPayout,
           breakdown,
           currency: quoteCurrency,
+          lastQuery: requestKey,
+          timestamp: Date.now(),
           raw: { availability: availJson, quote: quoteData },
         },
       }));
@@ -553,6 +566,8 @@ function App() {
         ...prev,
         [listing.id]: {
           status: "error",
+          lastQuery: requestKey,
+          timestamp: Date.now(),
           message:
             err?.name === "AbortError"
               ? "Guesty timed out. Please retry."

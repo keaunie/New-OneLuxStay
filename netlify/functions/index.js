@@ -94,6 +94,9 @@ const availabilityCache = new Map();
 const quoteCache = new Map();
 const QUOTE_CACHE_TTL_MS =
     Number(process.env.GUESTY_QUOTE_CACHE_TTL_MS || 15 * 60_000); // default 15 min
+const inflightListings = new Map();
+const inflightAvailability = new Map();
+const inflightQuotes = new Map();
 
 const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
 let listingsCache = { key: "", expiresAt: 0, data: null };
@@ -115,7 +118,7 @@ const setListingsCache = (key, data) => {
 
 // Simple limiter: cap concurrent Guesty calls and pace to N per second
 const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
-const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 3500); // slower by default to avoid 429s
+const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 6000); // slower by default to avoid 429s
 let activeCount = 0;
 let lastStart = 0;
 const pendingQueue = [];
@@ -186,6 +189,20 @@ const getQuoteCache = (key) => {
 
 const setQuoteCache = (key, value) => {
     quoteCache.set(key, { value, expiresAt: Date.now() + QUOTE_CACHE_TTL_MS });
+};
+
+const runDeduped = (map, key, fn) => {
+    const existing = map.get(key);
+    if (existing) return existing;
+    const promise = (async () => {
+        try {
+            return await fn();
+        } finally {
+            map.delete(key);
+        }
+    })();
+    map.set(key, promise);
+    return promise;
 };
 
 const readCache = async (file) => {
@@ -391,77 +408,84 @@ const fetchOpenApiListings = async ({
         const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit });
         const cached = getListingsCache(cacheKey);
         if (cached) return cached;
+        const deduped = inflightListings.get(cacheKey);
+        if (deduped) return deduped;
 
-        const token = await getOpenApiToken();
-        const headers = {
-            accept: "application/json",
-            Authorization: `Bearer ${token}`,
-        };
-        const results = [];
-        let cursor = "";
-        let guard = 0;
-
-        const pageLimit = Math.max(1, Math.min(Number(limit) || 50, MAX_LISTINGS_LIMIT));
-
-        do {
-            const qs = new URLSearchParams();
-            qs.set("limit", String(pageLimit));
-            qs.set("sort", "-createdAt");
-            qs.set(
-                "fields",
-                "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
-            );
-            qs.set("active", "true");
-            qs.set("listed", "true");
-            if (checkIn && checkOut) {
-                qs.set(
-                    "available",
-                    JSON.stringify({
-                        checkIn,
-                        checkOut,
-                        minOccupancy: Number(minOccupancy) || 1,
-                    })
-                );
-            }
-            if (city) qs.set("city", city);
-            if (tags) qs.set("tags", tags);
-            if (ids) qs.set("ids", ids);
-            if (cursor) qs.set("cursor", cursor);
-
-            const fetchPage = async (attempt = 0) => {
-                const res = await withLimit(() =>
-                    fetchWithTimeout(`${OPEN_API_LISTINGS_URL}?${qs.toString()}`, { headers })
-                );
-                if (res.status === 429) {
-                    const retryAfter = Number(res.headers.get("retry-after") || 0);
-                    if (attempt >= 4) {
-                        const err = new Error("Rate limited by Guesty (listings)");
-                        err.rateLimited = true;
-                        err.status = 429;
-                        throw err;
-                    }
-                    const backoff =
-                        retryAfter > 0
-                            ? retryAfter * 1000
-                            : Math.min(6000, 900 * 2 ** attempt) + Math.random() * 400;
-                    await wait(backoff);
-                    return fetchPage(attempt + 1);
-                }
-                if (!res.ok) {
-                    const body = await res.text().catch(() => "");
-                    throw new Error(body || res.status);
-                }
-                return res.json();
+        const promise = (async () => {
+            const token = await getOpenApiToken();
+            const headers = {
+                accept: "application/json",
+                Authorization: `Bearer ${token}`,
             };
+            const results = [];
+            let cursor = "";
+            let guard = 0;
 
-            const json = await fetchPage();
-            if (Array.isArray(json?.results)) results.push(...json.results);
-            cursor = json?.pagination?.cursor?.next || "";
-            guard += 1;
-        } while (cursor && guard < 25);
+            const pageLimit = Math.max(1, Math.min(Number(limit) || 50, MAX_LISTINGS_LIMIT));
 
-        setListingsCache(cacheKey, results);
-        return results;
+            do {
+                const qs = new URLSearchParams();
+                qs.set("limit", String(pageLimit));
+                qs.set("sort", "-createdAt");
+                qs.set(
+                    "fields",
+                    "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
+                );
+                qs.set("active", "true");
+                qs.set("listed", "true");
+                if (checkIn && checkOut) {
+                    qs.set(
+                        "available",
+                        JSON.stringify({
+                            checkIn,
+                            checkOut,
+                            minOccupancy: Number(minOccupancy) || 1,
+                        })
+                    );
+                }
+                if (city) qs.set("city", city);
+                if (tags) qs.set("tags", tags);
+                if (ids) qs.set("ids", ids);
+                if (cursor) qs.set("cursor", cursor);
+
+                const fetchPage = async (attempt = 0) => {
+                    const res = await withLimit(() =>
+                        fetchWithTimeout(`${OPEN_API_LISTINGS_URL}?${qs.toString()}`, { headers })
+                    );
+                    if (res.status === 429) {
+                        const retryAfter = Number(res.headers.get("retry-after") || 0);
+                        if (attempt >= 4) {
+                            const err = new Error("Rate limited by Guesty (listings)");
+                            err.rateLimited = true;
+                            err.status = 429;
+                            throw err;
+                        }
+                        const backoff =
+                            retryAfter > 0
+                                ? retryAfter * 1000
+                                : Math.min(6000, 900 * 2 ** attempt) + Math.random() * 400;
+                        await wait(backoff);
+                        return fetchPage(attempt + 1);
+                    }
+                    if (!res.ok) {
+                        const body = await res.text().catch(() => "");
+                        throw new Error(body || res.status);
+                    }
+                    return res.json();
+                };
+
+                const json = await fetchPage();
+                if (Array.isArray(json?.results)) results.push(...json.results);
+                cursor = json?.pagination?.cursor?.next || "";
+                guard += 1;
+            } while (cursor && guard < 25);
+
+            setListingsCache(cacheKey, results);
+            return results;
+        })();
+
+        inflightListings.set(cacheKey, promise);
+        return promise;
     } catch (err) {
         console.error("Open API listings fetch failed", err?.message || err);
         if (err?.status === 429 || err?.rateLimited) {
@@ -638,76 +662,80 @@ app.get("/api/listings/:id/availability", async (req, res) => {
     if (cached) return res.json({ ...cached, cached: true });
 
     try {
-        const token = await getOpenApiToken();
-        const available = JSON.stringify({
-            checkIn: startDate,
-            checkOut: endDate,
-            minOccupancy: Number(minOccupancy) || 1,
-        });
+        const result = await runDeduped(inflightAvailability, cacheKey, async () => {
+            const token = await getOpenApiToken();
+            const available = JSON.stringify({
+                checkIn: startDate,
+                checkOut: endDate,
+                minOccupancy: Number(minOccupancy) || 1,
+            });
 
-        const tryQuery = async (query, attempt = 0) => {
-            const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
-                available
-            )}`;
-            const response = await withLimit(() =>
-                fetchWithTimeout(url, {
-                    headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-                })
-            );
-            if (response.status === 429) {
-                const retryAfter = Number(response.headers.get("retry-after") || 0);
-                errors.push({ status: 429, body: "Rate limited", attempt });
-                if (attempt >= 4) {
+            const tryQuery = async (query, attempt = 0) => {
+                const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
+                    available
+                )}`;
+                const response = await withLimit(() =>
+                    fetchWithTimeout(url, {
+                        headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+                    })
+                );
+                if (response.status === 429) {
+                    const retryAfter = Number(response.headers.get("retry-after") || 0);
+                    errors.push({ status: 429, body: "Rate limited", attempt });
+                    if (attempt >= 4) {
+                        return null;
+                    }
+                    // exponential backoff with jitter, fall back to Retry-After if provided
+                    const backoff =
+                        retryAfter > 0
+                            ? retryAfter * 1000
+                            : Math.min(4000, 600 * 2 ** attempt) + Math.random() * 200;
+                    await wait(backoff);
+                    return tryQuery(query, attempt + 1);
+                }
+                if (!response.ok) {
+                    errors.push({ status: response.status, body: await response.text().catch(() => "") });
                     return null;
                 }
-                // exponential backoff with jitter, fall back to Retry-After if provided
-                const backoff =
-                    retryAfter > 0
-                        ? retryAfter * 1000
-                        : Math.min(4000, 600 * 2 ** attempt) + Math.random() * 200;
-                await wait(backoff);
-                return tryQuery(query, attempt + 1);
-            }
-            if (!response.ok) {
-                errors.push({ status: response.status, body: await response.text().catch(() => "") });
+                const json = await response.json();
+                if (Array.isArray(json?.results) && json.results.length > 0) return json;
+                errors.push({ status: 200, body: "No results" });
                 return null;
+            };
+
+            let json =
+                (await tryQuery(`ids=${encodeURIComponent(id)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)) ||
+                (city ? await tryQuery(`city=${encodeURIComponent(city)}`) : null) ||
+                (unitTypeId
+                    ? await tryQuery(`ids=${encodeURIComponent(unitTypeId)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)
+                    : null);
+
+            if (!json) {
+                const rateLimited = errors.some((e) => e.status === 429);
+                const payload = { isAvailable: false, availability: [], raw: null, errors };
+                if (rateLimited) {
+                    return { status: 429, payload: { message: "Rate limited by Guesty", ...payload } };
+                }
+                return { status: 200, payload };
             }
-            const json = await response.json();
-            if (Array.isArray(json?.results) && json.results.length > 0) return json;
-            errors.push({ status: 200, body: "No results" });
-            return null;
-        };
 
-        let json =
-            (await tryQuery(`ids=${encodeURIComponent(id)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)) ||
-            (city ? await tryQuery(`city=${encodeURIComponent(city)}`) : null) ||
-            (unitTypeId
-                ? await tryQuery(`ids=${encodeURIComponent(unitTypeId)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)
-                : null);
+            const record = Array.isArray(json?.results) ? json.results[0] : null;
+            const days = record?.availability || [];
+            const status = record?.availabilityStatus;
+            const isAvailable =
+                Array.isArray(days) && days.length
+                    ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
+                    : record
+                        ? typeof status === "string"
+                            ? status.toUpperCase() === "AVAILABLE"
+                            : true
+                        : false;
+            const payload = { isAvailable, availability: days, raw: json, errors };
+            setAvailabilityCache(cacheKey, payload);
+            return { status: 200, payload };
+        });
 
-        if (!json) {
-            const rateLimited = errors.some((e) => e.status === 429);
-            const payload = { isAvailable: false, availability: [], raw: null, errors };
-            if (rateLimited) {
-                return res.status(429).json({ message: "Rate limited by Guesty", ...payload });
-            }
-            return res.json(payload);
-        }
-
-        const record = Array.isArray(json?.results) ? json.results[0] : null;
-        const days = record?.availability || [];
-        const status = record?.availabilityStatus;
-        const isAvailable =
-            Array.isArray(days) && days.length
-                ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
-                : record
-                    ? typeof status === "string"
-                        ? status.toUpperCase() === "AVAILABLE"
-                        : true
-                    : false;
-        const payload = { isAvailable, availability: days, raw: json, errors };
-        setAvailabilityCache(cacheKey, payload);
-        res.json(payload);
+        res.status(result.status).json(result.payload);
     } catch (e) {
         res.status(502).json({ message: "Availability failed", error: e.message, errors });
     }
@@ -739,17 +767,21 @@ app.post("/api/reservations/quotes", async (req, res) => {
     if (cached) return res.json({ ...cached, cached: true });
 
     try {
-        const quote = await createQuote({
-            unitTypeId: listingId,
-            checkInDateLocalized,
-            checkOutDateLocalized,
-            numberOfGuests: { numberOfAdults: guests, numberOfChildren: 0 },
-            guestsCount: guests,
-            source: "website",
+        const payload = await runDeduped(inflightQuotes, cacheKey, async () => {
+            const quote = await createQuote({
+                unitTypeId: listingId,
+                checkInDateLocalized,
+                checkOutDateLocalized,
+                numberOfGuests: { numberOfAdults: guests, numberOfChildren: 0 },
+                guestsCount: guests,
+                source: "website",
+            });
+
+            const out = { results: [quote] };
+            setQuoteCache(cacheKey, out);
+            return out;
         });
 
-        const payload = { results: [quote] };
-        setQuoteCache(cacheKey, payload);
         res.json(payload);
     } catch (e) {
         if (e?.rateLimited || e?.status === 429) {
