@@ -650,7 +650,31 @@ app.get("/api/listings", async (req, res) => {
             ids: idsCombined,
             limit,
         });
-        const results = normalizePmListings(pm);
+
+        // Ensure manually specified IDs are present even if source feeds miss them
+        const baseResults = normalizePmListings(pm);
+        const manualIds = extraListingIds ? extraListingIds.split(",").filter(Boolean) : [];
+        const missingIds = manualIds.filter(
+            (mid) => !baseResults.some((r) => r.id === mid || r._id === mid)
+        );
+
+        let merged = baseResults;
+        if (missingIds.length) {
+            try {
+                const missing = await fetchOpenApiListings({ ids: missingIds.join(","), limit });
+                const normalizedMissing = normalizePmListings(missing);
+                const map = new Map();
+                [...baseResults, ...normalizedMissing].forEach((r) => {
+                    const id = r.id || r._id;
+                    if (id) map.set(id, r);
+                });
+                merged = [...map.values()];
+            } catch (err) {
+                console.error("Failed to backfill manual listing IDs", err?.message || err);
+            }
+        }
+
+        const results = merged;
         res.json({ results });
     } catch (e) {
         const status = e?.status === 429 || e?.rateLimited ? 429 : 500;
