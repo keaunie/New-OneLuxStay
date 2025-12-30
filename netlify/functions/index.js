@@ -337,6 +337,16 @@ async function fetchPmListings(options = {}) {
     return normalizePmListings(openApiList);
 }
 
+const cityOverride = (() => {
+    const map = new Map();
+    (process.env.GUESTY_EXTRA_LISTING_IDS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((id) => map.set(id, "Redondo Beach"));
+    return map;
+})();
+
 function normalizePmListings(listings) {
     const list = Array.isArray(listings) ? listings : [];
     const knownCities = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
@@ -368,7 +378,9 @@ function normalizePmListings(listings) {
     });
 
     return [...map.values()].map((l) => {
-        const city = inferCity(l);
+        const city =
+            cityOverride.get(l._id || l.id) ||
+            inferCity(l);
         return {
             id: l._id || l.id,
             _id: l._id || l.id,
