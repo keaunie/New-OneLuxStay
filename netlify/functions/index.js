@@ -48,8 +48,18 @@ const BOOKING_API_BASE = "https://booking.guesty.com/api";
 const PM_LISTINGS_URL =
     "https://app.guesty.com/api/pm-websites-backend/listings";
 
-const CLIENT_ID = process.env.GUESTY_CLIENT_ID;
-const CLIENT_SECRET = process.env.GUESTY_CLIENT_SECRET;
+const OPEN_API_CLIENT_ID =
+    process.env.GUESTY_OPEN_API_CLIENT_ID || process.env.GUESTY_CLIENT_ID;
+const OPEN_API_CLIENT_SECRET =
+    process.env.GUESTY_OPEN_API_CLIENT_SECRET || process.env.GUESTY_CLIENT_SECRET;
+const BOOKING_CLIENT_ID =
+    process.env.GUESTY_BE_CLIENT_ID ||
+    process.env.GUESTY_BOOKING_CLIENT_ID ||
+    process.env.GUESTY_CLIENT_ID;
+const BOOKING_CLIENT_SECRET =
+    process.env.GUESTY_BE_CLIENT_SECRET ||
+    process.env.GUESTY_BOOKING_CLIENT_SECRET ||
+    process.env.GUESTY_CLIENT_SECRET;
 
 const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
 const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
@@ -68,8 +78,11 @@ const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
 const appOrigin = process.env.APP_ORIGIN || "";
 const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" }) : null;
 
-if (!CLIENT_ID || !CLIENT_SECRET) {
-    throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
+if (!OPEN_API_CLIENT_ID || !OPEN_API_CLIENT_SECRET) {
+    throw new Error("Missing Open API credentials (set GUESTY_OPEN_API_CLIENT_ID / GUESTY_OPEN_API_CLIENT_SECRET)");
+}
+if (!BOOKING_CLIENT_ID || !BOOKING_CLIENT_SECRET) {
+    throw new Error("Missing Booking Engine credentials (set GUESTY_BE_CLIENT_ID / GUESTY_BE_CLIENT_SECRET)");
 }
 
 /* =======================
@@ -241,8 +254,8 @@ async function getOpenApiToken() {
         body: new URLSearchParams({
             grant_type: "client_credentials",
             scope: "open-api",
-            client_id: CLIENT_ID,
-            client_secret: CLIENT_SECRET,
+            client_id: OPEN_API_CLIENT_ID,
+            client_secret: OPEN_API_CLIENT_SECRET,
         }),
     });
 
@@ -283,8 +296,8 @@ async function getBookingEngineToken() {
         body: new URLSearchParams({
             grant_type: "client_credentials",
             scope: "booking_engine:api",
-            client_id: CLIENT_ID,
-            client_secret: CLIENT_SECRET,
+            client_id: BOOKING_CLIENT_ID,
+            client_secret: BOOKING_CLIENT_SECRET,
         }),
     });
 
