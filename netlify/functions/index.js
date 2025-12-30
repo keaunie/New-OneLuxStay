@@ -320,7 +320,11 @@ async function getBookingEngineToken() {
 ======================= */
 
 async function fetchPmListings(options = {}) {
-    // Use Open API listings only
+    // Prefer Booking Engine / PM content using BE credentials; fallback to Open API if needed
+    const contentListings = await fetchPmContentListings(options);
+    if (Array.isArray(contentListings) && contentListings.length > 0) {
+        return normalizePmListings(contentListings);
+    }
     const openApiList = await fetchOpenApiListings(options);
     if (!Array.isArray(openApiList) || openApiList.length === 0) {
         throw new Error("Open API listings returned no results");
@@ -406,6 +410,60 @@ const extractFromPmContent = (pmData) => {
         }
     }
     return out;
+};
+
+const fetchPmContentListings = async ({
+    city = "",
+    tags = "",
+    ids = "",
+    limit = 50,
+} = {}) => {
+    const cacheKey = JSON.stringify({ city, tags, ids, limit, source: "pm-content" });
+    const cached = getListingsCache(cacheKey);
+    if (cached) return cached;
+    const deduped = inflightListings.get(cacheKey);
+    if (deduped) return deduped;
+
+    const promise = (async () => {
+        const token = await getBookingEngineToken();
+        const url = new URL(PM_CONTENT_URL);
+        if (pmLang) url.searchParams.set("lang", pmLang);
+        if (city) url.searchParams.set("city", city);
+        if (tags) url.searchParams.set("tags", tags);
+        if (ids) url.searchParams.set("ids", ids);
+        if (limit) url.searchParams.set("limit", limit);
+
+        const headers = {
+            accept: "application/json",
+            origin: pmOrigin,
+            referer: pmReferer,
+            authorization: `Bearer ${token}`,
+        };
+        if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
+        if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
+
+        const res = await withLimit(() =>
+            fetchWithTimeout(url.toString(), {
+                headers,
+            })
+        );
+        if (res.status === 401 || res.status === 403) {
+            const err = new Error("PM content unauthorized");
+            err.status = res.status;
+            throw err;
+        }
+        if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            throw new Error(body || res.status);
+        }
+        const json = await res.json();
+        const flat = extractFromPmContent(json);
+        setListingsCache(cacheKey, flat);
+        return flat;
+    })();
+
+    inflightListings.set(cacheKey, promise);
+    return promise;
 };
 
 const fetchOpenApiListings = async ({
