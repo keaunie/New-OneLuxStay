@@ -71,6 +71,11 @@ const PM_CONTENT_URL =
     "https://app.guesty.com/api/pm-websites-backend/engines/content";
 const OPEN_API_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
 const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
+const extraListingIds = (process.env.GUESTY_EXTRA_LISTING_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(",");
 const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
 const pmLangRaw = process.env.GUESTY_PM_LANG || "";
 const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
@@ -634,6 +639,7 @@ app.get("/api/listings", async (req, res) => {
             ids = "",
             limit = 50,
         } = req.query || {};
+        const idsCombined = [ids, extraListingIds].filter(Boolean).join(",");
 
         const pm = await fetchPmListings({
             checkIn,
@@ -641,7 +647,7 @@ app.get("/api/listings", async (req, res) => {
             minOccupancy,
             city,
             tags,
-            ids,
+            ids: idsCombined,
             limit,
         });
         const results = normalizePmListings(pm);
