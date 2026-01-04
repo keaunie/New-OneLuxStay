@@ -1,12 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
-const defaultApiBase =
-  typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:4000"
-    : "/.netlify/functions/index";
-const apiBase = import.meta.env.VITE_API_BASE || defaultApiBase;
+const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+
 
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
@@ -69,31 +65,6 @@ const HIDDEN_LISTING_IDS = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_I
 const HIDDEN_LISTING_TITLES = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_TITLES).map((t) =>
   t.toLowerCase(),
 );
-
-const FEATURE_GROUPS = [
-  {
-    title: "Elevated essentials",
-    blurb: "Arrive to plush bedding, spa-grade towels, and fully stocked bathrooms.",
-    bullets: ["Premium linens + blackout shades", "Ritual-level bath amenities", "Pro cleaning before every stay"],
-  },
-  {
-    title: "Work + play ready",
-    blurb: "Every unit supports focus time and downtime without compromise.",
-    bullets: ["High-speed Wi-Fi and ergonomic seating", "Smart TVs with streaming", "Dedicated coffee & tea bar"],
-  },
-  {
-    title: "Host-level kitchens",
-    blurb: "Cook, graze, or entertain with thoughtful tools and serving pieces.",
-    bullets: ["Full-size appliances and cookware", "Filtered water + ice", "Tableware for groups"],
-  },
-];
-
-const LANDMARKS = [
-  { name: "Runyon Canyon Park", distance: "0.6 mi", type: "Park trails", detail: "Sunset hikes with skyline views." },
-  { name: "Dolby Theatre", distance: "1.2 mi", type: "Landmark", detail: "Iconic Hollywood awards venue." },
-  { name: "Santa Monica Beach", distance: "11 mi", type: "Beachfront", detail: "Oceanfront paths and pier rides." },
-  { name: "LACMA", distance: "6.5 mi", type: "Museum", detail: "Urban Light, modern art, and rotating exhibits." },
-];
 
 const toISODate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -182,7 +153,15 @@ const DateRangePicker = ({ value, onChange }) => {
     if (nextStart && nextEnd) setOpen(false);
   };
 
-  const { year, month, cells } = buildMonth(view);
+  const primaryMonth = buildMonth(view);
+  const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
+  const monthLabel = `${new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })} - ${new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })}`;
 
   return (
     <div className="relative" ref={containerRef}>
@@ -210,11 +189,9 @@ const DateRangePicker = ({ value, onChange }) => {
       </div>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-3 w-[320px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
-          <div className="flex items-center justify-between px-4 py-3 text-white">
-            <div className="font-semibold text-lg">
-              {new Date(year, month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-            </div>
+        <div className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
+          <div className="flex items-center justify-between px-4 py-3 text-white border-b border-white/5">
+            <div className="font-semibold text-lg">{monthLabel}</div>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -234,51 +211,48 @@ const DateRangePicker = ({ value, onChange }) => {
           </div>
           <div className="flex flex-col gap-4 px-4 pb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[buildMonth(view), buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1))].map(
-                (monthObj) => (
-                  <div key={`${monthObj.year}-${monthObj.month}`} className="space-y-2">
-                    <div className="flex items-center justify-between text-white font-semibold">
-                      <span>
-                        {new Date(monthObj.year, monthObj.month, 1).toLocaleDateString(undefined, {
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300">
-                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                        <div key={d}>{d}</div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-2">
-                      {monthObj.cells.map((day, idx) => {
-                        const disabled = !day || day < today;
-                        const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
-                        const between = inRange(day) && !selected;
-                        return (
-                          <button
-                            key={`${monthObj.year}-${monthObj.month}-${idx}`}
-                            type="button"
-                            disabled={disabled}
-                            onClick={() => handleDayClick(day)}
-                            className={`h-10 rounded-lg border text-sm transition ${
-                              disabled
-                                ? "border-transparent text-slate-600"
-                                : selected
-                                  ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
-                                  : between
-                                    ? "border-amber-400/50 bg-amber-400/10 text-white"
-                                    : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
-                            }`}
-                          >
-                            {day ? day.getDate() : ""}
-                          </button>
-                        );
+              {[primaryMonth, secondaryMonth].map((monthObj) => (
+                <div key={`${monthObj.year}-${monthObj.month}`} className="space-y-2">
+                  <div className="flex items-center justify-between text-white font-semibold">
+                    <span>
+                      {new Date(monthObj.year, monthObj.month, 1).toLocaleDateString(undefined, {
+                        month: "long",
+                        year: "numeric",
                       })}
-                    </div>
+                    </span>
                   </div>
-                ),
-              )}
+                  <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                      <div key={d}>{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-2">
+                    {monthObj.cells.map((day, idx) => {
+                      const disabled = !day || day < today;
+                      const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
+                      const between = inRange(day) && !selected;
+                      return (
+                        <button
+                          key={`${monthObj.year}-${monthObj.month}-${idx}`}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => handleDayClick(day)}
+                          className={`h-10 rounded-lg border text-sm transition ${disabled
+                            ? "border-transparent text-slate-600"
+                            : selected
+                              ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
+                              : between
+                                ? "border-amber-400/50 bg-amber-400/10 text-white"
+                                : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
+                            }`}
+                        >
+                          {day ? day.getDate() : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
               <button
@@ -303,368 +277,9 @@ const DateRangePicker = ({ value, onChange }) => {
   );
 };
 
-const LandingPage = () => {
-  const [activeDest, setActiveDest] = useState(0);
-  const slideRefs = useRef([]);
-  const stageRef = useRef(null);
-
-  const destinations = [
-    {
-      id: "Antwerp",
-      href: "/antwerp",
-      img: "https://assets.guesty.com/image/upload/v1762983593/production/666b3af27fc6d5653142b0af/rhipugh4blshkdlknw0y.jpg",
-      tag: "Heritage / Galleries",
-      accent: "#f0d27d",
-      desc: "Diamond-quarter penthouses, cathedral rooftops, and riverfront ateliers with private guides.",
-      vibe: "Grand canal views • stone facades • galleries",
-      features: ["Private guides + rooftops", "Chef dinners in historic spaces", "Butler-level housekeeping"],
-    },
-    {
-      id: "Dubai",
-      href: "/dubai",
-      img: "https://assets.guesty.com/image/upload/v1762983594/production/666b3af27fc6d5653142b0af/og8pc3hk7dkvvowp3yxe.jpg",
-      tag: "Skyline / Yacht",
-      accent: "#f5c56a",
-      desc: "Downtown and Palm sanctuaries with heli transfers, yacht sunsets, and private chef tastings.",
-      vibe: "Sunset haze • modern glass • marina lights",
-      features: ["Heli + yacht arrivals", "Penthouse screening lounges", "In-suite hammam rituals"],
-    },
-    {
-      id: "Los Angeles",
-      href: "/losangeles",
-      img: "https://assets.guesty.com/image/upload/v1762983593/production/666b3af27fc6d5653142b0af/qswo8beahox41r5gaebf.jpg",
-      tag: "Hills / Cinema",
-      accent: "#f2b9a0",
-      desc: "Hillside observatories and DTLA lofts with cinema lighting, vinyl bars, and gallery nights.",
-      vibe: "Palm silhouettes • cinematic haze • gallery energy",
-      features: ["Hillside observatories", "Cinema-grade projection", "Private gallery walk-throughs"],
-    },
-    {
-      id: "Hollywood",
-      href: "/hollywood",
-      img: "https://images.unsplash.com/photo-1534253893894-10d024888e49?auto=format&fit=crop&q=80&w=1800",
-      tag: "Studios / Night",
-      accent: "#f2c081",
-      desc: "Sunset Strip hideaways, speakeasy jazz, and after-hours studio tours curated for insiders.",
-      vibe: "Neon glow • studio backlots • late-night jazz",
-      features: ["After-hours studio tours", "Private mixology bars", "Soundproof suites + vinyl"],
-    },
-    {
-      id: "Miami",
-      href: "/miami",
-      img: "https://assets.guesty.com/image/upload/v1762983593/production/666b3af27fc6d5653142b0af/jk89sv4gqd8hmnaiccpr.jpg",
-      tag: "Ocean / Wellness",
-      accent: "#7ae6d5",
-      desc: "Oceanfront penthouses with sound baths, yacht slips, sunrise paddles, and wellness chefs.",
-      vibe: "Turquoise water • sunrise rituals • palm breeze",
-      features: ["Yacht slip + captain", "Sound bath + cold plunge", "Sunrise paddle concierge"],
-    },
-    {
-      id: "Redondo",
-      href: "/redondo",
-      img: "https://assets.guesty.com/image/upload/v1762983593/production/666b3af27fc6d5653142b0af/nvwxruidl4cl3yopufrw.jpg",
-      tag: "Coast / Slow",
-      accent: "#f08c5a",
-      desc: "Pacific-facing suites with firepits, cold plunges, and slow coastal itineraries at dawn.",
-      vibe: "Salt air • amber sunsets • slow tide",
-      features: ["Firepits + cold plunge decks", "Bike + surf outfitting", "Chef-led ceviche at sunset"],
-    },
-  ];
-
-  const pillars = [
-    { title: "Quiet Luxury", copy: "Muted palettes, natural textures, architectural light, calm acoustics." },
-    { title: "Concierge Precision", copy: "Arrivals, dining, wellness, and culture handled end-to-end." },
-    { title: "Comfort + Tech", copy: "Spa-grade bedding, filtered air, fast Wi‑Fi, secure digital keys." },
-    { title: "Consistency", copy: "In-house teams for cleaning, linen, and maintenance across every city." },
-  ];
-
-  useEffect(() => {
-    const elements = document.querySelectorAll(".luxe-home .animate-on-scroll");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) entry.target.classList.add("visible");
-        });
-      },
-      { threshold: 0.2 },
-    );
-    elements.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const layers = document.querySelectorAll(".luxe-home [data-parallax]");
-    const orb = document.querySelector(".luxe-home .cursor-orb");
-    const handleMouseMove = (e) => {
-      const { innerWidth, innerHeight } = window;
-      const x = (e.clientX / innerWidth - 0.5) * 2;
-      const y = (e.clientY / innerHeight - 0.5) * 2;
-      layers.forEach((layer) => {
-        const depth = Number(layer.dataset.parallax || 0);
-        layer.style.transform = `translate(${x * depth * 18}px, ${y * depth * 18}px)`;
-      });
-      if (orb) {
-        orb.style.opacity = "1";
-        orb.style.left = `${e.clientX}px`;
-        orb.style.top = `${e.clientY}px`;
-      }
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
-  useEffect(() => {
-    const slides = slideRefs.current.filter(Boolean);
-    const root = stageRef.current;
-    if (!root || !slides.length) return undefined;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const top = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (top) {
-          const idx = Number(top.target.dataset.index || 0);
-          setActiveDest(idx);
-        }
-      },
-      { root, threshold: 0.55 },
-    );
-
-    slides.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [destinations.length]);
-
-  return (
-    <section id="home-root" className="ols-home luxe-home" data-component="ols-home">
-      <div className="cursor-orb" aria-hidden="true" />
-
-      <section className="hero-shell" aria-label="Hero">
-        <div className="hero-art" aria-hidden="true">
-          <div className="hero-gradient" data-parallax="0.04" />
-          <div className="hero-grid" data-parallax="0.08" />
-          <div className="hero-photo" data-parallax="0.02">
-            <img
-              src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=1800"
-              alt=""
-              loading="eager"
-              fetchPriority="high"
-            />
-          </div>
-        </div>
-
-        <div className="hero-inner container">
-          <div className="hero-copy">
-            <p className="eyebrow animate-on-scroll">One Lux Stay</p>
-            <h1 className="headline animate-on-scroll">Minimal luxury. Fully choreographed stays.</h1>
-            <p className="lede animate-on-scroll">
-              Skyline suites, ocean sanctuaries, heritage lofts—each with muted palettes, sculpted light, and concierge
-              precision from arrival to farewell.
-            </p>
-            <div className="hero-actions animate-on-scroll">
-              <Link to="/listings" className="cta primary">
-                View availability
-              </Link>
-              <a href="#destinations" className="cta ghost">
-                Explore cities
-              </a>
-            </div>
-            <div className="hero-points animate-on-scroll">
-              <span>24/7 concierge + secure digital keys</span>
-              <span>Pre-stocked pantries + private chefs on request</span>
-              <span>Spa-grade bedding, filtered air & water</span>
-            </div>
-            <div className="hero-meta animate-on-scroll">
-              <div>
-                <p className="meta-kicker">Cities</p>
-                <p className="meta-value">Antwerp · Dubai · Los Angeles · Miami · Redondo</p>
-              </div>
-              <div>
-                <p className="meta-kicker">Included</p>
-                <p className="meta-value">Arrival coordination, daily concierge, chef-grade kitchens, wellness partners</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="destinations" className="destinations">
-        <div className="dest-bg" aria-hidden="true" />
-        <div className="container">
-          <div className="section-head animate-on-scroll">
-            <p className="eyebrow">Destinations</p>
-            <h2>Five cities. One understated standard.</h2>
-          </div>
-        </div>
-        <div className="dest-fullbleed" style={{ ["--dest-count"]: destinations.length }}>
-          <div className="dest-stage" ref={stageRef}>
-            {destinations.map((d, idx) => (
-              <a
-                key={d.id}
-                className={`dest-slide ${activeDest === idx ? "visible" : ""}`}
-                href={d.href}
-                data-link
-                aria-label={`Explore ${d.id}`}
-                style={{ ["--accent"]: d.accent }}
-                ref={(el) => {
-                  slideRefs.current[idx] = el;
-                }}
-                data-index={idx}
-              >
-                <div className="dest-slide__image">
-                  <img src={d.img} alt={d.id} loading="lazy" />
-                </div>
-                <div className="dest-slide__veil" />
-                <div className="dest-slide__glow" />
-                <div className="dest-slide__content">
-                  <div className="dest-labels">
-                    <span className="dest-chip">{d.tag}</span>
-                    <span className="dest-number">{String(idx + 1).padStart(2, "0")}</span>
-                  </div>
-                  <div className="dest-titles">
-                    <h3>{d.id}</h3>
-                    <p className="dest-vibe">{d.vibe}</p>
-                  </div>
-                  <p className="dest-desc">{d.desc}</p>
-                  <div className="dest-features">
-                    {d.features.map((f) => (
-                      <span key={f}>{f}</span>
-                    ))}
-                  </div>
-                  <span className="dest-cta">Enter {d.id}</span>
-                </div>
-              </a>
-            ))}
-            <div className="dest-progress">
-              {destinations.map((d, idx) => (
-                <button
-                  key={`${d.id}-dot`}
-                  type="button"
-                  className={`dest-dot ${activeDest === idx ? "active" : ""}`}
-                  onClick={() => {
-                    const stage = stageRef.current;
-                    const target = slideRefs.current[idx];
-                    if (stage && target) {
-                      stage.scrollTo({
-                        top: target.offsetTop,
-                        behavior: "smooth",
-                      });
-                    }
-                  }}
-                  aria-label={`Scroll to ${d.id}`}
-                >
-                  <span />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="company-section">
-        <div className="container">
-          <div className="section-head animate-on-scroll">
-            <p className="eyebrow">About One Lux Stay</p>
-            <h2>Hospitality built for calm, discretion, and exacting standards.</h2>
-            <p className="section-sub">
-              We curate and operate residences in five cities, pairing architecture-forward spaces with concierge teams
-              who anticipate the next move—arrivals, dining, wellness, and culture.
-            </p>
-          </div>
-          <div className="about-grid">
-            <article className="about-card animate-on-scroll">
-              <h3>Operations</h3>
-              <p>In-house housekeeping, linen, and maintenance teams keep every stay consistent and pristine.</p>
-            </article>
-            <article className="about-card animate-on-scroll">
-              <h3>Concierge</h3>
-              <p>Dedicated coordinators for airport transfers, reservations, wellness providers, chefs, security, and local hosts.</p>
-            </article>
-            <article className="about-card animate-on-scroll">
-              <h3>Design</h3>
-              <p>Muted palettes, natural textures, circadian lighting, and acoustics tuned for rest and focus.</p>
-            </article>
-            <article className="about-card animate-on-scroll">
-              <h3>Technology</h3>
-              <p>Secure digital keys, private Wi‑Fi, and guest profiles to preset climate, scent, and music on arrival.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section className="capabilities">
-        <div className="container">
-          <div className="section-head animate-on-scroll">
-            <p className="eyebrow">What we arrange</p>
-            <h2>Beyond the residence, we set the scene.</h2>
-          </div>
-          <div className="capability-grid">
-            <div className="cap-card animate-on-scroll">
-              <h3>Arrivals</h3>
-              <p>Private driver, secure digital keys, pre-set climate, scent, and music per your profile.</p>
-            </div>
-            <div className="cap-card animate-on-scroll">
-              <h3>Dining</h3>
-              <p>Chef experiences, rooftop tastings, restaurant bookings, pantry pre-stock tailored to preferences.</p>
-            </div>
-            <div className="cap-card animate-on-scroll">
-              <h3>Wellness</h3>
-              <p>Massage, IV drip, yoga, trainers, cold plunge/sauna access, sleep setups with blackout and humidifiers.</p>
-            </div>
-            <div className="cap-card animate-on-scroll">
-              <h3>Culture</h3>
-              <p>Gallery walkthroughs, yacht sunsets, studio tours, and neighborhood itineraries led by trusted hosts.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="signature-section">
-        <div className="container">
-          <div className="section-head animate-on-scroll">
-            <p className="eyebrow">Essentials, perfected</p>
-            <h2>Everything you need, nothing loud.</h2>
-          </div>
-          <div className="signature-grid">
-            <article className="sig-card animate-on-scroll">
-              <h3>Arrival</h3>
-              <p>Private driver, pre-set climate and scent, pantry arranged to your ritual.</p>
-            </article>
-            <article className="sig-card animate-on-scroll">
-              <h3>Stay</h3>
-              <p>Spa-grade bedding, filtered air and water, hushed acoustics, thoughtful lighting.</p>
-            </article>
-            <article className="sig-card animate-on-scroll">
-              <h3>Concierge</h3>
-              <p>Dining, drivers, wellness, and culture—handled quietly in the background.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section className="cta-band">
-        <div className="container cta-inner">
-          <div>
-            <p className="eyebrow">Concierge ready</p>
-            <h2>Tell us the mood. We’ll set the scene.</h2>
-            <p className="section-sub">From arrival to farewell, every detail is choreographed—quietly.</p>
-          </div>
-          <div className="cta-actions">
-            <Link to="/listings" className="cta primary">
-              Book direct
-            </Link>
-            <a href="/contactus" className="cta ghost" data-link>
-              Speak to concierge
-            </a>
-          </div>
-        </div>
-      </section>
-    </section>
-  );
-};
-
-const ListingsPage = () => {
+function App() {
   const [listings, setListings] = useState([]);
+  const [quote, setQuotes] = useState([]);
   const [loadingListings, setLoadingListings] = useState(true);
   const [listingsError, setListingsError] = useState("");
   const [search, setSearch] = useState(initialSearch);
@@ -808,6 +423,13 @@ const ListingsPage = () => {
     }));
 
     try {
+      const qs = new URLSearchParams({
+        startDate: search.checkIn,
+        endDate: search.checkOut,
+        adults: search.adults,
+        children: search.children,
+      }).toString();
+
       let availJson = null;
       try {
         const availRes = await fetchWithTimeout(
@@ -1031,7 +653,7 @@ const ListingsPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050505] via-[#0a0a0a] to-[#050505] text-[#f6f0e5]">
       <div className="absolute inset-0 -z-10 opacity-50 bg-[radial-gradient(circle_at_15%_20%,#b68d2d_0,#0a0a0a_38%),radial-gradient(circle_at_80%_0,#f1c55d_0,#0a0a0a_42%),radial-gradient(circle_at_50%_82%,#d4b04c_0,#050505_48%)]" />
-      <header className="relative z-10 max-w-6xl mx-auto px-6 pt-12 pb-8">
+      <header className="relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
         <div className="flex flex-col gap-4 md:gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-amber-300">OneLuxStay</p>
@@ -1096,7 +718,7 @@ const ListingsPage = () => {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-6 pb-14">
+      <main className="max-w-6xl mx-auto px-6 pb-14">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">
             Available units {availableCount > 0 ? `(${availableCount})` : ""}
@@ -1111,11 +733,10 @@ const ListingsPage = () => {
                 <button
                   key={city}
                   onClick={() => setCityFilter(city)}
-                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${
-                    active
-                      ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
-                      : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
-                  }`}
+                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
+                    ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
+                    : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
+                    }`}
                 >
                   {image && (
                     <span className="h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800">
@@ -1174,6 +795,7 @@ const ListingsPage = () => {
                   <div className="absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
                     Sleeps {listing.accommodates} {listing.bedrooms} BR  ·  {listing.bathrooms} BA
                   </div>
+
                 </div>
                 <div className="mt-3">
                   <div>
@@ -1221,6 +843,7 @@ const ListingsPage = () => {
                     )}
                   </div>
                 )}
+
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -1364,49 +987,49 @@ const ListingsPage = () => {
                   {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty · </p>}
 
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
-                    <div className="mt-4 space-y-2">
-                      <p className="text-sm font-semibold text-amber-200">Booking</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                        <input
-                          placeholder="First name"
-                          value={bookingInfo.firstName}
-                          onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
-                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                        />
-                        <input
-                          placeholder="Last name"
-                          value={bookingInfo.lastName}
-                          onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
-                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                        />
-                        <input
-                          type="email"
-                          placeholder="Email"
-                          value={bookingInfo.email}
-                          onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
-                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                        />
-                        <input
-                          placeholder="Phone"
-                          value={bookingInfo.phone}
-                          onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
-                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                        />
-                        <input
-                          placeholder="Notes / requests"
-                          value={bookingInfo.notes}
-                          onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
-                          className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                        />
-                      </div>
-                      <button
-                        onClick={handleBook}
-                        disabled={bookingState.status === "loading"}
-                        className="w-full rounded-lg bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300 disabled:opacity-60"
-                      >
-                        {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
-                      </button>
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm font-semibold text-amber-200">Booking</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      <input
+                        placeholder="First name"
+                        value={bookingInfo.firstName}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                      />
+                      <input
+                        placeholder="Last name"
+                        value={bookingInfo.lastName}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={bookingInfo.email}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                      />
+                      <input
+                        placeholder="Phone"
+                        value={bookingInfo.phone}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
+                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                      />
+                      <input
+                        placeholder="Notes / requests"
+                        value={bookingInfo.notes}
+                        onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
+                        className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                      />
                     </div>
+                    <button
+                      onClick={handleBook}
+                      disabled={bookingState.status === "loading"}
+                      className="w-full rounded-lg bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300 disabled:opacity-60"
+                    >
+                      {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
+                    </button>
+                  </div>
                   )}
                 </div>
               </div>
@@ -1416,55 +1039,32 @@ const ListingsPage = () => {
       )}
     </div>
   );
-};
-
-const NavBar = () => {
-  const location = useLocation();
-  return (
-    <div className="navbar-shell">
-      <div className="navbar">
-        <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-white">
-          <span className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-200 shadow-lg shadow-amber-500/30" />
-          OneLuxStay
-        </Link>
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          {[
-            { path: "/", label: "Home" },
-            { path: "/listings", label: "Residences" },
-          ].map((item) => {
-            const active = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`rounded-full px-3 py-2 transition ${
-                  active
-                    ? "bg-amber-400 text-slate-950 shadow-md shadow-amber-500/30"
-                    : "text-white hover:text-amber-100 hover:bg-white/10"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-function App() {
-  return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-[#050505] text-white">
-        <NavBar />
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/listings" element={<ListingsPage />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
-  );
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
