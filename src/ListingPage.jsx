@@ -297,6 +297,29 @@ function ListingPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalListing, setModalListing] = useState(null);
   const [modalHero, setModalHero] = useState(null);
+  const [paramsHydrated, setParamsHydrated] = useState(false);
+
+  useEffect(() => {
+    if (paramsHydrated) return;
+    const qs = new URLSearchParams(window.location.search);
+    const cityParam = qs.get("city") || qs.get("destination") || "";
+    const checkInParam = qs.get("checkIn") || "";
+    const checkOutParam = qs.get("checkOut") || "";
+    const guestsParam = qs.get("guests") || qs.get("adults") || "";
+
+    if (cityParam) setCityFilter(cityParam);
+    setSearch((prev) => ({
+      ...prev,
+      checkIn: checkInParam || prev.checkIn,
+      checkOut: checkOutParam || prev.checkOut,
+      adults: guestsParam ? Number(guestsParam) || prev.adults : prev.adults,
+    }));
+    setParamsHydrated(true);
+    if (window.location.hash === "#listings") {
+      const anchor = document.querySelector("#listings");
+      if (anchor) anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [paramsHydrated]);
 
   useEffect(() => {
     const load = async () => {
