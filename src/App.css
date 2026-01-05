@@ -374,6 +374,18 @@
   transform: translateY(-1px);
 }
 
+.landing-animate {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+  will-change: opacity, transform;
+}
+
+.landing-animate.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .landing-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -442,43 +454,98 @@
 }
 
 .landing-fullbleed {
+  padding-bottom: 0px;
   display: grid;
-  gap: 1.2rem;
   padding: 0;
+  width: 100%;
+  margin-left: 0;
+  background: radial-gradient(circle at 15% 20%, rgba(230, 199, 124, 0.06), transparent 42%),
+    radial-gradient(circle at 80% 5%, rgba(122, 230, 213, 0.06), transparent 38%);
 }
 
 .landing-city-card {
   position: relative;
-  min-height: 360px;
-  border-radius: 20px;
+  min-height: 520px;
+  height: 100vh;
+  border-radius: 24px;
   overflow: hidden;
-  background-size: cover;
+  background-size: 110%;
   background-position: center;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 32px 110px rgba(0, 0, 0, 0.5);
+  transform: translateY(0);
+  transition: transform 0.8s ease, box-shadow 0.8s ease, background-position 8s ease;
+  animation: heroPan 18s ease-in-out infinite alternate;
 }
 
 .landing-city-card::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(5, 6, 7, 0.25), rgba(5, 6, 7, 0.72));
+  background: linear-gradient(180deg, rgba(5, 6, 7, 0.2), rgba(5, 6, 7, 0.8));
+}
+
+.landing-city-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 50px 140px rgba(0, 0, 0, 0.6);
+  background-position: center 24%;
+}
+
+.landing-city-card:active {
+  transform: translateY(-2px);
 }
 
 .landing-city-inner {
   position: relative;
   z-index: 1;
-  padding: 2.8rem 2rem;
+  padding: 3.2rem 2.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  max-width: 820px;
+  gap: 0.6rem;
+  max-width: 880px;
 }
 
 .landing-city-inner .landing-pill {
   color: #f5c243;
   border-color: rgba(245, 194, 67, 0.5);
   background: rgba(245, 194, 67, 0.12);
+}
+
+.landing-stack {
+  position: relative;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.landing-stack-header {
+  max-width: 1200px;
+  margin: 0 auto 32px auto;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.landing-stack .landing-city-card {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  width: 100%;
+  transform: none;
+  opacity: 0.98;
+}
+
+@keyframes heroPan {
+  0% {
+    background-position: 50% 52%;
+    background-size: 112%;
+  }
+  50% {
+    background-position: 48% 48%;
+    background-size: 116%;
+  }
+  100% {
+    background-position: 52% 54%;
+    background-size: 112%;
+  }
 }
 
 @media (max-width: 640px) {

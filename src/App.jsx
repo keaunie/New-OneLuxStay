@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+﻿import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./LandingPage";
 import ListingPage from "./ListingPage";
 import "./App.css";
@@ -17,3 +17,4 @@ function App() {
 }
 
 export default App;
+

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 import "./App.css";
 
 const stays = [
@@ -28,7 +29,7 @@ const stays = [
 const highlights = [
   { title: "Design-first homes", body: "Warm lighting, tactile textures, and cinematic views in every address." },
   { title: "Hotel-grade service", body: "Concierge, daily refresh, and in-home experiences tailored to you." },
-  { title: "Instant availability", body: "Live Guesty connection for real-time prices and confident booking." },
+  { title: "Instant availability", body: "Real-time calendars for every unit across our locations." },
 ];
 
 const steps = [
@@ -38,6 +39,20 @@ const steps = [
 ];
 
 function LandingPage() {
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll(".landing-animate"));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("is-visible");
+        });
+      },
+      { threshold: 0.18 },
+    );
+    targets.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="landing-page text-white">
       <header className="landing-hero relative overflow-hidden">
@@ -73,21 +88,21 @@ function LandingPage() {
             </div>
           </div>
 
-          <div className="landing-hero-grid mt-12 md:mt-16">
+          <div className="landing-hero-grid mt-12 md:mt-16 landing-animate">
             <div className="space-y-7">
               <div className="flex items-center gap-3">
-                <span className="landing-badge">Connected to Guesty</span>
-                <span className="landing-dot">Live</span>
+                <span className="landing-badge">Our destinations</span>
+                <span className="landing-dot">Curated</span>
               </div>
               <h1 className="landing-display text-4xl md:text-5xl leading-tight">
-                Elevated short stays with a concierge you can text.
+                Hollywood rooftops, Redondo ocean decks, Dubai marinas, Antwerp galleries, Miami coastlines.
               </h1>
               <p className="text-lg text-slate-200 max-w-2xl">
-                A curated portfolio of design-forward residences—Hollywood heights, ocean decks, and skyline views—paired with hotel-grade service and real-time availability.
+                A collection of design-forward residences across our cities. Pick your location, explore the units, and see what’s available for your dates.
               </p>
               <div className="landing-actions">
-                <Link to="/stay" className="landing-cta-primary">View live availability</Link>
-                <a href="#collection" className="landing-cta-secondary">Browse the collection</a>
+                <Link to="/stay" className="landing-cta-primary">Browse our units</Link>
+                <a href="#collection" className="landing-cta-secondary">View by destination</a>
               </div>
               <div className="landing-metrics">
                 <div>
@@ -108,19 +123,19 @@ function LandingPage() {
             <div className="landing-hero-card glass hero-right-card space-y-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="hero-card-kicker">Direct portal</p>
-                  <p className="hero-card-title">Real-time booking, zero lag.</p>
+                  <p className="hero-card-kicker">Our collection</p>
+                  <p className="hero-card-title">Explore by city and vibe.</p>
                 </div>
-                <div className="landing-pill">API live</div>
+                <div className="landing-pill">Ocean / City / Hills</div>
               </div>
               <ul className="landing-list hero-card-list text-[0.98rem] leading-relaxed text-slate-100">
                 <li>
                   <span className="landing-check">✓</span>
-                  Guesty-connected pricing and availability in seconds.
+                  Ocean decks, skyline lofts, hillside observatories, and historic galleries.
                 </li>
                 <li>
                   <span className="landing-check">✓</span>
-                  Concierge-to-suite flow: we prep, you arrive.
+                  Concierge-to-suite flow: arrivals, refresh, and in-home experiences.
                 </li>
                 <li>
                   <span className="landing-check">✓</span>
@@ -129,7 +144,7 @@ function LandingPage() {
               </ul>
               <div className="landing-panel hero-quote rounded-xl border border-white/10 p-5 mt-1">
                 <p className="text-[0.98rem] text-slate-100 leading-relaxed">
-                  “Like checking into a five-star hotel that happens to be your own private residence.”
+                  “Feels like a five-star hotel made private—whether it’s a Hollywood rooftop or a Redondo sunset deck.”
                 </p>
                 <p className="mt-4 text-xs text-amber-200 uppercase tracking-[0.24em]">OneLuxStay House Team</p>
               </div>
@@ -138,7 +153,7 @@ function LandingPage() {
         </div>
       </header>
 
-      <section id="collection" className="max-w-6xl mx-auto px-6 md:px-10 py-16 md:py-20">
+      <section id="collection" className="max-w-6xl mx-auto px-6 md:px-10 py-16 md:py-20 landing-animate">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="landing-kicker">Signature stays</p>
@@ -164,12 +179,16 @@ function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-fullbleed">
-        {stays.map((stay) => (
+      <section className="landing-fullbleed landing-stack landing-animate">
+        {stays.map((stay, idx) => (
           <div
             key={`${stay.label}-full`}
             className="landing-city-card"
-            style={{ backgroundImage: `linear-gradient(140deg, rgba(5,6,7,0.62), rgba(5,6,7,0.18)), url(${stay.image})` }}
+            style={{
+              backgroundImage: `linear-gradient(140deg, rgba(5,6,7,0.62), rgba(5,6,7,0.18)), url(${stay.image})`,
+              zIndex: idx + 1,
+              marginTop: idx === 0 ? 0 : 0,
+            }}
           >
             <div className="landing-city-inner">
               <div className="landing-pill">{stay.label}</div>
@@ -184,7 +203,7 @@ function LandingPage() {
         ))}
       </section>
 
-      <section id="experience" className="landing-band border-y border-white/5">
+      <section id="experience" className="landing-band border-y border-white/5 landing-animate">
         <div className="max-w-6xl mx-auto px-6 md:px-10 py-16 md:py-20 space-y-10">
           <div className="flex items-start justify-between gap-6 flex-col md:flex-row">
             <div className="max-w-2xl space-y-4">
