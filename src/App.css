@@ -454,11 +454,13 @@
 }
 
 .landing-fullbleed {
-  padding-bottom: 0px;
-  display: grid;
-  padding: 0;
+  padding: 0 0 220px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   width: 100%;
   margin-left: 0;
+  position: relative;
   background: radial-gradient(circle at 15% 20%, rgba(230, 199, 124, 0.06), transparent 42%),
     radial-gradient(circle at 80% 5%, rgba(122, 230, 213, 0.06), transparent 38%);
 }
@@ -466,7 +468,7 @@
 .landing-city-card {
   position: relative;
   min-height: 520px;
-  height: 100vh;
+  height: 90vh;
   border-radius: 24px;
   overflow: hidden;
   background-size: 110%;
@@ -526,11 +528,26 @@
 
 .landing-stack .landing-city-card {
   position: sticky;
-  top: 0;
-  margin: 0;
+  top: 72px;
+  margin: -280px 0 0 0;
   width: 100%;
   transform: none;
   opacity: 0.98;
+}
+
+.landing-stack .landing-city-card:first-child {
+  margin-top: 0;
+}
+
+.landing-stack .landing-city-card {
+  animation: none;
+  background-position: center;
+  background-size: cover;
+}
+
+.landing-stack .landing-city-card:hover {
+  transform: none;
+  box-shadow: 0 32px 110px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes heroPan {

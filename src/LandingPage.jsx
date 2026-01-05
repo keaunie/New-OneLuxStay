@@ -8,21 +8,42 @@ const stays = [
     headline: "Skyline Lofts",
     copy: "Sunset-ready terraces, floor-to-ceiling glass, and artful interiors a heartbeat from the Walk of Fame.",
     image:
-      "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    label: "Los Angeles",
+    headline: "Hillside Residences",
+    copy: "Glass walls, twinkling LA skyline views, and private decks made for golden-hour gatherings.",
+    image:
+      "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
   },
   {
     label: "Redondo Beach",
     headline: "Ocean Residences",
     copy: "Salt-air mornings, curated surf setups, and expansive decks designed for golden-hour dinners.",
     image:
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80",
+      "https://assets.guesty.com/image/upload/v1760535614/production/666b3af27fc6d5653142b0af/t7p3cc6hqez89wsmj1gt.jpg",
   },
   {
     label: "Dubai",
     headline: "Marina Heights",
     copy: "Glassy marina views, spa-inspired ensuites, and concierge access to the city’s most exclusive tables.",
     image:
-      "https://images.unsplash.com/photo-1504274066651-8d31a536b11a?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+  },
+  {
+    label: "Antwerp",
+    headline: "Cathedral Quarters",
+    copy: "Historic facades, cobblestone promenades, and modern interiors beside the Scheldt.",
+    image:
+      "https://assets.guesty.com/image/upload/v1740605753/production/666b3af27fc6d5653142b0af/hzvwqjuhjpwkkmyea38s.jpg",
+  },
+  {
+    label: "Miami",
+    headline: "Bayfront Suites",
+    copy: "Tropical light, private balconies, and poolside ease minutes from the sand.",
+    image:
+      "https://assets.guesty.com/image/upload/v1729089198/production/666b3af27fc6d5653142b0af/ksjnj1kppnbajljv9csi.jpg",
   },
 ];
 
@@ -187,7 +208,6 @@ function LandingPage() {
             style={{
               backgroundImage: `linear-gradient(140deg, rgba(5,6,7,0.62), rgba(5,6,7,0.18)), url(${stay.image})`,
               zIndex: idx + 1,
-              marginTop: idx === 0 ? 0 : 0,
             }}
           >
             <div className="landing-city-inner">
