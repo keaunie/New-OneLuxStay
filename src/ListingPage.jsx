@@ -1,4 +1,4 @@
-ï»¿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useId } from "react";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -77,6 +77,9 @@ const formatDisplayDate = (value) => {
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const checkInLabelId = useId();
+  const checkOutLabelId = useId();
+  const dialogId = useId();
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -167,20 +170,28 @@ const DateRangePicker = ({ value, onChange }) => {
     <div className="relative" ref={containerRef}>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-300">Check-in</label>
+          <label id={checkInLabelId} className="text-xs text-slate-300">Check-in</label>
           <button
             type="button"
             onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            aria-controls={dialogId}
+            aria-labelledby={checkInLabelId}
             className="w-full rounded-lg border border-white/15 bg-slate-900/70 px-3 py-2 text-left text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
           >
             {formatDisplayDate(value.checkIn)}
           </button>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-300">Check-out</label>
+          <label id={checkOutLabelId} className="text-xs text-slate-300">Check-out</label>
           <button
             type="button"
             onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            aria-controls={dialogId}
+            aria-labelledby={checkOutLabelId}
             className="w-full rounded-lg border border-white/15 bg-slate-900/70 px-3 py-2 text-left text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
           >
             {formatDisplayDate(value.checkOut)}
@@ -189,7 +200,7 @@ const DateRangePicker = ({ value, onChange }) => {
       </div>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
+        <div id={dialogId} role="dialog" aria-modal="true" aria-label="Choose dates" className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
           <div className="flex items-center justify-between px-4 py-3 text-white border-b border-white/5">
             <div className="font-semibold text-lg">{monthLabel}</div>
             <div className="flex gap-2">
@@ -221,21 +232,33 @@ const DateRangePicker = ({ value, onChange }) => {
                       })}
                     </span>
                   </div>
-                  <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300">
+                  <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300" role="row">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                      <div key={d}>{d}</div>
+                      <div key={d} role="columnheader">{d}</div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-7 gap-2">
+                  <div className="grid grid-cols-7 gap-2" role="grid">
                     {monthObj.cells.map((day, idx) => {
                       const disabled = !day || day < today;
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
                       const between = inRange(day) && !selected;
+                      const dayLabel = day
+                        ? day.toLocaleDateString(undefined, {
+                            weekday: "long",
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : "";
                       return (
                         <button
                           key={`${monthObj.year}-${monthObj.month}-${idx}`}
                           type="button"
                           disabled={disabled}
+                          aria-selected={selected}
+                          aria-disabled={disabled}
+                          aria-label={dayLabel}
+                          aria-hidden={day ? undefined : true}
                           onClick={() => handleDayClick(day)}
                           className={`h-10 rounded-lg border text-sm transition ${disabled
                             ? "border-transparent text-slate-600"
@@ -298,7 +321,12 @@ function ListingPage() {
   const [modalListing, setModalListing] = useState(null);
   const [modalHero, setModalHero] = useState(null);
   const [paramsHydrated, setParamsHydrated] = useState(false);
-
+  const [availabilityNotice, setAvailabilityNotice] = useState("");
+  const modalTitleId = useId();
+  const modalDescId = useId();
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const lastFocusRef = useRef(null);
   useEffect(() => {
     if (paramsHydrated) return;
     const qs = new URLSearchParams(window.location.search);
@@ -320,6 +348,56 @@ function ListingPage() {
       if (anchor) anchor.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [paramsHydrated]);
+  useEffect(() => {
+    if (search.checkIn && search.checkOut) {
+      setAvailabilityNotice("");
+    }
+  }, [search.checkIn, search.checkOut]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    lastFocusRef.current = document.activeElement;
+    const focusTarget = closeButtonRef.current || modalRef.current;
+    if (focusTarget) focusTarget.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeModal();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = modalRef.current
+        ? Array.from(
+            modalRef.current.querySelectorAll(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            ),
+          )
+        : [];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (lastFocusRef.current && lastFocusRef.current.focus) {
+        lastFocusRef.current.focus();
+      }
+    };
+  }, [isModalOpen]);
 
   useEffect(() => {
     const load = async () => {
@@ -420,9 +498,10 @@ function ListingPage() {
 
   const checkAvailability = async (listing) => {
     if (!search.checkIn || !search.checkOut) {
-      alert("Pick check-in and check-out dates first.");
+      setAvailabilityNotice("Select check-in and check-out dates first.");
       return;
     }
+    setAvailabilityNotice("");
     const requestKey = `${listing.id}:${search.checkIn}:${search.checkOut}:${search.adults}:${search.children}`;
     const existing = availability[listing.id];
     const isSameQuery =
@@ -600,7 +679,15 @@ function ListingPage() {
     }
   };
 
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setModalListing(null);
+    setModalHero(null);
+  };
+
   const handleOpenModal = (listing) => {
+    setBookingState({ status: "idle", message: "" });
+    setAvailabilityNotice("");
     setModalListing(listing);
     setModalHero(listing.picture);
     setIsModalOpen(true);
@@ -610,28 +697,28 @@ function ListingPage() {
 
   const handleBook = async () => {
     if (!activeListingId) {
-      alert("Select a unit first.");
+      setBookingState({ status: "error", message: "Select a unit first." });
       return;
     }
     if (!search.checkIn || !search.checkOut) {
-      alert("Pick dates before booking.");
+      setBookingState({ status: "error", message: "Pick dates before booking." });
       return;
     }
     if (!bookingInfo.firstName || !bookingInfo.lastName || !bookingInfo.email) {
-      alert("Fill in guest name and email.");
+      setBookingState({ status: "error", message: "Fill in guest name and email." });
       return;
     }
 
     const avail = availability[activeListingId];
     if (!avail || avail.status !== "ready" || avail.available === false) {
-      alert("This unit is not available for the selected dates yet.");
+      setBookingState({ status: "error", message: "This unit is not available for the selected dates yet." });
       return;
     }
 
     const amount = avail.hostPayout ?? avail.total;
     const currency = avail.currency || selectedListing?.currency || "USD";
     if (!amount || amount <= 0) {
-      alert("Pricing is missing. Please refresh availability.");
+      setBookingState({ status: "error", message: "Pricing is missing. Please refresh availability." });
       return;
     }
 
@@ -674,9 +761,10 @@ function ListingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#050505] via-[#0a0a0a] to-[#050505] text-[#f6f0e5]">
-      <div className="absolute inset-0 -z-10 opacity-50 bg-[radial-gradient(circle_at_15%_20%,#b68d2d_0,#0a0a0a_38%),radial-gradient(circle_at_80%_0,#f1c55d_0,#0a0a0a_42%),radial-gradient(circle_at_50%_82%,#d4b04c_0,#050505_48%)]" />
-      <header className="relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
+    <div className="listing-page min-h-screen">
+      <div className="listing-backdrop" aria-hidden="true" />
+      <div aria-hidden={isModalOpen ? "true" : undefined}>
+      <header className="listing-hero relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
         <div className="flex flex-col gap-4 md:gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-amber-300">OneLuxStay</p>
@@ -687,7 +775,7 @@ function ListingPage() {
               Live inventory, real-time price checks, and fast booking even on slow connections.
             </p>
           </div>
-          <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-200 backdrop-blur">
+          <div className="listing-status-card rounded-xl px-4 py-3 text-sm backdrop-blur">
             <p className="font-semibold text-white">API status</p>
             <p className="text-amber-300">Connected to Guesty Booking API</p>
             <p className="text-xs text-slate-400">Token cached to reduce bandwidth + rate limits</p>
@@ -695,7 +783,7 @@ function ListingPage() {
         </div>
 
         <div className="mt-6">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg backdrop-blur relative">
+          <div className="listing-panel rounded-2xl p-4 shadow-lg backdrop-blur relative">
             <p className="text-sm font-semibold text-white mb-3">Search dates</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="lg:col-span-2">
@@ -711,7 +799,7 @@ function ListingPage() {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-300">Adults</label>
+                <label htmlFor="listing-adults" className="text-xs text-slate-300">Adults</label>
                 <input
                   type="number"
                   min="1"
@@ -721,7 +809,7 @@ function ListingPage() {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-300">Children</label>
+                <label htmlFor="listing-children" className="text-xs text-slate-300">Children</label>
                 <input
                   type="number"
                   min="0"
@@ -737,6 +825,11 @@ function ListingPage() {
                 {nights > 0 ? `${nights} night stay selected` : "Select dates to check availability & rates"}
               </p>
             </div>
+            {availabilityNotice && (
+              <p role="status" aria-live="polite" className="mt-2 text-xs text-amber-200">
+                {availabilityNotice}
+              </p>
+            )}
           </div>
         </div>
       </header>
@@ -756,7 +849,7 @@ function ListingPage() {
                 <button
                   key={city}
                   onClick={() => setCityFilter(city)}
-                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
+                  className={`listing-filter-btn group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
                     ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
                     : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
                     }`}
@@ -786,7 +879,7 @@ function ListingPage() {
         )}
 
         {listingsError && (
-          <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div role="alert" className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
             {listingsError}
           </div>
         )}
@@ -801,7 +894,7 @@ function ListingPage() {
             return (
               <article
                 key={listing.id}
-                className="group rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg transition hover:border-amber-400/40"
+                className="listing-card group rounded-2xl border p-4 shadow-lg transition"
               >
                 <div className="relative overflow-hidden rounded-xl bg-slate-900">
                   {listing.picture ? (
@@ -816,7 +909,7 @@ function ListingPage() {
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
                   <div className="absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
-                    Sleeps {listing.accommodates} {listing.bedrooms} BR  Â·  {listing.bathrooms} BA
+                    Sleeps {listing.accommodates} {listing.bedrooms} BR  ·  {listing.bathrooms} BA
                   </div>
 
                 </div>
@@ -827,24 +920,24 @@ function ListingPage() {
                     </p>
                     <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
                     <p className="text-sm text-slate-300">
-                      From {formatCurrency(listing.basePrice, listing.currency)} / night  Â·  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
+                      From {formatCurrency(listing.basePrice, listing.currency)} / night  ·  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm text-slate-200">
+                <div role="status" aria-live="polite" className="mt-3 flex items-center gap-2 text-sm text-slate-200">
                   <span className="h-2 w-2 rounded-full bg-amber-400" />
                   {status.status === "ready" && status.available !== false && (
                     <span>
-                      Available  Â·  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
-                      {displayTotal ? ` Â·  ${formatCurrency(displayTotal, status.currency)} total` : ""}
+                      Available  ·  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
+                      {displayTotal ? ` ·  ${formatCurrency(displayTotal, status.currency)} total` : ""}
                       {status.hostPayout ? " " : ""}
                     </span>
                   )}
                   {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
-                  {status.status === "loading" && <span>Checking Guesty Â· </span>}
+                  {status.status === "loading" && <span>Checking Guesty · </span>}
                   {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
-                  {status.status === undefined && <span>Click  Â· Check price Â·  to fetch live availability</span>}
+                  {status.status === undefined && <span>Click  · Check price ·  to fetch live availability</span>}
                 </div>
 
                 {status.status === "ready" && status.available !== false && status.breakdown && (
@@ -871,7 +964,7 @@ function ListingPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     onClick={() => handleOpenModal(listing)}
-                    className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white border border-white/10 hover:border-amber-400/60 transition"
+                    className="listing-btn rounded-lg px-3 py-2 text-sm font-semibold border transition"
                   >
                     Check price & availability
                   </button>
@@ -881,7 +974,7 @@ function ListingPage() {
                         setActiveListingId(listing.id);
                         handleBook();
                       }}
-                      className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300"
+                      className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
                     >
                       Book this stay
                     </button>
@@ -892,15 +985,15 @@ function ListingPage() {
           })}
         </div>
       </main>
+    </div>
 
       {isModalOpen && modalListing && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-[#020202]/80 px-3 py-6 sm:px-4 sm:py-10 backdrop-blur">
-          <div className="relative w-full max-w-full sm:max-w-5xl rounded-2xl border border-amber-400/25 bg-[#0a0a0a]/95 shadow-[0_20px_80px_rgba(0,0,0,0.8)] overflow-hidden">
+        <div className="listing-modal-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10 backdrop-blur">
+          <div ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={modalTitleId} aria-describedby={modalDescId} className="listing-modal relative w-full max-w-full sm:max-w-5xl rounded-2xl border shadow-[0_20px_80px_rgba(0,0,0,0.2)] overflow-hidden">
             <button
-              onClick={() => {
-                setIsModalOpen(false);
-                setModalListing(null);
-              }}
+              ref={closeButtonRef}
+              onClick={closeModal}
+              aria-label="Close dialog"
               className="absolute right-3 top-3 rounded-full border border-amber-300/50 bg-white/5 px-3 py-1 text-xs font-semibold text-white hover:border-amber-400 hover:bg-amber-400/10"
             >
               Close
@@ -908,15 +1001,15 @@ function ListingPage() {
             <div className="p-4 sm:p-6 space-y-4">
               <div className="flex flex-col gap-1">
                 <p className="text-xs uppercase tracking-[0.2em] text-amber-300">Listing details</p>
-                <h3 className="text-2xl font-semibold text-white">{modalListing.title}</h3>
-                <p className="text-sm text-amber-100/80">
+                <h3 id={modalTitleId} className="text-2xl font-semibold text-white">{modalListing.title}</h3>
+                <p id={modalDescId} className="text-sm text-amber-100/80">
                   {normalizeCity(modalListing) || modalListing.location || modalListing.propertyType || "OneLuxStay"}
                 </p>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[3fr,2fr]">
                 <div className="space-y-4 min-w-0">
-                  <div className="overflow-hidden rounded-xl border border-amber-300/20 bg-black/40">
+                  <div className="listing-modal-media overflow-hidden rounded-xl border">
                     <img
                       src={modalHero || modalListing.picture}
                       alt={modalListing.title}
@@ -925,7 +1018,7 @@ function ListingPage() {
                     />
                   </div>
                   {Array.isArray(modalListing.pictures) && modalListing.pictures.length > 0 && (
-                    <div className="rounded-xl border border-amber-300/20 bg-black/30 p-3 overflow-hidden">
+                    <div className="listing-modal-thumbs rounded-xl border p-3 overflow-hidden">
                       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                         {modalListing.pictures.map((pic) => {
                           const src = pic.original || pic.thumbnail || modalListing.picture;
@@ -933,7 +1026,7 @@ function ListingPage() {
                             <button
                               key={pic._id || pic.original || pic.thumbnail}
                               onClick={() => setModalHero(src)}
-                              className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-amber-200/20 bg-[#0f0f0f] focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              className="listing-thumb-btn h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-400"
                             >
                               <img
                                 src={src}
@@ -949,7 +1042,7 @@ function ListingPage() {
                   )}
                 </div>
 
-                <div className="space-y-4 rounded-xl border border-amber-300/20 bg-[#0d0d0d]/95 p-4 text-sm text-amber-50">
+                <div className="listing-modal-panel space-y-4 rounded-xl border p-4 text-sm">
                   <div>
                     <p className="font-semibold text-amber-200">Description</p>
                     <p className="mt-1 whitespace-pre-line text-amber-100/80">
@@ -966,7 +1059,7 @@ function ListingPage() {
                     <p className="font-semibold text-amber-200">Dates</p>
                     <p className="mt-1">
                       {search.checkIn && search.checkOut
-                        ? `${formatDisplayDate(search.checkIn)} â†’ ${formatDisplayDate(search.checkOut)}${nights
+                        ? `${formatDisplayDate(search.checkIn)} ? ${formatDisplayDate(search.checkOut)}${nights
                           ? ` (${nights} night${nights === 1 ? "" : "s"})`
                           : ""
                         }`
@@ -976,11 +1069,11 @@ function ListingPage() {
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                     <div className="mt-2 space-y-1 text-sm">
                       <p className="text-amber-300">
-                        Available  Â·  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
+                        Available  ·  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
                         {modalAvailability.hostPayout
-                          ? ` Â·  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
+                          ? ` ·  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
                           : modalAvailability.total
-                            ? ` Â·  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
+                            ? ` ·  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
                             : ""}
                       </p>
                       {modalAvailability.breakdown && (
@@ -1007,7 +1100,7 @@ function ListingPage() {
                   {modalAvailability?.status === "ready" && modalAvailability?.available === false && (
                     <p className="text-rose-300">Not available for your dates.</p>
                   )}
-                  {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty Â· </p>}
+                  {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty · </p>}
 
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                   <div className="mt-4 space-y-2">
@@ -1015,12 +1108,14 @@ function ListingPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                       <input
                         placeholder="First name"
+                        aria-label="First name"
                         value={bookingInfo.firstName}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
                         className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         placeholder="Last name"
+                        aria-label="Last name"
                         value={bookingInfo.lastName}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
                         className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
@@ -1028,18 +1123,21 @@ function ListingPage() {
                       <input
                         type="email"
                         placeholder="Email"
+                        aria-label="Email"
                         value={bookingInfo.email}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
                         className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         placeholder="Phone"
+                        aria-label="Phone"
                         value={bookingInfo.phone}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
                         className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
                       />
                       <input
                         placeholder="Notes / requests"
+                        aria-label="Notes / requests"
                         value={bookingInfo.notes}
                         onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
                         className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
@@ -1048,10 +1146,15 @@ function ListingPage() {
                     <button
                       onClick={handleBook}
                       disabled={bookingState.status === "loading"}
-                      className="w-full rounded-lg bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300 disabled:opacity-60"
+                      className="listing-btn-primary w-full rounded-lg px-4 py-3 text-sm font-semibold shadow-lg transition disabled:opacity-60"
                     >
                       {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
                     </button>
+                    {bookingState.message && (
+                      <p role="status" aria-live="polite" className="text-xs text-amber-200">
+                        {bookingState.message}
+                      </p>
+                    )}
                   </div>
                   )}
                 </div>
