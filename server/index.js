@@ -20,8 +20,18 @@ const guestyHost = "https://booking.guesty.com";
 const openApiHost = "https://open-api.guesty.com";
 const openApiServer = "https://open-api.guesty.com/v1";
 
-const clientId = process.env.GUESTY_CLIENT_ID;
-const clientSecret = process.env.GUESTY_CLIENT_SECRET;
+const OPEN_API_CLIENT_ID =
+    process.env.GUESTY_OPEN_API_CLIENT_ID || process.env.GUESTY_CLIENT_ID;
+const OPEN_API_CLIENT_SECRET =
+    process.env.GUESTY_OPEN_API_CLIENT_SECRET || process.env.GUESTY_CLIENT_SECRET;
+const BOOKING_CLIENT_ID =
+    process.env.GUESTY_BE_CLIENT_ID ||
+    process.env.GUESTY_BOOKING_CLIENT_ID ||
+    process.env.GUESTY_CLIENT_ID;
+const BOOKING_CLIENT_SECRET =
+    process.env.GUESTY_BE_CLIENT_SECRET ||
+    process.env.GUESTY_BOOKING_CLIENT_SECRET ||
+    process.env.GUESTY_CLIENT_SECRET;
 
 const pmListingsUrl =
     "https://app.guesty.com/api/pm-websites-backend/listings";
@@ -35,6 +45,11 @@ const pmReferer =
 const pmContentUrl =
     "https://app.guesty.com/api/pm-websites-backend/engines/content";
 const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
+const extraListingIds = (process.env.GUESTY_EXTRA_LISTING_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(",");
 const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
 const pmLangRaw = process.env.GUESTY_PM_LANG || "";
 const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
@@ -45,8 +60,8 @@ const stripe =
         ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" })
         : null;
 
-if (!clientId || !clientSecret) {
-    throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET");
+if (!BOOKING_CLIENT_ID || !BOOKING_CLIENT_SECRET) {
+    throw new Error("Missing GUESTY_BE_CLIENT_ID or GUESTY_BE_CLIENT_SECRET");
 }
 
 /* =======================
@@ -182,8 +197,9 @@ async function getBookingToken() {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
             grant_type: "client_credentials",
-            client_id: clientId,
-            client_secret: clientSecret,
+            scope: "booking_engine:api",
+            client_id: BOOKING_CLIENT_ID,
+            client_secret: BOOKING_CLIENT_SECRET,
         }),
     });
 
@@ -211,6 +227,10 @@ let openApiToken = null;
 let openApiExp = 0;
 
 async function getOpenApiToken() {
+    if (!OPEN_API_CLIENT_ID || !OPEN_API_CLIENT_SECRET) {
+        throw new Error("Missing GUESTY_OPEN_API_CLIENT_ID or GUESTY_OPEN_API_CLIENT_SECRET");
+    }
+
     if (openApiToken && Date.now() < openApiExp - 60_000) {
         return openApiToken;
     }
@@ -231,8 +251,8 @@ async function getOpenApiToken() {
         body: new URLSearchParams({
             grant_type: "client_credentials",
             scope: "open-api",
-            client_id: clientId,
-            client_secret: clientSecret,
+            client_id: OPEN_API_CLIENT_ID,
+            client_secret: OPEN_API_CLIENT_SECRET,
         }),
     });
 
@@ -257,13 +277,31 @@ async function getOpenApiToken() {
 ======================= */
 
 async function fetchPmListings(options = {}) {
-    // Use Open API listings only (no PM listings endpoint)
+    try {
+        const contentListings = await fetchPmContentListings(options);
+        if (Array.isArray(contentListings) && contentListings.length > 0) {
+            return normalizePmListings(contentListings);
+        }
+    } catch (err) {
+        console.error("PM content listings fetch failed", err?.message || err);
+    }
+
     const openApiList = await fetchOpenApiListings(options);
     if (!Array.isArray(openApiList) || openApiList.length === 0) {
         throw new Error("Open API listings returned no results");
     }
-    return openApiList;
+    return normalizePmListings(openApiList);
 }
+
+const cityOverride = (() => {
+    const map = new Map();
+    (process.env.GUESTY_EXTRA_LISTING_IDS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((id) => map.set(id, "Redondo Beach"));
+    return map;
+})();
 
 function normalizePmListings(listings) {
     const list = Array.isArray(listings) ? listings : [];
@@ -274,12 +312,27 @@ function normalizePmListings(listings) {
         if (id && l.title) map.set(id, l);
     });
 
-    const inferCity = (l) =>
-        l.city ||
-        l.address?.city ||
-        l.address?.full ||
-        l.location ||
-        "";
+    const knownCities = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+
+    const inferCity = (l) => {
+        const titleLower = typeof l.title === "string" ? l.title.toLowerCase() : "";
+        if (titleLower.includes("hollywood")) return "Hollywood";
+        const fromAddress = l.address?.city || l.city || l.location || l.address?.full || "";
+        if (fromAddress) return fromAddress;
+        const tagCity =
+            Array.isArray(l.tags) &&
+            l.tags.find((t) => typeof t === "string" && knownCities.includes(t.toLowerCase()));
+        if (tagCity) return tagCity;
+        if (titleLower) {
+            const match = knownCities.find((c) => titleLower.includes(c));
+            if (match)
+                return match
+                    .split(" ")
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" ");
+        }
+        return "";
+    };
 
     return [...map.values()].map((l) => ({
         id: l._id || l.id,
@@ -288,7 +341,7 @@ function normalizePmListings(listings) {
         accommodates: l.accommodates,
         accountId: l.accountId,
         address: l.address,
-        city: inferCity(l),
+        city: cityOverride.get(l._id || l.id) || inferCity(l),
         bathrooms: l.bathrooms,
         bedrooms: l.bedrooms,
         beds: l.beds,
@@ -326,6 +379,50 @@ const extractFromPmContent = (pmData) => {
         }
     }
     return out;
+};
+
+const fetchPmContentListings = async ({
+    city = "",
+    tags = "",
+    ids = "",
+    limit = 50,
+} = {}) => {
+    const cacheKey = JSON.stringify({ city, tags, ids, limit, source: "pm-content" });
+    const cached = getListingsCache(cacheKey);
+    if (cached) return cached;
+
+    const token = await getBookingToken();
+    const url = new URL(pmContentUrl);
+    if (pmLang) url.searchParams.set("lang", pmLang);
+    if (city) url.searchParams.set("city", city);
+    if (tags) url.searchParams.set("tags", tags);
+    if (ids) url.searchParams.set("ids", ids);
+    if (limit) url.searchParams.set("limit", limit);
+
+    const headers = {
+        accept: "application/json",
+        origin: pmOrigin,
+        referer: pmReferer,
+        authorization: `Bearer ${token}`,
+    };
+    if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
+    if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
+
+    const res = await withLimit(() =>
+        fetchWithTimeout(url.toString(), {
+            headers,
+        })
+    );
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(body || res.status);
+    }
+
+    const json = await res.json();
+    const flat = extractFromPmContent(json);
+    setListingsCache(cacheKey, flat);
+    return flat;
 };
 
 async function fetchOpenApiListings({
@@ -451,16 +548,41 @@ app.get("/api/listings", async (req, res) => {
             limit = 50,
         } = req.query || {};
 
+        const idsCombined = [ids, extraListingIds].filter(Boolean).join(",");
+
         const pm = await fetchPmListings({
             checkIn,
             checkOut,
             minOccupancy,
             city,
             tags,
-            ids,
+            ids: idsCombined,
             limit,
         });
-        res.json({ results: normalizePmListings(pm) });
+
+        const baseResults = normalizePmListings(pm);
+        const manualIds = extraListingIds ? extraListingIds.split(",").filter(Boolean) : [];
+        const missingIds = manualIds.filter(
+            (mid) => !baseResults.some((r) => r.id === mid || r._id === mid)
+        );
+
+        let merged = baseResults;
+        if (missingIds.length) {
+            try {
+                const missing = await fetchOpenApiListings({ ids: missingIds.join(","), limit });
+                const normalizedMissing = normalizePmListings(missing);
+                const map = new Map();
+                [...baseResults, ...normalizedMissing].forEach((r) => {
+                    const id = r.id || r._id;
+                    if (id) map.set(id, r);
+                });
+                merged = [...map.values()];
+            } catch (err) {
+                console.error("Failed to backfill manual listing IDs", err?.message || err);
+            }
+        }
+
+        res.json({ results: merged });
     } catch (e) {
         const status = e?.status === 429 || e?.rateLimited ? 429 : 500;
         res.status(status).json({

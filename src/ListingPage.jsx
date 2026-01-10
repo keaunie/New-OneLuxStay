@@ -80,6 +80,7 @@ const DateRangePicker = ({ value, onChange }) => {
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
   const dialogId = useId();
+  const dialogHelpId = useId();
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -200,12 +201,23 @@ const DateRangePicker = ({ value, onChange }) => {
       </div>
 
       {open && (
-        <div id={dialogId} role="dialog" aria-modal="true" aria-label="Choose dates" className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
+        <div
+          id={dialogId}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose dates"
+          aria-describedby={dialogHelpId}
+          className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl listing-date-dropdown"
+        >
+          <p id={dialogHelpId} className="sr-only">
+            Select a check-in date and a check-out date. Use the previous and next buttons to change months.
+          </p>
           <div className="flex items-center justify-between px-4 py-3 text-white border-b border-white/5">
             <div className="font-semibold text-lg">{monthLabel}</div>
             <div className="flex gap-2">
               <button
                 type="button"
+                aria-label="Previous month"
                 onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
                 className="h-9 w-9 rounded-md bg-amber-400 text-slate-900 font-bold"
               >
@@ -213,6 +225,7 @@ const DateRangePicker = ({ value, onChange }) => {
               </button>
               <button
                 type="button"
+                aria-label="Next month"
                 onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
                 className="h-9 w-9 rounded-md bg-amber-400 text-slate-900 font-bold"
               >
@@ -244,12 +257,19 @@ const DateRangePicker = ({ value, onChange }) => {
                       const between = inRange(day) && !selected;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
-                            weekday: "long",
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                          })
+                          weekday: "long",
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })
                         : "";
+                      const stateClass = disabled
+                        ? "is-disabled"
+                        : selected
+                          ? "is-selected"
+                          : between
+                            ? "is-between"
+                            : "is-default";
                       return (
                         <button
                           key={`${monthObj.year}-${monthObj.month}-${idx}`}
@@ -260,7 +280,7 @@ const DateRangePicker = ({ value, onChange }) => {
                           aria-label={dayLabel}
                           aria-hidden={day ? undefined : true}
                           onClick={() => handleDayClick(day)}
-                          className={`h-10 rounded-lg border text-sm transition ${disabled
+                          className={`listing-date-cell h-10 rounded-lg border text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${stateClass} ${disabled
                             ? "border-transparent text-slate-600"
                             : selected
                               ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
@@ -775,15 +795,10 @@ function ListingPage() {
               Live inventory, real-time price checks, and fast booking even on slow connections.
             </p>
           </div>
-          <div className="listing-status-card rounded-xl px-4 py-3 text-sm backdrop-blur">
-            <p className="font-semibold text-white">API status</p>
-            <p className="text-amber-300">Connected to Guesty Booking API</p>
-            <p className="text-xs text-slate-400">Token cached to reduce bandwidth + rate limits</p>
-          </div>
         </div>
 
         <div className="mt-6">
-          <div className="listing-panel rounded-2xl p-4 shadow-lg backdrop-blur relative">
+          <div className="listing-panel listing-search-panel rounded-2xl p-4 shadow-lg backdrop-blur relative">
             <p className="text-sm font-semibold text-white mb-3">Search dates</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="lg:col-span-2">
@@ -801,6 +816,7 @@ function ListingPage() {
               <div className="flex flex-col gap-1">
                 <label htmlFor="listing-adults" className="text-xs text-slate-300">Adults</label>
                 <input
+                  id="listing-adults"
                   type="number"
                   min="1"
                   value={search.adults}
@@ -811,6 +827,7 @@ function ListingPage() {
               <div className="flex flex-col gap-1">
                 <label htmlFor="listing-children" className="text-xs text-slate-300">Children</label>
                 <input
+                  id="listing-children"
                   type="number"
                   min="0"
                   value={search.children}
@@ -908,36 +925,36 @@ function ListingPage() {
                     <div className="h-48 w-full bg-slate-800" />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
-                  <div className="absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
-                    Sleeps {listing.accommodates} {listing.bedrooms} BR  ·  {listing.bathrooms} BA
+                  <div className="listing-card__badge absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
+                    Sleeps {listing.accommodates} {listing.bedrooms} BR  -  {listing.bathrooms} BA
                   </div>
 
                 </div>
                 <div className="mt-3">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-amber-200">
+                    <p className="listing-card__kicker text-xs uppercase tracking-wide text-amber-200">
                       {listing.location || listing.timezone || "OneLuxStay"}
                     </p>
-                    <h3 className="text-lg font-semibold text-white leading-tight">{listing.title}</h3>
-                    <p className="text-sm text-slate-300">
-                      From {formatCurrency(listing.basePrice, listing.currency)} / night  ·  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
+                    <h3 className="listing-card__title text-lg font-semibold text-white leading-tight">{listing.title}</h3>
+                    <p className="listing-card__meta text-sm text-slate-300">
+                      From {formatCurrency(listing.basePrice, listing.currency)} / night  -  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
                     </p>
                   </div>
                 </div>
 
-                <div role="status" aria-live="polite" className="mt-3 flex items-center gap-2 text-sm text-slate-200">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" />
+                <div role="status" aria-live="polite" className="listing-card__status mt-3 flex items-center gap-2 text-sm text-slate-200">
+                  <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
                   {status.status === "ready" && status.available !== false && (
                     <span>
-                      Available  ·  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
-                      {displayTotal ? ` ·  ${formatCurrency(displayTotal, status.currency)} total` : ""}
+                      Available  -  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
+                      {displayTotal ? ` -  ${formatCurrency(displayTotal, status.currency)} total` : ""}
                       {status.hostPayout ? " " : ""}
                     </span>
                   )}
                   {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
-                  {status.status === "loading" && <span>Checking Guesty · </span>}
+                  {status.status === "loading" && <span>Checking Guesty - </span>}
                   {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
-                  {status.status === undefined && <span>Click  · Check price ·  to fetch live availability</span>}
+                  {status.status === undefined && <span>Click "Check price" to fetch live availability.</span>}
                 </div>
 
                 {status.status === "ready" && status.available !== false && status.breakdown && (
@@ -963,17 +980,21 @@ function ListingPage() {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
+                    type="button"
                     onClick={() => handleOpenModal(listing)}
+                    aria-label={`Check price and availability for ${listing.title}`}
                     className="listing-btn rounded-lg px-3 py-2 text-sm font-semibold border transition"
                   >
                     Check price & availability
                   </button>
                   {canBook && (
                     <button
+                      type="button"
                       onClick={() => {
                         setActiveListingId(listing.id);
                         handleBook();
                       }}
+                      aria-label={`Book ${listing.title}`}
                       className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
                     >
                       Book this stay
@@ -1069,11 +1090,11 @@ function ListingPage() {
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                     <div className="mt-2 space-y-1 text-sm">
                       <p className="text-amber-300">
-                        Available  ·  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
+                        Available  -  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
                         {modalAvailability.hostPayout
-                          ? ` ·  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
+                          ? ` -  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
                           : modalAvailability.total
-                            ? ` ·  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
+                            ? ` -  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
                             : ""}
                       </p>
                       {modalAvailability.breakdown && (
@@ -1100,7 +1121,7 @@ function ListingPage() {
                   {modalAvailability?.status === "ready" && modalAvailability?.available === false && (
                     <p className="text-rose-300">Not available for your dates.</p>
                   )}
-                  {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty · </p>}
+                  {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty - </p>}
 
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
                   <div className="mt-4 space-y-2">
@@ -1168,7 +1189,6 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
 
 
 
