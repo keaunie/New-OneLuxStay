@@ -1,5 +1,6 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./LandingPage";
+import AntwerpLandingPage from "./AntwerpLandingPage";
 import ListingPage from "./ListingPage";
 import "./App.css";
 
@@ -8,6 +9,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/antwerpen" element={<AntwerpLandingPage />} />
+        <Route path="/antwerp" element={<AntwerpLandingPage />} />
         <Route path="/stay" element={<ListingPage />} />
         <Route path="/listings" element={<ListingPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -17,4 +20,3 @@ function App() {
 }
 
 export default App;
-

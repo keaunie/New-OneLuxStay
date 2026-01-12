@@ -486,9 +486,20 @@ function LandingPage() {
             className="landing-hero-control"
             aria-pressed={isHeroPaused}
             aria-label={isHeroPaused ? "Play background slideshow" : "Pause background slideshow"}
+            title={isHeroPaused ? "Play slideshow" : "Pause slideshow"}
             onClick={() => setIsHeroPaused((prev) => !prev)}
           >
-            {isHeroPaused ? "Play background" : "Pause background"}
+            <span className="landing-hero-control__icon" aria-hidden="true">
+              {isHeroPaused ? (
+                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                  <path d="M8 6.25v11.5a.75.75 0 0 0 1.16.62l9-5.75a.75.75 0 0 0 0-1.24l-9-5.75A.75.75 0 0 0 8 6.25z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                  <path d="M7 6.5c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1H8c-.55 0-1-.45-1-1v-11zm6 0c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-11z" />
+                </svg>
+              )}
+            </span>
           </button>
 
           <div className="landing-chip-row">
@@ -674,7 +685,7 @@ function LandingPage() {
                 See live availability
               </Link>
               <a
-                href="mailto:stay@oneluxstay.com"
+                href="mailto:reservation@oneluxstay.com"
                 className="landing-cta-secondary"
               >
                 Email concierge
@@ -692,12 +703,12 @@ function LandingPage() {
             </div>
             <div className="landing-footer-links">
               <Link to="/stay">Browse stays</Link>
-              <a href="mailto:stay@oneluxstay.com">stay@oneluxstay.com</a>
-              <a href="tel:+13105550101">+1 (310) 555-0101</a>
+              <a href="mailto:reservation@oneluxstay.com">reservation@oneluxstay.com</a>
+              <a href="tel:+1 213 866 3589">+1 (213) 866-3589</a>
             </div>
             <div className="landing-footer-meta">
               <p className="landing-footer-kicker">Concierge</p>
-              <p>Daily 8am - 10pm</p>
+              <p>Available 24/7</p>
               <p className="landing-footer-kicker">Email</p>
               <p>Response within 24 hours</p>
             </div>

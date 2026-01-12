@@ -98,6 +98,8 @@ const AVAILABILITY_CACHE_MAX = 500;
 const availabilityCache = new Map();
 const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
 let listingsCache = { key: "", expiresAt: 0, data: null };
+const landmarksCache = new Map();
+const LANDMARKS_CACHE_TTL_MS = 24 * 60 * 60_000;
 
 const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
 const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 2000);
@@ -150,6 +152,20 @@ const getListingsCache = (key) => {
 
 const setListingsCache = (key, data) => {
     listingsCache = { key, data, expiresAt: Date.now() + LISTINGS_CACHE_TTL_MS };
+};
+
+const getLandmarksCache = (key) => {
+    const entry = landmarksCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        landmarksCache.delete(key);
+        return null;
+    }
+    return entry.value;
+};
+
+const setLandmarksCache = (key, value) => {
+    landmarksCache.set(key, { value, expiresAt: Date.now() + LANDMARKS_CACHE_TTL_MS });
 };
 
 const getAvailabilityCache = (key) => {
@@ -758,6 +774,73 @@ app.post("/api/reservations/quotes", async (req, res) => {
         res.json({ results: [quote] });
     } catch (e) {
         res.status(502).json({ message: "Quote failed", error: e.message });
+    }
+});
+
+app.get("/api/landmarks", async (req, res) => {
+    const { address = "" } = req.query || {};
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY || "";
+    if (!apiKey) {
+        return res.status(500).json({ message: "Missing GOOGLE_PLACES_API_KEY" });
+    }
+    if (!address) {
+        return res.status(400).json({ message: "Missing address" });
+    }
+
+    const cacheKey = `landmarks:${address}`;
+    const cached = getLandmarksCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    try {
+        const geocodeUrl = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+        geocodeUrl.searchParams.set("address", address);
+        geocodeUrl.searchParams.set("key", apiKey);
+        const geoRes = await withLimit(() => fetchWithTimeout(geocodeUrl.toString()));
+        if (!geoRes.ok) throw new Error(await geoRes.text());
+        const geoJson = await geoRes.json();
+        const loc = geoJson?.results?.[0]?.geometry?.location;
+        if (!loc) {
+            return res.status(200).json({ address, landmarks: [], transport: [] });
+        }
+
+        const fetchPlaces = async (type) => {
+            const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
+            url.searchParams.set("location", `${loc.lat},${loc.lng}`);
+            url.searchParams.set("radius", "1500");
+            url.searchParams.set("type", type);
+            url.searchParams.set("key", apiKey);
+            const r = await withLimit(() => fetchWithTimeout(url.toString()));
+            if (!r.ok) throw new Error(await r.text());
+            const json = await r.json();
+            return Array.isArray(json?.results) ? json.results : [];
+        };
+
+        const [attractions, transit, train] = await Promise.all([
+            fetchPlaces("tourist_attraction"),
+            fetchPlaces("transit_station"),
+            fetchPlaces("train_station"),
+        ]);
+
+        const normalize = (items) =>
+            items
+                .filter((item) => item?.name)
+                .map((item) => ({
+                    name: item.name,
+                    rating: item.rating,
+                    userRatingsTotal: item.user_ratings_total,
+                    vicinity: item.vicinity,
+                    types: item.types,
+                }));
+
+        const payload = {
+            address,
+            landmarks: normalize(attractions).slice(0, 8),
+            transport: normalize([...transit, ...train]).slice(0, 8),
+        };
+        setLandmarksCache(cacheKey, payload);
+        res.json(payload);
+    } catch (e) {
+        res.status(502).json({ message: "Landmarks lookup failed", error: e.message });
     }
 });
 
