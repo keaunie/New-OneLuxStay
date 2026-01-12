@@ -3,6 +3,37 @@ import { Link } from "react-router-dom";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+const PROPERTY_ADDRESS = "Lange Leemstraat 5, 2018 Antwerpen, Belgium";
+const PROPERTY_COORDS = { lat: 51.2144, lng: 4.4167 };
+const LANDMARKS = [
+  "Antwerpen-Centraal Station",
+  "Meir Shopping Street",
+  "Grote Markt",
+  "Cathedral of Our Lady",
+  "Antwerp Zoo",
+  "Rubenshuis"
+];
+let mapsScriptPromise;
+
+const loadGoogleMaps = (apiKey) => {
+  if (!apiKey) return Promise.reject(new Error("Missing Google Maps API key"));
+  if (mapsScriptPromise) return mapsScriptPromise;
+  mapsScriptPromise = new Promise((resolve, reject) => {
+    if (window.google?.maps) {
+      resolve(window.google.maps);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(window.google.maps);
+    script.onerror = () => reject(new Error("Failed to load Google Maps"));
+    document.head.appendChild(script);
+  });
+  return mapsScriptPromise;
+};
 
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
@@ -132,23 +163,6 @@ const getGroupStats = (listings) => {
   };
 };
 
-const getGroupAddress = (listings) => {
-  const counts = new Map();
-  listings.forEach((listing) => {
-    const address = listing.address?.full || listing.address?.city || listing.location;
-    if (!address) return;
-    counts.set(address, (counts.get(address) || 0) + 1);
-  });
-  let best = "";
-  let bestCount = 0;
-  counts.forEach((count, addr) => {
-    if (count > bestCount) {
-      best = addr;
-      bestCount = count;
-    }
-  });
-  return best || "Antwerp, Belgium";
-};
 
 const getFirstSentence = (text) => {
   if (!text) return "";
@@ -176,7 +190,8 @@ function AntwerpLandingPage() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const autoScrollRef = useRef(null);
   const thumbsRef = useRef(null);
-  const [buildingPOI, setBuildingPOI] = useState({});
+  const mapRef = useRef(null);
+  const mapLoadedRef = useRef(false);
 
   const stopAutoScroll = () => {
     if (autoScrollRef.current) {
@@ -238,6 +253,110 @@ function AntwerpLandingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!mapRef.current || mapLoadedRef.current || !mapsApiKey) return;
+    const target = mapRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting || mapLoadedRef.current) return;
+        mapLoadedRef.current = true;
+        loadGoogleMaps(mapsApiKey)
+          .then((maps) => {
+            const map = new maps.Map(target, {
+              center: PROPERTY_COORDS,
+              zoom: 15,
+              gestureHandling: "greedy",
+              zoomControl: true,
+              fullscreenControl: false,
+              mapTypeControl: false,
+              streetViewControl: false,
+              styles: [
+                { featureType: "poi", stylers: [{ visibility: "off" }] },
+                { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+                { featureType: "poi.attraction", stylers: [{ visibility: "off" }] },
+              ],
+            });
+
+            const infoWindow = new maps.InfoWindow();
+
+            const logoUrl = "https://oneluxstay.netlify.app/image/ols-logo.png";
+            const backgroundMarker = new maps.Marker({
+              map,
+              position: PROPERTY_COORDS,
+              icon: {
+                path: maps.SymbolPath.CIRCLE,
+                scale: 20,
+                fillColor: "#f6efe6",
+                fillOpacity: 1,
+                strokeColor: "#c9b59c",
+                strokeWeight: 2,
+              },
+              zIndex: 1,
+            });
+            const primaryMarker = new maps.Marker({
+              map,
+              position: PROPERTY_COORDS,
+              title: "Central Signature – Lange Leemstraat 5",
+              icon: {
+                url: logoUrl,
+                scaledSize: new maps.Size(26, 26),
+                anchor: new maps.Point(13, 13),
+              },
+              zIndex: 2,
+            });
+
+            primaryMarker.addListener("click", () => {
+              infoWindow.setContent(`<strong>Central Signature – Lange Leemstraat 5</strong>`);
+              infoWindow.open(map, primaryMarker);
+            });
+
+            const geocoder = new maps.Geocoder();
+            geocoder.geocode({ address: PROPERTY_ADDRESS }, (results, status) => {
+              if (status === "OK" && results?.[0]?.geometry?.location) {
+                map.setCenter(results[0].geometry.location);
+                backgroundMarker.setPosition(results[0].geometry.location);
+                primaryMarker.setPosition(results[0].geometry.location);
+              }
+            });
+
+            const transitLayer = new maps.TransitLayer();
+            transitLayer.setMap(map);
+
+            const placesService = new maps.places.PlacesService(map);
+            LANDMARKS.forEach((name) => {
+              placesService.textSearch(
+                {
+                  query: name,
+                  location: map.getCenter(),
+                  radius: 2500,
+                },
+                (results, status) => {
+                  if (status !== maps.places.PlacesServiceStatus.OK || !results?.length) return;
+                  const place = results[0];
+                  const marker = new maps.Marker({
+                    map,
+                    position: place.geometry?.location,
+                    title: place.name,
+                  });
+                  marker.addListener("click", () => {
+                    infoWindow.setContent(`<strong>${place.name}</strong>`);
+                    infoWindow.open(map, marker);
+                  });
+                }
+              );
+            });
+          })
+          .catch((err) => {
+            console.error(err);
+          });
+      },
+      { threshold: 0.25 }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
   const antwerpListings = useMemo(
     () =>
       listings.filter((listing) => {
@@ -268,35 +387,6 @@ function AntwerpLandingPage() {
     }
     return ordered.filter((group) => group.listings.length);
   }, [antwerpListings]);
-
-  useEffect(() => {
-    if (!groupedListings.length) return;
-    let active = true;
-    const load = async () => {
-      const next = {};
-      await Promise.all(
-        groupedListings.map(async (group) => {
-          const address = getGroupAddress(group.listings);
-          try {
-            const res = await fetch(
-              `${apiBase}/api/landmarks?address=${encodeURIComponent(address)}`,
-              { cache: "no-store" }
-            );
-            if (!res.ok) throw new Error(`Landmarks failed: ${res.status}`);
-            const json = await res.json();
-            next[group.key] = json;
-          } catch {
-            next[group.key] = { address, landmarks: [], transport: [] };
-          }
-        })
-      );
-      if (active) setBuildingPOI(next);
-    };
-    load();
-    return () => {
-      active = false;
-    };
-  }, [groupedListings]);
 
   const heroImages = useMemo(() => {
     const picks = [];
@@ -402,6 +492,30 @@ function AntwerpLandingPage() {
       </header>
 
       <main className="antwerp-main">
+        <section className="antwerp-section" aria-label="Map of nearby landmarks and transport">
+          <div className="antwerp-section__head">
+            <div>
+              <p className="antwerp-kicker">Neighborhood map</p>
+              <h2>Walkable highlights in Antwerpen</h2>
+              <p className="antwerp-muted">
+                See nearby landmarks and public transport around Lange Leemstraat 5.
+              </p>
+            </div>
+          </div>
+          <div
+            ref={mapRef}
+            aria-label="Google map showing Lange Leemstraat 5 with nearby landmarks and public transport"
+            style={{
+              width: "100%",
+              height: "420px",
+              borderRadius: "20px",
+              border: "1px solid rgba(201, 181, 156, 0.6)",
+              overflow: "hidden",
+              background: "rgba(249, 248, 246, 0.8)",
+            }}
+          />
+        </section>
+
         <section className="antwerp-section" id="antwerp-units">
           <div className="antwerp-section__head">
             <div>
@@ -440,9 +554,6 @@ function AntwerpLandingPage() {
 
           {groupedListings.map((group) => {
             const groupStats = getGroupStats(group.listings);
-            const poi = buildingPOI[group.key] || {};
-            const landmarks = Array.isArray(poi.landmarks) ? poi.landmarks : [];
-            const transport = Array.isArray(poi.transport) ? poi.transport : [];
             return (
               <section key={group.key} className="antwerp-building">
                 <div className="antwerp-building__head">
@@ -461,38 +572,6 @@ function AntwerpLandingPage() {
                     <span>
                       Bedrooms {groupStats.bedroomRange}
                     </span>
-                  </div>
-                </div>
-                <div className="antwerp-poi">
-                  <div>
-                    <h4>Nearby landmarks</h4>
-                    {landmarks.length ? (
-                      <ul>
-                        {landmarks.map((item) => (
-                          <li key={`${item.name}-${item.vicinity || ""}`}>
-                            <strong>{item.name}</strong>
-                            {item.vicinity ? ` · ${item.vicinity}` : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No nearby landmark data yet.</p>
-                    )}
-                  </div>
-                  <div>
-                    <h4>Transport</h4>
-                    {transport.length ? (
-                      <ul>
-                        {transport.map((item) => (
-                          <li key={`${item.name}-${item.vicinity || ""}`}>
-                            <strong>{item.name}</strong>
-                            {item.vicinity ? ` · ${item.vicinity}` : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No nearby transport data yet.</p>
-                    )}
                   </div>
                 </div>
                 <div className="antwerp-grid">

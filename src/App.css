@@ -2013,37 +2013,6 @@
   background: rgba(255, 255, 255, 0.6);
 }
 
-.antwerp-poi {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(201, 181, 156, 0.45);
-  border-radius: 18px;
-  padding: 16px;
-}
-
-.antwerp-poi h4 {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--antwerp-muted);
-}
-
-.antwerp-poi ul {
-  margin: 0;
-  padding-left: 16px;
-  color: var(--antwerp-ink);
-  display: grid;
-  gap: 6px;
-}
-
-.antwerp-poi p {
-  margin: 0;
-  color: var(--antwerp-muted);
-}
 
 .antwerp-card {
   background: rgba(255, 255, 255, 0.75);
