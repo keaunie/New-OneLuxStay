@@ -842,6 +842,24 @@ app.get("/api/listings/:id/availability", async (req, res) => {
 
             if (!json) {
                 const rateLimited = errors.some((e) => e.status === 429);
+                try {
+                    const quote = await createQuote({
+                        unitTypeId: unitTypeId || id,
+                        checkInDateLocalized: startDate,
+                        checkOutDateLocalized: endDate,
+                        numberOfGuests: { numberOfAdults: Number(minOccupancy) || 1, numberOfChildren: 0 },
+                        guestsCount: Number(minOccupancy) || 1,
+                        source: "website",
+                    });
+                    const payload = { isAvailable: true, availability: [], raw: { quote }, errors };
+                    setAvailabilityCache(cacheKey, payload);
+                    return { status: 200, payload };
+                } catch (quoteErr) {
+                    errors.push({
+                        status: quoteErr?.status || 500,
+                        body: quoteErr?.message || "Quote fallback failed",
+                    });
+                }
                 const payload = { isAvailable: false, availability: [], raw: null, errors };
                 if (rateLimited) {
                     return { status: 429, payload: { message: "Rate limited by Guesty", ...payload } };

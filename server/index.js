@@ -728,6 +728,24 @@ app.get("/api/listings/:id/availability", async (req, res) => {
                 : null);
 
         if (!json) {
+            try {
+                const quote = await createQuote({
+                    unitTypeId: unitTypeId || id,
+                    checkInDateLocalized: startDate,
+                    checkOutDateLocalized: endDate,
+                    numberOfGuests: { numberOfAdults: Number(minOccupancy) || 1, numberOfChildren: 0 },
+                    guestsCount: Number(minOccupancy) || 1,
+                    source: "website",
+                });
+                const payload = { isAvailable: true, availability: [], raw: { quote }, errors };
+                setAvailabilityCache(cacheKey, payload);
+                return res.json(payload);
+            } catch (quoteErr) {
+                errors.push({
+                    status: quoteErr?.status || 500,
+                    body: quoteErr?.message || "Quote fallback failed",
+                });
+            }
             return res.json({ isAvailable: false, availability: [], raw: null, errors });
         }
 

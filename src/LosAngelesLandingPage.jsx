@@ -39,11 +39,11 @@ const loadGoogleMaps = (apiKey) => {
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
     ? value.toLocaleString("en-US", {
-        style: "currency",
-        currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })
     : "--";
 
 const KNOWN_CITIES = ["los angeles", "la", "los-angeles", "hollywood", "west hollywood"];
@@ -392,6 +392,17 @@ function LosAngelesLandingPage() {
   }, []);
 
   useEffect(() => {
+    if (!listings.length) return;
+    const targetId = "66e1e3875a1f6300d736f28e";
+    const match = listings.find((listing) => (listing.id || listing._id) === targetId);
+    if (match) {
+      console.log("[LA debug] listing match", match);
+    } else {
+      console.log("[LA debug] listing not found for id", targetId);
+    }
+  }, [listings]);
+
+  useEffect(() => {
     if (!mapRef.current || mapLoadedRef.current || !mapsApiKey) return;
     const target = mapRef.current;
     const observer = new IntersectionObserver(
@@ -586,25 +597,27 @@ function LosAngelesLandingPage() {
     setSectionAvailabilityError("");
     try {
       const items = activeSection.listings
-        .map((listing) => ({
-          id: listing.id || listing._id,
-          unitTypeId: listing.unitTypeId,
-        }))
-        .filter((item) => item.id);
+        .map((listing) => listing.id || listing._id)
+        .filter(Boolean);
+      const qs = new URLSearchParams({
+        startDate: sectionCheckIn,
+        endDate: sectionCheckOut,
+        minOccupancy: sectionGuests || "1",
+      }).toString();
       const checks = await Promise.all(
-        items.map(async ({ id, unitTypeId }) => {
-          const qs = new URLSearchParams({
-            startDate: sectionCheckIn,
-            endDate: sectionCheckOut,
-            minOccupancy: sectionGuests || "1",
-          });
-          if (unitTypeId) qs.set("unitTypeId", unitTypeId);
-          const res = await fetch(`${apiBase}/api/listings/${id}/availability?${qs.toString()}`, {
-            cache: "no-store",
-          });
-          if (!res.ok) return { id, available: false };
-          const json = await res.json();
-          return { id, available: Boolean(json?.isAvailable) };
+        items.map(async (id) => {
+          const tryAvailability = async (listingId) => {
+            const res = await fetch(`${apiBase}/api/listings/${listingId}/availability?${qs}`, {
+              cache: "no-store",
+            });
+            if (!res.ok) return { ok: false, status: res.status };
+            const json = await res.json();
+            return { ok: true, available: Boolean(json?.isAvailable) };
+          };
+
+          const primary = await tryAvailability(id);
+          if (primary.ok) return { id, available: primary.available };
+          return { id, available: false };
         })
       );
       const availableIds = new Set(checks.filter((item) => item.available).map((item) => item.id));
@@ -939,9 +952,9 @@ function LosAngelesLandingPage() {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Los Angeles</strong>
-                      <a href="tel:+13105550101">+1 (310) 555-0101</a>
-                      <a href="mailto:stay@oneluxstay.com">stay@oneluxstay.com</a>
-                      <a href="mailto:stay@oneluxstay.com" className="la-unit-modal__contact-cta">
+                      <a href="tel:+12138663589">+1 213 866 3589</a>
+                      <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                      <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
                       </a>
                     </div>
@@ -1055,51 +1068,51 @@ function LosAngelesLandingPage() {
                   const shortDescription = getFirstSentence(fullDescription);
                   return (
                     <article key={listingId} className="la-booking-card">
-                    <div className="la-booking-card__media">
-                      {image ? (
-                        <img src={image} alt={listing.title} loading="lazy" />
-                      ) : (
-                        <div className="antwerp-card__placeholder">No image</div>
-                      )}
-                    </div>
-                    <div className="la-booking-card__body">
-                      <div>
-                        <p className="la-booking-card__eyebrow">
-                          {listing.propertyType || listing.roomType || "Residence"}
-                        </p>
-                        <h4>{listing.title}</h4>
-                        <span className="la-booking-card__address">{formatAddress(listing)}</span>
-                        <p className="la-booking-card__summary">
-                          {shortDescription || "Signature OneLuxStay residence in Los Angeles."}
-                        </p>
-                        <div className="la-booking-card__meta">
-                          <span>Sleeps {listing.accommodates || "--"}</span>
-                          <span>{listing.bedrooms || "--"} BR</span>
-                          <span>{listing.bathrooms || "--"} BA</span>
-                          <span>{getReviewLabel(listing.reviews)}</span>
+                      <div className="la-booking-card__media">
+                        {image ? (
+                          <img src={image} alt={listing.title} loading="lazy" />
+                        ) : (
+                          <div className="antwerp-card__placeholder">No image</div>
+                        )}
+                      </div>
+                      <div className="la-booking-card__body">
+                        <div>
+                          <p className="la-booking-card__eyebrow">
+                            {listing.propertyType || listing.roomType || "Residence"}
+                          </p>
+                          <h4>{listing.title}</h4>
+                          <span className="la-booking-card__address">{formatAddress(listing)}</span>
+                          <p className="la-booking-card__summary">
+                            {shortDescription || "Signature OneLuxStay residence in Los Angeles."}
+                          </p>
+                          <div className="la-booking-card__meta">
+                            <span>Sleeps {listing.accommodates || "--"}</span>
+                            <span>{listing.bedrooms || "--"} BR</span>
+                            <span>{listing.bathrooms || "--"} BA</span>
+                            <span>{getReviewLabel(listing.reviews)}</span>
+                          </div>
+                          <div className="la-booking-card__tags">
+                            {tagList.length ? tagList.join(", ") : "OneLuxStay Select"}
+                          </div>
                         </div>
-                        <div className="la-booking-card__tags">
-                          {tagList.length ? tagList.join(", ") : "OneLuxStay Select"}
+                        <div className="la-booking-card__aside">
+                          <div>
+                            <p>Base</p>
+                            <strong>{formatCurrency(listing.basePrice, listingCurrency)}</strong>
+                          </div>
+                          <div>
+                            <p>Cleaning</p>
+                            <strong>{formatCurrency(listing.cleaningFee, listingCurrency)}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            className="antwerp-card__ghost"
+                            onClick={() => setActiveListing(listing)}
+                          >
+                            View full details
+                          </button>
                         </div>
                       </div>
-                      <div className="la-booking-card__aside">
-                        <div>
-                          <p>Base</p>
-                          <strong>{formatCurrency(listing.basePrice, listingCurrency)}</strong>
-                        </div>
-                        <div>
-                          <p>Cleaning</p>
-                          <strong>{formatCurrency(listing.cleaningFee, listingCurrency)}</strong>
-                        </div>
-                        <button
-                          type="button"
-                          className="antwerp-card__ghost"
-                          onClick={() => setActiveListing(listing)}
-                        >
-                          View full details
-                        </button>
-                      </div>
-                    </div>
                     </article>
                   );
                 })
@@ -1178,8 +1191,8 @@ function LosAngelesLandingPage() {
               const amenityListRaw = Array.isArray(activeListing.amenities)
                 ? activeListing.amenities
                 : Array.isArray(activeListing.tags)
-                ? activeListing.tags
-                : [];
+                  ? activeListing.tags
+                  : [];
               const amenityList = [...new Set(amenityListRaw.filter((item) => typeof item === "string"))].slice(0, 10);
               const aboutText = formatFullDescription(activeListing);
               return (

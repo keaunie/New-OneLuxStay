@@ -9,6 +9,9 @@ node_bundler = "esbuild"
 [build.environment]
 NODE_VERSION = "20"
 
+[dev]
+targetPort = 5174
+
 [[redirects]]
 from = "/*"
 to = "/index.html"
