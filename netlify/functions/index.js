@@ -400,6 +400,7 @@ function normalizePmListings(listings) {
         return {
             id: l._id || l.id,
             _id: l._id || l.id,
+            unitTypeId: l.unitTypeId || l.listingId || l.mtl?.unitTypeId || l.mtl?.listingId || l.mtl?.id,
             title: l.title,
             nickname: l.nickname,
             accommodates: l.accommodates,

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
-    "dev:client": "vite",
+    "dev:client": "vite --port 5174",
     "dev:server": "node server/index.js",
     "start": "node server/index.js",
     "build": "vite build",

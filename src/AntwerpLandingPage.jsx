@@ -286,8 +286,8 @@ function AntwerpLandingPage() {
               position: PROPERTY_COORDS,
               icon: {
                 path: maps.SymbolPath.CIRCLE,
-                scale: 20,
-                fillColor: "#f6efe6",
+                scale: 28,
+                fillColor: "#1f1c19",
                 fillOpacity: 1,
                 strokeColor: "#c9b59c",
                 strokeWeight: 2,
@@ -300,8 +300,8 @@ function AntwerpLandingPage() {
               title: "Central Signature – Lange Leemstraat 5",
               icon: {
                 url: logoUrl,
-                scaledSize: new maps.Size(26, 26),
-                anchor: new maps.Point(13, 13),
+                scaledSize: new maps.Size(36, 36),
+                anchor: new maps.Point(18, 18),
               },
               zIndex: 2,
             });
