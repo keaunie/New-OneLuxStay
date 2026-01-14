@@ -5,8 +5,8 @@ import "./App.css";
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
-const PROPERTY_ADDRESS = "Hollywood Blvd, Los Angeles, CA";
-const PROPERTY_COORDS = { lat: 34.1016, lng: -118.3269 };
+const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
+const PROPERTY_COORDS = { lat: 34.0575, lng: -118.2776 };
 const LANDMARKS = [
   "Hollywood Sign",
   "Griffith Observatory",
@@ -64,7 +64,6 @@ const formatDateLocal = (date) => {
 
 const getQuotePricing = (quoteData, listing, nights) => {
   if (!quoteData || !listing) return null;
-  const ratePlan = quoteData?.rates?.ratePlans?.[0];
   const normalizeRatePlan = (plan = {}) => {
     const labelSource = plan?.name || plan?.title || plan?.description || "";
     const isNonRefundable =
@@ -74,106 +73,126 @@ const getQuotePricing = (quoteData, listing, nights) => {
     const label = labelSource || (isNonRefundable ? "Non-refundable rate" : "Standard rate");
     return { label, isNonRefundable: Boolean(isNonRefundable) };
   };
-  const ratePlans = Array.isArray(quoteData?.rates?.ratePlans)
-    ? quoteData.rates.ratePlans.map(normalizeRatePlan)
+
+  const plansRaw = Array.isArray(quoteData?.rates?.ratePlans)
+    ? quoteData.rates.ratePlans
     : [];
-  const rpMoney =
-    ratePlan?.money?.money ||
-    ratePlan?.money ||
-    quoteData?.money?.money ||
-    quoteData?.money ||
-    null;
-  const quoteMoney = rpMoney || null;
-  const quoteDays = ratePlan?.days || [];
-  const quoteCurrency =
-    quoteMoney?.currency || quoteDays[0]?.currency || listing.currency || "USD";
-  const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
-  const daySum = Array.isArray(quoteDays)
-    ? quoteDays.reduce((sum, d) => {
-      const price = d?.price ?? d?.manualPrice ?? d?.basePrice;
-      return sum + (typeof price === "number" ? price : 0);
-    }, 0)
-    : null;
 
-  const quoteTotalRaw =
-    quoteMoney?.subTotalPrice ??
-    quoteMoney?.totalPrice ??
-    quoteMoney?.total ??
-    quoteData?.total ??
-    quoteData?.price?.total ??
-    quoteData?.price?.totalAmount ??
-    quoteData?.price?.totalPrice ??
-    (typeof quoteData?.price?.total === "object" ? quoteData.price.total.amount : null) ??
-    (typeof quoteData?.amount === "number" ? quoteData.amount : null) ??
-    (typeof daySum === "number" && quotedNights ? daySum + (listing.cleaningFee || 0) : null);
+  const buildPlanPricing = (plan, idx) => {
+    const ratePlanMeta = plan?.ratePlan || {};
+    const { label, isNonRefundable } = normalizeRatePlan(ratePlanMeta);
+    const planId = ratePlanMeta?._id || plan?._id || `plan-${idx}`;
+    const quoteMoney =
+      plan?.money?.money ||
+      plan?.money ||
+      quoteData?.money?.money ||
+      quoteData?.money ||
+      null;
+    const quoteDays = plan?.days || [];
+    const quoteCurrency =
+      quoteMoney?.currency || quoteDays[0]?.currency || listing.currency || "USD";
+    const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
+    const daySum = Array.isArray(quoteDays)
+      ? quoteDays.reduce((sum, d) => {
+        const price = d?.price ?? d?.manualPrice ?? d?.basePrice;
+        return sum + (typeof price === "number" ? price : 0);
+      }, 0)
+      : null;
 
-  const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
-  const quoteNightly =
-    (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
-    (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
-    (quoteDays[0]?.price ?? quoteDays[0]?.manualPrice ?? quoteDays[0]?.basePrice);
+    const quoteTotalRaw =
+      quoteMoney?.subTotalPrice ??
+      quoteMoney?.totalPrice ??
+      quoteMoney?.total ??
+      quoteData?.total ??
+      quoteData?.price?.total ??
+      quoteData?.price?.totalAmount ??
+      quoteData?.price?.totalPrice ??
+      (typeof quoteData?.price?.total === "object" ? quoteData.price.total.amount : null) ??
+      (typeof quoteData?.amount === "number" ? quoteData.amount : null) ??
+      (typeof daySum === "number" && quotedNights ? daySum + (listing.cleaningFee || 0) : null);
 
-  const breakdown = (() => {
-    const items = quoteMoney?.invoiceItems;
-    if (!Array.isArray(items)) return null;
-    const acc = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0 };
-    items.forEach((item) => {
-      const amt = typeof item?.amount === "number" ? item.amount : null;
-      if (amt === null) return;
-      const t = (item?.normalType || item?.type || "").toUpperCase();
-      if (t === "AF" || t === "ACCOMMODATION_FARE") acc.accommodation += amt;
-      else if (t === "CF" || t === "CLEANING_FEE") acc.cleaning += amt;
-      else if (t === "OCT" || t === "TAX" || t === "OCCUPANCY_TAX") acc.taxes += amt;
-      else acc.fees += amt;
-    });
-    return acc;
-  })();
+    const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
+    const quoteNightly =
+      (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
+      (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
+      (quoteDays[0]?.price ?? quoteDays[0]?.manualPrice ?? quoteDays[0]?.basePrice);
 
-  const accommodationFromQuote =
-    quoteMoney?.fareAccommodation ??
-    null;
-  const cleaningFromQuote =
-    quoteMoney?.fareCleaning ??
-    null;
-  const taxesFromQuote =
-    quoteMoney?.totalTaxes ??
-    null;
+    const breakdown = (() => {
+      const items = quoteMoney?.invoiceItems;
+      if (!Array.isArray(items)) return null;
+      const acc = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0 };
+      items.forEach((item) => {
+        const amt = typeof item?.amount === "number" ? item.amount : null;
+        if (amt === null) return;
+        const t = (item?.normalType || item?.type || "").toUpperCase();
+        if (t === "AF" || t === "ACCOMMODATION_FARE") acc.accommodation += amt;
+        else if (t === "CF" || t === "CLEANING_FEE") acc.cleaning += amt;
+        else if (t === "OCT" || t === "TAX" || t === "OCCUPANCY_TAX") acc.taxes += amt;
+        else acc.fees += amt;
+      });
+      return acc;
+    })();
 
-  const accommodation =
-    accommodationFromQuote ??
-    breakdown?.accommodation ??
-    (typeof daySum === "number" ? daySum : undefined) ??
-    (Number.isFinite(quoteNightly) && quotedNights ? quoteNightly * quotedNights : undefined);
-  const cleaning =
-    cleaningFromQuote ??
-    breakdown?.cleaning ??
-    (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0);
-  const taxes =
-    taxesFromQuote ??
-    breakdown?.taxes ??
-    0;
-  const fees = breakdown?.fees ?? 0;
-  const subtotal =
-    (typeof accommodation === "number" ? accommodation : 0) +
-    (typeof cleaning === "number" ? cleaning : 0) +
-    (typeof taxes === "number" ? taxes : 0) +
-    (typeof fees === "number" ? fees : 0);
-  const total = typeof subtotal === "number" ? subtotal : null;
+    const accommodationFromQuote =
+      quoteMoney?.fareAccommodation ??
+      null;
+    const cleaningFromQuote =
+      quoteMoney?.fareCleaning ??
+      null;
+    const taxesFromQuote =
+      quoteMoney?.totalTaxes ??
+      null;
 
-  if (!Number.isFinite(quoteNightly)) return null;
-  return {
-    nightly: quoteNightly,
-    currency: quoteCurrency,
-    nights: quotedNights || nights || 0,
-    ratePlans,
-    breakdown: {
-      accommodation,
-      cleaning,
-      taxes,
-      fees,
-      subtotal,
+    const accommodation =
+      accommodationFromQuote ??
+      breakdown?.accommodation ??
+      (typeof daySum === "number" ? daySum : undefined) ??
+      (Number.isFinite(quoteNightly) && quotedNights ? quoteNightly * quotedNights : undefined);
+    const cleaning =
+      cleaningFromQuote ??
+      breakdown?.cleaning ??
+      (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0);
+    const taxes =
+      taxesFromQuote ??
+      breakdown?.taxes ??
+      0;
+    const fees = breakdown?.fees ?? 0;
+    const subtotal =
+      (typeof accommodation === "number" ? accommodation : 0) +
+      (typeof cleaning === "number" ? cleaning : 0) +
+      (typeof taxes === "number" ? taxes : 0) +
+      (typeof fees === "number" ? fees : 0);
+    const total = typeof subtotal === "number" ? subtotal : null;
+
+    if (!Number.isFinite(quoteNightly)) return null;
+    return {
+      id: planId,
+      label,
+      isNonRefundable,
+      nightly: quoteNightly,
+      currency: quoteCurrency,
+      nights: quotedNights || nights || 0,
+      breakdown: {
+        accommodation,
+        cleaning,
+        taxes,
+        fees,
+        subtotal,
+        total,
+      },
       total,
-    },
+    };
+  };
+
+  const plans = plansRaw.map(buildPlanPricing).filter(Boolean);
+  if (!plans.length) return null;
+  const standardPlan =
+    plans.find((plan) => /standard/i.test(plan.label)) ||
+    plans.find((plan) => !plan.isNonRefundable) ||
+    null;
+  return {
+    plans,
+    defaultPlanId: (standardPlan || plans[0]).id,
   };
 };
 
@@ -456,6 +475,7 @@ function LosAngelesLandingPage() {
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const [sectionQuotes, setSectionQuotes] = useState({});
+  const [selectedRatePlans, setSelectedRatePlans] = useState({});
   const [autoCheckOnOpen, setAutoCheckOnOpen] = useState(false);
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const autoScrollRef = useRef(null);
@@ -733,6 +753,10 @@ function LosAngelesLandingPage() {
 
     if (hasBounds) {
       map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
+      const westlake = new maps.LatLng(PROPERTY_COORDS.lat, PROPERTY_COORDS.lng);
+      if (bounds.contains(westlake)) {
+        map.panTo(westlake);
+      }
     }
   };
 
@@ -770,6 +794,28 @@ function LosAngelesLandingPage() {
   }, [groupedListings]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
+  useEffect(() => {
+    if (!sectionQuotes) return;
+    setSelectedRatePlans((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(sectionQuotes).forEach(([listingId, quote]) => {
+        const plans = quote?.plans || [];
+        if (!plans.length) return;
+        const defaultId = quote.defaultPlanId || plans[0].id;
+        if (!next[listingId]) {
+          next[listingId] = defaultId;
+          changed = true;
+          return;
+        }
+        if (!plans.some((plan) => plan.id === next[listingId])) {
+          next[listingId] = defaultId;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [sectionQuotes]);
 
   const fetchAvailabilityListings = async () => {
     if (!activeSection) return;
@@ -951,110 +997,88 @@ function LosAngelesLandingPage() {
       </header>
 
       <main className="antwerp-main">
-        <section className="antwerp-section" aria-label="Map of nearby landmarks and transport">
-          <div className="antwerp-section__head">
-            <div>
-              <p className="antwerp-kicker">Neighborhood map</p>
-              <h2>Walkable highlights in Los Angeles</h2>
-              <p className="antwerp-muted">
-                See nearby landmarks and public transport around Hollywood Blvd.
-              </p>
-            </div>
-          </div>
-          <div
-            ref={mapRef}
-            aria-label="Google map showing Hollywood Blvd with nearby landmarks and public transport"
-            style={{
-              width: "100%",
-              height: "420px",
-              borderRadius: "20px",
-              border: "1px solid rgba(201, 181, 156, 0.6)",
-              overflow: "hidden",
-              background: "rgba(249, 248, 246, 0.8)",
-            }}
-          />
-        </section>
-
         <section className="antwerp-section" id="los-angeles-units">
-          <div className="antwerp-section__head">
-            <div>
-              <p className="antwerp-kicker">Available now</p>
-              <h2>Los Angeles buildings</h2>
-              <p className="antwerp-muted">
-                Every card below is derived from the live Guesty listing response, including pricing, capacity, and
-                amenities metadata.
-              </p>
-            </div>
-            <div className="antwerp-chip-row">
-              <span>{stats.propertyCount} property types</span>
-              <span>{stats.units || "--"} listings</span>
-              <span>Currency: {stats.currency}</span>
-            </div>
-          </div>
-
-          {loading && (
-            <div className="antwerp-loading">
-              <div className="antwerp-skeleton" />
-              <div className="antwerp-skeleton" />
-            </div>
-          )}
-
-          {error && (
-            <div role="alert" className="antwerp-error">
-              {error}
-            </div>
-          )}
-
-          {!loading && !error && losAngelesListings.length === 0 && (
-            <div className="antwerp-empty">
-              No Los Angeles listings are available in the current response.
-            </div>
-          )}
-
-          {groupedListings.map((group) => {
-            const story = SECTION_STORIES[group.key] || SECTION_STORIES.other;
-            const storyImages = group.listings
-              .map((listing) => getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]))
-              .filter(Boolean)
-              .slice(0, 2);
-            const groupStats = getGroupStats(group.listings);
-            return (
-              <section key={group.key} className="antwerp-building">
-                <div className="antwerp-building__head">
-                  <div>
-                    <p className="antwerp-kicker">{group.label}</p>
-                    <h3>{group.label}</h3>
-                  </div>
-                  <div className="antwerp-building__stats">
-                    <span>{group.listings.length} units</span>
-                    <span>
-                      Sleeps {groupStats.sleepsRange}
-                    </span>
-                    <span>
-                      From {groupStats.baseRange} {groupStats.currency}
-                    </span>
-                    <span>
-                      Bedrooms {groupStats.bedroomRange}
-                    </span>
-                  </div>
+          <div className="la-units-layout">
+            <div className="la-units-main">
+              <div className="antwerp-section__head">
+                <div>
+                  <p className="antwerp-kicker">Available now</p>
+                  <h2>Los Angeles buildings</h2>
+                  <p className="antwerp-muted">
+                    Every card below is derived from the live Guesty listing response, including pricing, capacity, and
+                    amenities metadata.
+                  </p>
                 </div>
-                <div className="la-story">
-                  <div className="la-story__media" aria-hidden="true">
-                    {storyImages.length ? (
-                      storyImages.map((src, idx) => (
-                        <div
-                          key={`${group.key}-story-${idx}`}
-                          className="la-story__image"
-                          style={{ backgroundImage: `url(${src})` }}
-                        />
-                      ))
-                    ) : (
-                      <div className="la-story__image la-story__image--empty">Image loading</div>
-                    )}
-                  </div>
-                  <div className="la-story__content">
-                    <p className="la-story__tag">{story.title}</p>
-                    <h4>{story.tagline}</h4>
+                <div className="antwerp-chip-row">
+                  <span>{stats.propertyCount} property types</span>
+                  <span>{stats.units || "--"} listings</span>
+                  <span>Currency: {stats.currency}</span>
+                </div>
+              </div>
+
+              {loading && (
+                <div className="antwerp-loading">
+                  <div className="antwerp-skeleton" />
+                  <div className="antwerp-skeleton" />
+                </div>
+              )}
+
+              {error && (
+                <div role="alert" className="antwerp-error">
+                  {error}
+                </div>
+              )}
+
+              {!loading && !error && losAngelesListings.length === 0 && (
+                <div className="antwerp-empty">
+                  No Los Angeles listings are available in the current response.
+                </div>
+              )}
+
+              {groupedListings.map((group) => {
+                const story = SECTION_STORIES[group.key] || SECTION_STORIES.other;
+                const storyImages = group.listings
+                  .map((listing) => getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]))
+                  .filter(Boolean)
+                  .slice(0, 2);
+                const groupStats = getGroupStats(group.listings);
+                return (
+                  <section key={group.key} className="antwerp-building">
+                    <div className="antwerp-building__head">
+                      <div>
+                        <p className="antwerp-kicker">{group.label}</p>
+                        <h3>{group.label}</h3>
+                      </div>
+                      <div className="antwerp-building__stats">
+                        <span>{group.listings.length} units</span>
+                        <span>
+                          Sleeps {groupStats.sleepsRange}
+                        </span>
+                        <span>
+                          From {groupStats.baseRange} {groupStats.currency}
+                        </span>
+                        <span>
+                          Bedrooms {groupStats.bedroomRange}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="la-story">
+                      <div className="la-story__media" aria-hidden="true">
+                        {storyImages.length ? (
+                          storyImages.map((src, idx) => (
+                            <div
+                              key={`${group.key}-story-${idx}`}
+                              className="la-story__image"
+                              style={{ backgroundImage: `url(${src})` }}
+                            />
+                          ))
+                        ) : (
+                          <div className="la-story__image la-story__image--empty">Image loading</div>
+                        )}
+                      </div>
+                      <div className="la-story__content">
+                        <p className="la-story__tag">{story.title}</p>
+                        <h4>{story.tagline}</h4>
                     <p className="la-story__copy">{story.copy}</p>
                     <div className="la-story__row" aria-label="Landmarks and transit near this area">
                       <div className="la-story__track">
@@ -1080,11 +1104,34 @@ function LosAngelesLandingPage() {
                     >
                       View units in {group.label}
                     </button>
-                  </div>
-                </div>
-              </section>
-            );
-          })}
+                      </div>
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+            <aside className="la-units-aside">
+              <div className="la-units-map-card">
+                <p className="antwerp-kicker">Neighborhood map</p>
+                <h3>Walkable highlights</h3>
+                <p className="antwerp-muted">
+                  See nearby landmarks and public transport around Hollywood Blvd.
+                </p>
+                <div
+                  ref={mapRef}
+                  aria-label="Google map showing Hollywood Blvd with nearby landmarks and public transport"
+                  className="la-units-map"
+                  style={{
+                    width: "100%",
+                    borderRadius: "20px",
+                    border: "1px solid rgba(201, 181, 156, 0.6)",
+                    overflow: "hidden",
+                    background: "rgba(249, 248, 246, 0.8)",
+                  }}
+                />
+              </div>
+            </aside>
+          </div>
         </section>
       </main>
 
@@ -1303,20 +1350,71 @@ function LosAngelesLandingPage() {
                 </>
               );
             })()}
-            <div className="la-booking-table" role="table" aria-label="Available units">
-              {(sectionAvailabilityActive ? sectionAvailability : activeSection.listings).length === 0 ? (
+            <div
+              className={`la-booking-table${sectionAvailabilityLoading ? " is-loading" : ""}`}
+              role="table"
+              aria-label="Available units"
+              aria-busy={sectionAvailabilityLoading ? "true" : "false"}
+            >
+              {sectionAvailabilityLoading && (
+                <div className="la-booking-table__progress" role="status" aria-live="polite">
+                  <div className="la-booking-table__progress-bar" />
+                </div>
+              )}
+              <div className="la-booking-table__head" role="row">
+                <div role="columnheader">Room type</div>
+                <div role="columnheader">Guests</div>
+                <div role="columnheader">Today&apos;s price</div>
+                <div role="columnheader">Your choices</div>
+                <div role="columnheader">Virtual tour</div>
+              </div>
+              {sectionAvailabilityLoading ? (
+                <>
+                  {[0, 1, 2].map((idx) => (
+                    <div key={`la-skeleton-${idx}`} className="la-booking-table__row la-booking-table__row--skeleton">
+                      <div className="la-booking-table__cell">
+                        <div className="la-booking-table__title">
+                          <div className="la-skeleton-block la-skeleton-image" />
+                          <div className="la-skeleton-stack">
+                            <div className="la-skeleton-block la-skeleton-line sm" />
+                            <div className="la-skeleton-block la-skeleton-line lg" />
+                            <div className="la-skeleton-block la-skeleton-line md" />
+                            <div className="la-skeleton-block la-skeleton-line md" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="la-booking-table__cell">
+                        <div className="la-skeleton-stack">
+                          <div className="la-skeleton-block la-skeleton-line sm" />
+                          <div className="la-skeleton-block la-skeleton-line sm" />
+                          <div className="la-skeleton-block la-skeleton-line sm" />
+                        </div>
+                      </div>
+                      <div className="la-booking-table__cell">
+                        <div className="la-skeleton-stack">
+                          <div className="la-skeleton-block la-skeleton-line lg" />
+                          <div className="la-skeleton-block la-skeleton-line md" />
+                          <div className="la-skeleton-block la-skeleton-line sm" />
+                        </div>
+                      </div>
+                      <div className="la-booking-table__cell">
+                        <div className="la-skeleton-stack">
+                          <div className="la-skeleton-block la-skeleton-select" />
+                          <div className="la-skeleton-block la-skeleton-line sm" />
+                        </div>
+                      </div>
+                      <div className="la-booking-table__cell">
+                        <div className="la-skeleton-block la-skeleton-button" />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (sectionAvailabilityActive ? sectionAvailability : activeSection.listings).length === 0 ? (
                 <div className="la-section-hero__notice">
                   No units are available for the selected dates. Try a different range.
                 </div>
               ) : (
                 <>
-                  <div className="la-booking-table__head" role="row">
-                    <div role="columnheader">Room type</div>
-                    <div role="columnheader">Guests</div>
-                    <div role="columnheader">Today&apos;s price</div>
-                    <div role="columnheader">Your choices</div>
-                    <div role="columnheader">Virtual tour</div>
-                  </div>
                   {(sectionAvailabilityActive ? sectionAvailability : activeSection.listings).map((listing) => {
                     const listingId = listing.id || listing._id;
                     const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
@@ -1324,9 +1422,18 @@ function LosAngelesLandingPage() {
                     const fullDescription = formatFullDescription(listing);
                     const shortDescription = getFirstSentence(fullDescription);
                     const quote = listingId ? sectionQuotes[listingId] : null;
-                    const baseNightly = quote?.nightly ?? listing.basePrice;
-                    const priceCurrency = quote?.currency ?? listingCurrency;
-                    const breakdown = quote?.breakdown;
+                    const planOptions = quote?.plans || [];
+                    const selectedPlanId =
+                      selectedRatePlans[listingId] ||
+                      quote?.defaultPlanId ||
+                      planOptions[0]?.id ||
+                      "";
+                    const selectedPlan =
+                      planOptions.find((plan) => plan.id === selectedPlanId) || planOptions[0];
+                    const baseNightly = selectedPlan?.nightly ?? listing.basePrice;
+                    const priceCurrency = selectedPlan?.currency ?? listingCurrency;
+                    const breakdown = selectedPlan?.breakdown;
+                    const isLoadingRates = sectionAvailabilityLoading;
                     const fallbackTotal =
                       typeof baseNightly === "number" && quote?.nights
                         ? baseNightly * quote.nights +
@@ -1335,6 +1442,7 @@ function LosAngelesLandingPage() {
                     const total =
                       breakdown?.total ??
                       breakdown?.subtotal ??
+                      selectedPlan?.total ??
                       fallbackTotal ??
                       null;
                     const priceValue =
@@ -1345,15 +1453,6 @@ function LosAngelesLandingPage() {
                           : baseNightly;
                     const breakdownId = `la-quote-${listingId}`;
                     const isExpanded = Boolean(expandedQuoteRows[listingId]);
-                    const rateChoices = (() => {
-                      const plans = quote?.ratePlans || [];
-                      const labels = plans.map((plan) => plan.label).filter(Boolean);
-                      const hasNonRefundable = plans.some((plan) => plan.isNonRefundable);
-                      const hasStandard = plans.some((plan) => !plan.isNonRefundable);
-                      if (hasNonRefundable && !hasStandard) labels.push("Standard rate");
-                      if (!labels.length) labels.push("Standard rate");
-                      return labels;
-                    })();
                     return (
                       <article key={listingId} className="la-booking-table__row" role="row">
                         <div className="la-booking-table__cell" role="cell">
@@ -1384,15 +1483,25 @@ function LosAngelesLandingPage() {
                         </div>
                         <div className="la-booking-table__cell" role="cell">
                           <div className="la-booking-table__price">
-                            <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
-                            <span>
-                              Total (cleaning + tax included)
-                            </span>
+                            {isLoadingRates ? (
+                              <>
+                                <strong>Checking rates...</strong>
+                                <span>Updating totals</span>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
+                                <span>
+                                  Total (cleaning + tax included)
+                                </span>
+                              </>
+                            )}
                             <button
                               type="button"
                               className="la-booking-table__breakdown-toggle"
                               aria-expanded={isExpanded}
                               aria-controls={breakdownId}
+                              disabled={isLoadingRates}
                               onClick={() =>
                                 setExpandedQuoteRows((prev) => ({
                                   ...prev,
@@ -1400,7 +1509,11 @@ function LosAngelesLandingPage() {
                                 }))
                               }
                             >
-                              {isExpanded ? "Hide price breakdown" : "View price breakdown"}
+                              {isLoadingRates
+                                ? "Price breakdown loading..."
+                                : isExpanded
+                                  ? "Hide price breakdown"
+                                  : "View price breakdown"}
                             </button>
                             {isExpanded && (
                               <div className="la-booking-table__breakdown" role="region" id={breakdownId}>
@@ -1436,14 +1549,40 @@ function LosAngelesLandingPage() {
                         </div>
                         <div className="la-booking-table__cell" role="cell">
                           <ul className="la-booking-table__choices">
-                            {rateChoices.map((choice, idx) => (
-                              <li key={`${listingId}-rate-${idx}`}>{choice}</li>
-                            ))}
+                            {planOptions.length > 0 ? (
+                              <li>
+                                <label htmlFor={`rate-plan-${listingId}`} className="sr-only">
+                                  Select rate plan
+                                </label>
+                                <select
+                                  id={`rate-plan-${listingId}`}
+                                  value={selectedPlanId}
+                                  disabled={isLoadingRates}
+                                  onChange={(e) =>
+                                    setSelectedRatePlans((prev) => ({
+                                      ...prev,
+                                      [listingId]: e.target.value,
+                                    }))
+                                  }
+                                  className="la-booking-table__rate-select"
+                                >
+                                  {planOptions.map((plan) => (
+                                    <option key={plan.id} value={plan.id}>
+                                      {plan.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </li>
+                            ) : null}
                             <li>Policies shown at checkout</li>
                           </ul>
                         </div>
                         <div className="la-booking-table__cell" role="cell">
-                          <button type="button" className="la-booking-table__cta">
+                          <button
+                            type="button"
+                            className="la-booking-table__cta"
+                            disabled={isLoadingRates}
+                          >
                             Virtual tour
                           </button>
                         </div>
@@ -1705,5 +1844,3 @@ function LosAngelesLandingPage() {
 }
 
 export default LosAngelesLandingPage;
-
-
