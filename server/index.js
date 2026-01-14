@@ -728,6 +728,10 @@ app.get("/api/listings/:id/availability", async (req, res) => {
                 : null);
 
         if (!json) {
+            const noResults = errors.some((e) => e.body === "No results");
+            if (noResults) {
+                return res.json({ isAvailable: false, availability: [], raw: null, errors });
+            }
             try {
                 const quote = await createQuote({
                     unitTypeId: unitTypeId || id,

@@ -842,6 +842,14 @@ app.get("/api/listings/:id/availability", async (req, res) => {
 
             if (!json) {
                 const rateLimited = errors.some((e) => e.status === 429);
+                const noResults = errors.some((e) => e.body === "No results");
+                if (noResults) {
+                    const payload = { isAvailable: false, availability: [], raw: null, errors };
+                    if (rateLimited) {
+                        return { status: 429, payload: { message: "Rate limited by Guesty", ...payload } };
+                    }
+                    return { status: 200, payload };
+                }
                 try {
                     const quote = await createQuote({
                         unitTypeId: unitTypeId || id,
