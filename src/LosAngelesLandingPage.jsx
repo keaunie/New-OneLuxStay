@@ -92,9 +92,17 @@ const getQuotePricing = (quoteData, listing, nights) => {
     const quoteCurrency =
       quoteMoney?.currency || quoteDays[0]?.currency || listing.currency || "USD";
     const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
+    const manualDaySum = Array.isArray(quoteDays)
+      ? quoteDays.reduce(
+        (sum, d) => sum + (typeof d?.manualPrice === "number" ? d.manualPrice : 0),
+        0
+      )
+      : null;
+    const hasManualSum =
+      Array.isArray(quoteDays) && quoteDays.some((d) => typeof d?.manualPrice === "number");
     const daySum = Array.isArray(quoteDays)
       ? quoteDays.reduce((sum, d) => {
-        const price = d?.price ?? d?.manualPrice ?? d?.basePrice;
+        const price = d?.manualPrice ?? d?.price ?? d?.basePrice;
         return sum + (typeof price === "number" ? price : 0);
       }, 0)
       : null;
@@ -115,7 +123,7 @@ const getQuotePricing = (quoteData, listing, nights) => {
     const quoteNightly =
       (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
       (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
-      (quoteDays[0]?.price ?? quoteDays[0]?.manualPrice ?? quoteDays[0]?.basePrice);
+      (quoteDays[0]?.manualPrice ?? quoteDays[0]?.price ?? quoteDays[0]?.basePrice);
 
     const breakdown = (() => {
       const items = quoteMoney?.invoiceItems;
@@ -143,11 +151,20 @@ const getQuotePricing = (quoteData, listing, nights) => {
       quoteMoney?.totalTaxes ??
       null;
 
-    const accommodation =
-      accommodationFromQuote ??
+    const accommodationBase =
       breakdown?.accommodation ??
+      accommodationFromQuote ??
       (typeof daySum === "number" ? daySum : undefined) ??
       (Number.isFinite(quoteNightly) && quotedNights ? quoteNightly * quotedNights : undefined);
+    const discountRate = isNonRefundable ? 0.15 : 0.1;
+    const discountAmount =
+      typeof accommodationBase === "number"
+        ? accommodationBase * discountRate
+        : 0;
+    const accommodation =
+      typeof accommodationBase === "number"
+        ? accommodationBase - discountAmount
+        : accommodationBase;
     const cleaning =
       cleaningFromQuote ??
       breakdown?.cleaning ??
@@ -174,6 +191,8 @@ const getQuotePricing = (quoteData, listing, nights) => {
       nights: quotedNights || nights || 0,
       breakdown: {
         accommodation,
+        discountAmount,
+        discountRate,
         cleaning,
         taxes,
         fees,
@@ -439,6 +458,65 @@ const getGroupStats = (listings) => {
   };
 };
 
+const LA_ITINERARY = [
+  {
+    title: "Day 1 - Downtown and Arts District",
+    stops: [
+      "Breakfast at Grand Central Market",
+      "Walk The Broad and MOCA",
+      "Sunset views at Griffith Observatory",
+    ],
+  },
+  {
+    title: "Day 2 - Hollywood and West Hollywood",
+    stops: [
+      "Hollywood Walk of Fame and TCL Chinese Theatre",
+      "Lunch on Melrose or Sunset Strip",
+      "Golden hour at Runyon Canyon",
+    ],
+  },
+  {
+    title: "Day 3 - Beach and Marina",
+    stops: [
+      "Morning in Santa Monica",
+      "Bike the Strand to Venice",
+      "Dinner at Marina del Rey",
+    ],
+  },
+  {
+    title: "Day 4 - Pasadena and the Hills",
+    stops: [
+      "Old Town Pasadena stroll",
+      "Hike Eaton Canyon Falls",
+      "Dinner in Highland Park",
+    ],
+  },
+  {
+    title: "Day 5 - Culver City and Beverly Hills",
+    stops: [
+      "Coffee in Culver City",
+      "Rodeo Drive walk",
+      "Sunset at Baldwin Hills Scenic Overlook",
+    ],
+  },
+  {
+    title: "Day 6 - Malibu",
+    stops: [
+      "Point Dume morning",
+      "Lunch at Malibu Pier",
+      "Sunset at El Matador Beach",
+    ],
+  },
+  {
+    title: "Day 7 - Day trip",
+    stops: [
+      "Laguna Beach or Long Beach",
+      "Local markets and galleries",
+      "Return for rooftop dinner",
+    ],
+  },
+];
+
 
 const getFirstSentence = (text) => {
   if (!text) return "";
@@ -478,6 +556,8 @@ function LosAngelesLandingPage() {
   const [selectedRatePlans, setSelectedRatePlans] = useState({});
   const [autoCheckOnOpen, setAutoCheckOnOpen] = useState(false);
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
+  const [buildingPrices, setBuildingPrices] = useState({});
+  const [itineraryDays, setItineraryDays] = useState("3");
   const autoScrollRef = useRef(null);
   const thumbsRef = useRef(null);
   const sectionThumbsRef = useRef(null);
@@ -487,6 +567,7 @@ function LosAngelesLandingPage() {
   const listingMarkersRef = useRef([]);
   const listingInfoRef = useRef(null);
   const mapLoadedRef = useRef(false);
+  const losAngelesListingsRef = useRef([]);
 
   const activeAmenityList = useMemo(() => {
     if (!activeListing) return [];
@@ -669,8 +750,8 @@ function LosAngelesLandingPage() {
               );
             });
 
-            if (losAngelesListings.length) {
-              syncListingMarkers();
+            if (losAngelesListingsRef.current.length) {
+              syncListingMarkers(losAngelesListingsRef.current);
             }
           })
           .catch((err) => {
@@ -690,7 +771,7 @@ function LosAngelesLandingPage() {
     });
   }, [listings]);
 
-  const syncListingMarkers = () => {
+  const syncListingMarkers = (listingsToUse = losAngelesListingsRef.current) => {
     const maps = mapsApiRef.current;
     const map = mapInstanceRef.current;
     if (!maps || !map) return;
@@ -720,7 +801,7 @@ function LosAngelesLandingPage() {
 
     const bounds = new maps.LatLngBounds();
     let hasBounds = false;
-    losAngelesListings.forEach((listing) => {
+    listingsToUse.forEach((listing) => {
       const coords = getListingCoords(listing);
       if (!coords) return;
       const title = listing.title || listing.nickname || "OneLuxStay";
@@ -761,7 +842,8 @@ function LosAngelesLandingPage() {
   };
 
   useEffect(() => {
-    syncListingMarkers();
+    losAngelesListingsRef.current = losAngelesListings;
+    syncListingMarkers(losAngelesListings);
   }, [losAngelesListings]);
 
   const groupedListings = useMemo(() => {
@@ -794,6 +876,105 @@ function LosAngelesLandingPage() {
   }, [groupedListings]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
+
+  useEffect(() => {
+    if (!groupedListings.length) return;
+    let active = true;
+    const load = async () => {
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+      const checkIn = formatDateLocal(today);
+      const checkOut = formatDateLocal(tomorrow);
+      const nights = diffNights(checkIn, checkOut);
+      const results = {};
+      const getManualTotal = (quoteData) => {
+        const plans = Array.isArray(quoteData?.rates?.ratePlans)
+          ? quoteData.rates.ratePlans
+          : [];
+        let minTotal = null;
+        plans.forEach((plan) => {
+          const money = plan?.money?.money || plan?.money || quoteData?.money?.money || quoteData?.money || {};
+          const invoiceItems = Array.isArray(money?.invoiceItems) ? money.invoiceItems : [];
+          const invoiceTotal = invoiceItems.reduce(
+            (acc, item) => acc + (typeof item?.amount === "number" ? item.amount : 0),
+            0
+          );
+          const label = plan?.ratePlan?.name || plan?.ratePlan?.title || plan?.ratePlan?.description || "";
+          const isNonRefundable =
+            /non[- ]?refundable/i.test(label) ||
+            Boolean(plan?.ratePlan?.cancellationPolicy?.isNonRefundable);
+          const discountRate = isNonRefundable ? 0.15 : 0.1;
+          const accommodationItem = invoiceItems.find((item) => {
+            const type = (item?.normalType || item?.type || "").toUpperCase();
+            return type === "AF" || type === "ACCOMMODATION_FARE";
+          });
+          const accommodationAmount =
+            typeof accommodationItem?.amount === "number"
+              ? accommodationItem.amount
+              : typeof money?.fareAccommodation === "number"
+                ? money.fareAccommodation
+                : 0;
+          const cleaningAmount =
+            typeof money?.fareCleaning === "number" ? money.fareCleaning : 0;
+          const taxAmount =
+            typeof money?.totalTaxes === "number" ? money.totalTaxes : 0;
+          const discountedAccommodation =
+            accommodationAmount > 0 ? accommodationAmount * (1 - discountRate) : accommodationAmount;
+          const total = discountedAccommodation + cleaningAmount + taxAmount;
+          if (minTotal === null || total < minTotal) {
+            minTotal = total;
+          }
+        });
+        return { total: minTotal };
+      };
+
+      for (const group of groupedListings) {
+        let minTotal = null;
+        let currency = "USD";
+        for (const listing of group.listings) {
+          const listingId = listing.unitTypeId || listing.id || listing._id;
+          if (!listingId) continue;
+          try {
+            const res = await fetch(`${apiBase}/api/reservations/quotes`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                listingId,
+                checkInDateLocalized: checkIn,
+                checkOutDateLocalized: checkOut,
+                guestsCount: "1",
+              }),
+            });
+            if (!res.ok) continue;
+            const quoteJson = await res.json();
+            const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
+            const pricing = getQuotePricing(quoteData, listing, nights);
+            const manualTotals = getManualTotal(quoteData);
+            const total =
+              (typeof manualTotals?.total === "number" && manualTotals.total > 0
+                ? manualTotals.total
+                : pricing?.breakdown?.total ?? pricing?.breakdown?.subtotal) ?? null;
+            if (typeof total === "number" && (minTotal === null || total < minTotal)) {
+              minTotal = total;
+              currency = pricing?.currency || listing.currency || "USD";
+            }
+          } catch {
+            // ignore quote failures
+          }
+        }
+        if (minTotal !== null) {
+          results[group.key] = { total: minTotal, currency };
+        }
+      }
+
+      if (active) setBuildingPrices(results);
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [groupedListings]);
   useEffect(() => {
     if (!sectionQuotes) return;
     setSelectedRatePlans((prev) => {
@@ -929,6 +1110,11 @@ function LosAngelesLandingPage() {
     };
   }, [losAngelesListings]);
 
+  const itinerary = useMemo(() => {
+    const days = Math.min(Number(itineraryDays) || 3, LA_ITINERARY.length);
+    return LA_ITINERARY.slice(0, days);
+  }, [itineraryDays]);
+
   return (
     <div className="antwerp-page">
       <header className="antwerp-hero">
@@ -997,6 +1183,45 @@ function LosAngelesLandingPage() {
       </header>
 
       <main className="antwerp-main">
+        <section className="la-itinerary" aria-label="Los Angeles itinerary">
+          <div className="la-itinerary__head">
+            <div>
+              <p className="antwerp-kicker">Itinerary</p>
+              <h2>Plan your Los Angeles stay</h2>
+              <p className="antwerp-muted">
+                Choose how many days you want to explore, and we will map out a paced itinerary.
+              </p>
+            </div>
+            <div className="la-itinerary__control">
+              <label htmlFor="la-itinerary-days">Trip length</label>
+              <select
+                id="la-itinerary-days"
+                value={itineraryDays}
+                onChange={(event) => setItineraryDays(event.target.value)}
+              >
+                <option value="2">2 days</option>
+                <option value="3">3 days</option>
+                <option value="4">4 days</option>
+                <option value="5">5 days</option>
+                <option value="7">7 days</option>
+              </select>
+            </div>
+          </div>
+          <div className="la-itinerary__grid">
+            {itinerary.map((day, index) => (
+              <article key={day.title} className="la-itinerary__card">
+                <span className="la-itinerary__day">Day {index + 1}</span>
+                <h3>{day.title}</h3>
+                <ul>
+                  {day.stops.map((stop) => (
+                    <li key={`${day.title}-${stop}`}>{stop}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="antwerp-section" id="los-angeles-units">
           <div className="la-units-layout">
             <div className="la-units-main">
@@ -1042,6 +1267,10 @@ function LosAngelesLandingPage() {
                   .filter(Boolean)
                   .slice(0, 2);
                 const groupStats = getGroupStats(group.listings);
+                const buildingPrice = buildingPrices[group.key];
+                const latestPrice = buildingPrice
+                  ? formatCurrency(buildingPrice.total, buildingPrice.currency)
+                  : null;
                 return (
                   <section key={group.key} className="antwerp-building">
                     <div className="antwerp-building__head">
@@ -1055,7 +1284,9 @@ function LosAngelesLandingPage() {
                           Sleeps {groupStats.sleepsRange}
                         </span>
                         <span>
-                          From {groupStats.baseRange} {groupStats.currency}
+                          {latestPrice
+                            ? `From ${latestPrice}`
+                            : `From ${groupStats.baseRange} ${groupStats.currency}`}
                         </span>
                         <span>
                           Bedrooms {groupStats.bedroomRange}
@@ -1076,11 +1307,11 @@ function LosAngelesLandingPage() {
                           <div className="la-story__image la-story__image--empty">Image loading</div>
                         )}
                       </div>
-                      <div className="la-story__content">
-                        <p className="la-story__tag">{story.title}</p>
-                        <h4>{story.tagline}</h4>
-                    <p className="la-story__copy">{story.copy}</p>
-                    <div className="la-story__row" aria-label="Landmarks and transit near this area">
+                    <div className="la-story__content">
+                      <p className="la-story__tag">{story.title}</p>
+                      <h4>{story.tagline}</h4>
+                      <p className="la-story__copy">{story.copy}</p>
+                      <div className="la-story__row" aria-label="Landmarks and transit near this area">
                       <div className="la-story__track">
                         {[...story.landmarks, ...story.transit].map((item, idx) => (
                           <span key={`${group.key}-story-${idx}`} className="la-story__pill">
@@ -1104,6 +1335,11 @@ function LosAngelesLandingPage() {
                     >
                       View units in {group.label}
                     </button>
+                    <p className="la-story__price" aria-live="polite">
+                      {latestPrice
+                        ? `From ${latestPrice} total (manual + cleaning + tax)`
+                        : "Pricing updates when quotes load."}
+                    </p>
                       </div>
                     </div>
                   </section>
@@ -1467,6 +1703,18 @@ function LosAngelesLandingPage() {
                                 {listing.propertyType || listing.roomType || "Residence"}
                               </p>
                               <h4>{sanitizeText(listing.title)}</h4>
+                              <p className="la-booking-table__room-meta">
+                                <span className="la-booking-table__meta-icon" aria-hidden="true">
+                                  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                    <path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z" />
+                                  </svg>
+                                </span>
+                                <span>
+                                  {typeof listing.beds === "number" || typeof listing.bedrooms === "number"
+                                    ? `Beds ${listing.beds ?? listing.bedrooms}`
+                                    : "Beds --"}
+                                </span>
+                              </p>
                               <p className="la-booking-table__address">{formatAddress(listing)}</p>
                               <p className="la-booking-table__summary">
                                 {shortDescription || "Signature OneLuxStay residence in Los Angeles."}
@@ -1475,10 +1723,15 @@ function LosAngelesLandingPage() {
                           </div>
                         </div>
                         <div className="la-booking-table__cell" role="cell">
-                          <div className="la-booking-table__guests">
-                            <span>Sleeps {listing.accommodates || "--"}</span>
-                            <span>{listing.bedrooms || "--"} BR</span>
-                            <span>{listing.bathrooms || "--"} BA</span>
+                          <div className="la-booking-table__guests" aria-label={`Sleeps ${listing.accommodates || "--"}`}>
+                            <div className="la-booking-table__guest-icons" aria-hidden="true">
+                              {Array.from({ length: Math.min(Number(listing.accommodates) || 1, 5) }).map((_, idx) => (
+                                <svg key={`${listingId}-guest-${idx}`} viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                  <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z" />
+                                </svg>
+                              ))}
+                            </div>
+                            <span className="sr-only">Sleeps {listing.accommodates || "--"}</span>
                           </div>
                         </div>
                         <div className="la-booking-table__cell" role="cell">
@@ -1523,6 +1776,16 @@ function LosAngelesLandingPage() {
                                       <span>Accommodation</span>
                                       <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
                                     </div>
+                                    {breakdown.discountAmount > 0 && (
+                                      <div>
+                                        <span>
+                                          Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                                        </span>
+                                        <strong>
+                                          -{formatCurrency(breakdown.discountAmount, priceCurrency)}
+                                        </strong>
+                                      </div>
+                                    )}
                                     <div>
                                       <span>Cleaning</span>
                                       <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
