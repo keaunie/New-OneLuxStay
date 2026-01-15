@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import "./App.css";
 
@@ -371,7 +371,7 @@ const SECTION_STORIES = {
     title: "Downtown Los Angeles",
     tagline: "Skyline energy, rooftop heat, and a city pulse that keeps moving.",
     copy:
-      "Wake to glassy towers, drift through art-lined streets, then land at Union Station just as the lights flicker on. Everything feels close, fast, and possible—perfect for guests who want the city within arm’s reach.",
+      "Wake to glassy towers, drift through art-lined streets, then land at Union Station just as the lights flicker on. Everything feels close, fast, and possible - perfect for guests who want the city within arm's reach.",
     landmarks: ["Grand Central Market", "The Broad", "Walt Disney Concert Hall", "Union Station", "Little Tokyo"],
     transit: ["Metro A & E Lines", "Union Station", "Bus corridors on Broadway"],
   },
@@ -379,7 +379,7 @@ const SECTION_STORIES = {
     title: "Hollywood",
     tagline: "Neon nights, canyon mornings, and a view that never gets old.",
     copy:
-      "From the hills to the boulevard, Hollywood keeps the story rolling. Catch the sign at sunrise, sip on Sunset, and glide to Griffith in minutes. It’s a destination that feels cinematic the moment you arrive.",
+      "From the hills to the boulevard, Hollywood keeps the story rolling. Catch the sign at sunrise, sip on Sunset, and glide to Griffith in minutes. It's a destination that feels cinematic the moment you arrive.",
     landmarks: ["Hollywood Sign", "Walk of Fame", "Griffith Observatory", "Hollywood Bowl", "Sunset Strip"],
     transit: ["Metro B Line (Red)", "Hollywood/Highland", "Hollywood/Vine"],
   },
@@ -387,7 +387,7 @@ const SECTION_STORIES = {
     title: "HWH",
     tagline: "Bold rooftops, late-night glow, and a rhythm that draws you in.",
     copy:
-      "HWH brings the energy without the rush—pool decks at dusk, design-forward streets, and a quick hop to the Strip. It’s hypnotic, magnetic, and made for guests who want the best of both sides.",
+      "HWH brings the energy without the rush - pool decks at dusk, design-forward streets, and a quick hop to the Strip. It's hypnotic, magnetic, and made for guests who want the best of both sides.",
     landmarks: ["West Hollywood Park", "Sunset Strip", "Melrose Ave", "Roxy Theatre"],
     transit: ["Rapid 2", "WeHo CityLine", "Sunset Blvd routes"],
   },
@@ -395,7 +395,7 @@ const SECTION_STORIES = {
     title: "Near Dodger Stadium",
     tagline: "Golden light, stadium nights, and a steady city hum.",
     copy:
-      "Settle into the calm just outside the core, then ride the wave into game nights and skyline views. It’s a sweet spot with breathing room—close enough to feel the buzz, far enough to recharge.",
+      "Settle into the calm just outside the core, then ride the wave into game nights and skyline views. It's a sweet spot with breathing room - close enough to feel the buzz, far enough to recharge.",
     landmarks: ["Dodger Stadium", "Elysian Park", "Chinatown", "Echo Park Lake"],
     transit: ["Dodger Stadium Express", "Metro A Line", "Stadium Way routes"],
   },
@@ -458,64 +458,153 @@ const getGroupStats = (listings) => {
   };
 };
 
-const LA_ITINERARY = [
-  {
-    title: "Day 1 - Downtown and Arts District",
-    stops: [
-      "Breakfast at Grand Central Market",
-      "Walk The Broad and MOCA",
-      "Sunset views at Griffith Observatory",
-    ],
-  },
-  {
-    title: "Day 2 - Hollywood and West Hollywood",
-    stops: [
-      "Hollywood Walk of Fame and TCL Chinese Theatre",
-      "Lunch on Melrose or Sunset Strip",
-      "Golden hour at Runyon Canyon",
-    ],
-  },
-  {
-    title: "Day 3 - Beach and Marina",
-    stops: [
-      "Morning in Santa Monica",
-      "Bike the Strand to Venice",
-      "Dinner at Marina del Rey",
-    ],
-  },
-  {
-    title: "Day 4 - Pasadena and the Hills",
-    stops: [
-      "Old Town Pasadena stroll",
-      "Hike Eaton Canyon Falls",
-      "Dinner in Highland Park",
-    ],
-  },
-  {
-    title: "Day 5 - Culver City and Beverly Hills",
-    stops: [
-      "Coffee in Culver City",
-      "Rodeo Drive walk",
-      "Sunset at Baldwin Hills Scenic Overlook",
-    ],
-  },
-  {
-    title: "Day 6 - Malibu",
-    stops: [
-      "Point Dume morning",
-      "Lunch at Malibu Pier",
-      "Sunset at El Matador Beach",
-    ],
-  },
-  {
-    title: "Day 7 - Day trip",
-    stops: [
-      "Laguna Beach or Long Beach",
-      "Local markets and galleries",
-      "Return for rooftop dinner",
-    ],
-  },
-];
+const CITY_TOUR_SLIDES = {
+  Hollywood: [
+    {
+      title: "Hollywood Arrival",
+      subtitle: "A cinematic welcome to the city of light.",
+      copy:
+        "Step into a private arrival framed by palm silhouettes and glassy skyline reflections. Your concierge lines up the first night with rooftop views and a late supper on Sunset.",
+      highlights: ["Sunset Boulevard", "Private transfers", "Skyline check-in"],
+      image:
+        "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Golden Hour in the Hills",
+      subtitle: "Runyon trails, Mulholland turns, and the glow of dusk.",
+      copy:
+        "Climb above the city for warm light, quiet air, and panoramic views. End the afternoon with a private terrace pour and the skyline turning gold.",
+      highlights: ["Runyon Canyon", "Mulholland Drive", "Hilltop terraces"],
+      image:
+        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Icons After Dark",
+      subtitle: "Marquee lights and the legendary walk.",
+      copy:
+        "Move from neon marquees to velvet lounges with a curated night plan. Classic Hollywood icons glow brighter when you arrive with a reserved table.",
+      highlights: ["Walk of Fame", "TCL Chinese Theatre", "Roosevelt Hotel"],
+      image:
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Canyon Calm",
+      subtitle: "Quiet courtyards and design-forward escapes.",
+      copy:
+        "Slip away into Laurel Canyon for a softer morning. Espresso, vintage boutiques, and a slow ride back into the energy of Hollywood.",
+      highlights: ["Laurel Canyon", "Boutique coffee", "Hidden courtyards"],
+      image:
+        "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Finale in Lights",
+      subtitle: "Private screenings and the city at your pace.",
+      copy:
+        "Close the tour with a private screening, late-night city views, and the assurance that your next stay is already curated.",
+      highlights: ["Private screening", "Skyline lounge", "Concierge on call"],
+      image:
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+    },
+  ],
+  "Los Angeles": [
+    {
+      title: "DTLA Arrival",
+      subtitle: "Modern art, skyline lines, and a downtown pulse.",
+      copy:
+        "Begin with architectural icons and a rooftop welcome. Your concierge curates a gallery walk and a reservation with a view.",
+      highlights: ["Walt Disney Concert Hall", "The Broad", "Rooftop tables"],
+      image:
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "City and Coast",
+      subtitle: "From gallery halls to Pacific light.",
+      copy:
+        "Shift from LA's creative core to the edge of the ocean. Sunset arrives over Santa Monica with the beach in easy reach.",
+      highlights: ["Santa Monica Pier", "Venice Boardwalk", "Abbot Kinney"],
+      image:
+        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Westside Luxe",
+      subtitle: "Luxury retail and design districts.",
+      copy:
+        "A day of curated shopping, design stops, and a slow lunch on the Westside before evening lights on Sunset.",
+      highlights: ["Rodeo Drive", "The Grove", "Sunset Strip"],
+      image:
+        "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Arts + Views",
+      subtitle: "Museums, gardens, and quiet overlooks.",
+      copy:
+        "Spend the afternoon at Getty and LACMA, then reset with a Griffith Park golden hour.",
+      highlights: ["Getty Center", "LACMA", "Griffith Park"],
+      image:
+        "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=2000&q=80",
+    },
+  ],
+  "Redondo Beach": [
+    {
+      title: "Pier Welcome",
+      subtitle: "Salt air and harbor calm.",
+      copy:
+        "Arrive to pier views and marina strolls. Sunset lands softly across the Pacific.",
+      highlights: ["Redondo Beach Pier", "King Harbor", "Seaside Lagoon"],
+      image:
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Riviera Village",
+      subtitle: "Boutiques, cafes, and beach lanes.",
+      copy:
+        "Spend the afternoon in Riviera Village with coastal cafes and a slow walk along the Esplanade.",
+      highlights: ["Riviera Village", "El Retiro Park", "Esplanade"],
+      image:
+        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "South Bay Day",
+      subtitle: "Hermosa and Palos Verdes escapes.",
+      copy:
+        "Ride the Strand, then pivot to cliffside views and an early dinner in Palos Verdes.",
+      highlights: ["Hermosa Pier", "The Strand", "Palos Verdes"],
+      image:
+        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
+    },
+  ],
+  "Miami Beach": [
+    {
+      title: "Ocean Drive Arrival",
+      subtitle: "Art Deco lines and Atlantic light.",
+      copy:
+        "Start in South Beach with Art Deco landmarks, then settle into a sunset cocktail on Ocean Drive.",
+      highlights: ["Ocean Drive", "Art Deco District", "Lummus Park"],
+      image:
+        "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Design + Bayside",
+      subtitle: "Boutiques and waterfront strolls.",
+      copy:
+        "Spend the day between Lincoln Road, Design District galleries, and a bayside dinner.",
+      highlights: ["Lincoln Road", "Design District", "Biscayne Bay"],
+      image:
+        "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Beach Day",
+      subtitle: "Soft sand, bright water, unhurried pace.",
+      copy:
+        "A slow day on Bal Harbour and Surfside with a golden hour walk along North Beach.",
+      highlights: ["Bal Harbour", "Surfside", "North Beach"],
+      image:
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+    },
+  ],
+};
+
+const TOUR_CITIES = ["Hollywood", "Los Angeles", "Redondo Beach", "Miami Beach"];
 
 
 const getFirstSentence = (text) => {
@@ -551,13 +640,17 @@ function LosAngelesLandingPage() {
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
+  const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const [sectionQuotes, setSectionQuotes] = useState({});
   const [selectedRatePlans, setSelectedRatePlans] = useState({});
   const [autoCheckOnOpen, setAutoCheckOnOpen] = useState(false);
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const [buildingPrices, setBuildingPrices] = useState({});
-  const [itineraryDays, setItineraryDays] = useState("3");
+  const [tourCity, setTourCity] = useState("Hollywood");
+  const [showCityTour, setShowCityTour] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+  const [tourPaused, setTourPaused] = useState(false);
   const autoScrollRef = useRef(null);
   const thumbsRef = useRef(null);
   const sectionThumbsRef = useRef(null);
@@ -1074,6 +1167,48 @@ function LosAngelesLandingPage() {
     }
   };
 
+  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency }) => {
+    if (!listingId) return;
+    if (!sectionCheckIn || !sectionCheckOut) {
+      setSectionAvailabilityError("Select check-in and check-out dates first.");
+      return;
+    }
+    if (!amount || !Number.isFinite(amount)) {
+      setSectionAvailabilityError("Pricing is unavailable. Please refresh availability.");
+      return;
+    }
+
+    setSectionAvailabilityError("");
+    setSectionReserveLoadingId(listingId);
+
+    try {
+      const res = await fetch(`${apiBase}/api/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId,
+          listingTitle,
+          checkIn: sectionCheckIn,
+          checkOut: sectionCheckOut,
+          guests: Number(sectionGuests) || 1,
+          amount,
+          currency,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.message || "Checkout failed");
+      }
+      if (json.url) {
+        window.location.href = json.url;
+      }
+    } catch (err) {
+      setSectionAvailabilityError(err.message || "Checkout failed");
+    } finally {
+      setSectionReserveLoadingId(null);
+    }
+  };
+
   const heroImages = useMemo(() => {
     const picks = [];
     losAngelesListings.forEach((listing) => {
@@ -1110,10 +1245,49 @@ function LosAngelesLandingPage() {
     };
   }, [losAngelesListings]);
 
-  const itinerary = useMemo(() => {
-    const days = Math.min(Number(itineraryDays) || 3, LA_ITINERARY.length);
-    return LA_ITINERARY.slice(0, days);
-  }, [itineraryDays]);
+  const tourSlides = CITY_TOUR_SLIDES[tourCity] || [];
+  const tourCount = tourSlides.length;
+  const activeTourSlide = tourSlides[tourIndex] || tourSlides[0];
+
+  const goToTour = (index) => {
+    if (!tourCount) return;
+    const next = (index + tourCount) % tourCount;
+    setTourIndex(next);
+  };
+
+  useEffect(() => {
+    if (!showCityTour || tourPaused || tourCount < 2) return;
+    const id = setInterval(() => {
+      setTourIndex((prev) => (prev + 1) % tourCount);
+    }, 7000);
+    return () => clearInterval(id);
+  }, [showCityTour, tourPaused, tourCount]);
+
+  useEffect(() => {
+    setTourIndex(0);
+  }, [tourCity]);
+
+  useEffect(() => {
+    if (!showCityTour) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        setShowCityTour(false);
+      }
+      if (event.key === "ArrowRight") {
+        goToTour(tourIndex + 1);
+      }
+      if (event.key === "ArrowLeft") {
+        goToTour(tourIndex - 1);
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [showCityTour, tourIndex, tourCount]);
 
   return (
     <div className="antwerp-page">
@@ -1126,8 +1300,8 @@ function LosAngelesLandingPage() {
             right now for Los Angeles units.
           </p>
           <div className="antwerp-hero__actions">
-            <Link to="/stay?city=Los%20Angeles#listings" className="antwerp-cta">
-              Browse live availability
+            <Link to="/stay" className="antwerp-cta">
+              Browse all available units
             </Link>
             <a href="#los-angeles-units" className="antwerp-ghost">
               Explore units
@@ -1183,42 +1357,76 @@ function LosAngelesLandingPage() {
       </header>
 
       <main className="antwerp-main">
-        <section className="la-itinerary" aria-label="Los Angeles itinerary">
-          <div className="la-itinerary__head">
-            <div>
-              <p className="antwerp-kicker">Itinerary</p>
-              <h2>Plan your Los Angeles stay</h2>
-              <p className="antwerp-muted">
-                Choose how many days you want to explore, and we will map out a paced itinerary.
-              </p>
-            </div>
-            <div className="la-itinerary__control">
-              <label htmlFor="la-itinerary-days">Trip length</label>
-              <select
-                id="la-itinerary-days"
-                value={itineraryDays}
-                onChange={(event) => setItineraryDays(event.target.value)}
-              >
-                <option value="2">2 days</option>
-                <option value="3">3 days</option>
-                <option value="4">4 days</option>
-                <option value="5">5 days</option>
-                <option value="7">7 days</option>
-              </select>
-            </div>
-          </div>
-          <div className="la-itinerary__grid">
-            {itinerary.map((day, index) => (
-              <article key={day.title} className="la-itinerary__card">
-                <span className="la-itinerary__day">Day {index + 1}</span>
-                <h3>{day.title}</h3>
-                <ul>
-                  {day.stops.map((stop) => (
-                    <li key={`${day.title}-${stop}`}>{stop}</li>
+        <section className="la-city-tour" aria-label="USA city tours">
+          <div
+            key={tourCity}
+            className="la-city-tour__bg"
+            style={{
+              backgroundImage: `url(${(CITY_TOUR_SLIDES[tourCity] || [])[0]?.image || ""})`,
+            }}
+            aria-hidden="true"
+          />
+          <div className="la-city-tour__inner">
+            <div className="la-city-tour__head">
+              <div>
+                <p className="antwerp-kicker">Tours</p>
+                <h2>USA city tours</h2>
+                <p className="antwerp-muted">
+                  Choose a city and enter a cinematic tour crafted for each destination.
+                </p>
+                <div className="la-city-tour__cities" role="tablist" aria-label="Choose tour city">
+                  {TOUR_CITIES.map((city) => (
+                    <button
+                      key={city}
+                      type="button"
+                      role="tab"
+                      aria-selected={tourCity === city}
+                      className={
+                        tourCity === city ? "la-city-tour__city-btn is-active" : "la-city-tour__city-btn"
+                      }
+                      onClick={() => setTourCity(city)}
+                    >
+                      {city}
+                    </button>
                   ))}
-                </ul>
-              </article>
-            ))}
+                </div>
+              </div>
+              <div className="la-city-tour__control">
+                <button
+                  type="button"
+                  className="antwerp-ghost la-tour-trigger"
+                  onClick={() => {
+                    setTourIndex(0);
+                    setTourPaused(false);
+                    setShowCityTour(true);
+                  }}
+                >
+                  View {tourCity} tour
+                </button>
+              </div>
+            </div>
+            <div key={tourCity} className="la-city-tour__preview">
+              <div className="la-city-tour__card">
+                <p className="la-city-tour__kicker">{tourCity}</p>
+                <h3>{(CITY_TOUR_SLIDES[tourCity] || [])[0]?.title || "City tour"}</h3>
+                <p className="la-city-tour__copy">
+                  {(CITY_TOUR_SLIDES[tourCity] || [])[0]?.subtitle ||
+                    "Enter a cinematic sequence curated for your stay."}
+                </p>
+                <div className="la-city-tour__chips">
+                  {(CITY_TOUR_SLIDES[tourCity] || [])[0]?.highlights?.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </div>
+              <div
+                className="la-city-tour__image"
+                style={{
+                  backgroundImage: `url(${(CITY_TOUR_SLIDES[tourCity] || [])[0]?.image || ""})`,
+                }}
+                aria-hidden="true"
+              />
+            </div>
           </div>
         </section>
 
@@ -1271,26 +1479,24 @@ function LosAngelesLandingPage() {
                 const latestPrice = buildingPrice
                   ? formatCurrency(buildingPrice.total, buildingPrice.currency)
                   : null;
+                const sectionTitle = (() => {
+                  switch (group.key) {
+                    case "la-hwh":
+                      return "One Lux Stay HWH Downtown Los Angeles";
+                    case "la-downtown":
+                      return "One Lux Stay LA Plaza Village";
+                    case "la-hollywood":
+                      return "One Lux Stay Hollywood View LA Suites";
+                    default:
+                      return "One Lux Stay Near Dodger Stadium Downtown LA";
+                  }
+                })();
                 return (
                   <section key={group.key} className="antwerp-building">
                     <div className="antwerp-building__head">
                       <div>
                         <p className="antwerp-kicker">{group.label}</p>
-                        <h3>{group.label}</h3>
-                      </div>
-                      <div className="antwerp-building__stats">
-                        <span>{group.listings.length} units</span>
-                        <span>
-                          Sleeps {groupStats.sleepsRange}
-                        </span>
-                        <span>
-                          {latestPrice
-                            ? `From ${latestPrice}`
-                            : `From ${groupStats.baseRange} ${groupStats.currency}`}
-                        </span>
-                        <span>
-                          Bedrooms {groupStats.bedroomRange}
-                        </span>
+                        <h3>{sectionTitle}</h3>
                       </div>
                     </div>
                     <div className="la-story">
@@ -1336,9 +1542,16 @@ function LosAngelesLandingPage() {
                       View units in {group.label}
                     </button>
                     <p className="la-story__price" aria-live="polite">
-                      {latestPrice
-                        ? `From ${latestPrice} total (manual + cleaning + tax)`
-                        : "Pricing updates when quotes load."}
+                      {latestPrice ? (
+                        <>
+                          <span className="la-story__price-amount">From {latestPrice}</span>
+                          <span className="la-story__price-note">
+                            total (accommodation + cleaning + tax)
+                          </span>
+                        </>
+                      ) : (
+                        "Pricing updates when quotes load."
+                      )}
                     </p>
                       </div>
                     </div>
@@ -1497,7 +1710,7 @@ function LosAngelesLandingPage() {
                         <span>{stats.reviewCount ? `${stats.reviewCount} reviews` : "No review data"}</span>
                       </div>
                       <div className="la-section-hero__score">
-                        {averageRating ? `${averageRating} / 5` : "—"}
+                        {averageRating ? `${averageRating} / 5` : "--"}
                       </div>
                       <p>
                         Guests love the easy flow between stays, skyline views, and quick access to local landmarks.
@@ -1579,8 +1792,8 @@ function LosAngelesLandingPage() {
                   <div className="la-unit-modal__section">
                     <h4>About this property</h4>
                     <p>
-                      A calm base with quick access to the neighborhood’s best corners. Expect bright spaces, effortless
-                      arrivals, and a stay that keeps everything close—landmarks, transit, and the city’s rhythm.
+                      A calm base with quick access to the neighborhood's best corners. Expect bright spaces, effortless
+                      arrivals, and a stay that keeps everything close - landmarks, transit, and the city's rhythm.
                     </p>
                   </div>
                 </>
@@ -1681,6 +1894,9 @@ function LosAngelesLandingPage() {
                       selectedPlan?.total ??
                       fallbackTotal ??
                       null;
+                    const checkoutListingId =
+                      listing.unitTypeId || listing.id || listing._id || listingId;
+                    const isReserving = sectionReserveLoadingId === checkoutListingId;
                     const priceValue =
                       typeof total === "number"
                         ? total
@@ -1841,13 +2057,30 @@ function LosAngelesLandingPage() {
                           </ul>
                         </div>
                         <div className="la-booking-table__cell" role="cell">
-                          <button
-                            type="button"
-                            className="la-booking-table__cta"
-                            disabled={isLoadingRates}
-                          >
-                            Virtual tour
-                          </button>
+                          <div className="la-booking-table__cta-group">
+                            <button
+                              type="button"
+                              className="la-booking-table__reserve"
+                              disabled={isLoadingRates || isReserving}
+                              onClick={() =>
+                                handleSectionCheckout({
+                                  listingId: checkoutListingId,
+                                  listingTitle: listing.title,
+                                  amount: typeof total === "number" ? total : null,
+                                  currency: priceCurrency,
+                                })
+                              }
+                            >
+                              {isReserving ? "Redirecting..." : "Reserve"}
+                            </button>
+                            <button
+                              type="button"
+                              className="la-booking-table__cta"
+                              disabled={isLoadingRates}
+                            >
+                              Virtual tour
+                            </button>
+                          </div>
                         </div>
                       </article>
                     );
@@ -1896,7 +2129,7 @@ function LosAngelesLandingPage() {
                   if (!rating && !count) return null;
                   return (
                     <p className="la-unit-modal__rating">
-                      Rating: {rating ? `${rating} / 5` : "—"}{count ? ` (${count} reviews)` : ""}
+                      Rating: {rating ? `${rating} / 5` : "--"}{count ? ` (${count} reviews)` : ""}
                     </p>
                   );
                 })()}
@@ -2020,9 +2253,7 @@ function LosAngelesLandingPage() {
                       </div>
                     </div>
                     <div className="la-unit-modal__actions">
-                      <Link to="/stay?city=Los%20Angeles#listings" className="antwerp-card__link">
-                        Check live availability
-                      </Link>
+                      
                     </div>
                   </div>
                 </div>
@@ -2093,10 +2324,113 @@ function LosAngelesLandingPage() {
                 </div>
                 <div className="la-unit-modal__room-actions">
                   <button type="button">Virtual tour</button>
-                  <Link to="/stay?city=Los%20Angeles#listings" className="antwerp-card__link">
+                  <Link to="/stay" className="antwerp-card__link">
                     Book now
                   </Link>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCityTour && tourCount > 0 && (
+        <div
+          className="la-tour-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="la-tour-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowCityTour(false);
+            }
+          }}
+        >
+          <div
+            className="la-tour-modal"
+            onMouseEnter={() => setTourPaused(true)}
+            onMouseLeave={() => setTourPaused(false)}
+          >
+            <div className="la-tour-intro" aria-hidden="true">
+              <span>One Lux Stay</span>
+            </div>
+            <div className="la-tour-header">
+              <div className="la-tour-brand">OneLuxStay</div>
+              <div className="la-tour-controls">
+                <button
+                  type="button"
+                  className="la-tour-btn"
+                  onClick={() => setTourPaused((prev) => !prev)}
+                  aria-pressed={tourPaused}
+                >
+                  {tourPaused ? "Play" : "Pause"}
+                </button>
+                <button
+                  type="button"
+                  className="la-tour-btn"
+                  onClick={() => setShowCityTour(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="la-tour-stage">
+              <div
+                key={tourIndex}
+                className="la-tour-slide"
+                style={{ backgroundImage: `url(${activeTourSlide.image})` }}
+              >
+                <div className="la-tour-gradient" aria-hidden="true" />
+                <div className="la-tour-content" aria-live="polite">
+                  <p className="la-tour-kicker">{tourCity}</p>
+                  <h2 className="la-tour-title" id="la-tour-title">
+                    {activeTourSlide.title}
+                  </h2>
+                  <p className="la-tour-subtitle">{activeTourSlide.subtitle}</p>
+                  <p className="la-tour-copy">{activeTourSlide.copy}</p>
+                  <div className="la-tour-highlights">
+                    {activeTourSlide.highlights.map((item) => (
+                      <span key={item} className="la-tour-chip">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="la-tour-progress" aria-hidden="true">
+                <span style={{ width: `${((tourIndex + 1) / tourCount) * 100}%` }} />
+              </div>
+              <div className="la-tour-nav">
+                <button
+                  type="button"
+                  className="la-tour-nav-btn"
+                  aria-label="Previous scene"
+                  onClick={() => goToTour(tourIndex - 1)}
+                >
+                  Prev
+                </button>
+                <div className="la-tour-dots" role="tablist" aria-label="Hollywood tour scenes">
+                  {tourSlides.map((slide, index) => (
+                    <button
+                      key={slide.title}
+                      type="button"
+                      role="tab"
+                      aria-selected={index === tourIndex}
+                      className={index === tourIndex ? "la-tour-dot is-active" : "la-tour-dot"}
+                      onClick={() => goToTour(index)}
+                    >
+                      <span className="sr-only">Scene {index + 1}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="la-tour-nav-btn"
+                  aria-label="Next scene"
+                  onClick={() => goToTour(tourIndex + 1)}
+                >
+                  Next
+                </button>
               </div>
             </div>
           </div>
@@ -2107,3 +2441,5 @@ function LosAngelesLandingPage() {
 }
 
 export default LosAngelesLandingPage;
+
+
