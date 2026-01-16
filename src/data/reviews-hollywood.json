@@ -1,0 +1,40 @@
+[
+  {
+    "name": "Mea M",
+    "rating": 5,
+    "source": "Google",
+    "date": "6 months ago",
+    "quote": "Excellent choice for me and my family. The host was super friendly and always quick to respond to any questions. The apartment was very clean, spacious and fully equipped.",
+    "details": [
+      "2 reviews"
+    ]
+  },
+  {
+    "name": "Eleazar Esquer",
+    "rating": 5,
+    "source": "Google",
+    "date": "5 months ago",
+    "quote": "Great place to stay in LA. Nice and clean, great location. Hosts were attentive and quick to respond and the team made it easy to check in.",
+    "details": [
+      "1 review",
+      "Trip type: Vacation",
+      "Travel group: Family",
+      "Hotel highlights: Luxury, Quiet, Kid-friendly, Great value"
+    ]
+  },
+  {
+    "name": "Chasten Ramirez",
+    "rating": 5,
+    "source": "Google",
+    "date": "3 months ago",
+    "quote": "Never thought I would enjoy my stay, relaxing and comfortable. There's a restaurant nearby that is really delicious.",
+    "details": [
+      "5 reviews",
+      "Trip type: Business",
+      "Travel group: Family",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  }
+]

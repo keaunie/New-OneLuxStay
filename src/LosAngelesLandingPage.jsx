@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import "./App.css";
+import reviewsHwh from "./data/reviews-hwh.json";
+import reviewsHollywood from "./data/reviews-hollywood.json";
+import reviewsDodger from "./data/reviews-dodger.json";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
@@ -410,6 +413,15 @@ const BUILDING_GROUPS = [
   },
   { key: "la-hollywood", label: "Hollywood", match: /hollywood/ },
 ];
+
+const STAR_TOTAL = 5;
+const REVIEW_TICKER = [...reviewsHwh, ...reviewsHollywood, ...reviewsDodger];
+const SECTION_REVIEWS = {
+  "la-hwh": reviewsHwh,
+  "la-hollywood": reviewsHollywood,
+  "la-downtown": [],
+  other: reviewsDodger,
+};
 
 const getListingText = (listing) => {
   const tagText = Array.isArray(listing.tags) ? listing.tags.join(" ") : "";
@@ -1209,20 +1221,17 @@ function LosAngelesLandingPage() {
     }
   };
 
-  const heroImages = useMemo(() => {
-    const picks = [];
-    losAngelesListings.forEach((listing) => {
-      const hero = getImageUrl(listing.picture);
-      if (hero) picks.push(hero);
-      if (Array.isArray(listing.pictures)) {
-        listing.pictures.slice(0, 2).forEach((pic) => {
-          const url = getImageUrl(pic);
-          if (url) picks.push(url);
-        });
-      }
-    });
-    return [...new Set(picks)].slice(0, 4);
-  }, [losAngelesListings]);
+  const heroImages = useMemo(
+    () => [
+      "https://assets.guesty.com/image/upload/v1729698598/production/666b3af27fc6d5653142b0af/k9tkytawqqfeteq1y8rn.jpg",
+      "https://assets.guesty.com/image/upload/v1729698123/production/666b3af27fc6d5653142b0af/gbfnbuvqtbreaw3100fk.jpg",
+      "https://assets.guesty.com/image/upload/v1730118469/production/666b3af27fc6d5653142b0af/g0sswyq5a1macbegsp2p.jpg",
+      "https://assets.guesty.com/image/upload/v1730118454/production/666b3af27fc6d5653142b0af/hhak8hklrbv2ewtdwuoy.jpg",
+      "https://assets.guesty.com/image/upload/v1729698598/production/666b3af27fc6d5653142b0af/at1j16rqji4epdet5xna.jpg",
+      "https://assets.guesty.com/image/upload/v1733508976/production/666b3af27fc6d5653142b0af/uw8axioi311sthwkvv3u.jpg",
+    ],
+    []
+  );
 
   const stats = useMemo(() => {
     const basePrices = losAngelesListings.map((l) => l.basePrice);
@@ -1307,34 +1316,33 @@ function LosAngelesLandingPage() {
               Explore units
             </a>
           </div>
-          <div className="antwerp-stats">
-            <div className="antwerp-stat">
-              <span>Units</span>
-              <strong>{stats.units || "--"}</strong>
-            </div>
-            <div className="antwerp-stat">
-              <span>Nightly range</span>
-              <strong>
-                {stats.nightly !== "--" ? `${stats.nightly} ${stats.currency}` : "--"}
-              </strong>
-            </div>
-            <div className="antwerp-stat">
-              <span>Cleaning</span>
-              <strong>
-                {stats.cleaning !== "--" ? `${stats.cleaning} ${stats.currency}` : "--"}
-              </strong>
-            </div>
-            <div className="antwerp-stat">
-              <span>Bedrooms</span>
-              <strong>{stats.bedrooms}</strong>
-            </div>
-            <div className="antwerp-stat">
-              <span>Bathrooms</span>
-              <strong>{stats.bathrooms}</strong>
-            </div>
-            <div className="antwerp-stat">
-              <span>Sleeps</span>
-              <strong>{stats.sleeps}</strong>
+          <div className="la-review-ticker" aria-label="Guest review highlights">
+            <div className="la-review-ticker__track">
+              {[...REVIEW_TICKER, ...REVIEW_TICKER].map((review, index) => (
+                <article className="la-review-ticker__item" key={`${review.name}-${index}`}>
+                  <div className="la-review-ticker__stars" aria-label={`${review.rating} out of 5 stars`}>
+                    {Array.from({ length: STAR_TOTAL }).map((_, starIndex) => (
+                      <span
+                        key={`${review.name}-${index}-star-${starIndex}`}
+                        className={
+                          starIndex < review.rating
+                            ? "la-review-ticker__star is-on"
+                            : "la-review-ticker__star"
+                        }
+                        aria-hidden="true"
+                      >
+                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                          <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6z" />
+                        </svg>
+                      </span>
+                    ))}
+                  </div>
+                  <p>"{review.quote}"</p>
+                  <span className="la-review-ticker__meta">
+                    {review.name} · {review.source}
+                  </span>
+                </article>
+              ))}
             </div>
           </div>
         </div>
@@ -1629,9 +1637,19 @@ function LosAngelesLandingPage() {
                 },
                 { ratingSum: 0, ratingCount: 0, reviewCount: 0 }
               );
-              const averageRating = stats.ratingCount
-                ? (stats.ratingSum / stats.ratingCount).toFixed(1)
-                : null;
+              const sectionReviews = SECTION_REVIEWS[activeSection.key] || [];
+              const reviewRatings = sectionReviews
+                .map((review) => (Number.isFinite(Number(review.rating)) ? Number(review.rating) : null))
+                .filter((rating) => rating !== null);
+              const reviewCount = sectionReviews.length || stats.reviewCount;
+              const averageRating = reviewRatings.length
+                ? (reviewRatings.reduce((sum, rating) => sum + rating, 0) / reviewRatings.length).toFixed(1)
+                : stats.ratingCount
+                  ? (stats.ratingSum / stats.ratingCount).toFixed(1)
+                  : null;
+              const reviewQuote =
+                sectionReviews.find((review) => review.quote && review.quote.trim())?.quote ||
+                "Guests love the easy flow between stays, skyline views, and quick access to local landmarks.";
               const coords =
                 activeSection.listings.map(getListingCoords).find(Boolean) || PROPERTY_COORDS;
               const mapUrl =
@@ -1707,14 +1725,12 @@ function LosAngelesLandingPage() {
                     <div className="la-section-hero__review">
                       <div>
                         <strong>Guest pulse</strong>
-                        <span>{stats.reviewCount ? `${stats.reviewCount} reviews` : "No review data"}</span>
+                        <span>{reviewCount ? `${reviewCount} reviews` : "No review data"}</span>
                       </div>
                       <div className="la-section-hero__score">
                         {averageRating ? `${averageRating} / 5` : "--"}
                       </div>
-                      <p>
-                        Guests love the easy flow between stays, skyline views, and quick access to local landmarks.
-                      </p>
+                      <p>{reviewQuote}</p>
                     </div>
                     <div className="la-section-hero__map">
                       {mapUrl ? (
