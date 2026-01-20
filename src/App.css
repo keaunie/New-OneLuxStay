@@ -3410,6 +3410,28 @@ html {
   line-height: 1.1;
 }
 
+.listing-date-dropdown.is-loading {
+  position: relative;
+  pointer-events: none;
+  filter: blur(1px) saturate(0.85);
+}
+
+.listing-date-dropdown.is-loading::after {
+  content: "Loading nightly prices...";
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b4035;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: rgba(250, 245, 239, 0.75);
+  border-radius: 16px;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
 .listing-date-cell__day {
   font-size: 0.85rem;
   font-weight: 600;
@@ -3419,6 +3441,76 @@ html {
   font-size: 0.7rem;
   color: rgba(59, 49, 39, 0.85);
   font-weight: 600;
+}
+
+.listing-date-cell__price.is-fallback {
+  opacity: 0.55;
+}
+
+.listing-date-cell.is-past {
+  opacity: 0.5;
+  filter: grayscale(0.4);
+}
+
+.listing-date-cell__restriction {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(120, 92, 63, 0.85);
+}
+
+.listing-date-cell.has-restriction {
+  border-color: rgba(200, 150, 90, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(200, 150, 90, 0.15);
+}
+
+.la-date-alert {
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #8b1e1e;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.la-price-calendar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  font-size: 0.75rem;
+  color: #5b4b3f;
+  margin-top: 10px;
+}
+
+.la-price-calendar__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.legend-swatch.is-selected {
+  background: #c9b59c;
+  border-color: #b59c84;
+}
+
+.legend-swatch.is-unavailable {
+  background: rgba(255, 255, 255, 0.4);
+  border-style: dashed;
+}
+
+.legend-swatch.is-restricted {
+  background: rgba(200, 150, 90, 0.25);
+  border-color: rgba(200, 150, 90, 0.6);
 }
 
 .la-section-modal .listing-date-cell.is-between {
@@ -4470,6 +4562,15 @@ html {
 
   .listing-date-cell__price {
     font-size: 0.65rem;
+  }
+
+  .listing-date-cell__restriction {
+    font-size: 0.55rem;
+  }
+
+  .la-date-alert {
+    margin: 10px 12px 0;
+    font-size: 0.78rem;
   }
 }
 

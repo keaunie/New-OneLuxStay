@@ -102,13 +102,30 @@ const formatCalendarPrice = (value, currency) => {
   }
 };
 
+const monthKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+const addMonths = (date, count) => {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + count);
+  return next;
+};
+
 const formatDisplayDate = (value) => {
   const date = parseDateValue(value);
   if (!date) return "Add date";
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 };
 
-const DateRangePicker = ({ value, onChange, dayPrices }) => {
+const DateRangePicker = ({
+  value,
+  onChange,
+  dayPrices,
+  onMonthChange,
+  isLoading = false,
+  fallbackPrice,
+  fallbackCurrency,
+}) => {
   const [open, setOpen] = useState(false);
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
@@ -151,6 +168,12 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
     });
   }, [open, startDate, today]);
 
+  useEffect(() => {
+    if (!onMonthChange) return;
+    const monthStart = new Date(view.getFullYear(), view.getMonth(), 1);
+    onMonthChange(monthStart);
+  }, [view, onMonthChange]);
+
   const buildMonth = (baseDate) => {
     const year = baseDate.getFullYear();
     const month = baseDate.getMonth();
@@ -189,6 +212,15 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
     });
     if (nextStart && nextEnd) setOpen(false);
   };
+
+  const selectedNights = diffNights(value.checkIn, value.checkOut);
+  const selectedMinNights = useMemo(() => {
+    if (!dayPrices || !startDate) return null;
+    const iso = toISODate(startDate);
+    const info = dayPrices.get(iso);
+    const minNights = info?.restrictions?.minNights ?? null;
+    return typeof minNights === "number" && minNights > 1 ? minNights : null;
+  }, [dayPrices, startDate]);
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
@@ -240,7 +272,7 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
           aria-modal="true"
           aria-label="Choose dates"
           aria-describedby={dialogHelpId}
-          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}`}
+          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}${isLoading ? " is-loading" : ""}`}
         >
           <p id={dialogHelpId} className="sr-only">
             Select a check-in date and a check-out date. Use the previous and next buttons to change months.
@@ -251,7 +283,10 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
               <button
                 type="button"
                 aria-label="Previous month"
-                onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                onClick={() => {
+                  onChange({ checkIn: "", checkOut: "" });
+                  setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+                }}
                 className="la-date-nav-btn"
               >
                 {"<"}
@@ -259,7 +294,10 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
               <button
                 type="button"
                 aria-label="Next month"
-                onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                onClick={() => {
+                  onChange({ checkIn: "", checkOut: "" });
+                  setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+                }}
                 className="la-date-nav-btn"
               >
                 {">"}
@@ -284,13 +322,21 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
                   <div className="la-date-days" role="grid">
                     {monthObj.cells.map((day, idx) => {
                       const disabled = !day || day < today;
+                      const isPast = Boolean(day && day < today);
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
                       const between = inRange(day) && !selected;
                       const isoDate = day ? toISODate(day) : "";
                       const priceInfo = dayPrices && day ? dayPrices.get(isoDate) : null;
-                      const priceLabel = priceInfo
-                        ? formatCalendarPrice(priceInfo.price, priceInfo.currency)
+                      const priceLabel = !isPast
+                        ? priceInfo
+                          ? formatCalendarPrice(priceInfo.price, priceInfo.currency)
+                          : typeof fallbackPrice === "number"
+                            ? formatCalendarPrice(fallbackPrice, fallbackCurrency)
+                            : ""
                         : "";
+                      const isFallbackPrice = !priceInfo && typeof fallbackPrice === "number";
+                      const minNights = priceInfo?.restrictions?.minNights ?? null;
+                      const showMinNights = typeof minNights === "number" && minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
                           weekday: "long",
@@ -314,16 +360,29 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
                           disabled={disabled}
                           aria-selected={selected}
                           aria-disabled={disabled}
-                          aria-label={dayAria}
+                          aria-label={
+                            showMinNights
+                              ? `${dayAria} Minimum stay ${minNights} nights.`
+                              : dayAria
+                          }
                           aria-hidden={day ? undefined : true}
                           onClick={() => handleDayClick(day)}
-                          className={`listing-date-cell ${stateClass}`}
+                          className={`listing-date-cell ${stateClass}${showMinNights ? " has-restriction" : ""}${isPast ? " is-past" : ""}`}
                         >
                           {day ? (
                             <>
                               <span className="listing-date-cell__day">{day.getDate()}</span>
                               {priceLabel && (
-                                <span className="listing-date-cell__price">{priceLabel}</span>
+                                <span
+                                  className={`listing-date-cell__price${isFallbackPrice ? " is-fallback" : ""}`}
+                                >
+                                  {priceLabel}
+                                </span>
+                              )}
+                              {showMinNights && (
+                                <span className="listing-date-cell__restriction">
+                                  Min {minNights}
+                                </span>
                               )}
                             </>
                           ) : (
@@ -352,6 +411,13 @@ const DateRangePicker = ({ value, onChange, dayPrices }) => {
                 Done
               </button>
             </div>
+            {selectedMinNights &&
+              selectedNights > 0 &&
+              selectedNights < selectedMinNights && (
+                <div className="la-date-alert" role="alert">
+                  A {selectedMinNights}-night minimum stay applies to this rate. Please adjust your booking to continue.
+                </div>
+              )}
           </div>
         </div>
       )}
@@ -1058,6 +1124,7 @@ export default function LosAngelesLandingPage() {
     return start;
   });
   const calendarCacheRef = useRef({});
+  const calendarDaysRef = useRef({});
   const [sectionCalendarPrices, setSectionCalendarPrices] = useState(null);
   const [sectionCalendarLoading, setSectionCalendarLoading] = useState(false);
   const [sectionCalendarError, setSectionCalendarError] = useState("");
@@ -1069,6 +1136,7 @@ export default function LosAngelesLandingPage() {
     return start;
   });
   const sectionCalendarCacheRef = useRef({});
+  const sectionCalendarDaysRef = useRef({});
   const [tourCity, setTourCity] = useState("Hollywood");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
@@ -1195,38 +1263,24 @@ export default function LosAngelesLandingPage() {
     setCalendarStartDate(start);
     setCalendarMonthIndex(0);
 
-    const cached = calendarCacheRef.current[listingId];
-    if (cached) {
-      setCalendarPrices(cached);
-      setCalendarError("");
-      return;
-    }
-
-    const fetchCalendar = async () => {
-      setCalendarLoading(true);
-      setCalendarError("");
-      try {
-        const qs = new URLSearchParams({
-          startDate: toISODate(start),
-          months: "24",
-          guests: "2",
-        });
-        const res = await fetch(`${apiBase}/api/listings/${listingId}/calendar-prices?${qs}`);
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.message || "Calendar pricing failed");
-        }
-        calendarCacheRef.current[listingId] = data;
-        setCalendarPrices(data);
-      } catch (err) {
-        setCalendarError(err?.message || "Calendar pricing is unavailable.");
-        setCalendarPrices(null);
-      } finally {
-        setCalendarLoading(false);
-      }
-    };
-
-    fetchCalendar();
+    fetchCalendarMonth(
+      listingId,
+      start,
+      calendarCacheRef,
+      calendarDaysRef,
+      setCalendarLoading,
+      setCalendarError,
+      setCalendarPrices
+    );
+    fetchCalendarMonth(
+      listingId,
+      addMonths(start, 1),
+      calendarCacheRef,
+      calendarDaysRef,
+      setCalendarLoading,
+      setCalendarError,
+      setCalendarPrices
+    );
   }, [activeListing]);
 
   useEffect(() => {
@@ -1473,6 +1527,44 @@ export default function LosAngelesLandingPage() {
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
 
+  const fetchCalendarMonth = async (
+    listingId,
+    targetDate,
+    cacheRef,
+    daysRef,
+    setLoading,
+    setError,
+    setPrices
+  ) => {
+    const key = `${listingId}-${monthKey(targetDate)}`;
+    if (cacheRef.current[key]) return;
+    setLoading(true);
+    setError("");
+    try {
+      const qs = new URLSearchParams({
+        startDate: toISODate(targetDate),
+        months: "1",
+        guests: "2",
+      });
+      const res = await fetch(`${apiBase}/api/listings/${listingId}/calendar-prices?${qs}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Calendar pricing failed");
+      }
+      cacheRef.current[key] = true;
+      const map = daysRef.current;
+      (data.days || []).forEach((day) => {
+        if (day?.date) map[day.date] = day;
+      });
+      const mergedDays = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+      setPrices({ months: 24, days: mergedDays });
+    } catch (err) {
+      setError(err?.message || "Calendar pricing is unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!activeSection) return;
     const listingId = activeSection.listings[0]?.id || activeSection.listings[0]?._id;
@@ -1483,38 +1575,24 @@ export default function LosAngelesLandingPage() {
     setSectionCalendarStartDate(start);
     setSectionCalendarMonthIndex(0);
 
-    const cached = sectionCalendarCacheRef.current[listingId];
-    if (cached) {
-      setSectionCalendarPrices(cached);
-      setSectionCalendarError("");
-      return;
-    }
-
-    const fetchCalendar = async () => {
-      setSectionCalendarLoading(true);
-      setSectionCalendarError("");
-      try {
-        const qs = new URLSearchParams({
-          startDate: toISODate(start),
-          months: "24",
-          guests: "2",
-        });
-        const res = await fetch(`${apiBase}/api/listings/${listingId}/calendar-prices?${qs}`);
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.message || "Calendar pricing failed");
-        }
-        sectionCalendarCacheRef.current[listingId] = data;
-        setSectionCalendarPrices(data);
-      } catch (err) {
-        setSectionCalendarError(err?.message || "Calendar pricing is unavailable.");
-        setSectionCalendarPrices(null);
-      } finally {
-        setSectionCalendarLoading(false);
-      }
-    };
-
-    fetchCalendar();
+    fetchCalendarMonth(
+      listingId,
+      start,
+      sectionCalendarCacheRef,
+      sectionCalendarDaysRef,
+      setSectionCalendarLoading,
+      setSectionCalendarError,
+      setSectionCalendarPrices
+    );
+    fetchCalendarMonth(
+      listingId,
+      addMonths(start, 1),
+      sectionCalendarCacheRef,
+      sectionCalendarDaysRef,
+      setSectionCalendarLoading,
+      setSectionCalendarError,
+      setSectionCalendarPrices
+    );
   }, [activeSection]);
 
   useEffect(() => {
@@ -2401,15 +2479,42 @@ export default function LosAngelesLandingPage() {
               const amenityList = [...new Set(amenityPool.filter((item) => typeof item === "string"))].slice(0, 12);
               return (
                 <>
-                  <div className="la-unit-modal__booking" aria-label="Availability check">
-                    <DateRangePicker
-                      value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                      dayPrices={sectionCalendarDayMap}
-                      onChange={({ checkIn, checkOut }) => {
-                        setSectionCheckIn(checkIn);
-                        setSectionCheckOut(checkOut);
-                      }}
-                    />
+            <div className="la-unit-modal__booking" aria-label="Availability check">
+              <DateRangePicker
+                value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                dayPrices={sectionCalendarDayMap}
+                isLoading={sectionCalendarLoading}
+                fallbackPrice={activeSection?.listings?.[0]?.basePrice}
+                fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
+                onMonthChange={(month) => {
+                  if (!activeSection) return;
+                  const listingId = activeSection.listings[0]?.id || activeSection.listings[0]?._id;
+                  if (!listingId) return;
+                  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+                  fetchCalendarMonth(
+                    listingId,
+                    monthStart,
+                    sectionCalendarCacheRef,
+                    sectionCalendarDaysRef,
+                    setSectionCalendarLoading,
+                    setSectionCalendarError,
+                    setSectionCalendarPrices
+                  );
+                  fetchCalendarMonth(
+                    listingId,
+                    addMonths(monthStart, 1),
+                    sectionCalendarCacheRef,
+                    sectionCalendarDaysRef,
+                    setSectionCalendarLoading,
+                    setSectionCalendarError,
+                    setSectionCalendarPrices
+                  );
+                }}
+                onChange={({ checkIn, checkOut }) => {
+                  setSectionCheckIn(checkIn);
+                  setSectionCheckOut(checkOut);
+                }}
+              />
                     <div>
                       <label htmlFor="la-section-guests">Guests</label>
                       <select
@@ -2433,24 +2538,6 @@ export default function LosAngelesLandingPage() {
                       {sectionAvailabilityError}
                     </div>
                   )}
-                  <div className="la-unit-modal__section">
-                    <h4>Most popular facilities</h4>
-                    <ul className="la-unit-modal__facilities" role="list">
-                      {(activeSection.key === "la-hollywood"
-                        ? HOLLYWOOD_FACILITIES
-                        : amenityList.length
-                          ? amenityList
-                          : ["Wi-Fi", "Kitchen", "Washer", "Heating", "Parking"]
-                      ).map((item) => (
-                        <li key={`section-facility-${item}`}>
-                          <span className="la-facility-icon" aria-hidden="true">
-                            {renderFacilityIcon(item)}
-                          </span>
-                          <span className="la-facility-text">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
                   <div className="la-unit-modal__section">
                     <h4>About this property</h4>
                     <p>
@@ -2940,6 +3027,33 @@ export default function LosAngelesLandingPage() {
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                 dayPrices={calendarDayMap}
+                isLoading={calendarLoading}
+                fallbackPrice={activeListing?.basePrice}
+                fallbackCurrency={activeListing?.currency || "USD"}
+                onMonthChange={(month) => {
+                  if (!activeListing) return;
+                  const listingId = activeListing.id || activeListing._id;
+                  if (!listingId) return;
+                  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+                  fetchCalendarMonth(
+                    listingId,
+                    monthStart,
+                    calendarCacheRef,
+                    calendarDaysRef,
+                    setCalendarLoading,
+                    setCalendarError,
+                    setCalendarPrices
+                  );
+                  fetchCalendarMonth(
+                    listingId,
+                    addMonths(monthStart, 1),
+                    calendarCacheRef,
+                    calendarDaysRef,
+                    setCalendarLoading,
+                    setCalendarError,
+                    setCalendarPrices
+                  );
+                }}
                 onChange={({ checkIn, checkOut }) => {
                   setSectionCheckIn(checkIn);
                   setSectionCheckOut(checkOut);
@@ -3018,65 +3132,52 @@ export default function LosAngelesLandingPage() {
                       ))}
                     </div>
                     <div className="la-price-calendar__days" role="rowgroup">
-                      {calendarMonth.cells.map((day, idx) => {
-                        if (!day) {
-                          return <span key={`empty-${idx}`} className="la-price-calendar__cell is-empty" />;
-                        }
-                        const iso = toISODate(day);
-                        const price = calendarDayMap.get(iso);
-                        return (
-                          <span key={iso} className="la-price-calendar__cell" role="gridcell">
-                            <span className="la-price-calendar__day">{day.getDate()}</span>
-                            <span className="la-price-calendar__price">
-                              {price ? formatCalendarPrice(price.price, price.currency) : ""}
-                            </span>
+                    {calendarMonth.cells.map((day, idx) => {
+                      if (!day) {
+                        return <span key={`empty-${idx}`} className="la-price-calendar__cell is-empty" />;
+                      }
+                      const iso = toISODate(day);
+                      const price = calendarDayMap.get(iso);
+                      const minNights = price?.restrictions?.minNights ?? null;
+                      const showMinNights = typeof minNights === "number" && minNights > 1;
+                      return (
+                        <span
+                          key={iso}
+                          className={`la-price-calendar__cell${showMinNights ? " has-restriction" : ""}`}
+                          role="gridcell"
+                        >
+                          <span className="la-price-calendar__day">{day.getDate()}</span>
+                          <span className="la-price-calendar__price">
+                            {price ? formatCalendarPrice(price.price, price.currency) : ""}
                           </span>
-                        );
-                      })}
+                          {showMinNights && (
+                            <span className="la-price-calendar__restriction">Min {minNights}</span>
+                          )}
+                        </span>
+                      );
+                    })}
                     </div>
                   </div>
                 )}
+                <div className="la-price-calendar__legend" aria-hidden="true">
+                  <span className="la-price-calendar__legend-item">
+                    <span className="legend-swatch is-selected" />
+                    Date selected
+                  </span>
+                  <span className="la-price-calendar__legend-item">
+                    <span className="legend-swatch is-unavailable" />
+                    Date unavailable
+                  </span>
+                  <span className="la-price-calendar__legend-item">
+                    <span className="legend-swatch is-restricted" />
+                    Stay restrictions may apply
+                  </span>
+                </div>
               </div>
-            </div>
-            {activeSectionKey === "la-hollywood" && (
-              <div className="la-unit-modal__section">
-                <h4>Most popular facilities</h4>
-                <ul className="la-unit-modal__facilities" role="list">
-                  {HOLLYWOOD_FACILITIES.map((item) => (
-                    <li key={`hollywood-facility-${item}`}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className="la-unit-modal__section">
-              <h4>Most popular facilities</h4>
-              <ul className="la-unit-modal__facilities" role="list">
-                {(activeSectionKey === "la-hollywood"
-                  ? HOLLYWOOD_FACILITIES
-                  : activeAmenityList.length
-                    ? activeAmenityList
-                    : ["Wi-Fi", "Kitchen", "Washer"]
-                ).map((item) => (
-                  <li key={`section-facility-${item}`}>{item}</li>
-                ))}
-              </ul>
             </div>
             <div className="la-unit-modal__section">
               <h4>About this property</h4>
               <p>{activeAboutText || "Comfortable, calm, and ready the moment you arrive."}</p>
-            </div>
-            <div className="la-unit-modal__section">
-              <h4>Most popular facilities</h4>
-              <ul className="la-unit-modal__facilities" role="list">
-                {popularFacilities.map((item) => (
-                  <li key={`popular-${item}`}>
-                    <span className="la-facility-icon" aria-hidden="true">
-                      {renderFacilityIcon(item)}
-                    </span>
-                    <span className="la-facility-text">{item}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
             <div className="la-unit-modal__section">
               <h4>Room options</h4>

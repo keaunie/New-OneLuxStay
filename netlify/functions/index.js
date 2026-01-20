@@ -271,6 +271,13 @@ const toIsoDate = (date) =>
         date.getDate()
     ).padStart(2, "0")}`;
 
+const parseIsoDate = (value) => {
+    if (!value || typeof value !== "string") return null;
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+};
+
 const addDays = (date, days) => {
     const next = new Date(date);
     next.setDate(next.getDate() + days);
@@ -949,7 +956,7 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
     }
 
     const parsedMonths = Math.min(24, Math.max(1, Number.parseInt(months, 10) || 1));
-    const start = startDate ? new Date(startDate) : new Date();
+    const start = parseIsoDate(startDate) || new Date();
     if (!Number.isFinite(start.getTime())) {
         return res.status(400).json({ message: "Invalid start date" });
     }
@@ -960,14 +967,77 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
     const cached = getCalendarCache(cacheKey);
     if (cached) return res.json({ ...cached, cached: true });
 
-    const chunkDays = 28;
     const end = addMonths(start, parsedMonths);
+    const chunkDays = Math.max(
+        28,
+        Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+    );
+    const startIso = toIsoDate(start);
+    const endIso = toIsoDate(end);
     const errors = [];
     let rateLimited = false;
 
     try {
         const result = await runDeduped(inflightCalendars, cacheKey, async () => {
             const dayMap = new Map();
+            const normalizePlanLabel = (plan = {}) => {
+                const ratePlan = plan?.ratePlan || {};
+                const raw = ratePlan?.name || ratePlan?.title || ratePlan?.description || "";
+                return String(raw).trim();
+            };
+            const isNonRefundablePlan = (plan = {}) => {
+                const ratePlan = plan?.ratePlan || {};
+                const raw = normalizePlanLabel(plan);
+                return Boolean(
+                    ratePlan?.cancellationPolicy?.isNonRefundable ??
+                    ratePlan?.nonRefundable ??
+                    /non[- ]?refundable/i.test(raw)
+                );
+            };
+            const isStandardPlan = (plan = {}) => /standard/i.test(normalizePlanLabel(plan));
+            const pickPreferredPlan = (plans = []) => {
+                if (!plans.length) return null;
+                const standard = plans.find((p) => isStandardPlan(p));
+                if (standard) return standard;
+                const refundable = plans.find((p) => !isNonRefundablePlan(p));
+                return refundable || plans[0];
+            };
+            const getRestrictions = (day = {}) => {
+                const minNights =
+                    day.minNights ??
+                    day.minimumStay ??
+                    day.minStay ??
+                    day.minStayLength ??
+                    day?.restrictions?.minNights ??
+                    day?.restrictions?.minStay ??
+                    null;
+                const maxNights =
+                    day.maxNights ??
+                    day.maximumStay ??
+                    day.maxStay ??
+                    day.maxStayLength ??
+                    day?.restrictions?.maxNights ??
+                    day?.restrictions?.maxStay ??
+                    null;
+                const closedToArrival =
+                    day.closedToArrival ??
+                    day.cta ??
+                    day?.restrictions?.closedToArrival ??
+                    day?.restrictions?.cta ??
+                    null;
+                const closedToDeparture =
+                    day.closedToDeparture ??
+                    day.ctd ??
+                    day?.restrictions?.closedToDeparture ??
+                    day?.restrictions?.ctd ??
+                    null;
+                return {
+                    minNights: typeof minNights === "number" ? minNights : null,
+                    maxNights: typeof maxNights === "number" ? maxNights : null,
+                    closedToArrival: Boolean(closedToArrival),
+                    closedToDeparture: Boolean(closedToDeparture),
+                };
+            };
             let cursor = new Date(start);
 
             while (cursor < end && !rateLimited) {
@@ -987,7 +1057,9 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                     const plans = Array.isArray(quote?.rates?.ratePlans)
                         ? quote.rates.ratePlans
                         : [];
-                    plans.forEach((plan) => {
+                    const selectedPlan = pickPreferredPlan(plans);
+                    const usablePlans = selectedPlan ? [selectedPlan] : plans;
+                    usablePlans.forEach((plan) => {
                         const planCurrency =
                             plan?.money?.money?.currency ||
                             plan?.money?.currency ||
@@ -999,12 +1071,15 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                             const dateKey = normalizeDayDate(day);
                             const price = day?.manualPrice ?? day?.price ?? day?.basePrice;
                             if (!dateKey || typeof price !== "number") return;
+                            if (dateKey < startIso || dateKey >= endIso) return;
                             const existing = dayMap.get(dateKey);
-                            if (!existing || price < existing.price) {
+                            if (!existing) {
                                 dayMap.set(dateKey, {
                                     date: dateKey,
                                     price,
                                     currency: day?.currency || planCurrency,
+                                    restrictions: getRestrictions(day),
+                                    ratePlanLabel: normalizePlanLabel(plan),
                                 });
                             }
                         });
