@@ -112,9 +112,13 @@ const availabilityCache = new Map();
 const quoteCache = new Map();
 const QUOTE_CACHE_TTL_MS =
     Number(process.env.GUESTY_QUOTE_CACHE_TTL_MS || 15 * 60_000); // default 15 min
+const CALENDAR_CACHE_TTL_MS =
+    Number(process.env.GUESTY_CALENDAR_CACHE_TTL_MS || 6 * 60 * 60_000); // default 6 hours
+const calendarCache = new Map();
 const inflightListings = new Map();
 const inflightAvailability = new Map();
 const inflightQuotes = new Map();
+const inflightCalendars = new Map();
 const landmarksCache = new Map();
 const LANDMARKS_CACHE_TTL_MS = 24 * 60 * 60_000;
 
@@ -225,6 +229,20 @@ const setQuoteCache = (key, value) => {
     quoteCache.set(key, { value, expiresAt: Date.now() + QUOTE_CACHE_TTL_MS });
 };
 
+const getCalendarCache = (key) => {
+    const entry = calendarCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        calendarCache.delete(key);
+        return null;
+    }
+    return entry.value;
+};
+
+const setCalendarCache = (key, value) => {
+    calendarCache.set(key, { value, expiresAt: Date.now() + CALENDAR_CACHE_TTL_MS });
+};
+
 const runDeduped = (map, key, fn) => {
     const existing = map.get(key);
     if (existing) return existing;
@@ -246,6 +264,31 @@ const readCache = async (file) => {
     } catch {
         return null;
     }
+};
+
+const toIsoDate = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+        date.getDate()
+    ).padStart(2, "0")}`;
+
+const addDays = (date, days) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const addMonths = (date, months) => {
+    const next = new Date(date);
+    next.setMonth(next.getMonth() + months);
+    return next;
+};
+
+const normalizeDayDate = (day) => {
+    const raw = day?.date || day?.dateLocalized || day?.startDate || day?.day || null;
+    if (!raw) return null;
+    if (typeof raw === "string") return raw.split("T")[0];
+    if (raw instanceof Date) return toIsoDate(raw);
+    return null;
 };
 
 const writeCache = async (file, data) => {
@@ -894,6 +937,108 @@ app.get("/api/listings/:id/availability", async (req, res) => {
         res.status(result.status).json(result.payload);
     } catch (e) {
         res.status(502).json({ message: "Availability failed", error: e.message, errors });
+    }
+});
+
+app.get("/api/listings/:id/calendar-prices", async (req, res) => {
+    const { id } = req.params;
+    const { startDate, months = 24, guests = 1 } = req.query || {};
+
+    if (!id) {
+        return res.status(400).json({ message: "Missing listing id" });
+    }
+
+    const parsedMonths = Math.min(24, Math.max(1, Number.parseInt(months, 10) || 1));
+    const start = startDate ? new Date(startDate) : new Date();
+    if (!Number.isFinite(start.getTime())) {
+        return res.status(400).json({ message: "Invalid start date" });
+    }
+    start.setHours(0, 0, 0, 0);
+
+    const guestsCount = Math.max(1, Number.parseInt(guests, 10) || 1);
+    const cacheKey = ["calendar", id, toIsoDate(start), parsedMonths, guestsCount].join("|");
+    const cached = getCalendarCache(cacheKey);
+    if (cached) return res.json({ ...cached, cached: true });
+
+    const chunkDays = 28;
+    const end = addMonths(start, parsedMonths);
+    const errors = [];
+    let rateLimited = false;
+
+    try {
+        const result = await runDeduped(inflightCalendars, cacheKey, async () => {
+            const dayMap = new Map();
+            let cursor = new Date(start);
+
+            while (cursor < end && !rateLimited) {
+                const chunkEnd = addDays(cursor, chunkDays);
+                const safeEnd = chunkEnd < end ? chunkEnd : end;
+
+                try {
+                    const quote = await createQuote({
+                        unitTypeId: id,
+                        checkInDateLocalized: toIsoDate(cursor),
+                        checkOutDateLocalized: toIsoDate(safeEnd),
+                        numberOfGuests: { numberOfAdults: guestsCount, numberOfChildren: 0 },
+                        guestsCount,
+                        source: "website",
+                    });
+
+                    const plans = Array.isArray(quote?.rates?.ratePlans)
+                        ? quote.rates.ratePlans
+                        : [];
+                    plans.forEach((plan) => {
+                        const planCurrency =
+                            plan?.money?.money?.currency ||
+                            plan?.money?.currency ||
+                            quote?.money?.money?.currency ||
+                            quote?.money?.currency ||
+                            "USD";
+                        const days = Array.isArray(plan?.days) ? plan.days : [];
+                        days.forEach((day) => {
+                            const dateKey = normalizeDayDate(day);
+                            const price = day?.manualPrice ?? day?.price ?? day?.basePrice;
+                            if (!dateKey || typeof price !== "number") return;
+                            const existing = dayMap.get(dateKey);
+                            if (!existing || price < existing.price) {
+                                dayMap.set(dateKey, {
+                                    date: dateKey,
+                                    price,
+                                    currency: day?.currency || planCurrency,
+                                });
+                            }
+                        });
+                    });
+                } catch (err) {
+                    if (err?.status === 429 || err?.rateLimited) {
+                        rateLimited = true;
+                    }
+                    errors.push({
+                        message: err?.message || "Quote failed",
+                        start: toIsoDate(cursor),
+                        end: toIsoDate(safeEnd),
+                    });
+                }
+
+                cursor = safeEnd;
+            }
+
+            const days = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+            const payload = {
+                listingId: id,
+                startDate: toIsoDate(start),
+                months: parsedMonths,
+                guests: guestsCount,
+                days,
+                errors,
+            };
+            setCalendarCache(cacheKey, payload);
+            return { status: rateLimited ? 429 : 200, payload };
+        });
+
+        res.status(result.status).json(result.payload);
+    } catch (e) {
+        res.status(502).json({ message: "Calendar pricing failed", error: e.message, errors });
     }
 });
 

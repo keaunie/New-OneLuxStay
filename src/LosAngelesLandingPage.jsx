@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { Link } from "react-router-dom";
 import "./App.css";
 import reviewsHwh from "./data/reviews-hwh.json";
 import reviewsHollywood from "./data/reviews-hollywood.json";
 import reviewsDodger from "./data/reviews-dodger.json";
+import CardSwap, { Card } from "./components/CardSwap";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
@@ -65,6 +66,298 @@ const formatDateLocal = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+const parseDateValue = (value) => {
+  if (!value) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const toISODate = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const buildCalendarMonth = (baseDate) => {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+  const first = new Date(year, month, 1);
+  const startOffset = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = Array(startOffset).fill(null);
+  for (let i = 1; i <= daysInMonth; i += 1) {
+    cells.push(new Date(year, month, i));
+  }
+  return { year, month, cells };
+};
+
+const formatCalendarPrice = (value, currency) => {
+  if (typeof value !== "number") return "";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return `$${Math.round(value)}`;
+  }
+};
+
+const formatDisplayDate = (value) => {
+  const date = parseDateValue(value);
+  if (!date) return "Add date";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
+const DateRangePicker = ({ value, onChange, dayPrices }) => {
+  const [open, setOpen] = useState(false);
+  const checkInLabelId = useId();
+  const checkOutLabelId = useId();
+  const dialogId = useId();
+  const dialogHelpId = useId();
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const [view, setView] = useState(() => parseDateValue(value.checkIn) || today);
+  const containerRef = useRef(null);
+
+  const startDate = parseDateValue(value.checkIn);
+  const endDate = parseDateValue(value.checkOut);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (!open) return;
+      if (containerRef.current && containerRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    const handleEsc = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const base = startDate || today;
+    setView((prev) => {
+      const sameMonth = prev.getFullYear() === base.getFullYear() && prev.getMonth() === base.getMonth();
+      return sameMonth ? prev : base;
+    });
+  }, [open, startDate, today]);
+
+  const buildMonth = (baseDate) => {
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startOffset = first.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = Array(startOffset).fill(null);
+    for (let i = 1; i <= daysInMonth; i += 1) cells.push(new Date(year, month, i));
+    return { year, month, cells };
+  };
+
+  const isSameDay = (a, b) =>
+    a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const inRange = (day) => {
+    if (!day || !startDate) return false;
+    if (startDate && endDate) return day >= startDate && day <= endDate;
+    return isSameDay(day, startDate);
+  };
+
+  const handleDayClick = (day) => {
+    if (!day || day < today) return;
+    let nextStart = startDate;
+    let nextEnd = endDate;
+    if (!startDate || (startDate && endDate)) {
+      nextStart = day;
+      nextEnd = null;
+    } else if (day < startDate) {
+      nextStart = day;
+      nextEnd = null;
+    } else {
+      nextEnd = day;
+    }
+    onChange({
+      checkIn: nextStart ? toISODate(nextStart) : "",
+      checkOut: nextEnd ? toISODate(nextEnd) : "",
+    });
+    if (nextStart && nextEnd) setOpen(false);
+  };
+
+  const primaryMonth = buildMonth(view);
+  const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
+  const monthLabel = `${new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })} - ${new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })}`;
+
+  return (
+    <div className="la-date-picker" ref={containerRef}>
+      <div className="la-date-grid">
+        <div className="la-date-field">
+          <label id={checkInLabelId} className="la-date-label">Check-in</label>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            aria-controls={dialogId}
+            aria-labelledby={checkInLabelId}
+            className="la-date-input"
+          >
+            {formatDisplayDate(value.checkIn)}
+          </button>
+        </div>
+        <div className="la-date-field">
+          <label id={checkOutLabelId} className="la-date-label">Check-out</label>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            aria-controls={dialogId}
+            aria-labelledby={checkOutLabelId}
+            className="la-date-input"
+          >
+            {formatDisplayDate(value.checkOut)}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div
+          id={dialogId}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose dates"
+          aria-describedby={dialogHelpId}
+          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}`}
+        >
+          <p id={dialogHelpId} className="sr-only">
+            Select a check-in date and a check-out date. Use the previous and next buttons to change months.
+          </p>
+          <div className="la-date-header">
+            <div className="la-date-title">{monthLabel}</div>
+            <div className="la-date-nav">
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                className="la-date-nav-btn"
+              >
+                {"<"}
+              </button>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                className="la-date-nav-btn"
+              >
+                {">"}
+              </button>
+            </div>
+          </div>
+          <div className="la-date-body">
+            <div className="la-date-months">
+              {[primaryMonth, secondaryMonth].map((monthObj) => (
+                <div key={`${monthObj.year}-${monthObj.month}`} className="la-date-month">
+                  <div className="la-date-month-title">
+                    {new Date(monthObj.year, monthObj.month, 1).toLocaleDateString(undefined, {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <div className="la-date-week" role="row">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                      <div key={d} role="columnheader">{d}</div>
+                    ))}
+                  </div>
+                  <div className="la-date-days" role="grid">
+                    {monthObj.cells.map((day, idx) => {
+                      const disabled = !day || day < today;
+                      const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
+                      const between = inRange(day) && !selected;
+                      const isoDate = day ? toISODate(day) : "";
+                      const priceInfo = dayPrices && day ? dayPrices.get(isoDate) : null;
+                      const priceLabel = priceInfo
+                        ? formatCalendarPrice(priceInfo.price, priceInfo.currency)
+                        : "";
+                      const dayLabel = day
+                        ? day.toLocaleDateString(undefined, {
+                          weekday: "long",
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                        : "";
+                      const dayAria = priceLabel ? `${dayLabel}. ${priceLabel} per night.` : dayLabel;
+                      const stateClass = disabled
+                        ? "is-disabled"
+                        : selected
+                          ? "is-selected"
+                          : between
+                            ? "is-between"
+                            : "is-default";
+                      return (
+                        <button
+                          key={`${monthObj.year}-${monthObj.month}-${idx}`}
+                          type="button"
+                          disabled={disabled}
+                          aria-selected={selected}
+                          aria-disabled={disabled}
+                          aria-label={dayAria}
+                          aria-hidden={day ? undefined : true}
+                          onClick={() => handleDayClick(day)}
+                          className={`listing-date-cell ${stateClass}`}
+                        >
+                          {day ? (
+                            <>
+                              <span className="listing-date-cell__day">{day.getDate()}</span>
+                              {priceLabel && (
+                                <span className="listing-date-cell__price">{priceLabel}</span>
+                              )}
+                            </>
+                          ) : (
+                            ""
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="la-date-footer">
+              <button
+                type="button"
+                onClick={() => onChange({ checkIn: "", checkOut: "" })}
+                className="la-date-clear"
+              >
+                Clear dates
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="la-date-done"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 const getQuotePricing = (quoteData, listing, nights) => {
   if (!quoteData || !listing) return null;
   const normalizeRatePlan = (plan = {}) => {
@@ -206,7 +499,10 @@ const getQuotePricing = (quoteData, listing, nights) => {
     };
   };
 
-  const plans = plansRaw.map(buildPlanPricing).filter(Boolean);
+  const plans = plansRaw
+    .map(buildPlanPricing)
+    .filter(Boolean)
+    .filter((plan) => /standard|non[- ]?refundable/i.test(plan.label));
   if (!plans.length) return null;
   const standardPlan =
     plans.find((plan) => /standard/i.test(plan.label)) ||
@@ -421,6 +717,96 @@ const SECTION_REVIEWS = {
   "la-hollywood": reviewsHollywood,
   "la-downtown": [],
   other: reviewsDodger,
+};
+const HOLLYWOOD_FACILITIES = [
+  "Outdoor swimming pool",
+  "Free parking",
+  "Free Wi-Fi",
+  "Family rooms",
+  "Non-smoking rooms",
+  "Fitness center",
+  "Terrace",
+  "Laundry",
+  "BBQ facilities",
+  "Tea/Coffee maker in all rooms",
+];
+
+const FACILITY_ICON_MAP = {
+  "outdoor swimming pool": (
+    <>
+      <circle cx="7.5" cy="7" r="2" />
+      <path d="M3 17c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2 2 2 4 2" />
+      <path d="M5 12l4-2 4 2 3-1" />
+    </>
+  ),
+  "free parking": (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 8h3.2a2.6 2.6 0 0 1 0 5.2H10V8zm0 0v8" />
+    </>
+  ),
+  "free wi-fi": (
+    <path d="M4 9a12 12 0 0 1 16 0m-12 4a6 6 0 0 1 8 0m-4 4h.01" />
+  ),
+  "family rooms": (
+    <>
+      <circle cx="7" cy="7" r="2" />
+      <circle cx="17" cy="7" r="2" />
+      <circle cx="12" cy="9.5" r="1.5" />
+      <path d="M3.5 19c0-2.1 1.9-3.8 4.2-3.8S12 16.9 12 19" />
+      <path d="M12 19c0-2.1 1.9-3.8 4.2-3.8S20.5 16.9 20.5 19" />
+    </>
+  ),
+  "non-smoking rooms": (
+    <>
+      <path d="M4 14h10m2 0h4m-16 3h16" />
+      <path d="M6 10c0-1.2 1-2 2.4-2h3.1" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
+  "fitness center": (
+    <path d="M3 11h3v2H3zm15 0h3v2h-3zM7 9h2v6H7zm8 0h2v6h-2zM9 11h6v2H9z" />
+  ),
+  terrace: (
+    <>
+      <path d="M4 18h16" />
+      <path d="M12 4v9m-5 0h10" />
+      <path d="M6 18l2-6m10 6-2-6" />
+    </>
+  ),
+  laundry: (
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M8 7h4m4 0h.01" />
+      <circle cx="12" cy="13" r="4" />
+    </>
+  ),
+  "bbq facilities": (
+    <>
+      <path d="M6 11h12" />
+      <path d="M8 11v3a4 4 0 0 0 8 0v-3" />
+      <path d="M7 18l-2 3m14-3 2 3" />
+      <path d="M10 3h4m-3 0v3m2-3v3" />
+    </>
+  ),
+  "tea/coffee maker in all rooms": (
+    <>
+      <path d="M5 8h9v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8z" />
+      <path d="M14 9h3a2 2 0 0 1 0 4h-3" />
+      <path d="M8 4v2m4-2v2" />
+    </>
+  ),
+};
+
+const renderFacilityIcon = (label) => {
+  const key = String(label || "").toLowerCase();
+  const iconPath = FACILITY_ICON_MAP[key];
+  if (!iconPath) return null;
+  return (
+    <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+      {iconPath}
+    </svg>
+  );
 };
 
 const getListingText = (listing) => {
@@ -638,7 +1024,7 @@ const formatFullDescription = (listing) => {
   return fallback.length ? `Details: ${fallback.join(" | ")}` : "No description available.";
 };
 
-function LosAngelesLandingPage() {
+export default function LosAngelesLandingPage() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -654,11 +1040,35 @@ function LosAngelesLandingPage() {
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
+  const heroCarouselRef = useRef(null);
+  const reviewCarouselRef = useRef(null);
   const [sectionQuotes, setSectionQuotes] = useState({});
   const [selectedRatePlans, setSelectedRatePlans] = useState({});
   const [autoCheckOnOpen, setAutoCheckOnOpen] = useState(false);
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const [buildingPrices, setBuildingPrices] = useState({});
+  const [calendarPrices, setCalendarPrices] = useState(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState("");
+  const [calendarMonthIndex, setCalendarMonthIndex] = useState(0);
+  const [calendarStartDate, setCalendarStartDate] = useState(() => {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  });
+  const calendarCacheRef = useRef({});
+  const [sectionCalendarPrices, setSectionCalendarPrices] = useState(null);
+  const [sectionCalendarLoading, setSectionCalendarLoading] = useState(false);
+  const [sectionCalendarError, setSectionCalendarError] = useState("");
+  const [sectionCalendarMonthIndex, setSectionCalendarMonthIndex] = useState(0);
+  const [sectionCalendarStartDate, setSectionCalendarStartDate] = useState(() => {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  });
+  const sectionCalendarCacheRef = useRef({});
   const [tourCity, setTourCity] = useState("Hollywood");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
@@ -688,6 +1098,40 @@ function LosAngelesLandingPage() {
     if (!activeListing) return "";
     return formatFullDescription(activeListing);
   }, [activeListing]);
+
+  const calendarDayMap = useMemo(() => {
+    if (!Array.isArray(calendarPrices?.days)) return new Map();
+    return new Map(calendarPrices.days.map((day) => [day.date, day]));
+  }, [calendarPrices]);
+
+  const calendarCurrentMonth = useMemo(() => {
+    const base = new Date(calendarStartDate);
+    base.setMonth(base.getMonth() + calendarMonthIndex);
+    base.setDate(1);
+    return base;
+  }, [calendarStartDate, calendarMonthIndex]);
+
+  const calendarMonth = useMemo(
+    () => buildCalendarMonth(calendarCurrentMonth),
+    [calendarCurrentMonth]
+  );
+
+  const sectionCalendarDayMap = useMemo(() => {
+    if (!Array.isArray(sectionCalendarPrices?.days)) return new Map();
+    return new Map(sectionCalendarPrices.days.map((day) => [day.date, day]));
+  }, [sectionCalendarPrices]);
+
+  const sectionCalendarCurrentMonth = useMemo(() => {
+    const base = new Date(sectionCalendarStartDate);
+    base.setMonth(base.getMonth() + sectionCalendarMonthIndex);
+    base.setDate(1);
+    return base;
+  }, [sectionCalendarStartDate, sectionCalendarMonthIndex]);
+
+  const sectionCalendarMonth = useMemo(
+    () => buildCalendarMonth(sectionCalendarCurrentMonth),
+    [sectionCalendarCurrentMonth]
+  );
 
   const stopAutoScroll = () => {
     if (autoScrollRef.current) {
@@ -742,6 +1186,50 @@ function LosAngelesLandingPage() {
   }, [activeListing]);
 
   useEffect(() => {
+    if (!activeListing) return;
+    const listingId = activeListing.id || activeListing._id;
+    if (!listingId) return;
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    setCalendarStartDate(start);
+    setCalendarMonthIndex(0);
+
+    const cached = calendarCacheRef.current[listingId];
+    if (cached) {
+      setCalendarPrices(cached);
+      setCalendarError("");
+      return;
+    }
+
+    const fetchCalendar = async () => {
+      setCalendarLoading(true);
+      setCalendarError("");
+      try {
+        const qs = new URLSearchParams({
+          startDate: toISODate(start),
+          months: "24",
+          guests: "2",
+        });
+        const res = await fetch(`${apiBase}/api/listings/${listingId}/calendar-prices?${qs}`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.message || "Calendar pricing failed");
+        }
+        calendarCacheRef.current[listingId] = data;
+        setCalendarPrices(data);
+      } catch (err) {
+        setCalendarError(err?.message || "Calendar pricing is unavailable.");
+        setCalendarPrices(null);
+      } finally {
+        setCalendarLoading(false);
+      }
+    };
+
+    fetchCalendar();
+  }, [activeListing]);
+
+  useEffect(() => {
     if (activeSectionKey) {
       setActiveListing(null);
       setSectionAvailabilityError("");
@@ -749,6 +1237,9 @@ function LosAngelesLandingPage() {
       setSectionHeroIndex(0);
       setSectionQuotes({});
       setExpandedQuoteRows({});
+      setSectionCalendarPrices(null);
+      setSectionCalendarError("");
+      setSectionCalendarMonthIndex(0);
     }
   }, [activeSectionKey]);
 
@@ -983,6 +1474,50 @@ function LosAngelesLandingPage() {
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
 
   useEffect(() => {
+    if (!activeSection) return;
+    const listingId = activeSection.listings[0]?.id || activeSection.listings[0]?._id;
+    if (!listingId) return;
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    setSectionCalendarStartDate(start);
+    setSectionCalendarMonthIndex(0);
+
+    const cached = sectionCalendarCacheRef.current[listingId];
+    if (cached) {
+      setSectionCalendarPrices(cached);
+      setSectionCalendarError("");
+      return;
+    }
+
+    const fetchCalendar = async () => {
+      setSectionCalendarLoading(true);
+      setSectionCalendarError("");
+      try {
+        const qs = new URLSearchParams({
+          startDate: toISODate(start),
+          months: "24",
+          guests: "2",
+        });
+        const res = await fetch(`${apiBase}/api/listings/${listingId}/calendar-prices?${qs}`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.message || "Calendar pricing failed");
+        }
+        sectionCalendarCacheRef.current[listingId] = data;
+        setSectionCalendarPrices(data);
+      } catch (err) {
+        setSectionCalendarError(err?.message || "Calendar pricing is unavailable.");
+        setSectionCalendarPrices(null);
+      } finally {
+        setSectionCalendarLoading(false);
+      }
+    };
+
+    fetchCalendar();
+  }, [activeSection]);
+
+  useEffect(() => {
     if (!groupedListings.length) return;
     let active = true;
     const load = async () => {
@@ -997,8 +1532,12 @@ function LosAngelesLandingPage() {
         const plans = Array.isArray(quoteData?.rates?.ratePlans)
           ? quoteData.rates.ratePlans
           : [];
+        const filteredPlans = plans.filter((plan) => {
+          const label = plan?.ratePlan?.name || plan?.ratePlan?.title || plan?.ratePlan?.description || "";
+          return /standard|non[- ]?refundable/i.test(label);
+        });
         let minTotal = null;
-        plans.forEach((plan) => {
+        (filteredPlans.length ? filteredPlans : plans).forEach((plan) => {
           const money = plan?.money?.money || plan?.money || quoteData?.money?.money || quoteData?.money || {};
           const invoiceItems = Array.isArray(money?.invoiceItems) ? money.invoiceItems : [];
           const invoiceTotal = invoiceItems.reduce(
@@ -1233,6 +1772,22 @@ function LosAngelesLandingPage() {
     []
   );
 
+  const scrollHeroCarousel = (direction) => {
+    if (!heroCarouselRef.current) return;
+    const container = heroCarouselRef.current;
+    const card = container.querySelector(".antwerp-hero__carousel-card");
+    const offset = card ? card.offsetWidth + 16 : container.clientWidth;
+    container.scrollBy({ left: direction * offset, behavior: "smooth" });
+  };
+
+  const scrollReviewCarousel = (direction) => {
+    if (!reviewCarouselRef.current) return;
+    const container = reviewCarouselRef.current;
+    const card = container.querySelector(".la-review-ticker__item");
+    const offset = card ? card.offsetWidth + 16 : container.clientWidth;
+    container.scrollBy({ left: direction * offset, behavior: "smooth" });
+  };
+
   const stats = useMemo(() => {
     const basePrices = losAngelesListings.map((l) => l.basePrice);
     const cleaningFees = losAngelesListings.map((l) => l.cleaningFee);
@@ -1317,7 +1872,7 @@ function LosAngelesLandingPage() {
             </a>
           </div>
           <div className="la-review-ticker" aria-label="Guest review highlights">
-            <div className="la-review-ticker__track">
+            <div className="la-review-ticker__track" ref={reviewCarouselRef}>
               {[...REVIEW_TICKER, ...REVIEW_TICKER].map((review, index) => (
                 <article className="la-review-ticker__item" key={`${review.name}-${index}`}>
                   <div className="la-review-ticker__stars" aria-label={`${review.rating} out of 5 stars`}>
@@ -1344,23 +1899,92 @@ function LosAngelesLandingPage() {
                 </article>
               ))}
             </div>
+            <div className="la-review-ticker__controls" aria-hidden="false">
+              <button
+                type="button"
+                className="la-review-ticker__btn"
+                onClick={() => scrollReviewCarousel(-1)}
+                aria-label="Previous review"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="la-review-ticker__btn"
+                onClick={() => scrollReviewCarousel(1)}
+                aria-label="Next review"
+              >
+                →
+              </button>
+            </div>
           </div>
         </div>
         <div className="antwerp-hero__media">
-          {heroImages.length ? (
-            heroImages.map((src, idx) => (
-              <div
-                key={`${src}-${idx}`}
-                className={`antwerp-hero__image antwerp-hero__image--${idx + 1}`}
-                style={{ backgroundImage: `url(${src})` }}
-                aria-hidden="true"
-              />
-            ))
-          ) : (
-            <div className="antwerp-hero__image antwerp-hero__image--empty" aria-hidden="true">
-              Los Angeles imagery loading
-            </div>
-          )}
+          <div className="la-hero-card-swap" aria-hidden="true">
+            <CardSwap
+              width="100%"
+              height="100%"
+              cardDistance={64}
+              verticalDistance={70}
+              delay={5200}
+              skewAmount={5}
+              pauseOnHover
+            >
+              {heroImages.length ? (
+                heroImages.map((src, idx) => (
+                  <Card key={`${src}-${idx}`} customClass="la-hero-swap-card" aria-hidden="true">
+                    <img
+                      src={src}
+                      alt=""
+                      className="la-hero-swap-img"
+                      loading={idx === 0 ? "eager" : "lazy"}
+                      aria-hidden="true"
+                    />
+                  </Card>
+                ))
+              ) : (
+                <Card className="la-hero-swap-card la-hero-swap-card--empty" aria-hidden="true" />
+              )}
+            </CardSwap>
+          </div>
+        </div>
+        <div className="antwerp-hero__carousel" aria-label="Los Angeles hero images">
+          <div className="antwerp-hero__carousel-track" ref={heroCarouselRef}>
+            {heroImages.length ? (
+              heroImages.map((src, idx) => (
+                <div
+                  key={`${src}-mobile-${idx}`}
+                  className="antwerp-hero__carousel-card"
+                  style={{ backgroundImage: `url(${src})` }}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`Slide ${idx + 1} of ${heroImages.length}`}
+                />
+              ))
+            ) : (
+              <div className="antwerp-hero__carousel-card antwerp-hero__image--empty">
+                Los Angeles imagery loading
+              </div>
+            )}
+          </div>
+          <div className="antwerp-hero__carousel-controls">
+            <button
+              type="button"
+              className="antwerp-hero__carousel-btn"
+              onClick={() => scrollHeroCarousel(-1)}
+              aria-label="Previous hero image"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              className="antwerp-hero__carousel-btn"
+              onClick={() => scrollHeroCarousel(1)}
+              aria-label="Next hero image"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1434,6 +2058,19 @@ function LosAngelesLandingPage() {
                 }}
                 aria-hidden="true"
               />
+            </div>
+            <div className="la-city-tour__control la-city-tour__control--mobile">
+              <button
+                type="button"
+                className="antwerp-ghost la-tour-trigger"
+                onClick={() => {
+                  setTourIndex(0);
+                  setTourPaused(false);
+                  setShowCityTour(true);
+                }}
+              >
+                View {tourCity} tour
+              </button>
             </div>
           </div>
         </section>
@@ -1650,6 +2287,18 @@ function LosAngelesLandingPage() {
               const reviewQuote =
                 sectionReviews.find((review) => review.quote && review.quote.trim())?.quote ||
                 "Guests love the easy flow between stays, skyline views, and quick access to local landmarks.";
+              const amenityPool = activeSection.listings.flatMap((listing) => {
+                if (Array.isArray(listing.amenities)) return listing.amenities;
+                if (Array.isArray(listing.tags)) return listing.tags;
+                return [];
+              });
+              const facilityList = [...new Set(amenityPool.filter((item) => typeof item === "string"))].slice(0, 8);
+              const facilities =
+                activeSection.key === "la-hollywood"
+                  ? HOLLYWOOD_FACILITIES
+                  : facilityList.length
+                    ? facilityList
+                    : ["Wi-Fi", "Kitchen", "Washer"];
               const coords =
                 activeSection.listings.map(getListingCoords).find(Boolean) || PROPERTY_COORDS;
               const mapUrl =
@@ -1753,24 +2402,14 @@ function LosAngelesLandingPage() {
               return (
                 <>
                   <div className="la-unit-modal__booking" aria-label="Availability check">
-                    <div>
-                      <label htmlFor="la-section-checkin">Check-in</label>
-                      <input
-                        id="la-section-checkin"
-                        type="date"
-                        value={sectionCheckIn}
-                        onChange={(event) => setSectionCheckIn(event.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="la-section-checkout">Check-out</label>
-                      <input
-                        id="la-section-checkout"
-                        type="date"
-                        value={sectionCheckOut}
-                        onChange={(event) => setSectionCheckOut(event.target.value)}
-                      />
-                    </div>
+                    <DateRangePicker
+                      value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                      dayPrices={sectionCalendarDayMap}
+                      onChange={({ checkIn, checkOut }) => {
+                        setSectionCheckIn(checkIn);
+                        setSectionCheckOut(checkOut);
+                      }}
+                    />
                     <div>
                       <label htmlFor="la-section-guests">Guests</label>
                       <select
@@ -1785,7 +2424,7 @@ function LosAngelesLandingPage() {
                         <option value="5">5</option>
                       </select>
                     </div>
-                    <button type="button" onClick={fetchAvailabilityListings}>
+                    <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
                       {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
                     </button>
                   </div>
@@ -1795,15 +2434,22 @@ function LosAngelesLandingPage() {
                     </div>
                   )}
                   <div className="la-unit-modal__section">
-                    <h4>Amenities</h4>
-                    <div className="la-unit-modal__amenities">
-                      {(amenityList.length
-                        ? amenityList
-                        : ["Fast Wi-Fi", "Kitchen", "Washer", "Heating", "Essentials", "Parking"]
+                    <h4>Most popular facilities</h4>
+                    <ul className="la-unit-modal__facilities" role="list">
+                      {(activeSection.key === "la-hollywood"
+                        ? HOLLYWOOD_FACILITIES
+                        : amenityList.length
+                          ? amenityList
+                          : ["Wi-Fi", "Kitchen", "Washer", "Heating", "Parking"]
                       ).map((item) => (
-                        <span key={item}>{item}</span>
+                        <li key={`section-facility-${item}`}>
+                          <span className="la-facility-icon" aria-hidden="true">
+                            {renderFacilityIcon(item)}
+                          </span>
+                          <span className="la-facility-text">{item}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                   <div className="la-unit-modal__section">
                     <h4>About this property</h4>
@@ -1910,6 +2556,10 @@ function LosAngelesLandingPage() {
                       selectedPlan?.total ??
                       fallbackTotal ??
                       null;
+                    const originalTotal =
+                      breakdown && typeof breakdown.discountAmount === "number"
+                        ? breakdown.total + breakdown.discountAmount
+                        : null;
                     const checkoutListingId =
                       listing.unitTypeId || listing.id || listing._id || listingId;
                     const isReserving = sectionReserveLoadingId === checkoutListingId;
@@ -1975,6 +2625,11 @@ function LosAngelesLandingPage() {
                               </>
                             ) : (
                               <>
+                                {originalTotal && originalTotal > priceValue && (
+                                  <span className="la-booking-table__price-original">
+                                    {formatCurrency(originalTotal, priceCurrency)}
+                                  </span>
+                                )}
                                 <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
                                 <span>
                                   Total (cleaning + tax included)
@@ -2186,6 +2841,12 @@ function LosAngelesLandingPage() {
                   : [];
               const amenityList = [...new Set(amenityListRaw.filter((item) => typeof item === "string"))].slice(0, 10);
               const aboutText = formatFullDescription(activeListing);
+              const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
+              const popularFacilities = isHollywoodUnit
+                ? HOLLYWOOD_FACILITIES
+                : (activeAmenityList.slice(0, 6).length
+                  ? activeAmenityList.slice(0, 6)
+                  : ["Wi-Fi", "Kitchen", "Washer"]);
               return (
                 <div className="la-unit-modal__grid">
                   <div className="la-unit-modal__gallery">
@@ -2276,17 +2937,21 @@ function LosAngelesLandingPage() {
               );
             })()}
             <div className="la-unit-modal__booking" aria-label="Availability check">
+              <DateRangePicker
+                value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                dayPrices={calendarDayMap}
+                onChange={({ checkIn, checkOut }) => {
+                  setSectionCheckIn(checkIn);
+                  setSectionCheckOut(checkOut);
+                }}
+              />
               <div>
-                <label htmlFor="la-checkin">Check-in</label>
-                <input id="la-checkin" type="text" placeholder="MM/DD/YYYY" />
-              </div>
-              <div>
-                <label htmlFor="la-checkout">Check-out</label>
-                <input id="la-checkout" type="text" placeholder="MM/DD/YYYY" />
-              </div>
-              <div>
-                <label htmlFor="la-guests">Guests</label>
-                <select id="la-guests" defaultValue="2">
+                <label htmlFor="la-section-guests">Guests</label>
+                <select
+                  id="la-section-guests"
+                  value={sectionGuests}
+                  onChange={(event) => setSectionGuests(event.target.value)}
+                >
                   <option value="1">1</option>
                   <option value="2">2</option>
                   <option value="3">3</option>
@@ -2294,21 +2959,107 @@ function LosAngelesLandingPage() {
                   <option value="5">5</option>
                 </select>
               </div>
-              <button type="button">Check availability</button>
+              <button type="button" onClick={fetchAvailabilityListings}>
+                {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+              </button>
             </div>
             <div className="la-unit-modal__section">
-              <h4>Amenities</h4>
-              <div className="la-unit-modal__amenities">
-                {(
-                  activeAmenityList.length
-                    ? activeAmenityList
-                    : ["Fast Wi-Fi", "Kitchen", "Washer", "Heating", "Essentials"]
-                ).map(
-                  (item) => (
-                    <span key={item}>{item}</span>
-                  )
+              <div className="la-price-calendar">
+                <div className="la-price-calendar__head">
+                  <h4>Price calendar</h4>
+                  <div className="la-price-calendar__nav">
+                    <button
+                      type="button"
+                      className="la-price-calendar__btn"
+                      onClick={() => setCalendarMonthIndex((idx) => Math.max(0, idx - 1))}
+                      disabled={calendarMonthIndex <= 0}
+                      aria-label="Previous month"
+                    >
+                      ←
+                    </button>
+                    <span className="la-price-calendar__label">
+                      {calendarCurrentMonth.toLocaleDateString(undefined, {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      className="la-price-calendar__btn"
+                      onClick={() =>
+                        setCalendarMonthIndex((idx) =>
+                          Math.min((calendarPrices?.months || 24) - 1, idx + 1)
+                        )
+                      }
+                      disabled={calendarMonthIndex >= (calendarPrices?.months || 24) - 1}
+                      aria-label="Next month"
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
+                {calendarLoading && (
+                  <div className="la-price-calendar__status" role="status" aria-live="polite">
+                    Loading 24 months of nightly prices...
+                  </div>
+                )}
+                {calendarError && (
+                  <div className="la-price-calendar__status" role="alert">
+                    {calendarError}
+                  </div>
+                )}
+                {!calendarLoading && !calendarError && (
+                  <div className="la-price-calendar__grid" role="grid">
+                    <div className="la-price-calendar__week" role="row">
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                        <span key={day} className="la-price-calendar__weekday" role="columnheader">
+                          {day}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="la-price-calendar__days" role="rowgroup">
+                      {calendarMonth.cells.map((day, idx) => {
+                        if (!day) {
+                          return <span key={`empty-${idx}`} className="la-price-calendar__cell is-empty" />;
+                        }
+                        const iso = toISODate(day);
+                        const price = calendarDayMap.get(iso);
+                        return (
+                          <span key={iso} className="la-price-calendar__cell" role="gridcell">
+                            <span className="la-price-calendar__day">{day.getDate()}</span>
+                            <span className="la-price-calendar__price">
+                              {price ? formatCalendarPrice(price.price, price.currency) : ""}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
+            </div>
+            {activeSectionKey === "la-hollywood" && (
+              <div className="la-unit-modal__section">
+                <h4>Most popular facilities</h4>
+                <ul className="la-unit-modal__facilities" role="list">
+                  {HOLLYWOOD_FACILITIES.map((item) => (
+                    <li key={`hollywood-facility-${item}`}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="la-unit-modal__section">
+              <h4>Most popular facilities</h4>
+              <ul className="la-unit-modal__facilities" role="list">
+                {(activeSectionKey === "la-hollywood"
+                  ? HOLLYWOOD_FACILITIES
+                  : activeAmenityList.length
+                    ? activeAmenityList
+                    : ["Wi-Fi", "Kitchen", "Washer"]
+                ).map((item) => (
+                  <li key={`section-facility-${item}`}>{item}</li>
+                ))}
+              </ul>
             </div>
             <div className="la-unit-modal__section">
               <h4>About this property</h4>
@@ -2316,17 +3067,16 @@ function LosAngelesLandingPage() {
             </div>
             <div className="la-unit-modal__section">
               <h4>Most popular facilities</h4>
-              <div className="la-unit-modal__amenities">
-                {(
-                  activeAmenityList.slice(0, 6).length
-                    ? activeAmenityList.slice(0, 6)
-                    : ["Wi-Fi", "Kitchen", "Washer"]
-                ).map(
-                  (item) => (
-                    <span key={`popular-${item}`}>{item}</span>
-                  )
-                )}
-              </div>
+              <ul className="la-unit-modal__facilities" role="list">
+                {popularFacilities.map((item) => (
+                  <li key={`popular-${item}`}>
+                    <span className="la-facility-icon" aria-hidden="true">
+                      {renderFacilityIcon(item)}
+                    </span>
+                    <span className="la-facility-text">{item}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="la-unit-modal__section">
               <h4>Room options</h4>
@@ -2456,6 +3206,5 @@ function LosAngelesLandingPage() {
   );
 }
 
-export default LosAngelesLandingPage;
 
 

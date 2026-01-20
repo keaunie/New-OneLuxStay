@@ -1893,6 +1893,105 @@ html {
   z-index: 2;
 }
 
+.la-hero-card-swap {
+  position: relative;
+  grid-column: 1 / -1;
+  width: min(1280px, 120%);
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 360px;
+  margin-left: auto;
+}
+
+.la-hero-card-swap .card-swap-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  transform-origin: center;
+  perspective: 900px;
+  overflow: visible;
+}
+
+.la-hero-card-swap .card {
+  position: absolute;
+  top: 70%;
+  left: 40%;
+  border-radius: 22px;
+  border: 1px solid rgba(201, 181, 156, 0.55);
+  background: #efe7dd;
+  transform-style: preserve-3d;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  box-shadow: 0 24px 50px rgba(63, 54, 47, 0.2);
+}
+
+.la-hero-swap-card {
+  overflow: hidden;
+}
+
+.la-hero-swap-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: inherit;
+}
+
+.la-hero-swap-card--empty {
+  display: grid;
+  place-items: center;
+  color: var(--antwerp-muted);
+  font-weight: 600;
+}
+
+.antwerp-hero__carousel {
+  display: none;
+  position: relative;
+  z-index: 2;
+}
+
+.antwerp-hero__carousel-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 10px;
+  scrollbar-width: none;
+}
+
+.antwerp-hero__carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.antwerp-hero__carousel-card {
+  flex: 0 0 82%;
+  height: 220px;
+  border-radius: 20px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(201, 181, 156, 0.45);
+  box-shadow: 0 18px 40px rgba(63, 54, 47, 0.18);
+  scroll-snap-align: center;
+}
+
+.antwerp-hero__carousel-controls {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.antwerp-hero__carousel-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.8);
+  color: #3b3127;
+  padding: 6px 14px;
+  font-weight: 600;
+}
+
 .la-review-ticker {
   margin-top: 18px;
   overflow: hidden;
@@ -1922,6 +2021,22 @@ html {
   box-shadow: 0 12px 24px rgba(63, 54, 47, 0.12);
   color: #2f261e;
   font-size: 0.92rem;
+}
+
+.la-review-ticker__controls {
+  display: none;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 0 18px 6px;
+}
+
+.la-review-ticker__btn {
+  border-radius: 999px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.9);
+  color: #3b3127;
+  padding: 6px 14px;
+  font-weight: 600;
 }
 
 .la-review-ticker__item p {
@@ -1962,6 +2077,15 @@ html {
   }
   100% {
     transform: translateY(-50%);
+  }
+}
+
+@keyframes la-review-scroll-x {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
   }
 }
 
@@ -2133,6 +2257,10 @@ html {
   justify-items: start;
 }
 
+.la-city-tour__control--mobile {
+  display: none;
+}
+
 .la-city-tour__control .la-tour-trigger {
   padding: 12px 22px;
   border-radius: 999px;
@@ -2284,6 +2412,168 @@ html {
   .la-city-tour__image {
     min-height: 260px;
   }
+
+  .la-city-tour__head .la-city-tour__control {
+    display: none;
+  }
+
+  .la-city-tour__control--mobile {
+    display: grid;
+    margin-top: 18px;
+    width: 100%;
+  }
+
+  .la-city-tour__control--mobile .la-tour-trigger {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .antwerp-page {
+    overflow-x: hidden;
+  }
+
+  .antwerp-main {
+    padding: 0 5vw 60px;
+  }
+
+  .antwerp-section {
+    margin-top: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .antwerp-building {
+    padding: 16px;
+    border-radius: 18px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .la-units-main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .antwerp-section__head {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .antwerp-building__head {
+    gap: 10px;
+  }
+
+  .antwerp-building__head h3 {
+    font-size: 1.35rem;
+  }
+
+  .la-story {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .la-story__media {
+    grid-template-columns: 1fr;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .la-story__image {
+    height: 180px;
+    max-width: 100%;
+  }
+
+  .la-story__content h4 {
+    font-size: 1.2rem;
+  }
+
+  .la-story__row {
+    border-radius: 16px;
+    padding: 8px 0;
+    max-width: 100%;
+  }
+
+  .la-story__pill {
+    font-size: 0.78rem;
+    padding: 5px 10px;
+  }
+
+  .la-story__price {
+    gap: 4px;
+  }
+
+  .la-story__price-amount {
+    font-size: 1.2rem;
+  }
+
+  .la-units-layout {
+    gap: 18px;
+  }
+
+  .la-units-map-card {
+    padding: 14px;
+  }
+
+  .la-units-map {
+    height: 220px;
+  }
+
+  .antwerp-section__head {
+    gap: 14px;
+  }
+
+  .antwerp-section__head h2 {
+    font-size: 1.6rem;
+  }
+
+  .la-city-tour {
+    padding: 54px 0 48px;
+    border-radius: 24px;
+  }
+
+  .la-city-tour__head {
+    align-items: flex-start;
+  }
+
+  .la-city-tour__cities {
+    gap: 8px;
+  }
+
+  .la-city-tour__city-btn {
+    font-size: 0.65rem;
+    padding: 7px 12px;
+  }
+
+  .la-city-tour__control {
+    width: 100%;
+  }
+
+  .la-city-tour__control .la-tour-trigger {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .la-city-tour__preview {
+    gap: 16px;
+  }
+
+  .la-city-tour__card {
+    padding: 20px 20px;
+  }
+
+  .la-city-tour__image {
+    min-height: 220px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2297,6 +2587,11 @@ html {
 
   .la-review-ticker__track {
     animation: none;
+    scroll-behavior: auto;
+  }
+
+  .antwerp-hero__carousel-track {
+    scroll-behavior: auto;
   }
 
   .la-city-tour__city-btn,
@@ -2361,6 +2656,16 @@ html {
   .la-units-map {
     height: clamp(220px, 40vh, 420px);
     max-height: 60vh;
+  }
+}
+
+@media (max-width: 1023px) {
+  .la-units-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .la-units-aside {
+    position: static;
   }
 }
 
@@ -2967,6 +3272,194 @@ html {
   background: rgba(255, 255, 255, 0.55);
 }
 
+.la-date-picker {
+  grid-column: span 2;
+  position: relative;
+}
+
+.la-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.la-date-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.la-date-label {
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  color: #5b4b3f;
+}
+
+.la-date-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.8);
+  color: #3b3127;
+  text-align: left;
+}
+
+.la-date-input:focus-visible {
+  outline: 2px solid rgba(156, 131, 104, 0.85);
+  outline-offset: 2px;
+}
+
+.la-section-modal .listing-date-dropdown {
+  position: absolute;
+  left: 0;
+  margin-top: 10px;
+  width: min(680px, 90vw);
+  border-radius: 20px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: #f6f1ea;
+  box-shadow: 0 24px 60px rgba(63, 54, 47, 0.18);
+  z-index: 10;
+}
+
+.la-date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(201, 181, 156, 0.4);
+  color: #3b3127;
+}
+
+.la-date-title {
+  font-weight: 600;
+}
+
+.la-date-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.la-date-nav-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.8);
+  color: #3b3127;
+  font-weight: 700;
+}
+
+.la-date-body {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.la-date-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.la-date-month {
+  display: grid;
+  gap: 10px;
+}
+
+.la-date-month-title {
+  font-weight: 600;
+  color: #3b3127;
+}
+
+.la-date-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgba(91, 75, 63, 0.8);
+}
+
+.la-date-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.la-section-modal .listing-date-cell {
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 181, 156, 0.5);
+  background: rgba(255, 255, 255, 0.8);
+  color: #3b3127;
+  font-size: 0.85rem;
+}
+
+.listing-date-dropdown.has-prices .listing-date-cell {
+  min-height: 58px;
+  padding: 6px 4px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  justify-items: center;
+  line-height: 1.1;
+}
+
+.listing-date-cell__day {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.listing-date-cell__price {
+  font-size: 0.7rem;
+  color: rgba(59, 49, 39, 0.85);
+  font-weight: 600;
+}
+
+.la-section-modal .listing-date-cell.is-between {
+  background: rgba(201, 181, 156, 0.2);
+}
+
+.la-section-modal .listing-date-cell.is-selected {
+  background: #c9b59c;
+  border-color: #b59c84;
+  color: #2a221c;
+  font-weight: 600;
+}
+
+.la-section-modal .listing-date-cell.is-disabled {
+  background: rgba(255, 255, 255, 0.5);
+  color: rgba(107, 95, 85, 0.7);
+  border-color: rgba(201, 181, 156, 0.3);
+}
+
+.la-date-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.la-date-clear,
+.la-date-done {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.8);
+  color: #3b3127;
+  font-weight: 600;
+}
+
+.la-date-done {
+  background: #c9b59c;
+  border-color: #b59c84;
+  color: #2a221c;
+}
+
 .la-unit-modal__booking label {
   display: block;
   font-size: 0.8rem;
@@ -2984,7 +3477,7 @@ html {
   color: #3b3127;
 }
 
-.la-unit-modal__booking button {
+.la-unit-modal__booking-cta {
   align-self: end;
   padding: 12px 18px;
   border-radius: 12px;
@@ -3007,6 +3500,94 @@ html {
   color: #2e241c;
 }
 
+.la-price-calendar {
+  display: grid;
+  gap: 12px;
+}
+
+.la-price-calendar__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.la-price-calendar__nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.la-price-calendar__btn {
+  border-radius: 10px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(255, 255, 255, 0.7);
+  color: #3b3127;
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+.la-price-calendar__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.la-price-calendar__label {
+  font-weight: 600;
+  color: #3b3127;
+}
+
+.la-price-calendar__status {
+  font-size: 0.9rem;
+  color: #5b4b3f;
+}
+
+.la-price-calendar__grid {
+  display: grid;
+  gap: 8px;
+}
+
+.la-price-calendar__week,
+.la-price-calendar__days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.la-price-calendar__weekday {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  color: rgba(74, 63, 53, 0.7);
+}
+
+.la-price-calendar__cell {
+  min-height: 58px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 181, 156, 0.45);
+  background: rgba(255, 255, 255, 0.7);
+  display: grid;
+  gap: 4px;
+}
+
+.la-price-calendar__cell.is-empty {
+  border: none;
+  background: transparent;
+}
+
+.la-price-calendar__day {
+  font-size: 0.8rem;
+  color: #3b3127;
+}
+
+.la-price-calendar__price {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #2a1f16;
+}
+
 .la-unit-modal__amenities {
   display: flex;
   flex-wrap: wrap;
@@ -3020,6 +3601,48 @@ html {
   background: rgba(248, 241, 231, 0.85);
   color: #4a3f35;
   font-size: 0.85rem;
+}
+
+.la-unit-modal__facilities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #4a3f35;
+  font-size: 0.9rem;
+}
+
+.la-unit-modal__facilities li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.la-facility-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #1f8a4c;
+  flex-shrink: 0;
+}
+
+.la-facility-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.la-facility-text {
+  display: inline-flex;
 }
 
 .la-unit-modal__rooms {
@@ -3173,6 +3796,7 @@ html {
   background: rgba(255, 255, 255, 0.6);
   color: #4a3f35;
 }
+
 
 .la-section-hero__contact {
   text-align: center;
@@ -3469,6 +4093,12 @@ html {
   color: #3b3127;
 }
 
+.la-booking-table__price-original {
+  color: rgba(59, 49, 39, 0.7);
+  text-decoration: line-through;
+  font-size: 0.85rem;
+}
+
 .la-booking-table__price strong {
   font-size: 1.05rem;
   color: #2f261e;
@@ -3708,6 +4338,141 @@ html {
   }
 }
 
+@media (max-width: 640px) {
+  .la-section-modal {
+    width: 100%;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .la-section-modal__header {
+    gap: 12px;
+  }
+
+  .la-section-hero__main img {
+    height: 220px;
+  }
+
+  .la-section-hero__side img,
+  .la-section-hero__side .la-unit-modal__placeholder {
+    height: 140px;
+  }
+
+  .la-section-hero__thumbs img {
+    width: 72px;
+    height: 56px;
+  }
+
+  .la-section-hero__contact,
+  .la-section-hero__review,
+  .la-section-hero__map {
+    padding: 12px;
+  }
+
+  .la-unit-modal {
+    width: 100%;
+    padding: 16px;
+  }
+
+  .la-unit-modal__tabs {
+    flex-wrap: wrap;
+  }
+
+  .la-unit-modal__tabs button {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .la-unit-modal__main img {
+    height: 220px;
+  }
+
+  .la-unit-modal__side img,
+  .la-unit-modal__placeholder {
+    height: 140px;
+  }
+
+  .la-unit-modal__thumbs img {
+    width: 70px;
+    height: 52px;
+  }
+
+  .la-unit-modal__booking {
+    grid-template-columns: 1fr;
+  }
+
+  .la-date-picker {
+    grid-column: span 1;
+  }
+
+  .la-date-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .la-section-modal .listing-date-dropdown {
+    position: static;
+    width: 100%;
+  }
+
+  .la-date-months {
+    grid-template-columns: 1fr;
+  }
+
+  .la-date-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .la-date-footer {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .la-date-clear,
+  .la-date-done {
+    width: 100%;
+    text-align: center;
+  }
+
+  .la-booking-table__head {
+    display: none;
+  }
+
+  .la-booking-table__row {
+    padding: 14px;
+  }
+
+  .la-booking-table__title img,
+  .la-booking-table__placeholder {
+    height: 160px;
+  }
+
+  .la-price-calendar__week,
+  .la-price-calendar__days {
+    gap: 6px;
+  }
+
+  .la-price-calendar__cell {
+    min-height: 52px;
+    padding: 5px;
+  }
+
+  .la-price-calendar__price {
+    font-size: 0.72rem;
+  }
+
+  .listing-date-dropdown.has-prices .listing-date-cell {
+    min-height: 52px;
+    padding: 4px;
+  }
+
+  .listing-date-cell__price {
+    font-size: 0.65rem;
+  }
+}
+
 .antwerp-modal {
   background: #fdfaf6;
   border-radius: 22px;
@@ -3863,6 +4628,219 @@ html {
 
   .antwerp-hero__media {
     grid-auto-rows: 140px;
+  }
+}
+
+@media (max-width: 640px) {
+  .la-units-main,
+  .antwerp-section,
+  .antwerp-building,
+  .la-story,
+  .la-story__media {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .la-story {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .la-story__media {
+    gap: 10px;
+  }
+
+  .la-story__image {
+    width: 100%;
+    height: 160px;
+  }
+
+  .la-story__content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .la-story__content > * {
+    max-width: 100%;
+  }
+
+  .la-story__content h4 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+  }
+
+  .la-story__copy {
+    font-size: 0.92rem;
+    margin-bottom: 12px;
+  }
+
+  .la-story__row {
+    margin-bottom: 12px;
+  }
+
+  .la-story__pill {
+    font-size: 0.74rem;
+  }
+
+  .la-story__price {
+    margin-top: 8px;
+  }
+
+  .la-story__price-note {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .antwerp-hero {
+    padding: 60px 5vw 40px;
+    gap: 28px;
+  }
+
+  .antwerp-title {
+    font-size: clamp(2.1rem, 8vw, 2.6rem);
+  }
+
+  .antwerp-hero__content {
+    max-width: 100%;
+  }
+
+  .antwerp-hero__actions {
+    flex-direction: column;
+  }
+
+  .antwerp-cta,
+  .antwerp-ghost {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .antwerp-hero__media {
+    display: none;
+  }
+
+  .antwerp-hero__image--1 {
+    grid-column: span 1;
+    grid-row: span 1;
+    min-height: 220px;
+  }
+
+  .antwerp-hero__carousel {
+    display: block;
+  }
+
+  .antwerp-hero__carousel {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+
+  .antwerp-hero__carousel-track {
+    padding: 0 5vw 12px;
+  }
+
+  .antwerp-hero__carousel-card {
+    flex-basis: 90%;
+    height: 240px;
+    border-radius: 22px;
+  }
+
+  .antwerp-hero__carousel-controls {
+    padding: 0 5vw;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .antwerp-hero__carousel-btn {
+    min-width: 72px;
+    text-align: center;
+  }
+
+  .antwerp-hero__carousel-controls {
+    padding: 0 18px;
+  }
+
+  .antwerp-hero__carousel-btn {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 10px 24px rgba(63, 54, 47, 0.18);
+    font-size: 0;
+    width: 52px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .antwerp-hero__carousel-btn::before {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .antwerp-hero__carousel-controls .antwerp-hero__carousel-btn:first-child::before {
+    content: "‹";
+  }
+
+  .antwerp-hero__carousel-controls .antwerp-hero__carousel-btn:last-child::before {
+    content: "›";
+  }
+
+  .la-review-ticker {
+    max-height: 200px;
+    padding: 20px 16px;
+    width: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .la-review-ticker__track {
+    flex-direction: column;
+    gap: 16px;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    animation: la-review-scroll 220s linear infinite;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+  }
+
+  .la-review-ticker__track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .la-review-ticker__item {
+    padding: 16px 16px;
+    font-size: 0.88rem;
+    width: 100%;
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+
+  .la-review-ticker__controls {
+    padding: 0 5vw;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .la-review-ticker__btn {
+    min-width: 72px;
+    text-align: center;
+  }
+
+  .la-review-ticker__controls {
+    display: flex;
+  }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .la-review-ticker__track {
+    animation: none;
   }
 }
 
