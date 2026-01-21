@@ -1875,6 +1875,7 @@ export default function LosAngelesLandingPage() {
     setSectionAvailabilityLoading(true);
     setSectionAvailabilityError("");
     try {
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const items = activeSection.listings
         .map((listing) => listing.id || listing._id)
         .filter(Boolean);
@@ -1884,22 +1885,21 @@ export default function LosAngelesLandingPage() {
         endDate: sectionCheckOut,
         minOccupancy: sectionGuests || "1",
       }).toString();
-      const checks = await Promise.all(
-        items.map(async (id) => {
-          const tryAvailability = async (listingId) => {
-            const res = await fetch(`${apiBase}/api/listings/${listingId}/availability?${qs}`, {
-              cache: "no-store",
-            });
-            if (!res.ok) return { ok: false, status: res.status };
-            const json = await res.json();
-            return { ok: true, available: Boolean(json?.isAvailable) };
-          };
-
-          const primary = await tryAvailability(id);
-          if (primary.ok) return { id, available: primary.available };
-          return { id, available: false };
-        })
-      );
+      const checks = [];
+      const tryAvailability = async (listingId) => {
+        const res = await fetch(`${apiBase}/api/listings/${listingId}/availability?${qs}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return { ok: false, status: res.status };
+        const json = await res.json();
+        return { ok: true, available: Boolean(json?.isAvailable) };
+      };
+      for (const id of items) {
+        const primary = await tryAvailability(id);
+        if (primary.ok) checks.push({ id, available: primary.available });
+        else checks.push({ id, available: false });
+        await delay(250);
+      }
       const availableIds = new Set(checks.filter((item) => item.available).map((item) => item.id));
       const availabilityMap = checks.reduce((acc, item) => {
         acc[item.id] = item.available;
@@ -1913,32 +1913,32 @@ export default function LosAngelesLandingPage() {
       setSectionAvailabilityActive(true);
 
       const quotes = {};
-      await Promise.all(
-        availableListings.map(async (listing) => {
-          const listingKey = listing.id || listing._id;
-          const quoteListingId = listing.unitTypeId || listing.id || listing._id;
-          if (!listingKey || !quoteListingId) return;
-          try {
-            const res = await fetch(`${apiBase}/api/reservations/quotes`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                listingId: quoteListingId,
-                checkInDateLocalized: sectionCheckIn,
-                checkOutDateLocalized: sectionCheckOut,
-                guestsCount: sectionGuests || "1",
-              }),
-            });
-            if (!res.ok) return;
+      for (const listing of availableListings) {
+        const listingKey = listing.id || listing._id;
+        const quoteListingId = listing.unitTypeId || listing.id || listing._id;
+        if (!listingKey || !quoteListingId) continue;
+        try {
+          const res = await fetch(`${apiBase}/api/reservations/quotes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              listingId: quoteListingId,
+              checkInDateLocalized: sectionCheckIn,
+              checkOutDateLocalized: sectionCheckOut,
+              guestsCount: sectionGuests || "1",
+            }),
+          });
+          if (res.ok) {
             const quoteJson = await res.json();
             const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
             const pricing = getQuotePricing(quoteData, listing, nights);
             if (pricing) quotes[listingKey] = pricing;
-          } catch {
-            // fall back to base price
           }
-        })
-      );
+        } catch {
+          // fall back to base price
+        }
+        await delay(250);
+      }
       setSectionQuotes(quotes);
     } catch (err) {
       setSectionAvailabilityError(err.message || "Unable to load availability.");

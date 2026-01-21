@@ -8,6 +8,8 @@ node_bundler = "esbuild"
 
 [build.environment]
 NODE_VERSION = "20"
+GUESTY_MAX_CONCURRENT = "1"
+GUESTY_MIN_INTERVAL_MS = "8000"
 
 [dev]
 targetPort = 5174
