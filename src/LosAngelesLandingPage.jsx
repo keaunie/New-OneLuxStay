@@ -1805,41 +1805,34 @@ export default function LosAngelesLandingPage() {
       };
 
       for (const group of groupedListings) {
-        let minTotal = null;
-        let currency = "USD";
-        for (const listing of group.listings) {
-          const listingId = listing.unitTypeId || listing.id || listing._id;
-          if (!listingId) continue;
-          try {
-            const res = await fetch(`${apiBase}/api/reservations/quotes`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                listingId,
-                checkInDateLocalized: checkIn,
-                checkOutDateLocalized: checkOut,
-                guestsCount: "1",
-              }),
-            });
-            if (!res.ok) continue;
-            const quoteJson = await res.json();
-            const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
-            const pricing = getQuotePricing(quoteData, listing, nights);
-            const manualTotals = getManualTotal(quoteData);
-            const total =
-              (typeof manualTotals?.total === "number" && manualTotals.total > 0
-                ? manualTotals.total
-                : pricing?.breakdown?.total ?? pricing?.breakdown?.subtotal) ?? null;
-            if (typeof total === "number" && (minTotal === null || total < minTotal)) {
-              minTotal = total;
-              currency = pricing?.currency || listing.currency || "USD";
-            }
-          } catch {
-            // ignore quote failures
+        const listing = group.listings[0];
+        const listingId = listing?.unitTypeId || listing?.id || listing?._id;
+        if (!listingId) continue;
+        try {
+          const res = await fetch(`${apiBase}/api/reservations/quotes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              listingId,
+              checkInDateLocalized: checkIn,
+              checkOutDateLocalized: checkOut,
+              guestsCount: "1",
+            }),
+          });
+          if (!res.ok) continue;
+          const quoteJson = await res.json();
+          const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
+          const pricing = getQuotePricing(quoteData, listing, nights);
+          const manualTotals = getManualTotal(quoteData);
+          const total =
+            (typeof manualTotals?.total === "number" && manualTotals.total > 0
+              ? manualTotals.total
+              : pricing?.breakdown?.total ?? pricing?.breakdown?.subtotal) ?? null;
+          if (typeof total === "number") {
+            results[group.key] = { total, currency: pricing?.currency || listing.currency || "USD" };
           }
-        }
-        if (minTotal !== null) {
-          results[group.key] = { total: minTotal, currency };
+        } catch {
+          // ignore quote failures
         }
       }
 
