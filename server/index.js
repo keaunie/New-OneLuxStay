@@ -948,6 +948,102 @@ app.get("/api/listings/:id/availability", async (req, res) => {
     }
 });
 
+app.get("/api/listings/availability-bulk", async (req, res) => {
+    const { ids = "", startDate, endDate, minOccupancy = 1, city = "" } = req.query || {};
+    const idList = String(ids)
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+    if (!idList.length || !startDate || !endDate) {
+        return res.status(400).json({ message: "Missing availability parameters" });
+    }
+
+    const errors = [];
+    const cacheKey = [
+        "availability-bulk",
+        idList.join(","),
+        startDate,
+        endDate,
+        minOccupancy,
+        city,
+    ].join("|");
+    const cached = getAvailabilityCache(cacheKey);
+    if (cached) return res.json({ ...cached, cached: true });
+
+    try {
+        const token = await getOpenApiToken();
+        const available = JSON.stringify({
+            checkIn: startDate,
+            checkOut: endDate,
+            minOccupancy: Number(minOccupancy) || 1,
+        });
+
+        const fetchChunk = async (chunk, attempt = 0) => {
+            const url = `${openApiHost}/listings?ids=${encodeURIComponent(
+                chunk.join(",")
+            )}${city ? `&city=${encodeURIComponent(city)}` : ""}&fields=_id availability availabilityStatus&available=${encodeURIComponent(
+                available
+            )}`;
+            const response = await withLimit(() =>
+                fetchWithTimeout(url, {
+                    headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
+                })
+            );
+            if (response.status === 429) {
+                const retryAfter = Number(response.headers.get("retry-after") || 0);
+                errors.push({ status: 429, body: "Rate limited", attempt });
+                if (attempt >= 4) return null;
+                const backoff =
+                    retryAfter > 0
+                        ? retryAfter * 1000
+                        : Math.min(4000, 600 * 2 ** attempt) + Math.random() * 200;
+                await wait(backoff);
+                return fetchChunk(chunk, attempt + 1);
+            }
+            if (!response.ok) {
+                errors.push({ status: response.status, body: await response.text().catch(() => "") });
+                return null;
+            }
+            return response.json();
+        };
+
+        const results = [];
+        const chunkSize = 20;
+        for (let i = 0; i < idList.length; i += chunkSize) {
+            const chunk = idList.slice(i, i + chunkSize);
+            const json = await fetchChunk(chunk);
+            if (Array.isArray(json?.results)) results.push(...json.results);
+        }
+
+        const map = new Map();
+        results.forEach((record) => {
+            const id = record?._id || record?.id;
+            if (!id) return;
+            const days = record?.availability || [];
+            const status = record?.availabilityStatus;
+            const availableResult =
+                Array.isArray(days) && days.length
+                    ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
+                    : typeof status === "string"
+                        ? status.toUpperCase() === "AVAILABLE"
+                        : false;
+            map.set(id, availableResult);
+        });
+
+        const output = idList.map((id) => ({
+            id,
+            available: map.get(id) ?? false,
+        }));
+
+        const payload = { results: output, errors };
+        setAvailabilityCache(cacheKey, payload);
+        res.json(payload);
+    } catch (e) {
+        res.status(502).json({ message: "Availability failed", error: e.message, errors });
+    }
+});
+
 app.get("/api/listings/:id/calendar-prices", async (req, res) => {
     const { id } = req.params;
     const { startDate, months = 24, guests = 1 } = req.query || {};

@@ -1881,25 +1881,20 @@ export default function LosAngelesLandingPage() {
         .filter(Boolean);
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const qs = new URLSearchParams({
+        ids: items.join(","),
         startDate: sectionCheckIn,
         endDate: sectionCheckOut,
         minOccupancy: sectionGuests || "1",
       }).toString();
-      const checks = [];
-      const tryAvailability = async (listingId) => {
-        const res = await fetch(`${apiBase}/api/listings/${listingId}/availability?${qs}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) return { ok: false, status: res.status };
-        const json = await res.json();
-        return { ok: true, available: Boolean(json?.isAvailable) };
-      };
-      for (const id of items) {
-        const primary = await tryAvailability(id);
-        if (primary.ok) checks.push({ id, available: primary.available });
-        else checks.push({ id, available: false });
-        await delay(250);
+      const bulkRes = await fetch(`${apiBase}/api/listings/availability-bulk?${qs}`, {
+        cache: "no-store",
+      });
+      if (!bulkRes.ok) {
+        const errText = await bulkRes.text().catch(() => "");
+        throw new Error(errText || "Availability failed");
       }
+      const bulkJson = await bulkRes.json();
+      const checks = Array.isArray(bulkJson?.results) ? bulkJson.results : [];
       const availableIds = new Set(checks.filter((item) => item.available).map((item) => item.id));
       const availabilityMap = checks.reduce((acc, item) => {
         acc[item.id] = item.available;
