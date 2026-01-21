@@ -111,10 +111,25 @@ const addMonths = (date, count) => {
   return next;
 };
 
+const buildCalendarPayload = (daysMap = {}) => {
+  const days = Object.values(daysMap).sort((a, b) => a.date.localeCompare(b.date));
+  return { months: 24, days };
+};
+
 const formatDisplayDate = (value) => {
   const date = parseDateValue(value);
   if (!date) return "Add date";
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
+const getListingMinNights = (listing) => {
+  const minNights =
+    listing?.terms?.minNights ??
+    listing?.terms?.minimumStay ??
+    listing?.terms?.minStay ??
+    listing?.terms?.minStayLength ??
+    null;
+  return typeof minNights === "number" && minNights > 1 ? minNights : null;
 };
 
 const DateRangePicker = ({
@@ -125,6 +140,7 @@ const DateRangePicker = ({
   isLoading = false,
   fallbackPrice,
   fallbackCurrency,
+  fallbackMinNights,
 }) => {
   const [open, setOpen] = useState(false);
   const checkInLabelId = useId();
@@ -215,12 +231,12 @@ const DateRangePicker = ({
 
   const selectedNights = diffNights(value.checkIn, value.checkOut);
   const selectedMinNights = useMemo(() => {
-    if (!dayPrices || !startDate) return null;
+    if (!dayPrices || !startDate) return fallbackMinNights ?? null;
     const iso = toISODate(startDate);
     const info = dayPrices.get(iso);
-    const minNights = info?.restrictions?.minNights ?? null;
+    const minNights = info?.restrictions?.minNights ?? fallbackMinNights ?? null;
     return typeof minNights === "number" && minNights > 1 ? minNights : null;
-  }, [dayPrices, startDate]);
+  }, [dayPrices, startDate, fallbackMinNights]);
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
@@ -335,7 +351,8 @@ const DateRangePicker = ({
                             : ""
                         : "";
                       const isFallbackPrice = !priceInfo && typeof fallbackPrice === "number";
-                      const minNights = priceInfo?.restrictions?.minNights ?? null;
+                      const minNights =
+                        priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null;
                       const showMinNights = typeof minNights === "number" && minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
@@ -580,7 +597,20 @@ const getQuotePricing = (quoteData, listing, nights) => {
   };
 };
 
-const KNOWN_CITIES = ["los angeles", "la", "los-angeles", "hollywood", "west hollywood"];
+const KNOWN_CITIES = [
+  "los angeles",
+  "la",
+  "los-angeles",
+  "hollywood",
+  "west hollywood",
+  "downtown",
+  "dtla",
+  "chinatown",
+  "la plaza",
+  "broadway",
+  "union station",
+];
+const EXCLUDED_CITIES = ["redondo beach", "miami", "dubai", "antwerp", "antwerpen"];
 
 const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
@@ -749,7 +779,7 @@ const SECTION_STORIES = {
     transit: ["Metro B Line (Red)", "Hollywood/Highland", "Hollywood/Vine"],
   },
   "la-hwh": {
-    title: "HWH",
+    title: "Downtown Los Angeles",
     tagline: "Bold rooftops, late-night glow, and a rhythm that draws you in.",
     copy:
       "HWH brings the energy without the rush - pool decks at dusk, design-forward streets, and a quick hop to the Strip. It's hypnotic, magnetic, and made for guests who want the best of both sides.",
@@ -757,17 +787,17 @@ const SECTION_STORIES = {
     transit: ["Rapid 2", "WeHo CityLine", "Sunset Blvd routes"],
   },
   other: {
-    title: "Near Dodger Stadium",
+    title: "Chinatown",
     tagline: "Golden light, stadium nights, and a steady city hum.",
     copy:
       "Settle into the calm just outside the core, then ride the wave into game nights and skyline views. It's a sweet spot with breathing room - close enough to feel the buzz, far enough to recharge.",
-    landmarks: ["Dodger Stadium", "Elysian Park", "Chinatown", "Echo Park Lake"],
+    landmarks: ["Dodger Stadium", "Elysian Park", "Echo Park Lake"],
     transit: ["Dodger Stadium Express", "Metro A Line", "Stadium Way routes"],
   },
 };
 
 const BUILDING_GROUPS = [
-  { key: "la-hwh", label: "HWH", match: /\bhwh\b|west hollywood|weho/ },
+  { key: "la-hwh", label: "Downtown Los Angeles", match: /\bhwh\b|west hollywood|weho/ },
   {
     key: "la-downtown",
     label: "Downtown Los Angeles",
@@ -894,6 +924,20 @@ const getListingText = (listing) => {
     .toLowerCase();
 };
 
+const isLosAngelesListing = (listing) => {
+  const cityText = [listing.city, listing.address?.city, listing.location]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (cityText) {
+    if (EXCLUDED_CITIES.some((city) => cityText.includes(city))) return false;
+    return KNOWN_CITIES.some((known) => cityText.includes(known));
+  }
+  const text = getListingText(listing);
+  if (EXCLUDED_CITIES.some((city) => text.includes(city))) return false;
+  return KNOWN_CITIES.some((known) => text.includes(known));
+};
+
 const getBuildingKey = (listing) => {
   const text = getListingText(listing);
   const hwh = BUILDING_GROUPS.find((group) => group.key === "la-hwh");
@@ -931,7 +975,7 @@ const CITY_TOUR_SLIDES = {
         "Step into a private arrival framed by palm silhouettes and glassy skyline reflections. Your concierge lines up the first night with rooftop views and a late supper on Sunset.",
       highlights: ["Sunset Boulevard", "Private transfers", "Skyline check-in"],
       image:
-        "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
       title: "Golden Hour in the Hills",
@@ -940,25 +984,16 @@ const CITY_TOUR_SLIDES = {
         "Climb above the city for warm light, quiet air, and panoramic views. End the afternoon with a private terrace pour and the skyline turning gold.",
       highlights: ["Runyon Canyon", "Mulholland Drive", "Hilltop terraces"],
       image:
-        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1576260243040-0231b2cd4c1f?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
       title: "Icons After Dark",
       subtitle: "Marquee lights and the legendary walk.",
       copy:
         "Move from neon marquees to velvet lounges with a curated night plan. Classic Hollywood icons glow brighter when you arrive with a reserved table.",
-      highlights: ["Walk of Fame", "TCL Chinese Theatre", "Roosevelt Hotel"],
+      highlights: ["Walk of Fame", "The Annex", "Roosevelt Hotel"],
       image:
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Canyon Calm",
-      subtitle: "Quiet courtyards and design-forward escapes.",
-      copy:
-        "Slip away into Laurel Canyon for a softer morning. Espresso, vintage boutiques, and a slow ride back into the energy of Hollywood.",
-      highlights: ["Laurel Canyon", "Boutique coffee", "Hidden courtyards"],
-      image:
-        "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1517983079452-bbaa6a081a6b?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
       title: "Finale in Lights",
@@ -968,6 +1003,64 @@ const CITY_TOUR_SLIDES = {
       highlights: ["Private screening", "Skyline lounge", "Concierge on call"],
       image:
         "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+    },
+  ],
+  Chinatown: [
+    {
+      title: "Chinatown Gateway",
+      subtitle: "Lantern light, hidden courtyards, and late tea.",
+      copy:
+        "Arrive under glow-lit streets and a calm courtyard welcome. Begin with a curated tasting and a walk through heritage storefronts.",
+      highlights: ["Central Plaza", "Hidden courtyards", "Tea lounge"],
+      image:
+        "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Night Market Stroll",
+      subtitle: "Street food and neon rhythm.",
+      copy:
+        "Move from open-air stalls to tucked-away speakeasies. The city hums while lanterns guide the night.",
+      highlights: ["Night market", "Street dining", "Lantern walk"],
+      image:
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Heritage + Art",
+      subtitle: "Temple calm and gallery light.",
+      copy:
+        "Spend the afternoon between heritage landmarks and contemporary galleries, then end with rooftop views back toward DTLA.",
+      highlights: ["Heritage temples", "Gallery row", "Rooftop views"],
+      image:
+        "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=2000&q=80",
+    },
+  ],
+  "Downtown Los Angeles": [
+    {
+      title: "DTLA Arrival",
+      subtitle: "Modern art, skyline lines, and a downtown pulse.",
+      copy:
+        "Begin with architectural icons and a rooftop welcome. Your concierge curates a gallery walk and a reservation with a view.",
+      highlights: ["Walt Disney Concert Hall", "The Broad", "Rooftop tables"],
+      image:
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Market District",
+      subtitle: "Historic stalls and late-night bites.",
+      copy:
+        "Taste your way through Grand Central Market before an easy stroll through the historic core.",
+      highlights: ["Grand Central Market", "Bradbury Building", "Spring Street"],
+      image:
+        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Arts + Views",
+      subtitle: "Museums, gardens, and quiet overlooks.",
+      copy:
+        "Reset with a museum afternoon and golden hour above the city.",
+      highlights: ["MOCA", "Grand Park", "Vista points"],
+      image:
+        "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=2000&q=80",
     },
   ],
   "Los Angeles": [
@@ -1068,7 +1161,7 @@ const CITY_TOUR_SLIDES = {
   ],
 };
 
-const TOUR_CITIES = ["Hollywood", "Los Angeles", "Redondo Beach", "Miami Beach"];
+const TOUR_CITIES = ["Hollywood", "Chinatown", "Downtown Los Angeles"];
 
 
 const getFirstSentence = (text) => {
@@ -1104,13 +1197,15 @@ export default function LosAngelesLandingPage() {
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
+  const [sectionAvailabilityMap, setSectionAvailabilityMap] = useState({});
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
+  const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [inquiryListing, setInquiryListing] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const heroCarouselRef = useRef(null);
   const reviewCarouselRef = useRef(null);
   const [sectionQuotes, setSectionQuotes] = useState({});
   const [selectedRatePlans, setSelectedRatePlans] = useState({});
-  const [autoCheckOnOpen, setAutoCheckOnOpen] = useState(false);
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const [buildingPrices, setBuildingPrices] = useState({});
   const [calendarPrices, setCalendarPrices] = useState(null);
@@ -1171,6 +1266,7 @@ export default function LosAngelesLandingPage() {
     if (!Array.isArray(calendarPrices?.days)) return new Map();
     return new Map(calendarPrices.days.map((day) => [day.date, day]));
   }, [calendarPrices]);
+
 
   const calendarCurrentMonth = useMemo(() => {
     const base = new Date(calendarStartDate);
@@ -1250,18 +1346,28 @@ export default function LosAngelesLandingPage() {
     if (!activeListing) {
       stopAutoScroll();
       setActiveImageIndex(0);
+      return;
     }
+    setSectionCheckIn("");
+    setSectionCheckOut("");
   }, [activeListing]);
 
   useEffect(() => {
     if (!activeListing) return;
-    const listingId = activeListing.id || activeListing._id;
+    const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
     if (!listingId) return;
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
     setCalendarStartDate(start);
     setCalendarMonthIndex(0);
+    const cachedDays = calendarDaysRef.current[listingId];
+    if (cachedDays) {
+      setCalendarPrices(buildCalendarPayload(cachedDays));
+      setCalendarError("");
+    } else {
+      setCalendarPrices(null);
+    }
 
     fetchCalendarMonth(
       listingId,
@@ -1288,21 +1394,28 @@ export default function LosAngelesLandingPage() {
       setActiveListing(null);
       setSectionAvailabilityError("");
       setSectionAvailabilityActive(false);
+      setSectionAvailabilityMap({});
+      setSectionCheckIn("");
+      setSectionCheckOut("");
+      setIsInquiryOpen(false);
+      setInquiryListing(null);
       setSectionHeroIndex(0);
       setSectionQuotes({});
       setExpandedQuoteRows({});
-      setSectionCalendarPrices(null);
       setSectionCalendarError("");
       setSectionCalendarMonthIndex(0);
     }
   }, [activeSectionKey]);
 
+
   useEffect(() => {
-    if (!autoCheckOnOpen) return;
-    if (!activeSectionKey || !sectionCheckIn || !sectionCheckOut) return;
-    fetchAvailabilityListings();
-    setAutoCheckOnOpen(false);
-  }, [autoCheckOnOpen, activeSectionKey, sectionCheckIn, sectionCheckOut]);
+    if (!isInquiryOpen) return;
+    const handleEsc = (event) => {
+      if (event.key === "Escape") setIsInquiryOpen(false);
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [isInquiryOpen]);
 
   useEffect(() => {
     let active = true;
@@ -1416,8 +1529,7 @@ export default function LosAngelesLandingPage() {
 
   const losAngelesListings = useMemo(() => {
     return listings.filter((listing) => {
-      const city = normalizeCity(listing).toLowerCase();
-      return KNOWN_CITIES.some((known) => city.includes(known));
+      return isLosAngelesListing(listing);
     });
   }, [listings]);
 
@@ -1513,7 +1625,7 @@ export default function LosAngelesLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Near Dodger Stadium", listings: other });
+      ordered.push({ key: "other", label: "Chinatown", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesListings]);
@@ -1526,6 +1638,14 @@ export default function LosAngelesLandingPage() {
   }, [groupedListings]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
+  const listingMinNightsFallback = useMemo(() => getListingMinNights(activeListing), [activeListing]);
+  const sectionMinNightsFallback = useMemo(() => {
+    if (!activeSection?.listings?.length) return null;
+    const values = activeSection.listings
+      .map((listing) => getListingMinNights(listing))
+      .filter((value) => typeof value === "number");
+    return values.length ? Math.max(...values) : null;
+  }, [activeSection]);
 
   const fetchCalendarMonth = async (
     listingId,
@@ -1552,12 +1672,14 @@ export default function LosAngelesLandingPage() {
         throw new Error(data?.message || "Calendar pricing failed");
       }
       cacheRef.current[key] = true;
-      const map = daysRef.current;
+      if (!daysRef.current[listingId]) {
+        daysRef.current[listingId] = {};
+      }
+      const map = daysRef.current[listingId];
       (data.days || []).forEach((day) => {
         if (day?.date) map[day.date] = day;
       });
-      const mergedDays = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
-      setPrices({ months: 24, days: mergedDays });
+      setPrices(buildCalendarPayload(map));
     } catch (err) {
       setError(err?.message || "Calendar pricing is unavailable.");
     } finally {
@@ -1567,13 +1689,23 @@ export default function LosAngelesLandingPage() {
 
   useEffect(() => {
     if (!activeSection) return;
-    const listingId = activeSection.listings[0]?.id || activeSection.listings[0]?._id;
+    const listingId =
+      activeSection.listings[0]?.unitTypeId ||
+      activeSection.listings[0]?.id ||
+      activeSection.listings[0]?._id;
     if (!listingId) return;
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
     setSectionCalendarStartDate(start);
     setSectionCalendarMonthIndex(0);
+    const cachedDays = sectionCalendarDaysRef.current[listingId];
+    if (cachedDays) {
+      setSectionCalendarPrices(buildCalendarPayload(cachedDays));
+      setSectionCalendarError("");
+    } else {
+      setSectionCalendarPrices(null);
+    }
 
     fetchCalendarMonth(
       listingId,
@@ -1755,10 +1887,15 @@ export default function LosAngelesLandingPage() {
         })
       );
       const availableIds = new Set(checks.filter((item) => item.available).map((item) => item.id));
+      const availabilityMap = checks.reduce((acc, item) => {
+        acc[item.id] = item.available;
+        return acc;
+      }, {});
       const availableListings = activeSection.listings.filter((listing) =>
         availableIds.has(listing.id || listing._id)
       );
       setSectionAvailability(availableListings);
+      setSectionAvailabilityMap(availabilityMap);
       setSectionAvailabilityActive(true);
 
       const quotes = {};
@@ -1849,6 +1986,20 @@ export default function LosAngelesLandingPage() {
     ],
     []
   );
+  const inquiryTitle = inquiryListing?.title ? sanitizeText(inquiryListing.title) : "this unit";
+  const inquiryDates =
+    sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
+  const inquirySubject = `Inquiry: ${inquiryTitle}`;
+  const inquiryBody =
+    `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.` +
+    (inquiryDates ? `\nDates: ${inquiryDates}.` : "") +
+    "\nPlease let me know about availability and options.\n\nThank you!";
+  const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
+    inquirySubject
+  )}&body=${encodeURIComponent(inquiryBody)}`;
+  const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
+    inquiryBody
+  )}`;
 
   const scrollHeroCarousel = (direction) => {
     if (!heroCarouselRef.current) return;
@@ -2004,7 +2155,7 @@ export default function LosAngelesLandingPage() {
               height="100%"
               cardDistance={64}
               verticalDistance={70}
-              delay={5200}
+              delay={2000}
               skewAmount={5}
               pauseOnHover
             >
@@ -2236,46 +2387,40 @@ export default function LosAngelesLandingPage() {
                           <div className="la-story__image la-story__image--empty">Image loading</div>
                         )}
                       </div>
-                    <div className="la-story__content">
-                      <p className="la-story__tag">{story.title}</p>
-                      <h4>{story.tagline}</h4>
-                      <p className="la-story__copy">{story.copy}</p>
-                      <div className="la-story__row" aria-label="Landmarks and transit near this area">
-                      <div className="la-story__track">
-                        {[...story.landmarks, ...story.transit].map((item, idx) => (
-                          <span key={`${group.key}-story-${idx}`} className="la-story__pill">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="antwerp-card__ghost"
-                      onClick={() => {
-                        const today = new Date();
-                        const tomorrow = new Date();
-                        tomorrow.setDate(today.getDate() + 1);
-                        setSectionCheckIn(formatDateLocal(today));
-                        setSectionCheckOut(formatDateLocal(tomorrow));
-                        setActiveSectionKey(group.key);
-                        setAutoCheckOnOpen(true);
-                      }}
-                    >
-                      View units in {group.label}
-                    </button>
-                    <p className="la-story__price" aria-live="polite">
-                      {latestPrice ? (
-                        <>
-                          <span className="la-story__price-amount">From {latestPrice}</span>
-                          <span className="la-story__price-note">
-                            total (accommodation + cleaning + tax)
-                          </span>
-                        </>
-                      ) : (
-                        "Pricing updates when quotes load."
-                      )}
-                    </p>
+                      <div className="la-story__content">
+                        <p className="la-story__tag">{story.title}</p>
+                        <h4>{story.tagline}</h4>
+                        <p className="la-story__copy">{story.copy}</p>
+                        <div className="la-story__row" aria-label="Landmarks and transit near this area">
+                          <div className="la-story__track">
+                            {[...story.landmarks, ...story.transit].map((item, idx) => (
+                              <span key={`${group.key}-story-${idx}`} className="la-story__pill">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="antwerp-card__ghost"
+                          onClick={() => {
+                            setActiveSectionKey(group.key);
+                          }}
+                        >
+                          View units in {group.label}
+                        </button>
+                        <p className="la-story__price" aria-live="polite">
+                          {latestPrice ? (
+                            <>
+                              <span className="la-story__price-amount">From {latestPrice}</span>
+                              <span className="la-story__price-note">
+                                total (accommodation + cleaning + tax)
+                              </span>
+                            </>
+                          ) : (
+                            "Pricing updates when quotes load."
+                          )}
+                        </p>
                       </div>
                     </div>
                   </section>
@@ -2479,42 +2624,46 @@ export default function LosAngelesLandingPage() {
               const amenityList = [...new Set(amenityPool.filter((item) => typeof item === "string"))].slice(0, 12);
               return (
                 <>
-            <div className="la-unit-modal__booking" aria-label="Availability check">
-              <DateRangePicker
-                value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                dayPrices={sectionCalendarDayMap}
-                isLoading={sectionCalendarLoading}
-                fallbackPrice={activeSection?.listings?.[0]?.basePrice}
-                fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
-                onMonthChange={(month) => {
-                  if (!activeSection) return;
-                  const listingId = activeSection.listings[0]?.id || activeSection.listings[0]?._id;
-                  if (!listingId) return;
-                  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-                  fetchCalendarMonth(
-                    listingId,
-                    monthStart,
-                    sectionCalendarCacheRef,
-                    sectionCalendarDaysRef,
-                    setSectionCalendarLoading,
-                    setSectionCalendarError,
-                    setSectionCalendarPrices
-                  );
-                  fetchCalendarMonth(
-                    listingId,
-                    addMonths(monthStart, 1),
-                    sectionCalendarCacheRef,
-                    sectionCalendarDaysRef,
-                    setSectionCalendarLoading,
-                    setSectionCalendarError,
-                    setSectionCalendarPrices
-                  );
-                }}
-                onChange={({ checkIn, checkOut }) => {
-                  setSectionCheckIn(checkIn);
-                  setSectionCheckOut(checkOut);
-                }}
-              />
+                  <div className="la-unit-modal__booking" aria-label="Availability check">
+                    <DateRangePicker
+                      value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                      dayPrices={sectionCalendarDayMap}
+                      isLoading={sectionCalendarLoading}
+                      fallbackPrice={activeSection?.listings?.[0]?.basePrice}
+                      fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
+                      fallbackMinNights={sectionMinNightsFallback}
+                      onMonthChange={(month) => {
+                        if (!activeSection) return;
+                        const listingId =
+                          activeSection.listings[0]?.unitTypeId ||
+                          activeSection.listings[0]?.id ||
+                          activeSection.listings[0]?._id;
+                        if (!listingId) return;
+                        const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+                        fetchCalendarMonth(
+                          listingId,
+                          monthStart,
+                          sectionCalendarCacheRef,
+                          sectionCalendarDaysRef,
+                          setSectionCalendarLoading,
+                          setSectionCalendarError,
+                          setSectionCalendarPrices
+                        );
+                        fetchCalendarMonth(
+                          listingId,
+                          addMonths(monthStart, 1),
+                          sectionCalendarCacheRef,
+                          sectionCalendarDaysRef,
+                          setSectionCalendarLoading,
+                          setSectionCalendarError,
+                          setSectionCalendarPrices
+                        );
+                      }}
+                      onChange={({ checkIn, checkOut }) => {
+                        setSectionCheckIn(checkIn);
+                        setSectionCheckOut(checkOut);
+                      }}
+                    />
                     <div>
                       <label htmlFor="la-section-guests">Guests</label>
                       <select
@@ -2607,13 +2756,13 @@ export default function LosAngelesLandingPage() {
                     </div>
                   ))}
                 </>
-              ) : (sectionAvailabilityActive ? sectionAvailability : activeSection.listings).length === 0 ? (
+              ) : !sectionAvailabilityActive ? (
                 <div className="la-section-hero__notice">
-                  No units are available for the selected dates. Try a different range.
+                  Choose check-in and check-out date, then click Check availability.
                 </div>
               ) : (
                 <>
-                  {(sectionAvailabilityActive ? sectionAvailability : activeSection.listings).map((listing) => {
+                  {activeSection.listings.map((listing) => {
                     const listingId = listing.id || listing._id;
                     const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
                     const listingCurrency = listing.currency || "USD";
@@ -2635,7 +2784,7 @@ export default function LosAngelesLandingPage() {
                     const fallbackTotal =
                       typeof baseNightly === "number" && quote?.nights
                         ? baseNightly * quote.nights +
-                          (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0)
+                        (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0)
                         : null;
                     const total =
                       breakdown?.total ??
@@ -2649,6 +2798,8 @@ export default function LosAngelesLandingPage() {
                         : null;
                     const checkoutListingId =
                       listing.unitTypeId || listing.id || listing._id || listingId;
+                    const isUnavailable =
+                      sectionAvailabilityActive && sectionAvailabilityMap[listingId] === false;
                     const isReserving = sectionReserveLoadingId === checkoutListingId;
                     const priceValue =
                       typeof total === "number"
@@ -2710,6 +2861,11 @@ export default function LosAngelesLandingPage() {
                                 <strong>Checking rates...</strong>
                                 <span>Updating totals</span>
                               </>
+                            ) : isUnavailable ? (
+                              <>
+                                <strong>Inquire for exact pricing</strong>
+                                <span>We’ll confirm rates & availability.</span>
+                              </>
                             ) : (
                               <>
                                 {originalTotal && originalTotal > priceValue && (
@@ -2723,64 +2879,66 @@ export default function LosAngelesLandingPage() {
                                 </span>
                               </>
                             )}
-                            <button
-                              type="button"
-                              className="la-booking-table__breakdown-toggle"
-                              aria-expanded={isExpanded}
-                              aria-controls={breakdownId}
-                              disabled={isLoadingRates}
-                              onClick={() =>
-                                setExpandedQuoteRows((prev) => ({
-                                  ...prev,
-                                  [listingId]: !prev[listingId],
-                                }))
-                              }
-                            >
-                              {isLoadingRates
-                                ? "Price breakdown loading..."
-                                : isExpanded
-                                  ? "Hide price breakdown"
-                                  : "View price breakdown"}
-                            </button>
-                            {isExpanded && (
-                              <div className="la-booking-table__breakdown" role="region" id={breakdownId}>
-                                {breakdown ? (
-                                  <>
-                                    <div>
-                                      <span>Accommodation</span>
-                                      <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                                    </div>
-                                    {breakdown.discountAmount > 0 && (
-                                      <div>
-                                        <span>
-                                          Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                                        </span>
-                                        <strong>
-                                          -{formatCurrency(breakdown.discountAmount, priceCurrency)}
-                                        </strong>
-                                      </div>
-                                    )}
-                                    <div>
-                                      <span>Cleaning</span>
-                                      <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                                    </div>
-                                    <div>
-                                      <span>Taxes</span>
-                                      <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                                    </div>
-                                    <div>
-                                      <span>Fees</span>
-                                      <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
-                                    </div>
-                                    <div className="la-booking-table__total">
-                                      <span>Total</span>
-                                      <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <p>Quote unavailable. Showing base price.</p>
+                            {!isUnavailable && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="la-booking-table__breakdown-toggle"
+                                  aria-expanded={isExpanded}
+                                  aria-controls={breakdownId}
+                                  disabled={isLoadingRates}
+                                  onClick={() =>
+                                    setExpandedQuoteRows((prev) => ({
+                                      ...prev,
+                                      [listingId]: !prev[listingId],
+                                    }))
+                                  }
+                                >
+                                  {isLoadingRates
+                                    ? "Price breakdown loading..."
+                                    : isExpanded
+                                      ? "Hide price breakdown"
+                                      : "View price breakdown"}
+                                </button>
+                                {isExpanded && (
+                                  <div className="la-booking-table__breakdown" role="region" id={breakdownId}>
+                                    {breakdown ? (
+                                      <>
+                                        <div>
+                                          <span>Accommodation</span>
+                                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
+                                        </div>
+                                        {breakdown.discountAmount > 0 && (
+                                          <div>
+                                            <span>
+                                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                                            </span>
+                                            <strong>
+                                              -{formatCurrency(breakdown.discountAmount, priceCurrency)}
+                                            </strong>
+                                          </div>
+                                        )}
+                                        <div>
+                                          <span>Cleaning</span>
+                                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
+                                        </div>
+                                        <div>
+                                          <span>Taxes</span>
+                                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                                        </div>
+                                        <div>
+                                          <span>Fees</span>
+                                          <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                                        </div>
+                                        <div className="la-booking-table__total">
+                                          <span>Total</span>
+                                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                                        </div>
+                                      </>
+                                    ) : null}
+                                  </div>
                                 )}
-                              </div>
+                              </>
                             )}
                           </div>
                         </div>
@@ -2816,21 +2974,34 @@ export default function LosAngelesLandingPage() {
                         </div>
                         <div className="la-booking-table__cell" role="cell">
                           <div className="la-booking-table__cta-group">
-                            <button
-                              type="button"
-                              className="la-booking-table__reserve"
-                              disabled={isLoadingRates || isReserving}
-                              onClick={() =>
-                                handleSectionCheckout({
-                                  listingId: checkoutListingId,
-                                  listingTitle: listing.title,
-                                  amount: typeof total === "number" ? total : null,
-                                  currency: priceCurrency,
-                                })
-                              }
-                            >
-                              {isReserving ? "Redirecting..." : "Reserve"}
-                            </button>
+                            {isUnavailable ? (
+                              <button
+                                type="button"
+                                className="la-booking-table__reserve la-booking-table__inquire"
+                                onClick={() => {
+                                  setInquiryListing(listing);
+                                  setIsInquiryOpen(true);
+                                }}
+                              >
+                                Inquire
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="la-booking-table__reserve"
+                                disabled={isLoadingRates || isReserving}
+                                onClick={() =>
+                                  handleSectionCheckout({
+                                    listingId: checkoutListingId,
+                                    listingTitle: listing.title,
+                                    amount: typeof total === "number" ? total : null,
+                                    currency: priceCurrency,
+                                  })
+                                }
+                              >
+                                {isReserving ? "Redirecting..." : "Reserve"}
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="la-booking-table__cta"
@@ -2845,6 +3016,49 @@ export default function LosAngelesLandingPage() {
                   })}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isInquiryOpen && (
+        <div
+          className="antwerp-modal__overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Inquire about a listing"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsInquiryOpen(false);
+          }}
+        >
+          <div className="la-inquiry-modal" role="document">
+            <div className="la-inquiry-modal__header">
+              <div>
+                <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
+                <h3>Inquire about {inquiryTitle}</h3>
+                {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
+              </div>
+              <button
+                type="button"
+                className="la-inquiry-modal__close"
+                onClick={() => setIsInquiryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="la-inquiry-modal__body">
+              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
+                Email reservations@oneluxstay.com
+              </a>
+              <a
+                className="la-inquiry-modal__action is-whatsapp"
+                href={inquiryWhatsAppHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                WhatsApp +971 58 885 8935
+              </a>
+              <p className="la-inquiry-modal__note">We usually respond within 24 hours.</p>
             </div>
           </div>
         </div>
@@ -3017,7 +3231,7 @@ export default function LosAngelesLandingPage() {
                       </div>
                     </div>
                     <div className="la-unit-modal__actions">
-                      
+
                     </div>
                   </div>
                 </div>
@@ -3030,9 +3244,10 @@ export default function LosAngelesLandingPage() {
                 isLoading={calendarLoading}
                 fallbackPrice={activeListing?.basePrice}
                 fallbackCurrency={activeListing?.currency || "USD"}
+                fallbackMinNights={listingMinNightsFallback}
                 onMonthChange={(month) => {
                   if (!activeListing) return;
-                  const listingId = activeListing.id || activeListing._id;
+                  const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
                   if (!listingId) return;
                   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
                   fetchCalendarMonth(
@@ -3132,30 +3347,31 @@ export default function LosAngelesLandingPage() {
                       ))}
                     </div>
                     <div className="la-price-calendar__days" role="rowgroup">
-                    {calendarMonth.cells.map((day, idx) => {
-                      if (!day) {
-                        return <span key={`empty-${idx}`} className="la-price-calendar__cell is-empty" />;
-                      }
-                      const iso = toISODate(day);
-                      const price = calendarDayMap.get(iso);
-                      const minNights = price?.restrictions?.minNights ?? null;
-                      const showMinNights = typeof minNights === "number" && minNights > 1;
-                      return (
-                        <span
-                          key={iso}
-                          className={`la-price-calendar__cell${showMinNights ? " has-restriction" : ""}`}
-                          role="gridcell"
-                        >
-                          <span className="la-price-calendar__day">{day.getDate()}</span>
-                          <span className="la-price-calendar__price">
-                            {price ? formatCalendarPrice(price.price, price.currency) : ""}
+                      {calendarMonth.cells.map((day, idx) => {
+                        if (!day) {
+                          return <span key={`empty-${idx}`} className="la-price-calendar__cell is-empty" />;
+                        }
+                        const iso = toISODate(day);
+                        const price = calendarDayMap.get(iso);
+                        const minNights =
+                          price?.restrictions?.minNights ?? listingMinNightsFallback ?? null;
+                        const showMinNights = typeof minNights === "number" && minNights > 1;
+                        return (
+                          <span
+                            key={iso}
+                            className={`la-price-calendar__cell${showMinNights ? " has-restriction" : ""}`}
+                            role="gridcell"
+                          >
+                            <span className="la-price-calendar__day">{day.getDate()}</span>
+                            <span className="la-price-calendar__price">
+                              {price ? formatCalendarPrice(price.price, price.currency) : ""}
+                            </span>
+                            {showMinNights && (
+                              <span className="la-price-calendar__restriction">Min {minNights}</span>
+                            )}
                           </span>
-                          {showMinNights && (
-                            <span className="la-price-calendar__restriction">Min {minNights}</span>
-                          )}
-                        </span>
-                      );
-                    })}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

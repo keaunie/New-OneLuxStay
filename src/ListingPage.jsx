@@ -347,6 +347,8 @@ function ListingPage() {
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
   const lastFocusRef = useRef(null);
+  const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [inquiryListing, setInquiryListing] = useState(null);
   useEffect(() => {
     if (paramsHydrated) return;
     const qs = new URLSearchParams(window.location.search);
@@ -420,6 +422,15 @@ function ListingPage() {
   }, [isModalOpen]);
 
   useEffect(() => {
+    if (!isInquiryOpen) return;
+    const handleEsc = (event) => {
+      if (event.key === "Escape") setIsInquiryOpen(false);
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [isInquiryOpen]);
+
+  useEffect(() => {
     const load = async () => {
       try {
         const res = await fetch(`${apiBase}/api/listings`, { cache: "no-store" });
@@ -451,6 +462,21 @@ function ListingPage() {
     if (!start || !end) return 0;
     return Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
   }, [search.checkIn, search.checkOut]);
+
+  const inquiryTitle = inquiryListing?.title ? inquiryListing.title : "this unit";
+  const inquiryDates =
+    search.checkIn && search.checkOut ? `${search.checkIn} to ${search.checkOut}` : "";
+  const inquirySubject = `Inquiry: ${inquiryTitle}`;
+  const inquiryBody =
+    `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.` +
+    (inquiryDates ? `\nDates: ${inquiryDates}.` : "") +
+    "\nPlease let me know about availability and options.\n\nThank you!";
+  const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
+    inquirySubject
+  )}&body=${encodeURIComponent(inquiryBody)}`;
+  const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
+    inquiryBody
+  )}`;
 
   const selectedListing = useMemo(
     () => listings.find((l) => l.id === activeListingId || l._id === activeListingId),
@@ -907,6 +933,7 @@ function ListingPage() {
             const displayTotal = status.hostPayout ?? status.total;
             const displayNightly = status.nightly ?? listing.basePrice;
             const canBook = status.status === "ready" && status.available !== false;
+            const showInquiry = status.status === "ready" && status.available === false;
 
             return (
               <article
@@ -998,6 +1025,19 @@ function ListingPage() {
                       className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
                     >
                       Book this stay
+                    </button>
+                  )}
+                  {showInquiry && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInquiryListing(listing);
+                        setIsInquiryOpen(true);
+                      }}
+                      aria-label={`Inquire about ${listing.title}`}
+                      className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
+                    >
+                      Inquire
                     </button>
                   )}
                 </div>
@@ -1119,7 +1159,19 @@ function ListingPage() {
                     </div>
                   )}
                   {modalAvailability?.status === "ready" && modalAvailability?.available === false && (
-                    <p className="text-rose-300">Not available for your dates.</p>
+                    <div className="space-y-2">
+                      <p className="text-rose-300">Not available for your dates.</p>
+                      <button
+                        type="button"
+                        className="listing-btn-primary w-full rounded-lg px-4 py-3 text-sm font-semibold shadow-lg transition"
+                        onClick={() => {
+                          setInquiryListing(modalListing);
+                          setIsInquiryOpen(true);
+                        }}
+                      >
+                        Inquire about this unit
+                      </button>
+                    </div>
                   )}
                   {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty - </p>}
 
@@ -1180,6 +1232,49 @@ function ListingPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isInquiryOpen && (
+        <div
+          className="antwerp-modal__overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Inquire about a listing"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsInquiryOpen(false);
+          }}
+        >
+          <div className="la-inquiry-modal" role="document">
+            <div className="la-inquiry-modal__header">
+              <div>
+                <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
+                <h3>Inquire about {inquiryTitle}</h3>
+                {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
+              </div>
+              <button
+                type="button"
+                className="la-inquiry-modal__close"
+                onClick={() => setIsInquiryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="la-inquiry-modal__body">
+              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
+                Email reservations@oneluxstay.com
+              </a>
+              <a
+                className="la-inquiry-modal__action is-whatsapp"
+                href={inquiryWhatsAppHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                WhatsApp +971 58 885 8935
+              </a>
+              <p className="la-inquiry-modal__note">We usually respond within 24 hours.</p>
             </div>
           </div>
         </div>

@@ -54,6 +54,7 @@ const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "r
 const pmLangRaw = process.env.GUESTY_PM_LANG || "";
 const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
 const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 const appOrigin = process.env.APP_ORIGIN || "";
 const stripe =
     stripeSecret
@@ -69,7 +70,13 @@ if (!BOOKING_CLIENT_ID || !BOOKING_CLIENT_SECRET) {
 ======================= */
 
 app.use(cors());
-app.use(express.json());
+app.use(
+    express.json({
+        verify: (req, _res, buf) => {
+            req.rawBody = buf;
+        },
+    })
+);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,6 +89,28 @@ const openApiTokenCacheFile = path.join(__dirname, "../.guesty-openapi-token.jso
 ======================= */
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const splitName = (fullName = "") => {
+    const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { firstName: "Guest", lastName: "Guest" };
+    if (parts.length === 1) return { firstName: parts[0], lastName: "Guest" };
+    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+};
+
+const buildGuestFromStripe = (session = {}) => {
+    const details = session.customer_details || {};
+    const email = details.email || session.customer_email || "";
+    if (!email) return null;
+    const name = details.name || "";
+    const phone = details.phone || "";
+    const { firstName, lastName } = splitName(name);
+    return {
+        firstName,
+        lastName,
+        email,
+        phone: phone || undefined,
+    };
+};
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
     const controller = new AbortController();
@@ -615,6 +644,24 @@ async function createQuoteOpenApi(payload) {
     return response?.data || response;
 }
 
+async function createReservationOpenApi(payload) {
+    const token = await getOpenApiToken();
+    const res = await fetchWithTimeout(`${openApiServer}/reservations`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`Reservation create failed: ${res.status} ${detail}`);
+    }
+    return res.json();
+}
+
 /* =======================
    ROUTES
 ======================= */
@@ -729,6 +776,60 @@ app.post("/api/checkout", async (req, res) => {
     } catch (e) {
         res.status(500).json({ message: "Checkout failed", error: e.message });
     }
+});
+
+app.post("/api/stripe/webhook", async (req, res) => {
+    if (!stripe || !stripeWebhookSecret) {
+        return res.status(500).json({ message: "Stripe webhook not configured" });
+    }
+
+    const sig = req.headers["stripe-signature"];
+    if (!sig) {
+        return res.status(400).send("Missing Stripe signature");
+    }
+
+    let event;
+    try {
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret);
+    } catch (err) {
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === "checkout.session.completed") {
+        const session = event.data.object || {};
+        const metadata = session.metadata || {};
+        const listingId = metadata.listingId;
+        const checkInDateLocalized = metadata.checkIn;
+        const checkOutDateLocalized = metadata.checkOut;
+        const guest = buildGuestFromStripe(session);
+
+        if (listingId && checkInDateLocalized && checkOutDateLocalized && guest) {
+            try {
+                await createReservationOpenApi({
+                    listingId,
+                    checkInDateLocalized,
+                    checkOutDateLocalized,
+                    status: "confirmed",
+                    guest,
+                    source: "stripe",
+                    originId: `stripe:${session.id}`,
+                });
+            } catch (err) {
+                console.error("Reservation create failed", err?.message || err);
+                return res.status(500).send("Reservation create failed");
+            }
+        } else {
+            console.error("Missing reservation metadata or guest info", {
+                listingId,
+                checkInDateLocalized,
+                checkOutDateLocalized,
+                hasGuest: Boolean(guest),
+            });
+            return res.status(400).send("Missing reservation metadata or guest info");
+        }
+    }
+
+    res.json({ received: true });
 });
 
 app.get("/api/listings/:id/availability", async (req, res) => {
@@ -885,16 +986,30 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                 );
             };
             const isStandardPlan = (plan = {}) => /standard/i.test(normalizePlanLabel(plan));
-            const pickPreferredPlan = (plans = []) => {
-                if (!plans.length) return null;
-                const standard = plans.find((p) => isStandardPlan(p));
-                if (standard) return standard;
-                const refundable = plans.find((p) => !isNonRefundablePlan(p));
-                return refundable || plans[0];
-            };
-            const getRestrictions = (day = {}) => {
-                const minNights =
-                    day.minNights ??
+    const pickPreferredPlan = (plans = []) => {
+        if (!plans.length) return null;
+        const standard = plans.find((p) => isStandardPlan(p));
+        if (standard) return standard;
+        const refundable = plans.find((p) => !isNonRefundablePlan(p));
+        return refundable || plans[0];
+    };
+    const mergeRestrictions = (base = {}, next = {}) => {
+        const minNightsValues = [base.minNights, next.minNights].filter(
+            (value) => typeof value === "number"
+        );
+        const maxNightsValues = [base.maxNights, next.maxNights].filter(
+            (value) => typeof value === "number"
+        );
+        return {
+            minNights: minNightsValues.length ? Math.max(...minNightsValues) : null,
+            maxNights: maxNightsValues.length ? Math.min(...maxNightsValues) : null,
+            closedToArrival: Boolean(base.closedToArrival || next.closedToArrival),
+            closedToDeparture: Boolean(base.closedToDeparture || next.closedToDeparture),
+        };
+    };
+    const getRestrictions = (day = {}) => {
+        const minNights =
+            day.minNights ??
                     day.minimumStay ??
                     day.minStay ??
                     day.minStayLength ??
@@ -944,36 +1059,47 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                         source: "website",
                     });
 
-                    const plans = Array.isArray(quote?.rates?.ratePlans)
-                        ? quote.rates.ratePlans
-                        : [];
-                    const selectedPlan = pickPreferredPlan(plans);
-                    const usablePlans = selectedPlan ? [selectedPlan] : plans;
-                    usablePlans.forEach((plan) => {
-                        const planCurrency =
-                            plan?.money?.money?.currency ||
-                            plan?.money?.currency ||
-                            quote?.money?.money?.currency ||
-                            quote?.money?.currency ||
-                            "USD";
-                        const days = Array.isArray(plan?.days) ? plan.days : [];
-                        days.forEach((day) => {
-                            const dateKey = normalizeDayDate(day);
-                            const price = day?.manualPrice ?? day?.price ?? day?.basePrice;
-                            if (!dateKey || typeof price !== "number") return;
-                            if (dateKey < startIso || dateKey >= endIso) return;
-                            const existing = dayMap.get(dateKey);
-                            if (!existing) {
-                                dayMap.set(dateKey, {
-                                    date: dateKey,
-                                    price,
-                                    currency: day?.currency || planCurrency,
-                                    restrictions: getRestrictions(day),
-                                    ratePlanLabel: normalizePlanLabel(plan),
-                                });
-                            }
+            const plans = Array.isArray(quote?.rates?.ratePlans)
+                ? quote.rates.ratePlans
+                : [];
+            const selectedPlan = pickPreferredPlan(plans);
+            const usablePlans = plans.length ? plans : [];
+            usablePlans.forEach((plan, index) => {
+                const isPricingPlan = selectedPlan ? plan === selectedPlan : index === 0;
+                const planCurrency =
+                    plan?.money?.money?.currency ||
+                    plan?.money?.currency ||
+                    quote?.money?.money?.currency ||
+                    quote?.money?.currency ||
+                    "USD";
+                const days = Array.isArray(plan?.days) ? plan.days : [];
+                days.forEach((day) => {
+                    const dateKey = normalizeDayDate(day);
+                    const price = day?.manualPrice ?? day?.price ?? day?.basePrice;
+                    if (!dateKey || typeof price !== "number") return;
+                    if (dateKey < startIso || dateKey >= endIso) return;
+                    const existing = dayMap.get(dateKey);
+                    if (!existing) {
+                        dayMap.set(dateKey, {
+                            date: dateKey,
+                            price,
+                            currency: day?.currency || planCurrency,
+                            restrictions: getRestrictions(day),
+                            ratePlanLabel: normalizePlanLabel(plan),
                         });
-                    });
+                        return;
+                    }
+                    existing.restrictions = mergeRestrictions(
+                        existing.restrictions,
+                        getRestrictions(day)
+                    );
+                    if (isPricingPlan) {
+                        existing.price = price;
+                        existing.currency = day?.currency || planCurrency;
+                        existing.ratePlanLabel = normalizePlanLabel(plan);
+                    }
+                });
+            });
                 } catch (err) {
                     if (err?.status === 429 || err?.rateLimited) {
                         rateLimited = true;
@@ -1004,6 +1130,50 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
         res.status(result.status).json(result.payload);
     } catch (e) {
         res.status(502).json({ message: "Calendar pricing failed", error: e.message, errors });
+    }
+});
+
+app.post("/api/reservations", async (req, res) => {
+    const {
+        listingId,
+        checkInDateLocalized,
+        checkOutDateLocalized,
+        status = "confirmed",
+        guestId,
+        guest,
+        money,
+        source = "website",
+        originId,
+        ignoreCalendar,
+        ignoreTerms,
+    } = req.body || {};
+
+    if (!listingId || !checkInDateLocalized || !checkOutDateLocalized) {
+        return res.status(400).json({ message: "Missing reservation parameters" });
+    }
+    if (!guestId && !guest) {
+        return res.status(400).json({ message: "Missing guestId or guest" });
+    }
+
+    try {
+        const payload = {
+            listingId,
+            checkInDateLocalized,
+            checkOutDateLocalized,
+            status,
+            source,
+        };
+        if (guestId) payload.guestId = guestId;
+        if (guest) payload.guest = guest;
+        if (money) payload.money = money;
+        if (originId) payload.originId = originId;
+        if (typeof ignoreCalendar === "boolean") payload.ignoreCalendar = ignoreCalendar;
+        if (typeof ignoreTerms === "boolean") payload.ignoreTerms = ignoreTerms;
+
+        const reservation = await createReservationOpenApi(payload);
+        res.json(reservation);
+    } catch (e) {
+        res.status(502).json({ message: "Reservation create failed", error: e.message });
     }
 });
 

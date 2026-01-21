@@ -26,7 +26,13 @@ const OPEN_API_TOKEN_CACHE_PATH =
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(
+    express.json({
+        verify: (req, _res, buf) => {
+            req.rawBody = buf;
+        },
+    })
+);
 app.disable("etag");
 app.use((_req, res, next) => {
     // Prevent conditional requests that return 304 with empty bodies
@@ -80,6 +86,7 @@ const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "r
 const pmLangRaw = process.env.GUESTY_PM_LANG || "";
 const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
 const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 const appOrigin = process.env.APP_ORIGIN || "";
 const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" }) : null;
 
@@ -105,6 +112,28 @@ const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
 };
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const splitName = (fullName = "") => {
+    const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return { firstName: "Guest", lastName: "Guest" };
+    if (parts.length === 1) return { firstName: parts[0], lastName: "Guest" };
+    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+};
+
+const buildGuestFromStripe = (session = {}) => {
+    const details = session.customer_details || {};
+    const email = details.email || session.customer_email || "";
+    if (!email) return null;
+    const name = details.name || "";
+    const phone = details.phone || "";
+    const { firstName, lastName } = splitName(name);
+    return {
+        firstName,
+        lastName,
+        email,
+        phone: phone || undefined,
+    };
+};
 
 const AVAILABILITY_CACHE_TTL_MS = 10 * 60_000;
 const AVAILABILITY_CACHE_MAX = 500;
@@ -703,6 +732,24 @@ async function createQuote(payload) {
     return tryPost();
 }
 
+async function createReservationOpenApi(payload) {
+    const token = await getOpenApiToken();
+    const res = await fetch(`${OPEN_API_BASE}/reservations`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`Reservation create failed: ${res.status} ${detail}`);
+    }
+    return res.json();
+}
+
 /* =======================
    ROUTES
 ======================= */
@@ -1002,6 +1049,20 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                 const refundable = plans.find((p) => !isNonRefundablePlan(p));
                 return refundable || plans[0];
             };
+            const mergeRestrictions = (base = {}, next = {}) => {
+                const minNightsValues = [base.minNights, next.minNights].filter(
+                    (value) => typeof value === "number"
+                );
+                const maxNightsValues = [base.maxNights, next.maxNights].filter(
+                    (value) => typeof value === "number"
+                );
+                return {
+                    minNights: minNightsValues.length ? Math.max(...minNightsValues) : null,
+                    maxNights: maxNightsValues.length ? Math.min(...maxNightsValues) : null,
+                    closedToArrival: Boolean(base.closedToArrival || next.closedToArrival),
+                    closedToDeparture: Boolean(base.closedToDeparture || next.closedToDeparture),
+                };
+            };
             const getRestrictions = (day = {}) => {
                 const minNights =
                     day.minNights ??
@@ -1058,8 +1119,9 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                         ? quote.rates.ratePlans
                         : [];
                     const selectedPlan = pickPreferredPlan(plans);
-                    const usablePlans = selectedPlan ? [selectedPlan] : plans;
-                    usablePlans.forEach((plan) => {
+                    const usablePlans = plans.length ? plans : [];
+                    usablePlans.forEach((plan, index) => {
+                        const isPricingPlan = selectedPlan ? plan === selectedPlan : index === 0;
                         const planCurrency =
                             plan?.money?.money?.currency ||
                             plan?.money?.currency ||
@@ -1081,6 +1143,16 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                                     restrictions: getRestrictions(day),
                                     ratePlanLabel: normalizePlanLabel(plan),
                                 });
+                                return;
+                            }
+                            existing.restrictions = mergeRestrictions(
+                                existing.restrictions,
+                                getRestrictions(day)
+                            );
+                            if (isPricingPlan) {
+                                existing.price = price;
+                                existing.currency = day?.currency || planCurrency;
+                                existing.ratePlanLabel = normalizePlanLabel(plan);
                             }
                         });
                     });
@@ -1114,6 +1186,104 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
         res.status(result.status).json(result.payload);
     } catch (e) {
         res.status(502).json({ message: "Calendar pricing failed", error: e.message, errors });
+    }
+});
+
+app.post("/api/stripe/webhook", async (req, res) => {
+    if (!stripe || !stripeWebhookSecret) {
+        return res.status(500).json({ message: "Stripe webhook not configured" });
+    }
+
+    const sig = req.headers["stripe-signature"];
+    if (!sig) {
+        return res.status(400).send("Missing Stripe signature");
+    }
+
+    let event;
+    try {
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret);
+    } catch (err) {
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === "checkout.session.completed") {
+        const session = event.data.object || {};
+        const metadata = session.metadata || {};
+        const listingId = metadata.listingId;
+        const checkInDateLocalized = metadata.checkIn;
+        const checkOutDateLocalized = metadata.checkOut;
+        const guest = buildGuestFromStripe(session);
+
+        if (listingId && checkInDateLocalized && checkOutDateLocalized && guest) {
+            try {
+                await createReservationOpenApi({
+                    listingId,
+                    checkInDateLocalized,
+                    checkOutDateLocalized,
+                    status: "confirmed",
+                    guest,
+                    source: "stripe",
+                    originId: `stripe:${session.id}`,
+                });
+            } catch (err) {
+                console.error("Reservation create failed", err?.message || err);
+                return res.status(500).send("Reservation create failed");
+            }
+        } else {
+            console.error("Missing reservation metadata or guest info", {
+                listingId,
+                checkInDateLocalized,
+                checkOutDateLocalized,
+                hasGuest: Boolean(guest),
+            });
+            return res.status(400).send("Missing reservation metadata or guest info");
+        }
+    }
+
+    res.json({ received: true });
+});
+
+app.post("/api/reservations", async (req, res) => {
+    const {
+        listingId,
+        checkInDateLocalized,
+        checkOutDateLocalized,
+        status = "confirmed",
+        guestId,
+        guest,
+        money,
+        source = "website",
+        originId,
+        ignoreCalendar,
+        ignoreTerms,
+    } = req.body || {};
+
+    if (!listingId || !checkInDateLocalized || !checkOutDateLocalized) {
+        return res.status(400).json({ message: "Missing reservation parameters" });
+    }
+    if (!guestId && !guest) {
+        return res.status(400).json({ message: "Missing guestId or guest" });
+    }
+
+    try {
+        const payload = {
+            listingId,
+            checkInDateLocalized,
+            checkOutDateLocalized,
+            status,
+            source,
+        };
+        if (guestId) payload.guestId = guestId;
+        if (guest) payload.guest = guest;
+        if (money) payload.money = money;
+        if (originId) payload.originId = originId;
+        if (typeof ignoreCalendar === "boolean") payload.ignoreCalendar = ignoreCalendar;
+        if (typeof ignoreTerms === "boolean") payload.ignoreTerms = ignoreTerms;
+
+        const reservation = await createReservationOpenApi(payload);
+        res.json(reservation);
+    } catch (e) {
+        res.status(502).json({ message: "Reservation create failed", error: e.message });
     }
 });
 
