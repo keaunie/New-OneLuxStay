@@ -1201,6 +1201,15 @@ export default function LosAngelesLandingPage() {
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
+  const [checkoutGuest, setCheckoutGuest] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+  });
+  const [checkoutGuestError, setCheckoutGuestError] = useState("");
+  const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
+  const [pendingCheckout, setPendingCheckout] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const heroCarouselRef = useRef(null);
   const reviewCarouselRef = useRef(null);
@@ -1399,6 +1408,9 @@ export default function LosAngelesLandingPage() {
       setSectionCheckOut("");
       setIsInquiryOpen(false);
       setInquiryListing(null);
+      setIsCheckoutGuestOpen(false);
+      setPendingCheckout(null);
+      setCheckoutGuestError("");
       setSectionHeroIndex(0);
       setSectionQuotes({});
       setExpandedQuoteRows({});
@@ -1416,6 +1428,15 @@ export default function LosAngelesLandingPage() {
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
   }, [isInquiryOpen]);
+
+  useEffect(() => {
+    if (!isCheckoutGuestOpen) return;
+    const handleEsc = (event) => {
+      if (event.key === "Escape") setIsCheckoutGuestOpen(false);
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [isCheckoutGuestOpen]);
 
   useEffect(() => {
     let active = true;
@@ -1933,7 +1954,7 @@ export default function LosAngelesLandingPage() {
     }
   };
 
-  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency }) => {
+  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency, guest }) => {
     if (!listingId) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
@@ -1959,6 +1980,7 @@ export default function LosAngelesLandingPage() {
           guests: Number(sectionGuests) || 1,
           amount,
           currency,
+          guest,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -1973,6 +1995,22 @@ export default function LosAngelesLandingPage() {
     } finally {
       setSectionReserveLoadingId(null);
     }
+  };
+
+  const confirmGuestCheckout = () => {
+    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
+      setCheckoutGuestError("Add guest name and email to continue.");
+      return;
+    }
+    if (!pendingCheckout) {
+      setIsCheckoutGuestOpen(false);
+      return;
+    }
+    setCheckoutGuestError("");
+    setIsCheckoutGuestOpen(false);
+    const payload = { ...pendingCheckout, guest: checkoutGuest };
+    setPendingCheckout(null);
+    handleSectionCheckout(payload);
   };
 
   const heroImages = useMemo(
@@ -2986,21 +3024,33 @@ export default function LosAngelesLandingPage() {
                                 Inquire
                               </button>
                             ) : (
-                              <button
-                                type="button"
-                                className="la-booking-table__reserve"
-                                disabled={isLoadingRates || isReserving}
-                                onClick={() =>
-                                  handleSectionCheckout({
+                            <button
+                              type="button"
+                              className="la-booking-table__reserve"
+                              disabled={isLoadingRates || isReserving}
+                              onClick={() => {
+                                if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
+                                  setPendingCheckout({
                                     listingId: checkoutListingId,
                                     listingTitle: listing.title,
                                     amount: typeof total === "number" ? total : null,
                                     currency: priceCurrency,
-                                  })
+                                  });
+                                  setCheckoutGuestError("");
+                                  setIsCheckoutGuestOpen(true);
+                                  return;
                                 }
-                              >
-                                {isReserving ? "Redirecting..." : "Reserve"}
-                              </button>
+                                handleSectionCheckout({
+                                  listingId: checkoutListingId,
+                                  listingTitle: listing.title,
+                                  amount: typeof total === "number" ? total : null,
+                                  currency: priceCurrency,
+                                  guest: checkoutGuest,
+                                });
+                              }}
+                            >
+                              {isReserving ? "Redirecting..." : "Reserve"}
+                            </button>
                             )}
                             <button
                               type="button"
@@ -3059,6 +3109,85 @@ export default function LosAngelesLandingPage() {
                 WhatsApp +971 58 885 8935
               </a>
               <p className="la-inquiry-modal__note">We usually respond within 24 hours.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCheckoutGuestOpen && (
+        <div
+          className="antwerp-modal__overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Guest details for checkout"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
+          }}
+        >
+          <div className="la-inquiry-modal" role="document">
+            <div className="la-inquiry-modal__header">
+              <div>
+                <p className="la-inquiry-modal__kicker">Guest details</p>
+                <h3>Tell us who’s booking</h3>
+                <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
+              </div>
+              <button
+                type="button"
+                className="la-inquiry-modal__close"
+                onClick={() => setIsCheckoutGuestOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="la-inquiry-modal__body">
+              <label className="la-inquiry-modal__field">
+                <span>First name</span>
+                <input
+                  type="text"
+                  value={checkoutGuest.firstName}
+                  onChange={(event) =>
+                    setCheckoutGuest((prev) => ({ ...prev, firstName: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="la-inquiry-modal__field">
+                <span>Last name</span>
+                <input
+                  type="text"
+                  value={checkoutGuest.lastName}
+                  onChange={(event) =>
+                    setCheckoutGuest((prev) => ({ ...prev, lastName: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="la-inquiry-modal__field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={checkoutGuest.email}
+                  onChange={(event) =>
+                    setCheckoutGuest((prev) => ({ ...prev, email: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="la-inquiry-modal__field">
+                <span>Phone (optional)</span>
+                <input
+                  type="tel"
+                  value={checkoutGuest.phone}
+                  onChange={(event) =>
+                    setCheckoutGuest((prev) => ({ ...prev, phone: event.target.value }))
+                  }
+                />
+              </label>
+              {checkoutGuestError && <p className="la-inquiry-modal__note">{checkoutGuestError}</p>}
+              <button
+                type="button"
+                className="la-inquiry-modal__action"
+                onClick={confirmGuestCheckout}
+              >
+                Continue to payment
+              </button>
             </div>
           </div>
         </div>

@@ -99,10 +99,11 @@ const splitName = (fullName = "") => {
 
 const buildGuestFromStripe = (session = {}) => {
     const details = session.customer_details || {};
-    const email = details.email || session.customer_email || "";
+    const metadata = session.metadata || {};
+    const email = details.email || session.customer_email || metadata.guestEmail || "";
     if (!email) return null;
-    const name = details.name || "";
-    const phone = details.phone || "";
+    const name = details.name || metadata.guestName || "";
+    const phone = details.phone || metadata.guestPhone || "";
     const { firstName, lastName } = splitName(name);
     return {
         firstName,
@@ -736,6 +737,7 @@ app.post("/api/checkout", async (req, res) => {
             amount,
             currency = "USD",
             guests = 1,
+            guest,
         } = req.body || {};
 
         if (!listingId || !checkIn || !checkOut) {
@@ -746,6 +748,10 @@ app.post("/api/checkout", async (req, res) => {
         }
 
         const origin = req.headers.origin || appOrigin || "http://localhost:8888";
+        const guestName =
+            guest && (guest.firstName || guest.lastName)
+                ? [guest.firstName, guest.lastName].filter(Boolean).join(" ")
+                : "";
         const session = await stripe.checkout.sessions.create({
             mode: "payment",
             payment_method_types: ["card"],
@@ -767,7 +773,11 @@ app.post("/api/checkout", async (req, res) => {
                 checkIn,
                 checkOut,
                 guests: String(guests),
+                guestName,
+                guestEmail: guest?.email || "",
+                guestPhone: guest?.phone || "",
             },
+            customer_email: guest?.email || undefined,
             success_url: `${origin}/?payment=success`,
             cancel_url: `${origin}/?payment=cancel`,
         });

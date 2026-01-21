@@ -3165,6 +3165,27 @@ html {
   color: #24533d;
 }
 
+.la-inquiry-modal__field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: rgba(59, 49, 39, 0.85);
+}
+
+.la-inquiry-modal__field input {
+  border-radius: 12px;
+  border: 1px solid rgba(201, 181, 156, 0.7);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  color: #3b3127;
+}
+
+.la-inquiry-modal__field input:focus-visible {
+  outline: 2px solid rgba(79, 63, 48, 0.5);
+  outline-offset: 2px;
+}
+
 .la-inquiry-modal__note {
   margin: 4px 0 0;
   font-size: 0.85rem;
