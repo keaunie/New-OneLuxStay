@@ -1749,15 +1749,13 @@ export default function LosAngelesLandingPage() {
   }, [activeSection]);
 
   useEffect(() => {
-    if (!groupedListings.length) return;
+    if (!groupedListings.length || !sectionCheckIn || !sectionCheckOut) {
+      setBuildingPrices({});
+      return;
+    }
     let active = true;
     const load = async () => {
-      const today = new Date();
-      const tomorrow = new Date();
-      tomorrow.setDate(today.getDate() + 1);
-      const checkIn = formatDateLocal(today);
-      const checkOut = formatDateLocal(tomorrow);
-      const nights = diffNights(checkIn, checkOut);
+      const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const results = {};
       const getManualTotal = (quoteData) => {
         const plans = Array.isArray(quoteData?.rates?.ratePlans)
@@ -1804,24 +1802,41 @@ export default function LosAngelesLandingPage() {
         return { total: minTotal };
       };
 
-      for (const group of groupedListings) {
-        const listing = group.listings[0];
-        const listingId = listing?.unitTypeId || listing?.id || listing?._id;
-        if (!listingId) continue;
-        try {
-          const res = await fetch(`${apiBase}/api/reservations/quotes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              listingId,
-              checkInDateLocalized: checkIn,
-              checkOutDateLocalized: checkOut,
-              guestsCount: "1",
-            }),
-          });
-          if (!res.ok) continue;
-          const quoteJson = await res.json();
-          const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
+      const requests = groupedListings
+        .slice(0, 3)
+        .map((group) => {
+          const listing = group.listings[0];
+          const listingId = listing?.unitTypeId || listing?.id || listing?._id;
+          if (!listingId) return null;
+          return {
+            listingId,
+            checkInDateLocalized: sectionCheckIn,
+            checkOutDateLocalized: sectionCheckOut,
+            guestsCount: "1",
+          };
+        })
+        .filter(Boolean);
+
+      if (!requests.length) {
+        if (active) setBuildingPrices({});
+        return;
+      }
+
+      try {
+        const res = await fetch(`${apiBase}/api/reservations/quotes-bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requests }),
+        });
+        if (!res.ok) return;
+        const quoteJson = await res.json();
+        const resultMap = quoteJson?.results || {};
+        groupedListings.slice(0, 3).forEach((group) => {
+          const listing = group.listings[0];
+          const listingId = listing?.unitTypeId || listing?.id || listing?._id;
+          if (!listingId) return;
+          const quoteData = resultMap[listingId];
+          if (!quoteData) return;
           const pricing = getQuotePricing(quoteData, listing, nights);
           const manualTotals = getManualTotal(quoteData);
           const total =
@@ -1831,9 +1846,9 @@ export default function LosAngelesLandingPage() {
           if (typeof total === "number") {
             results[group.key] = { total, currency: pricing?.currency || listing.currency || "USD" };
           }
-        } catch {
-          // ignore quote failures
-        }
+        });
+      } catch {
+        // ignore quote failures
       }
 
       if (active) setBuildingPrices(results);
@@ -1842,7 +1857,7 @@ export default function LosAngelesLandingPage() {
     return () => {
       active = false;
     };
-  }, [groupedListings]);
+  }, [groupedListings, sectionCheckIn, sectionCheckOut]);
   useEffect(() => {
     if (!sectionQuotes) return;
     setSelectedRatePlans((prev) => {
@@ -1907,34 +1922,43 @@ export default function LosAngelesLandingPage() {
       setSectionAvailabilityMap(availabilityMap);
       setSectionAvailabilityActive(true);
 
-      const quotes = {};
-      for (const listing of availableListings) {
-        const listingKey = listing.id || listing._id;
-        const quoteListingId = listing.unitTypeId || listing.id || listing._id;
-        if (!listingKey || !quoteListingId) continue;
-        try {
-          const res = await fetch(`${apiBase}/api/reservations/quotes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              listingId: quoteListingId,
-              checkInDateLocalized: sectionCheckIn,
-              checkOutDateLocalized: sectionCheckOut,
-              guestsCount: sectionGuests || "1",
-            }),
-          });
-          if (res.ok) {
-            const quoteJson = await res.json();
-            const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
+      const quoteRequests = availableListings
+        .map((listing) => {
+          const quoteListingId = listing.unitTypeId || listing.id || listing._id;
+          if (!quoteListingId) return null;
+          return {
+            listingId: quoteListingId,
+            checkInDateLocalized: sectionCheckIn,
+            checkOutDateLocalized: sectionCheckOut,
+            guestsCount: sectionGuests || "1",
+          };
+        })
+        .filter(Boolean);
+      if (quoteRequests.length) {
+        const res = await fetch(`${apiBase}/api/reservations/quotes-bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requests: quoteRequests }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const quotes = {};
+          availableListings.forEach((listing) => {
+            const listingKey = listing.id || listing._id;
+            const quoteListingId = listing.unitTypeId || listing.id || listing._id;
+            if (!listingKey || !quoteListingId) return;
+            const quoteData = data?.results?.[quoteListingId];
+            if (!quoteData) return;
             const pricing = getQuotePricing(quoteData, listing, nights);
             if (pricing) quotes[listingKey] = pricing;
-          }
-        } catch {
-          // fall back to base price
+          });
+          setSectionQuotes(quotes);
+        } else {
+          setSectionQuotes({});
         }
-        await delay(250);
+      } else {
+        setSectionQuotes({});
       }
-      setSectionQuotes(quotes);
     } catch (err) {
       setSectionAvailabilityError(err.message || "Unable to load availability.");
     } finally {
