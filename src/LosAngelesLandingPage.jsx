@@ -105,6 +105,11 @@ const formatCalendarPrice = (value, currency) => {
 const monthKey = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
+const hasMonthData = (daysMap = {}, targetDate) => {
+  const prefix = monthKey(targetDate);
+  return Object.values(daysMap).some((day) => day?.date?.startsWith(prefix));
+};
+
 const addMonths = (date, count) => {
   const next = new Date(date);
   next.setMonth(next.getMonth() + count);
@@ -137,12 +142,17 @@ const DateRangePicker = ({
   onChange,
   dayPrices,
   onMonthChange,
+  onOpenChange,
   isLoading = false,
   fallbackPrice,
   fallbackCurrency,
   fallbackMinNights,
 }) => {
   const [open, setOpen] = useState(false);
+  const setOpenState = (nextOpen) => {
+    setOpen(nextOpen);
+    if (onOpenChange) onOpenChange(nextOpen);
+  };
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
   const dialogId = useId();
@@ -154,18 +164,23 @@ const DateRangePicker = ({
   }, []);
   const [view, setView] = useState(() => parseDateValue(value.checkIn) || today);
   const containerRef = useRef(null);
+  const onMonthChangeRef = useRef(onMonthChange);
 
   const startDate = parseDateValue(value.checkIn);
   const endDate = parseDateValue(value.checkOut);
 
   useEffect(() => {
+    onMonthChangeRef.current = onMonthChange;
+  }, [onMonthChange]);
+
+  useEffect(() => {
     const handleClick = (e) => {
       if (!open) return;
       if (containerRef.current && containerRef.current.contains(e.target)) return;
-      setOpen(false);
+      setOpenState(false);
     };
     const handleEsc = (e) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") setOpenState(false);
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleEsc);
@@ -184,11 +199,16 @@ const DateRangePicker = ({
     });
   }, [open, startDate, today]);
 
+  const viewMonthKey = useMemo(
+    () => `${view.getFullYear()}-${String(view.getMonth()).padStart(2, "0")}`,
+    [view]
+  );
+
   useEffect(() => {
-    if (!onMonthChange) return;
+    if (!open || !onMonthChangeRef.current) return;
     const monthStart = new Date(view.getFullYear(), view.getMonth(), 1);
-    onMonthChange(monthStart);
-  }, [view, onMonthChange]);
+    onMonthChangeRef.current(monthStart);
+  }, [open, viewMonthKey, view]);
 
   const buildMonth = (baseDate) => {
     const year = baseDate.getFullYear();
@@ -226,7 +246,7 @@ const DateRangePicker = ({
       checkIn: nextStart ? toISODate(nextStart) : "",
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
-    if (nextStart && nextEnd) setOpen(false);
+    if (nextStart && nextEnd) setOpenState(false);
   };
 
   const selectedNights = diffNights(value.checkIn, value.checkOut);
@@ -255,7 +275,7 @@ const DateRangePicker = ({
           <label id={checkInLabelId} className="la-date-label">Check-in</label>
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => setOpenState(true)}
             aria-haspopup="dialog"
             aria-expanded={open}
             aria-controls={dialogId}
@@ -269,7 +289,7 @@ const DateRangePicker = ({
           <label id={checkOutLabelId} className="la-date-label">Check-out</label>
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => setOpenState(true)}
             aria-haspopup="dialog"
             aria-expanded={open}
             aria-controls={dialogId}
@@ -422,7 +442,7 @@ const DateRangePicker = ({
               </button>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => setOpenState(false)}
                 className="la-date-done"
               >
                 Done
@@ -1229,6 +1249,11 @@ export default function LosAngelesLandingPage() {
   });
   const calendarCacheRef = useRef({});
   const calendarDaysRef = useRef({});
+  const calendarGlobalCacheRef = useRef({});
+  const calendarGlobalDaysRef = useRef({});
+  const calendarGlobalInflightRef = useRef({});
+  const [isListingCalendarOpen, setIsListingCalendarOpen] = useState(false);
+  const calendarInflightRef = useRef({});
   const [sectionCalendarPrices, setSectionCalendarPrices] = useState(null);
   const [sectionCalendarLoading, setSectionCalendarLoading] = useState(false);
   const [sectionCalendarError, setSectionCalendarError] = useState("");
@@ -1241,6 +1266,8 @@ export default function LosAngelesLandingPage() {
   });
   const sectionCalendarCacheRef = useRef({});
   const sectionCalendarDaysRef = useRef({});
+  const [isSectionCalendarOpen, setIsSectionCalendarOpen] = useState(false);
+  const sectionCalendarInflightRef = useRef({});
   const [tourCity, setTourCity] = useState("Hollywood");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
@@ -1288,6 +1315,24 @@ export default function LosAngelesLandingPage() {
     () => buildCalendarMonth(calendarCurrentMonth),
     [calendarCurrentMonth]
   );
+
+  useEffect(() => {
+    if (!activeListing || !isListingCalendarOpen) return;
+    const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
+    if (!listingId) return;
+    const monthBase = new Date(calendarStartDate);
+    monthBase.setMonth(monthBase.getMonth() + calendarMonthIndex);
+    const monthStart = new Date(monthBase.getFullYear(), monthBase.getMonth(), 1);
+    fetchCalendarMonth(
+      listingId,
+      monthStart,
+      calendarCacheRef,
+      calendarDaysRef,
+      setCalendarLoading,
+      setCalendarError,
+      setCalendarPrices
+    );
+  }, [activeListing, isListingCalendarOpen, calendarMonthIndex, calendarStartDate]);
 
   const sectionCalendarDayMap = useMemo(() => {
     if (!Array.isArray(sectionCalendarPrices?.days)) return new Map();
@@ -1377,26 +1422,8 @@ export default function LosAngelesLandingPage() {
     } else {
       setCalendarPrices(null);
     }
-
-    fetchCalendarMonth(
-      listingId,
-      start,
-      calendarCacheRef,
-      calendarDaysRef,
-      setCalendarLoading,
-      setCalendarError,
-      setCalendarPrices
-    );
-    fetchCalendarMonth(
-      listingId,
-      addMonths(start, 1),
-      calendarCacheRef,
-      calendarDaysRef,
-      setCalendarLoading,
-      setCalendarError,
-      setCalendarPrices
-    );
-  }, [activeListing]);
+    if (!isListingCalendarOpen) return;
+  }, [activeListing, isListingCalendarOpen]);
 
   useEffect(() => {
     if (activeSectionKey) {
@@ -1673,12 +1700,40 @@ export default function LosAngelesLandingPage() {
     targetDate,
     cacheRef,
     daysRef,
+    inflightRef,
     setLoading,
     setError,
-    setPrices
+    setPrices,
+    hasRetried = false
   ) => {
     const key = `${listingId}-${monthKey(targetDate)}`;
     if (cacheRef.current[key]) return;
+    if (calendarGlobalCacheRef.current[key]) {
+      cacheRef.current[key] = true;
+      const sharedDays = calendarGlobalDaysRef.current[listingId];
+      if (sharedDays) {
+        daysRef.current[listingId] = { ...(daysRef.current[listingId] || {}), ...sharedDays };
+        setPrices(buildCalendarPayload(daysRef.current[listingId]));
+      }
+      return;
+    }
+    if (inflightRef.current[key]) return;
+    if (calendarGlobalInflightRef.current[key]) return;
+    inflightRef.current[key] = true;
+    calendarGlobalInflightRef.current[key] = true;
+    const existingDays = daysRef.current[listingId];
+    if (existingDays && hasMonthData(existingDays, targetDate)) {
+      cacheRef.current[key] = true;
+      calendarGlobalCacheRef.current[key] = true;
+      calendarGlobalDaysRef.current[listingId] = {
+        ...(calendarGlobalDaysRef.current[listingId] || {}),
+        ...existingDays,
+      };
+      setPrices(buildCalendarPayload(existingDays));
+      inflightRef.current[key] = false;
+      calendarGlobalInflightRef.current[key] = false;
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -1692,7 +1747,34 @@ export default function LosAngelesLandingPage() {
       if (!res.ok) {
         throw new Error(data?.message || "Calendar pricing failed");
       }
-      cacheRef.current[key] = true;
+      const rateLimited =
+        data?.rateLimited ||
+        (Array.isArray(data?.errors) &&
+          data.errors.some((err) => String(err?.message || "").includes("Rate limited")));
+      if (rateLimited && !hasRetried) {
+        setError("Rates are busy. Retrying...");
+        setLoading(false);
+        inflightRef.current[key] = false;
+        calendarGlobalInflightRef.current[key] = false;
+        setTimeout(() => {
+          fetchCalendarMonth(
+            listingId,
+            targetDate,
+            cacheRef,
+            daysRef,
+            inflightRef,
+            setLoading,
+            setError,
+            setPrices,
+            true
+          );
+        }, 1200);
+        return;
+      }
+      if (!rateLimited || (data?.days && data.days.length)) {
+        cacheRef.current[key] = true;
+        calendarGlobalCacheRef.current[key] = true;
+      }
       if (!daysRef.current[listingId]) {
         daysRef.current[listingId] = {};
       }
@@ -1700,11 +1782,17 @@ export default function LosAngelesLandingPage() {
       (data.days || []).forEach((day) => {
         if (day?.date) map[day.date] = day;
       });
+      calendarGlobalDaysRef.current[listingId] = {
+        ...(calendarGlobalDaysRef.current[listingId] || {}),
+        ...map,
+      };
       setPrices(buildCalendarPayload(map));
     } catch (err) {
       setError(err?.message || "Calendar pricing is unavailable.");
     } finally {
       setLoading(false);
+      inflightRef.current[key] = false;
+      calendarGlobalInflightRef.current[key] = false;
     }
   };
 
@@ -1727,26 +1815,8 @@ export default function LosAngelesLandingPage() {
     } else {
       setSectionCalendarPrices(null);
     }
-
-    fetchCalendarMonth(
-      listingId,
-      start,
-      sectionCalendarCacheRef,
-      sectionCalendarDaysRef,
-      setSectionCalendarLoading,
-      setSectionCalendarError,
-      setSectionCalendarPrices
-    );
-    fetchCalendarMonth(
-      listingId,
-      addMonths(start, 1),
-      sectionCalendarCacheRef,
-      sectionCalendarDaysRef,
-      setSectionCalendarLoading,
-      setSectionCalendarError,
-      setSectionCalendarPrices
-    );
-  }, [activeSection]);
+    if (!isSectionCalendarOpen) return;
+  }, [activeSection, isSectionCalendarOpen]);
 
   useEffect(() => {
     if (!groupedListings.length || !sectionCheckIn || !sectionCheckOut) {
@@ -2695,20 +2765,13 @@ export default function LosAngelesLandingPage() {
                           monthStart,
                           sectionCalendarCacheRef,
                           sectionCalendarDaysRef,
-                          setSectionCalendarLoading,
-                          setSectionCalendarError,
-                          setSectionCalendarPrices
-                        );
-                        fetchCalendarMonth(
-                          listingId,
-                          addMonths(monthStart, 1),
-                          sectionCalendarCacheRef,
-                          sectionCalendarDaysRef,
+                          sectionCalendarInflightRef,
                           setSectionCalendarLoading,
                           setSectionCalendarError,
                           setSectionCalendarPrices
                         );
                       }}
+                      onOpenChange={setIsSectionCalendarOpen}
                       onChange={({ checkIn, checkOut }) => {
                         setSectionCheckIn(checkIn);
                         setSectionCheckOut(checkOut);
@@ -3396,20 +3459,13 @@ export default function LosAngelesLandingPage() {
                     monthStart,
                     calendarCacheRef,
                     calendarDaysRef,
-                    setCalendarLoading,
-                    setCalendarError,
-                    setCalendarPrices
-                  );
-                  fetchCalendarMonth(
-                    listingId,
-                    addMonths(monthStart, 1),
-                    calendarCacheRef,
-                    calendarDaysRef,
+                    calendarInflightRef,
                     setCalendarLoading,
                     setCalendarError,
                     setCalendarPrices
                   );
                 }}
+                onOpenChange={setIsListingCalendarOpen}
                 onChange={({ checkIn, checkOut }) => {
                   setSectionCheckIn(checkIn);
                   setSectionCheckOut(checkOut);
@@ -3470,7 +3526,7 @@ export default function LosAngelesLandingPage() {
                 </div>
                 {calendarLoading && (
                   <div className="la-price-calendar__status" role="status" aria-live="polite">
-                    Loading 24 months of nightly prices...
+                    Loading nightly prices...
                   </div>
                 )}
                 {calendarError && (

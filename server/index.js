@@ -96,6 +96,8 @@ const withTimeout = (promise, timeoutMs, label = "Request") =>
             setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)
         ),
     ]);
+const isTimeoutError = (err) =>
+    String(err?.message || "").toLowerCase().includes("timed out");
 
 const splitName = (fullName = "") => {
     const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
@@ -136,13 +138,21 @@ const availabilityCache = new Map();
 const AVAILABILITY_RATE_LIMIT_MS =
     Number(process.env.GUESTY_AVAILABILITY_RATE_LIMIT_MS || 60_000);
 const availabilityRateLimitedUntil = new Map();
+const AVAILABILITY_BULK_TIMEOUT_MS =
+    Number(process.env.GUESTY_AVAILABILITY_BULK_TIMEOUT_MS || 25000);
+const AVAILABILITY_BULK_MAX_IDS =
+    Number(process.env.GUESTY_AVAILABILITY_BULK_MAX_IDS || 60);
 const quoteCache = new Map();
 const QUOTE_CACHE_TTL_MS =
     Number(process.env.GUESTY_QUOTE_CACHE_TTL_MS || 15 * 60_000); // default 15 min
 let quoteRateLimitedUntil = 0;
-const QUOTE_BULK_LIMIT = Number(process.env.GUESTY_QUOTE_BULK_LIMIT || 3);
+const QUOTE_BULK_LIMIT = Number(process.env.GUESTY_QUOTE_BULK_LIMIT || 2);
 const QUOTE_BULK_TIMEOUT_MS =
-    Number(process.env.GUESTY_QUOTE_BULK_TIMEOUT_MS || 8000);
+    Number(process.env.GUESTY_QUOTE_BULK_TIMEOUT_MS || 10000);
+const QUOTE_BULK_TIMEOUT_RETRY_MS =
+    Number(process.env.GUESTY_QUOTE_BULK_TIMEOUT_RETRY_MS || 12000);
+const QUOTE_BULK_PREWARM_LIMIT =
+    Number(process.env.GUESTY_QUOTE_BULK_PREWARM_LIMIT || 2);
 const CALENDAR_CACHE_TTL_MS =
     Number(process.env.GUESTY_CALENDAR_CACHE_TTL_MS || 6 * 60 * 60_000); // default 6 hours
 const calendarCache = new Map();
@@ -253,6 +263,37 @@ const runDeduped = (map, key, fn) => {
     })();
     map.set(key, promise);
     return promise;
+};
+
+const prewarmQuoteCache = (ids, { checkInDateLocalized, checkOutDateLocalized, guestsCount }) => {
+    if (!Array.isArray(ids) || !ids.length) return;
+    const guestsNum = Number.parseInt(guestsCount, 10);
+    const guests = Number.isFinite(guestsNum) ? Math.max(1, guestsNum) : 1;
+    const warmIds = ids.slice(0, Math.max(1, QUOTE_BULK_PREWARM_LIMIT));
+    setTimeout(() => {
+        warmIds.forEach(async (listingId) => {
+            const cacheKey = [
+                "quote",
+                listingId,
+                checkInDateLocalized,
+                checkOutDateLocalized,
+                guests,
+            ].join("|");
+            if (getQuoteCache(cacheKey)) return;
+            try {
+                const quote = await createQuote({
+                    listingId,
+                    checkInDateLocalized,
+                    checkOutDateLocalized,
+                    guestsCount: guests,
+                });
+                const out = { results: [quote] };
+                setQuoteCache(cacheKey, out);
+            } catch {
+                // best-effort warmup
+            }
+        });
+    }, 0);
 };
 
 const toIsoDate = (date) =>
@@ -1068,10 +1109,13 @@ app.get("/api/listings/:id/availability", async (req, res) => {
 
 app.get("/api/listings/availability-bulk", async (req, res) => {
     const { ids = "", startDate, endDate, minOccupancy = 1, city = "" } = req.query || {};
-    const idList = String(ids)
+    let idList = String(ids)
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean);
+    if (idList.length > AVAILABILITY_BULK_MAX_IDS) {
+        idList = idList.slice(0, AVAILABILITY_BULK_MAX_IDS);
+    }
 
     if (!idList.length || !startDate || !endDate) {
         return res.status(400).json({ message: "Missing availability parameters" });
@@ -1102,6 +1146,7 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
     }
 
     try {
+        const deadline = Date.now() + AVAILABILITY_BULK_TIMEOUT_MS;
         const token = await getOpenApiToken();
         const available = JSON.stringify({
             checkIn: startDate,
@@ -1141,11 +1186,16 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
         const results = [];
         const chunkSize = 20;
         for (let i = 0; i < idList.length; i += chunkSize) {
+            if (Date.now() > deadline) {
+                errors.push({ status: 408, body: "Availability bulk timed out" });
+                break;
+            }
             const chunk = idList.slice(i, i + chunkSize);
             const json = await fetchChunk(chunk);
             if (Array.isArray(json?.results)) results.push(...json.results);
         }
         const rateLimited = errors.some((e) => e.status === 429);
+        const timedOut = errors.some((e) => e.status === 408);
         if (rateLimited && results.length === 0 && cachedStale) {
             availabilityRateLimitedUntil.set(
                 cacheKey,
@@ -1163,6 +1213,9 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
                 errors: [{ message: "Rate limited by Guesty" }],
                 rateLimited: true,
             });
+        }
+        if (timedOut && results.length === 0 && cachedStale) {
+            return res.json({ ...cachedStale, cached: true, stale: true, timedOut: true });
         }
 
         const map = new Map();
@@ -1182,6 +1235,10 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
 
         const missingIds = idList.filter((id) => !map.has(id));
         for (const missingId of missingIds) {
+            if (rateLimited || timedOut || Date.now() > deadline) {
+                map.set(missingId, false);
+                continue;
+            }
             try {
                 const quote = await createQuote({
                     listingId: missingId,
@@ -1203,6 +1260,12 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
 
         const payload = { results: output, errors };
         setAvailabilityCache(cacheKey, payload);
+        const prewarmIds = output.filter((item) => item.available).map((item) => item.id);
+        prewarmQuoteCache(prewarmIds, {
+            checkInDateLocalized: startDate,
+            checkOutDateLocalized: endDate,
+            guestsCount: minOccupancy,
+        });
         res.json(payload);
     } catch (e) {
         const rateLimited = errors.some((err) => err.status === 429);
@@ -1619,6 +1682,38 @@ app.post("/api/reservations/quotes-bulk", async (req, res) => {
         } catch (e) {
             if (e?.rateLimited || e?.status === 429) {
                 quoteRateLimitedUntil = Date.now() + 60_000;
+            }
+            if (isTimeoutError(e)) {
+                const cachedStale = getQuoteCacheStale(cacheKey);
+                if (cachedStale) {
+                    results[listingId] = cachedStale.results?.[0] || cachedStale.results || cachedStale;
+                    errors.push({ listingId, message: "Quote timeout, served cached pricing", status: null });
+                    continue;
+                }
+                try {
+                    await wait(400);
+                    const retryQuote = await withTimeout(
+                        createQuote({
+                            listingId,
+                            checkInDateLocalized,
+                            checkOutDateLocalized,
+                            guestsCount: guests,
+                        }),
+                        QUOTE_BULK_TIMEOUT_RETRY_MS,
+                        "Quote retry"
+                    );
+                    const out = { results: [retryQuote] };
+                    setQuoteCache(cacheKey, out);
+                    results[listingId] = retryQuote;
+                    continue;
+                } catch (retryErr) {
+                    errors.push({
+                        listingId,
+                        message: retryErr.message || "Quote retry failed",
+                        status: retryErr.status || null,
+                    });
+                    continue;
+                }
             }
             errors.push({ listingId, message: e.message, status: e.status || null });
         }
