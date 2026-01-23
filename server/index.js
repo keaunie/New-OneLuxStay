@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import openApiDocs from "@api/open-api-docs";
 import Stripe from "stripe";
 
 dotenv.config();
@@ -77,6 +76,75 @@ app.use(
         },
     })
 );
+app.use((_req, res, next) => {
+    if (Number.isFinite(openApiRateLimitState.limitSecond)) {
+        res.set("X-Guesty-RateLimit-Limit-Second", String(openApiRateLimitState.limitSecond));
+    }
+    if (Number.isFinite(openApiRateLimitState.limitMinute)) {
+        res.set("X-Guesty-RateLimit-Limit-Minute", String(openApiRateLimitState.limitMinute));
+    }
+    if (Number.isFinite(openApiRateLimitState.limitHour)) {
+        res.set("X-Guesty-RateLimit-Limit-Hour", String(openApiRateLimitState.limitHour));
+    }
+    if (Number.isFinite(openApiRateLimitState.remainingSecond)) {
+        res.set("X-Guesty-RateLimit-Remaining-Second", String(openApiRateLimitState.remainingSecond));
+    }
+    if (Number.isFinite(openApiRateLimitState.remainingMinute)) {
+        res.set("X-Guesty-RateLimit-Remaining-Minute", String(openApiRateLimitState.remainingMinute));
+    }
+    if (Number.isFinite(openApiRateLimitState.remainingHour)) {
+        res.set("X-Guesty-RateLimit-Remaining-Hour", String(openApiRateLimitState.remainingHour));
+    }
+    if (openApiRateLimitState.nextAllowedAt > Date.now()) {
+        res.set("X-Guesty-RateLimit-Next-Allowed-At", String(openApiRateLimitState.nextAllowedAt));
+    }
+    if (Number.isFinite(bookingRateLimitState.limitSecond)) {
+        res.set("X-Guesty-BE-RateLimit-Limit-Second", String(bookingRateLimitState.limitSecond));
+    }
+    if (Number.isFinite(bookingRateLimitState.limitMinute)) {
+        res.set("X-Guesty-BE-RateLimit-Limit-Minute", String(bookingRateLimitState.limitMinute));
+    }
+    if (Number.isFinite(bookingRateLimitState.limitHour)) {
+        res.set("X-Guesty-BE-RateLimit-Limit-Hour", String(bookingRateLimitState.limitHour));
+    }
+    if (Number.isFinite(bookingRateLimitState.remainingSecond)) {
+        res.set("X-Guesty-BE-RateLimit-Remaining-Second", String(bookingRateLimitState.remainingSecond));
+    }
+    if (Number.isFinite(bookingRateLimitState.remainingMinute)) {
+        res.set("X-Guesty-BE-RateLimit-Remaining-Minute", String(bookingRateLimitState.remainingMinute));
+    }
+    if (Number.isFinite(bookingRateLimitState.remainingHour)) {
+        res.set("X-Guesty-BE-RateLimit-Remaining-Hour", String(bookingRateLimitState.remainingHour));
+    }
+    if (bookingRateLimitState.nextAllowedAt > Date.now()) {
+        res.set("X-Guesty-BE-RateLimit-Next-Allowed-At", String(bookingRateLimitState.nextAllowedAt));
+    }
+    next();
+});
+app.use((_req, res, next) => {
+    if (Number.isFinite(openApiRateLimitState.limitSecond)) {
+        res.set("X-Guesty-RateLimit-Limit-Second", String(openApiRateLimitState.limitSecond));
+    }
+    if (Number.isFinite(openApiRateLimitState.limitMinute)) {
+        res.set("X-Guesty-RateLimit-Limit-Minute", String(openApiRateLimitState.limitMinute));
+    }
+    if (Number.isFinite(openApiRateLimitState.limitHour)) {
+        res.set("X-Guesty-RateLimit-Limit-Hour", String(openApiRateLimitState.limitHour));
+    }
+    if (Number.isFinite(openApiRateLimitState.remainingSecond)) {
+        res.set("X-Guesty-RateLimit-Remaining-Second", String(openApiRateLimitState.remainingSecond));
+    }
+    if (Number.isFinite(openApiRateLimitState.remainingMinute)) {
+        res.set("X-Guesty-RateLimit-Remaining-Minute", String(openApiRateLimitState.remainingMinute));
+    }
+    if (Number.isFinite(openApiRateLimitState.remainingHour)) {
+        res.set("X-Guesty-RateLimit-Remaining-Hour", String(openApiRateLimitState.remainingHour));
+    }
+    if (openApiRateLimitState.nextAllowedAt > Date.now()) {
+        res.set("X-Guesty-RateLimit-Next-Allowed-At", String(openApiRateLimitState.nextAllowedAt));
+    }
+    next();
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,6 +166,110 @@ const withTimeout = (promise, timeoutMs, label = "Request") =>
     ]);
 const isTimeoutError = (err) =>
     String(err?.message || "").toLowerCase().includes("timed out");
+
+const openApiRateLimitState = {
+    nextAllowedAt: 0,
+    remainingSecond: null,
+    remainingMinute: null,
+    remainingHour: null,
+    limitSecond: null,
+    limitMinute: null,
+    limitHour: null,
+};
+const bookingRateLimitState = {
+    nextAllowedAt: 0,
+    remainingSecond: null,
+    remainingMinute: null,
+    remainingHour: null,
+    limitSecond: null,
+    limitMinute: null,
+    limitHour: null,
+};
+const parseLimitHeader = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+};
+const updateRateLimitFromHeaders = (headers, state) => {
+    const remainingSecond = parseLimitHeader(headers.get("x-ratelimit-remaining-second"));
+    const remainingMinute = parseLimitHeader(headers.get("x-ratelimit-remaining-minute"));
+    const remainingHour = parseLimitHeader(headers.get("x-ratelimit-remaining-hour"));
+    const limitSecond = parseLimitHeader(headers.get("x-ratelimit-limit-second"));
+    const limitMinute = parseLimitHeader(headers.get("x-ratelimit-limit-minute"));
+    const limitHour = parseLimitHeader(headers.get("x-ratelimit-limit-hour"));
+    const now = Date.now();
+    let nextAt = state.nextAllowedAt;
+    if (remainingSecond === 0) nextAt = Math.max(nextAt, now + 1000);
+    if (remainingMinute === 0) nextAt = Math.max(nextAt, now + 60_000);
+    if (remainingHour === 0) nextAt = Math.max(nextAt, now + 60 * 60_000);
+    state.nextAllowedAt = nextAt;
+    state.remainingSecond = remainingSecond;
+    state.remainingMinute = remainingMinute;
+    state.remainingHour = remainingHour;
+    state.limitSecond = limitSecond;
+    state.limitMinute = limitMinute;
+    state.limitHour = limitHour;
+};
+const getRetryAfterMs = (headers) => {
+    const retryAfter = Number(headers.get("retry-after") || 0);
+    return retryAfter > 0 ? retryAfter * 1000 : 0;
+};
+const guestyFetch = async (url, options = {}, timeout = 10000, maxAttempts = 5) => {
+    let attempt = 0;
+    while (attempt <= maxAttempts) {
+        const now = Date.now();
+        if (openApiRateLimitState.nextAllowedAt > now) {
+            await wait(openApiRateLimitState.nextAllowedAt - now);
+        }
+        const res = await withLimit(() => fetchWithTimeout(url, options, timeout));
+        updateRateLimitFromHeaders(res.headers, openApiRateLimitState);
+        if (res.status !== 429) return res;
+
+        const retryMs = getRetryAfterMs(res.headers) || Math.min(8000, 800 * 2 ** attempt);
+        openApiRateLimitState.nextAllowedAt = Math.max(
+            openApiRateLimitState.nextAllowedAt,
+            Date.now() + retryMs
+        );
+        if (attempt >= maxAttempts) {
+            const body = await res.text().catch(() => "");
+            const err = new Error(body || "Rate limited by Guesty");
+            err.rateLimited = true;
+            err.status = 429;
+            throw err;
+        }
+        attempt += 1;
+        await wait(retryMs);
+    }
+    throw new Error("Guesty request failed");
+};
+
+const guestyBookingFetch = async (url, options = {}, timeout = 10000, maxAttempts = 5) => {
+    let attempt = 0;
+    while (attempt <= maxAttempts) {
+        const now = Date.now();
+        if (bookingRateLimitState.nextAllowedAt > now) {
+            await wait(bookingRateLimitState.nextAllowedAt - now);
+        }
+        const res = await withLimit(() => fetchWithTimeout(url, options, timeout));
+        updateRateLimitFromHeaders(res.headers, bookingRateLimitState);
+        if (res.status !== 429) return res;
+
+        const retryMs = getRetryAfterMs(res.headers) || Math.min(8000, 800 * 2 ** attempt);
+        bookingRateLimitState.nextAllowedAt = Math.max(
+            bookingRateLimitState.nextAllowedAt,
+            Date.now() + retryMs
+        );
+        if (attempt >= maxAttempts) {
+            const body = await res.text().catch(() => "");
+            const err = new Error(body || "Rate limited by Guesty (booking)");
+            err.rateLimited = true;
+            err.status = 429;
+            throw err;
+        }
+        attempt += 1;
+        await wait(retryMs);
+    }
+    throw new Error("Guesty booking request failed");
+};
 
 const splitName = (fullName = "") => {
     const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
@@ -401,19 +573,28 @@ async function getBookingToken() {
         }
     } catch { }
 
-    const res = await fetchWithTimeout(`${guestyHost}/oauth2/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-            grant_type: "client_credentials",
-            scope: "booking_engine:api",
-            client_id: BOOKING_CLIENT_ID,
-            client_secret: BOOKING_CLIENT_SECRET,
-        }),
-    });
+    const res = await guestyBookingFetch(
+        `${guestyHost}/oauth2/token`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                grant_type: "client_credentials",
+                scope: "booking_engine:api",
+                client_id: BOOKING_CLIENT_ID,
+                client_secret: BOOKING_CLIENT_SECRET,
+            }),
+        },
+        10000,
+        5
+    );
 
     if (!res.ok) {
-        throw new Error(`Booking token failed: ${await res.text()}`);
+        const body = await res.text().catch(() => "");
+        const err = new Error(`Booking token failed: ${body || res.status}`);
+        err.status = res.status;
+        if (res.status === 429) err.rateLimited = true;
+        throw err;
     }
 
     const json = await res.json();
@@ -454,19 +635,28 @@ async function getOpenApiToken() {
         }
     } catch { }
 
-    const res = await fetchWithTimeout(`${openApiHost}/oauth2/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-            grant_type: "client_credentials",
-            scope: "open-api",
-            client_id: OPEN_API_CLIENT_ID,
-            client_secret: OPEN_API_CLIENT_SECRET,
-        }),
-    });
+    const res = await guestyFetch(
+        `${openApiHost}/oauth2/token`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                grant_type: "client_credentials",
+                scope: "open-api",
+                client_id: OPEN_API_CLIENT_ID,
+                client_secret: OPEN_API_CLIENT_SECRET,
+            }),
+        },
+        10000,
+        5
+    );
 
     if (!res.ok) {
-        throw new Error(`Open API token failed: ${await res.text()}`);
+        const body = await res.text().catch(() => "");
+        const err = new Error(`Open API token failed: ${body || res.status}`);
+        err.status = res.status;
+        if (res.status === 429) err.rateLimited = true;
+        throw err;
     }
 
     const json = await res.json();
@@ -619,11 +809,7 @@ const fetchPmContentListings = async ({
     if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
     if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
 
-    const res = await withLimit(() =>
-        fetchWithTimeout(url.toString(), {
-            headers,
-        })
-    );
+    const res = await guestyBookingFetch(url.toString(), { headers }, 10000, 5);
 
     if (!res.ok) {
         const body = await res.text().catch(() => "");
@@ -684,25 +870,13 @@ async function fetchOpenApiListings({
             if (ids) qs.set("ids", ids);
             if (cursor) qs.set("cursor", cursor);
 
-            const fetchPage = async (attempt = 0) => {
-                const res = await withLimit(() =>
-                    fetchWithTimeout(`${openApiServer}/listings?${qs.toString()}`, { headers })
+            const fetchPage = async () => {
+                const res = await guestyFetch(
+                    `${openApiServer}/listings?${qs.toString()}`,
+                    { headers },
+                    10000,
+                    5
                 );
-                if (res.status === 429) {
-                    const retryAfter = Number(res.headers.get("retry-after") || 0);
-                    if (attempt >= 4) {
-                        const err = new Error("Rate limited by Guesty (listings)");
-                        err.rateLimited = true;
-                        err.status = 429;
-                        throw err;
-                    }
-                    const backoff =
-                        retryAfter > 0
-                            ? retryAfter * 1000
-                            : Math.min(5000, 700 * 2 ** attempt) + Math.random() * 200;
-                    await wait(backoff);
-                    return fetchPage(attempt + 1);
-                }
                 if (!res.ok) {
                     const body = await res.text().catch(() => "");
                     throw new Error(body || res.status);
@@ -738,52 +912,38 @@ async function createQuoteBookingEngine(payload) {
     const token = await getBookingToken();
 
     const tryPost = async (attempt = 0) => {
-        const res = await withLimit(() =>
-            fetchWithTimeout(`${guestyHost}/api/reservations/quotes`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                    accept: "application/json",
-                },
-                body: JSON.stringify({
-                    listingId: payload.unitTypeId || payload.listingId,
-                    checkInDateLocalized: payload.checkInDateLocalized,
-                    checkOutDateLocalized: payload.checkOutDateLocalized,
-                    numberOfGuests: payload.numberOfGuests,
-                    guestsCount: payload.guestsCount,
-                    source: "website",
-                }),
-            })
-        );
+    const res = await guestyBookingFetch(
+        `${guestyHost}/api/reservations/quotes`,
+        {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                accept: "application/json",
+            },
+            body: JSON.stringify({
+                listingId: payload.unitTypeId || payload.listingId,
+                checkInDateLocalized: payload.checkInDateLocalized,
+                checkOutDateLocalized: payload.checkOutDateLocalized,
+                numberOfGuests: payload.numberOfGuests,
+                guestsCount: payload.guestsCount,
+                source: "website",
+            }),
+        },
+        10000,
+        5
+    );
 
-        if (res.status === 429) {
-            const retryAfter = Number(res.headers.get("retry-after") || 0);
-            if (attempt >= 5) {
-                const body = await res.text().catch(() => "");
-                const err = new Error(body || "Rate limited by Guesty");
-                err.rateLimited = true;
-                err.status = 429;
-                throw err;
-            }
-            const backoff =
-                retryAfter > 0
-                    ? retryAfter * 1000
-                    : Math.min(8000, 800 * 2 ** attempt) + Math.random() * 300;
-            await wait(backoff);
-            return tryPost(attempt + 1);
-        }
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const err = new Error(body || "Booking Engine quote failed");
+        err.status = res.status;
+        throw err;
+    }
+    return res.json();
+};
 
-        if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            const err = new Error(body || "Booking Engine quote failed");
-            err.status = res.status;
-            throw err;
-        }
-        return res.json();
-    };
-
-    return tryPost();
+return tryPost();
 }
 
 /* =======================
@@ -791,15 +951,35 @@ async function createQuoteBookingEngine(payload) {
 ======================= */
 
 async function createQuoteOpenApi(payload) {
-    openApiDocs.server(openApiServer);
     const token = await getOpenApiToken();
-    openApiDocs.auth(`Bearer ${token}`);
-
-    const response = await withLimit(() =>
-        openApiDocs.quotesOpenApiController_create(payload)
+    const res = await guestyFetch(
+        `${openApiServer}/quotes`,
+        {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                accept: "application/json",
+            },
+            body: JSON.stringify({
+                listingId: payload.unitTypeId || payload.listingId,
+                checkInDateLocalized: payload.checkInDateLocalized,
+                checkOutDateLocalized: payload.checkOutDateLocalized,
+                numberOfGuests: payload.numberOfGuests,
+                guestsCount: payload.guestsCount,
+                source: "website",
+            }),
+        },
+        10000,
+        5
     );
-
-    return response?.data || response;
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const err = new Error(body || "Open API quote failed");
+        err.status = res.status;
+        throw err;
+    }
+    return res.json();
 }
 
 async function createQuote(payload) {
@@ -815,15 +995,20 @@ async function createQuote(payload) {
 
 async function createReservationOpenApi(payload) {
     const token = await getOpenApiToken();
-    const res = await fetchWithTimeout(`${openApiServer}/reservations`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            accept: "application/json",
+    const res = await guestyFetch(
+        `${openApiServer}/reservations`,
+        {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                accept: "application/json",
+            },
+            body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-    });
+        10000,
+        5
+    );
     if (!res.ok) {
         const detail = await res.text().catch(() => "");
         throw new Error(`Reservation create failed: ${res.status} ${detail}`);
@@ -898,7 +1083,10 @@ app.get("/api/listings", async (req, res) => {
         setListingsCache(cacheKey, merged);
         res.json({ results: merged });
     } catch (e) {
-        const isRateLimited = e?.status === 429 || e?.rateLimited;
+        const isRateLimited =
+            e?.status === 429 ||
+            e?.rateLimited ||
+            String(e?.message || "").includes("TOO_MANY_REQUESTS");
         if (isRateLimited) {
             const {
                 checkIn,
@@ -1089,14 +1277,12 @@ app.get("/api/listings/:id/availability", async (req, res) => {
             const url = `${openApiHost}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
                 available
             )}`;
-            const response = await fetchWithTimeout(url, {
-                headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-            });
-            if (response.status === 429) {
-                const retryAfter = Number(response.headers.get("retry-after") || 0);
-                await wait(retryAfter > 0 ? retryAfter * 1000 : 800);
-                return tryQuery(query);
-            }
+            const response = await guestyFetch(
+                url,
+                { headers: { Authorization: `Bearer ${token}`, accept: "application/json" } },
+                10000,
+                5
+            );
             if (!response.ok) {
                 errors.push({ status: response.status, body: await response.text().catch(() => "") });
                 return null;
@@ -1212,28 +1398,18 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
         });
         const rawResults = [];
 
-        const fetchChunk = async (chunk, attempt = 0) => {
+        const fetchChunk = async (chunk) => {
             const url = `${openApiHost}/listings?ids=${encodeURIComponent(
                 chunk.join(",")
             )}${city ? `&city=${encodeURIComponent(city)}` : ""}&fields=_id availability availabilityStatus&available=${encodeURIComponent(
                 available
             )}`;
-            const response = await withLimit(() =>
-                fetchWithTimeout(url, {
-                    headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-                })
+            const response = await guestyFetch(
+                url,
+                { headers: { Authorization: `Bearer ${token}`, accept: "application/json" } },
+                10000,
+                5
             );
-            if (response.status === 429) {
-                const retryAfter = Number(response.headers.get("retry-after") || 0);
-                errors.push({ status: 429, body: "Rate limited", attempt });
-                if (attempt >= 4) return null;
-                const backoff =
-                    retryAfter > 0
-                        ? retryAfter * 1000
-                        : Math.min(4000, 600 * 2 ** attempt) + Math.random() * 200;
-                await wait(backoff);
-                return fetchChunk(chunk, attempt + 1);
-            }
             if (!response.ok) {
                 errors.push({ status: response.status, body: await response.text().catch(() => "") });
                 return null;
