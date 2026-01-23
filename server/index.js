@@ -672,24 +672,49 @@ async function getOpenApiToken() {
 }
 
 /* =======================
-   PM CONTENT (LISTINGS)
+   BOOKING ENGINE LISTINGS
 ======================= */
 
-async function fetchPmListings(options = {}) {
-    try {
-        const contentListings = await fetchPmContentListings(options);
-        if (Array.isArray(contentListings) && contentListings.length > 0) {
-            return normalizePmListings(contentListings);
-        }
-    } catch (err) {
-        console.error("PM content listings fetch failed", err?.message || err);
-    }
+async function fetchBookingListings({
+    checkIn,
+    checkOut,
+    minOccupancy = 1,
+    city = "",
+    tags = "",
+    ids = "",
+    limit = 50,
+} = {}) {
+    const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit, source: "booking" });
+    const cached = getListingsCache(cacheKey);
+    if (cached) return cached;
 
-    const openApiList = await fetchOpenApiListings(options);
-    if (!Array.isArray(openApiList) || openApiList.length === 0) {
-        throw new Error("Open API listings returned no results");
+    const token = await getBookingToken();
+    const url = new URL(`${guestyHost}/api/listings`);
+    url.searchParams.set("limit", String(Math.min(100, Number(limit) || 20)));
+    url.searchParams.set(
+        "fields",
+        "_id title type roomType propertyType address address.full address.city address.country address.state address.street address.neighborhood timezone amenities bathrooms bedrooms beds picture pictures accommodates tags mtl"
+    );
+    if (checkIn) url.searchParams.set("checkIn", checkIn);
+    if (checkOut) url.searchParams.set("checkOut", checkOut);
+    if (minOccupancy) url.searchParams.set("minOccupancy", String(minOccupancy));
+    if (city) url.searchParams.set("city", city);
+    if (ids) url.searchParams.set("ids", ids);
+    if (tags) url.searchParams.set("tags", tags);
+
+    const headers = { accept: "application/json", authorization: `Bearer ${token}` };
+    const res = await guestyBookingFetch(url.toString(), { headers }, 10000, 5);
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        const err = new Error(body || String(res.status));
+        err.status = res.status;
+        if (res.status === 429) err.rateLimited = true;
+        throw err;
     }
-    return normalizePmListings(openApiList);
+    const json = await res.json();
+    const results = Array.isArray(json?.results) ? json.results : [];
+    setListingsCache(cacheKey, results);
+    return results;
 }
 
 const cityOverride = (() => {
@@ -1048,7 +1073,7 @@ app.get("/api/listings", async (req, res) => {
             return res.json({ results: cachedStale, cached: true, stale: true, rateLimited: true });
         }
 
-        const pm = await fetchPmListings({
+        const pm = await fetchBookingListings({
             checkIn,
             checkOut,
             minOccupancy,
@@ -1064,24 +1089,8 @@ app.get("/api/listings", async (req, res) => {
             (mid) => !baseResults.some((r) => r.id === mid || r._id === mid)
         );
 
-        let merged = baseResults;
-        if (missingIds.length) {
-            try {
-                const missing = await fetchOpenApiListings({ ids: missingIds.join(","), limit });
-                const normalizedMissing = normalizePmListings(missing);
-                const map = new Map();
-                [...baseResults, ...normalizedMissing].forEach((r) => {
-                    const id = r.id || r._id;
-                    if (id) map.set(id, r);
-                });
-                merged = [...map.values()];
-            } catch (err) {
-                console.error("Failed to backfill manual listing IDs", err?.message || err);
-            }
-        }
-
-        setListingsCache(cacheKey, merged);
-        res.json({ results: merged });
+        setListingsCache(cacheKey, baseResults);
+        res.json({ results: baseResults });
     } catch (e) {
         const isRateLimited =
             e?.status === 429 ||
@@ -1188,6 +1197,84 @@ app.post("/api/checkout", async (req, res) => {
     } catch (e) {
         res.status(500).json({ message: "Checkout failed", error: e.message });
     }
+});
+
+app.get("/api/diagnostics/listings", async (_req, res) => {
+    const diagnostics = {
+        booking: { ok: false, status: null, headers: {}, error: null },
+        openApi: { ok: false, status: null, headers: {}, error: null },
+        rateLimit: {
+            openApi: {
+                nextAllowedAt: openApiRateLimitState.nextAllowedAt,
+                remainingSecond: openApiRateLimitState.remainingSecond,
+                remainingMinute: openApiRateLimitState.remainingMinute,
+                remainingHour: openApiRateLimitState.remainingHour,
+            },
+            booking: {
+                nextAllowedAt: bookingRateLimitState.nextAllowedAt,
+                remainingSecond: bookingRateLimitState.remainingSecond,
+                remainingMinute: bookingRateLimitState.remainingMinute,
+                remainingHour: bookingRateLimitState.remainingHour,
+            },
+        },
+    };
+
+    try {
+        const token = await getBookingToken();
+        const url = new URL(pmContentUrl);
+        url.searchParams.set("limit", "1");
+        const headers = {
+            accept: "application/json",
+            origin: pmOrigin,
+            referer: pmReferer,
+            authorization: `Bearer ${token}`,
+        };
+        if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
+        if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
+        const bookingRes = await guestyBookingFetch(url.toString(), { headers }, 10000, 1);
+        diagnostics.booking.status = bookingRes.status;
+        diagnostics.booking.headers = {
+            "retry-after": bookingRes.headers.get("retry-after"),
+            "x-ratelimit-remaining-second": bookingRes.headers.get("x-ratelimit-remaining-second"),
+            "x-ratelimit-remaining-minute": bookingRes.headers.get("x-ratelimit-remaining-minute"),
+            "x-ratelimit-remaining-hour": bookingRes.headers.get("x-ratelimit-remaining-hour"),
+        };
+        diagnostics.booking.ok = bookingRes.ok;
+        if (!bookingRes.ok) {
+            diagnostics.booking.error = await bookingRes.text().catch(() => "");
+        }
+    } catch (err) {
+        diagnostics.booking.error = err?.message || String(err);
+    }
+
+    try {
+        const token = await getOpenApiToken();
+        const url = new URL(openApiServer + "/listings");
+        url.searchParams.set("limit", "1");
+        url.searchParams.set("sort", "-createdAt");
+        url.searchParams.set("fields", "_id title");
+        const openRes = await guestyFetch(
+            url.toString(),
+            { headers: { accept: "application/json", Authorization: `Bearer ${token}` } },
+            10000,
+            1
+        );
+        diagnostics.openApi.status = openRes.status;
+        diagnostics.openApi.headers = {
+            "retry-after": openRes.headers.get("retry-after"),
+            "x-ratelimit-remaining-second": openRes.headers.get("x-ratelimit-remaining-second"),
+            "x-ratelimit-remaining-minute": openRes.headers.get("x-ratelimit-remaining-minute"),
+            "x-ratelimit-remaining-hour": openRes.headers.get("x-ratelimit-remaining-hour"),
+        };
+        diagnostics.openApi.ok = openRes.ok;
+        if (!openRes.ok) {
+            diagnostics.openApi.error = await openRes.text().catch(() => "");
+        }
+    } catch (err) {
+        diagnostics.openApi.error = err?.message || String(err);
+    }
+
+    res.json(diagnostics);
 });
 
 app.post("/api/stripe/webhook", async (req, res) => {
