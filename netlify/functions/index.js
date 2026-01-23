@@ -16,7 +16,6 @@ dotenv.config();
 // Netlify allows writing to /tmp; in local dev use the OS tmp dir (Windows safe)
 const TMP_DIR = os.tmpdir();
 const OPEN_API_TOKEN_FILE = path.join(TMP_DIR, "guesty-openapi-token.json");
-const BOOKING_TOKEN_FILE = path.join(TMP_DIR, "guesty-booking-token.json");
 const OPEN_API_TOKEN_CACHE_PATH =
     process.env.GUESTY_OPEN_API_TOKEN_CACHE || OPEN_API_TOKEN_FILE;
 
@@ -75,27 +74,6 @@ app.use((_req, res, next) => {
     if (openApiRateLimitState.nextAllowedAt > Date.now()) {
         res.set("X-Guesty-RateLimit-Next-Allowed-At", String(openApiRateLimitState.nextAllowedAt));
     }
-    if (Number.isFinite(bookingRateLimitState.limitSecond)) {
-        res.set("X-Guesty-BE-RateLimit-Limit-Second", String(bookingRateLimitState.limitSecond));
-    }
-    if (Number.isFinite(bookingRateLimitState.limitMinute)) {
-        res.set("X-Guesty-BE-RateLimit-Limit-Minute", String(bookingRateLimitState.limitMinute));
-    }
-    if (Number.isFinite(bookingRateLimitState.limitHour)) {
-        res.set("X-Guesty-BE-RateLimit-Limit-Hour", String(bookingRateLimitState.limitHour));
-    }
-    if (Number.isFinite(bookingRateLimitState.remainingSecond)) {
-        res.set("X-Guesty-BE-RateLimit-Remaining-Second", String(bookingRateLimitState.remainingSecond));
-    }
-    if (Number.isFinite(bookingRateLimitState.remainingMinute)) {
-        res.set("X-Guesty-BE-RateLimit-Remaining-Minute", String(bookingRateLimitState.remainingMinute));
-    }
-    if (Number.isFinite(bookingRateLimitState.remainingHour)) {
-        res.set("X-Guesty-BE-RateLimit-Remaining-Hour", String(bookingRateLimitState.remainingHour));
-    }
-    if (bookingRateLimitState.nextAllowedAt > Date.now()) {
-        res.set("X-Guesty-BE-RateLimit-Next-Allowed-At", String(bookingRateLimitState.nextAllowedAt));
-    }
     next();
 });
 app.disable("etag");
@@ -113,50 +91,24 @@ app.use((_req, res, next) => {
 
 const OPEN_API_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
 const OPEN_API_BASE = "https://open-api.guesty.com/v1";
-const BOOKING_TOKEN_URL = "https://booking.guesty.com/oauth2/token";
-const BOOKING_API_BASE = "https://booking.guesty.com/api";
-
-const PM_LISTINGS_URL =
-    "https://app.guesty.com/api/pm-websites-backend/listings";
+ 
 
 const OPEN_API_CLIENT_ID =
     process.env.GUESTY_OPEN_API_CLIENT_ID || process.env.GUESTY_CLIENT_ID;
 const OPEN_API_CLIENT_SECRET =
     process.env.GUESTY_OPEN_API_CLIENT_SECRET || process.env.GUESTY_CLIENT_SECRET;
-const BOOKING_CLIENT_ID =
-    process.env.GUESTY_BE_CLIENT_ID ||
-    process.env.GUESTY_BOOKING_CLIENT_ID ||
-    process.env.GUESTY_CLIENT_ID;
-const BOOKING_CLIENT_SECRET =
-    process.env.GUESTY_BE_CLIENT_SECRET ||
-    process.env.GUESTY_BOOKING_CLIENT_SECRET ||
-    process.env.GUESTY_CLIENT_SECRET;
-
-const pmAidCs = process.env.GUESTY_PM_G_AID_CS;
-const pmRequestContext = process.env.GUESTY_PM_X_REQUEST_CONTEXT;
-const pmOrigin =
-    process.env.GUESTY_PM_ORIGIN || "https://reservations.oneluxstay.com";
-const pmReferer =
-    process.env.GUESTY_PM_REFERER || "https://reservations.oneluxstay.com/";
-const PM_CONTENT_URL =
-    "https://app.guesty.com/api/pm-websites-backend/engines/content";
 const OPEN_API_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
-const pmAuthToken = process.env.GUESTY_PM_AUTH_TOKEN || "";
 const extraListingIds = (process.env.GUESTY_EXTRA_LISTING_IDS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)
     .join(",");
-const pmAllowedLangs = ["de", "es", "fr", "it", "ja", "ko", "pt", "el", "pl", "ro", "in", "zh", "nl", "bg"];
-const pmLangRaw = process.env.GUESTY_PM_LANG || "";
-const pmLang = pmAllowedLangs.includes(pmLangRaw) ? pmLangRaw : "";
 const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 const appOrigin = process.env.APP_ORIGIN || "";
 const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" }) : null;
 
 const hasOpenApiCreds = Boolean(OPEN_API_CLIENT_ID && OPEN_API_CLIENT_SECRET);
-const hasBookingCreds = Boolean(BOOKING_CLIENT_ID && BOOKING_CLIENT_SECRET);
 
 /* =======================
    UTILS
@@ -184,15 +136,6 @@ const isTimeoutError = (err) =>
     String(err?.message || "").toLowerCase().includes("timed out");
 
 const openApiRateLimitState = {
-    nextAllowedAt: 0,
-    remainingSecond: null,
-    remainingMinute: null,
-    remainingHour: null,
-    limitSecond: null,
-    limitMinute: null,
-    limitHour: null,
-};
-const bookingRateLimitState = {
     nextAllowedAt: 0,
     remainingSecond: null,
     remainingMinute: null,
@@ -258,34 +201,6 @@ const guestyFetch = async (url, options = {}, timeout = 10000, maxAttempts = 5) 
     throw new Error("Guesty request failed");
 };
 
-const guestyBookingFetch = async (url, options = {}, timeout = 10000, maxAttempts = 5) => {
-    let attempt = 0;
-    while (attempt <= maxAttempts) {
-        const now = Date.now();
-        if (bookingRateLimitState.nextAllowedAt > now) {
-            await wait(bookingRateLimitState.nextAllowedAt - now);
-        }
-        const res = await withLimit(() => fetchWithTimeout(url, options, timeout));
-        updateRateLimitFromHeaders(res.headers, bookingRateLimitState);
-        if (res.status !== 429) return res;
-
-        const retryMs = getRetryAfterMs(res.headers) || Math.min(8000, 800 * 2 ** attempt);
-        bookingRateLimitState.nextAllowedAt = Math.max(
-            bookingRateLimitState.nextAllowedAt,
-            Date.now() + retryMs
-        );
-        if (attempt >= maxAttempts) {
-            const body = await res.text().catch(() => "");
-            const err = new Error(body || "Rate limited by Guesty (booking)");
-            err.rateLimited = true;
-            err.status = 429;
-            throw err;
-        }
-        attempt += 1;
-        await wait(retryMs);
-    }
-    throw new Error("Guesty booking request failed");
-};
 
 const splitName = (fullName = "") => {
     const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
@@ -373,7 +288,7 @@ const setListingsCache = (key, data) => {
 
 // Simple limiter: cap concurrent Guesty calls and pace to N per second
 const MAX_CONCURRENT = Number(process.env.GUESTY_MAX_CONCURRENT || 1);
-const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 6000); // slower by default to avoid 429s
+const MIN_INTERVAL_MS = Number(process.env.GUESTY_MIN_INTERVAL_MS || 1000); // slower by default to avoid 429s
 let activeCount = 0;
 let lastStart = 0;
 const pendingQueue = [];
@@ -639,262 +554,6 @@ async function getOpenApiToken() {
     return openApiToken;
 }
 
-/* =======================
-   BOOKING ENGINE TOKEN
-======================= */
-
-let bookingToken = null;
-let bookingTokenExp = 0;
-
-async function getBookingEngineToken() {
-    if (!hasBookingCreds) {
-        throw new Error(
-            "Missing Booking Engine credentials (set GUESTY_BE_CLIENT_ID / GUESTY_BE_CLIENT_SECRET)"
-        );
-    }
-    if (bookingToken && Date.now() < bookingTokenExp) return bookingToken;
-
-    const cached = await readCache(BOOKING_TOKEN_FILE);
-    if (cached && Date.now() < cached.expires_at) {
-        bookingToken = cached.access_token;
-        bookingTokenExp = cached.expires_at;
-        return bookingToken;
-    }
-
-    const res = await guestyBookingFetch(
-        BOOKING_TOKEN_URL,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-                grant_type: "client_credentials",
-                scope: "booking_engine:api",
-                client_id: BOOKING_CLIENT_ID,
-                client_secret: BOOKING_CLIENT_SECRET,
-            }),
-        },
-        10000,
-        5
-    );
-
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        const err = new Error(body || String(res.status));
-        err.status = res.status;
-        if (res.status === 429) err.rateLimited = true;
-        throw err;
-    }
-
-    const json = await res.json();
-    bookingToken = json.access_token;
-    bookingTokenExp = Date.now() + (json.expires_in - 300) * 1000;
-
-    await writeCache(BOOKING_TOKEN_FILE, {
-        access_token: bookingToken,
-        expires_at: bookingTokenExp,
-    });
-
-    return bookingToken;
-}
-
-/* =======================
-   PM CONTENT (LISTINGS)
-======================= */
-
-async function fetchBookingListings({
-    checkIn,
-    checkOut,
-    minOccupancy = 1,
-    city = "",
-    tags = "",
-    ids = "",
-    limit = 50,
-} = {}) {
-    const cacheKey = JSON.stringify({ checkIn, checkOut, minOccupancy, city, tags, ids, limit, source: "booking" });
-    const cached = getListingsCache(cacheKey);
-    if (cached) return cached;
-    const deduped = inflightListings.get(cacheKey);
-    if (deduped) return deduped;
-
-    const promise = (async () => {
-        const token = await getBookingEngineToken();
-        const url = new URL(`${BOOKING_API_BASE}/listings`);
-        url.searchParams.set("limit", String(Math.min(100, Number(limit) || 20)));
-        url.searchParams.set(
-            "fields",
-            "_id title type roomType propertyType address address.full address.city address.country address.state address.street address.neighborhood timezone amenities bathrooms bedrooms beds picture pictures accommodates tags mtl"
-        );
-        if (checkIn) url.searchParams.set("checkIn", checkIn);
-        if (checkOut) url.searchParams.set("checkOut", checkOut);
-        if (minOccupancy) url.searchParams.set("minOccupancy", String(minOccupancy));
-        if (city) url.searchParams.set("city", city);
-        if (ids) url.searchParams.set("ids", ids);
-        if (tags) url.searchParams.set("tags", tags);
-
-        const headers = { accept: "application/json", authorization: `Bearer ${token}` };
-        const res = await guestyBookingFetch(url.toString(), { headers }, 10000, 5);
-        if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            const err = new Error(body || String(res.status));
-            err.status = res.status;
-            if (res.status === 429) err.rateLimited = true;
-            throw err;
-        }
-        const json = await res.json();
-        const results = Array.isArray(json?.results) ? json.results : [];
-        setListingsCache(cacheKey, results);
-        return results;
-    })();
-
-    inflightListings.set(cacheKey, promise);
-    return promise;
-}
-
-const cityOverride = (() => {
-    const map = new Map();
-    (process.env.GUESTY_EXTRA_LISTING_IDS || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .forEach((id) => map.set(id, "Redondo Beach"));
-    return map;
-})();
-
-function normalizePmListings(listings) {
-    const list = Array.isArray(listings) ? listings : [];
-    const knownCities = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
-
-    const inferCity = (l) => {
-        const titleLower = typeof l.title === "string" ? l.title.toLowerCase() : "";
-        if (titleLower.includes("hollywood")) return "Hollywood";
-        const fromAddress = l.address?.city || l.city || l.location || l.address?.full || "";
-        if (fromAddress) return fromAddress;
-        const tagCity =
-            Array.isArray(l.tags) &&
-            l.tags.find((t) => typeof t === "string" && knownCities.includes(t.toLowerCase()));
-        if (tagCity) return tagCity;
-        if (titleLower) {
-            const match = knownCities.find((c) => titleLower.includes(c));
-            if (match)
-                return match
-                    .split(" ")
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(" ");
-        }
-        return "";
-    };
-
-    const map = new Map();
-    list.forEach((l) => {
-        const id = l._id || l.id;
-        if (id && l.title) map.set(id, l);
-    });
-
-    return [...map.values()].map((l) => {
-        const city =
-            cityOverride.get(l._id || l.id) ||
-            inferCity(l);
-        return {
-            id: l._id || l.id,
-            _id: l._id || l.id,
-            unitTypeId: l.unitTypeId || l.listingId || l.mtl?.unitTypeId || l.mtl?.listingId || l.mtl?.id,
-            title: l.title,
-            nickname: l.nickname,
-            accommodates: l.accommodates,
-            accountId: l.accountId,
-            address: l.address,
-            city,
-            bathrooms: l.bathrooms,
-            bedrooms: l.bedrooms,
-            beds: l.beds,
-            propertyType: l.propertyType,
-            tags: l.tags,
-            timezone: l.timezone,
-            picture:
-                l.picture?.original ||
-                l.picture?.large ||
-                l.picture?.regular ||
-                l.picture?.thumbnail ||
-                l.picture ||
-                {},
-            pictures: Array.isArray(l.pictures) ? l.pictures : [],
-            prices: l.prices,
-            basePrice: l.prices?.basePrice,
-            currency: l.prices?.currency || "USD",
-            cleaningFee: l.prices?.cleaningFee,
-            publicDescription: l.publicDescription,
-            reviews: l.reviews,
-            roomType: l.roomType,
-        };
-    });
-}
-
-const extractFromPmContent = (pmData) => {
-    const stack = [pmData];
-    const out = [];
-    while (stack.length) {
-        const cur = stack.pop();
-        if (Array.isArray(cur)) stack.push(...cur);
-        else if (cur && typeof cur === "object") {
-            if ((cur._id || cur.id) && cur.title) out.push(cur);
-            stack.push(...Object.values(cur));
-        }
-    }
-    return out;
-};
-
-const fetchPmContentListings = async ({
-    city = "",
-    tags = "",
-    ids = "",
-    limit = 50,
-} = {}) => {
-    const cacheKey = JSON.stringify({ city, tags, ids, limit, source: "pm-content" });
-    const cached = getListingsCache(cacheKey);
-    if (cached) return cached;
-    const deduped = inflightListings.get(cacheKey);
-    if (deduped) return deduped;
-
-    const promise = (async () => {
-        const token = await getBookingEngineToken();
-        const url = new URL(PM_CONTENT_URL);
-        if (pmLang) url.searchParams.set("lang", pmLang);
-        if (city) url.searchParams.set("city", city);
-        if (tags) url.searchParams.set("tags", tags);
-        if (ids) url.searchParams.set("ids", ids);
-        if (limit) url.searchParams.set("limit", limit);
-
-        const headers = {
-            accept: "application/json",
-            origin: pmOrigin,
-            referer: pmReferer,
-            authorization: `Bearer ${token}`,
-        };
-        if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
-        if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
-
-        const res = await guestyBookingFetch(url.toString(), { headers }, 10000, 5);
-        if (res.status === 401 || res.status === 403) {
-            const err = new Error("PM content unauthorized");
-            err.status = res.status;
-            throw err;
-        }
-        if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            const err = new Error(body || String(res.status));
-            err.status = res.status;
-            if (res.status === 429) err.rateLimited = true;
-            throw err;
-        }
-        const json = await res.json();
-        const flat = extractFromPmContent(json);
-        setListingsCache(cacheKey, flat);
-        return flat;
-    })();
-
-    inflightListings.set(cacheKey, promise);
-    return promise;
-};
 
 const fetchOpenApiListings = async ({
     checkIn,
@@ -989,44 +648,8 @@ const fetchOpenApiListings = async ({
 };
 
 /* =======================
-   QUOTES (BOOKING ENGINE)
+   QUOTES (OPEN API)
 ======================= */
-
-const BOOKING_FALLBACK_STATUSES = new Set([400, 401, 403, 404, 410, 501]);
-
-async function createQuoteBookingEngine(payload) {
-    const token = await getBookingEngineToken();
-
-    const res = await guestyBookingFetch(
-        `${BOOKING_API_BASE}/reservations/quotes`,
-        {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-                accept: "application/json",
-            },
-            body: JSON.stringify({
-                listingId: payload.unitTypeId || payload.listingId,
-                checkInDateLocalized: payload.checkInDateLocalized,
-                checkOutDateLocalized: payload.checkOutDateLocalized,
-                numberOfGuests: payload.numberOfGuests,
-                guestsCount: payload.guestsCount,
-                source: "website",
-            }),
-        },
-        10000,
-        5
-    );
-
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        const err = new Error(body || "Booking Engine quote failed");
-        err.status = res.status;
-        throw err;
-    }
-    return res.json();
-}
 
 async function createQuoteOpenApi(payload) {
     const token = await getOpenApiToken();
@@ -1124,7 +747,7 @@ app.get("/api/listings", async (req, res) => {
             return res.json({ results: cachedStale, cached: true, stale: true, rateLimited: true });
         }
 
-        const pm = await fetchBookingListings({
+        const results = await fetchOpenApiListings({
             checkIn,
             checkOut,
             minOccupancy,
@@ -1133,15 +756,6 @@ app.get("/api/listings", async (req, res) => {
             ids: idsCombined,
             limit,
         });
-
-        // Ensure manually specified IDs are present even if source feeds miss them
-        const baseResults = normalizePmListings(pm);
-        const manualIds = extraListingIds ? extraListingIds.split(",").filter(Boolean) : [];
-        const missingIds = manualIds.filter(
-            (mid) => !baseResults.some((r) => r.id === mid || r._id === mid)
-        );
-
-        const results = baseResults;
         setListingsCache(cacheKey, results);
         res.json({ results });
     } catch (e) {
@@ -1189,7 +803,6 @@ app.get("/api/listings", async (req, res) => {
 
 app.get("/api/diagnostics/listings", async (_req, res) => {
     const diagnostics = {
-        booking: { ok: false, status: null, headers: {}, error: null },
         openApi: { ok: false, status: null, headers: {}, error: null },
         rateLimit: {
             openApi: {
@@ -1197,12 +810,6 @@ app.get("/api/diagnostics/listings", async (_req, res) => {
                 remainingSecond: openApiRateLimitState.remainingSecond,
                 remainingMinute: openApiRateLimitState.remainingMinute,
                 remainingHour: openApiRateLimitState.remainingHour,
-            },
-            booking: {
-                nextAllowedAt: bookingRateLimitState.nextAllowedAt,
-                remainingSecond: bookingRateLimitState.remainingSecond,
-                remainingMinute: bookingRateLimitState.remainingMinute,
-                remainingHour: bookingRateLimitState.remainingHour,
             },
         },
     };
@@ -1214,38 +821,6 @@ app.get("/api/diagnostics/listings", async (_req, res) => {
                 setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
             ),
         ]);
-
-    try {
-        const token = await getBookingEngineToken();
-        const url = new URL(PM_CONTENT_URL);
-        url.searchParams.set("limit", "1");
-        const headers = {
-            accept: "application/json",
-            origin: pmOrigin,
-            referer: pmReferer,
-            authorization: `Bearer ${token}`,
-        };
-        if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
-        if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
-        const bookingRes = await safeTimeout(
-            guestyBookingFetch(url.toString(), { headers }, 6000, 0),
-            6500,
-            "Booking diagnostics"
-        );
-        diagnostics.booking.status = bookingRes.status;
-        diagnostics.booking.headers = {
-            "retry-after": bookingRes.headers.get("retry-after"),
-            "x-ratelimit-remaining-second": bookingRes.headers.get("x-ratelimit-remaining-second"),
-            "x-ratelimit-remaining-minute": bookingRes.headers.get("x-ratelimit-remaining-minute"),
-            "x-ratelimit-remaining-hour": bookingRes.headers.get("x-ratelimit-remaining-hour"),
-        };
-        diagnostics.booking.ok = bookingRes.ok;
-        if (!bookingRes.ok) {
-            diagnostics.booking.error = await bookingRes.text().catch(() => "");
-        }
-    } catch (err) {
-        diagnostics.booking.error = err?.message || String(err);
-    }
 
     try {
         const token = await getOpenApiToken();
@@ -1370,7 +945,7 @@ app.get("/api/listings/:id/availability", async (req, res) => {
     try {
         const result = await runDeduped(inflightAvailability, cacheKey, async () => {
             const ids = [id, unitTypeId].filter(Boolean).join(",");
-            const results = await fetchBookingListings({
+            const results = await fetchOpenApiListings({
                 checkIn: startDate,
                 checkOut: endDate,
                 minOccupancy,
@@ -1437,7 +1012,7 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
 
     try {
         const result = await runDeduped(inflightAvailability, cacheKey, async () => {
-            const results = await fetchBookingListings({
+            const results = await fetchOpenApiListings({
                 checkIn: startDate,
                 checkOut: endDate,
                 minOccupancy,
