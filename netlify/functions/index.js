@@ -182,6 +182,9 @@ const LANDMARKS_CACHE_TTL_MS = 24 * 60 * 60_000;
 const LISTINGS_CACHE_TTL_MS = Number(process.env.GUESTY_LISTINGS_CACHE_TTL_MS || 5 * 60_000); // 5 min
 let listingsCache = { key: "", expiresAt: 0, data: null };
 const MAX_LISTINGS_LIMIT = Number(process.env.GUESTY_LISTINGS_LIMIT || 20);
+const LISTINGS_RATE_LIMIT_MS =
+    Number(process.env.GUESTY_LISTINGS_RATE_LIMIT_MS || 60_000);
+const listingsRateLimitedUntil = new Map();
 
 const getListingsCache = (key) => {
     if (!listingsCache.data) return null;
@@ -190,6 +193,12 @@ const getListingsCache = (key) => {
         listingsCache = { key: "", expiresAt: 0, data: null };
         return null;
     }
+    return listingsCache.data;
+};
+
+const getListingsCacheStale = (key) => {
+    if (!listingsCache.data) return null;
+    if (listingsCache.key !== key) return null;
     return listingsCache.data;
 };
 
@@ -911,6 +920,20 @@ app.get("/api/listings", async (req, res) => {
             limit = 50,
         } = req.query || {};
         const idsCombined = [ids, extraListingIds].filter(Boolean).join(",");
+        const cacheKey = JSON.stringify({
+            checkIn,
+            checkOut,
+            minOccupancy,
+            city,
+            tags,
+            ids: idsCombined,
+            limit,
+        });
+        const cachedStale = getListingsCacheStale(cacheKey);
+        const rateLimitedUntil = listingsRateLimitedUntil.get(cacheKey) || 0;
+        if (Date.now() < rateLimitedUntil && cachedStale) {
+            return res.json({ results: cachedStale, cached: true, stale: true, rateLimited: true });
+        }
 
         const pm = await fetchPmListings({
             checkIn,
@@ -946,11 +969,43 @@ app.get("/api/listings", async (req, res) => {
         }
 
         const results = merged;
+        setListingsCache(cacheKey, results);
         res.json({ results });
     } catch (e) {
-        const status = e?.status === 429 || e?.rateLimited ? 429 : 500;
-        res.status(status).json({
-            message: status === 429 ? "Rate limited by Guesty" : "Listings failed",
+        const isRateLimited = e?.status === 429 || e?.rateLimited;
+        if (isRateLimited) {
+            const {
+                checkIn,
+                checkOut,
+                minOccupancy = 1,
+                city = "",
+                tags = "",
+                ids = "",
+                limit = 50,
+            } = req.query || {};
+            const idsCombined = [ids, extraListingIds].filter(Boolean).join(",");
+            const cacheKey = JSON.stringify({
+                checkIn,
+                checkOut,
+                minOccupancy,
+                city,
+                tags,
+                ids: idsCombined,
+                limit,
+            });
+            listingsRateLimitedUntil.set(cacheKey, Date.now() + LISTINGS_RATE_LIMIT_MS);
+            const cachedStale = getListingsCacheStale(cacheKey);
+            if (cachedStale) {
+                return res.json({ results: cachedStale, cached: true, stale: true, rateLimited: true });
+            }
+            return res.status(200).json({
+                results: [],
+                errors: [{ message: "Rate limited by Guesty" }],
+                rateLimited: true,
+            });
+        }
+        res.status(500).json({
+            message: "Listings failed",
             error: e.message,
         });
     }
