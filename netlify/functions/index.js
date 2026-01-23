@@ -578,6 +578,17 @@ const fetchOpenApiListings = async ({
                 Authorization: `Bearer ${token}`,
             };
             const results = [];
+            const idList = String(ids || "")
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean);
+            const idSet = idList.length ? new Set(idList) : null;
+            const cityFilter = String(city || "").trim().toLowerCase();
+            const tagList = String(tags || "")
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean)
+                .map((value) => value.toLowerCase());
             let cursor = "";
             let guard = 0;
 
@@ -589,7 +600,7 @@ const fetchOpenApiListings = async ({
                 qs.set("sort", "-createdAt");
                 qs.set(
                     "fields",
-                    "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
+                    "_id,nickname,title,type,address,address.full,address.city,address.country,terms,prices,picture,pictures,accommodates,bedrooms,bathrooms,propertyType,timezone,tags,mtl"
                 );
                 qs.set("active", "true");
                 qs.set("listed", "true");
@@ -603,9 +614,6 @@ const fetchOpenApiListings = async ({
                         })
                     );
                 }
-                if (city) qs.set("city", city);
-                if (tags) qs.set("tags", tags);
-                if (ids) qs.set("ids", ids);
                 if (cursor) qs.set("cursor", cursor);
 
                 const fetchPage = async () => {
@@ -626,7 +634,27 @@ const fetchOpenApiListings = async ({
                 };
 
                 const json = await fetchPage();
-                if (Array.isArray(json?.results)) results.push(...json.results);
+                if (Array.isArray(json?.results)) {
+                    json.results.forEach((item) => {
+                        const itemId = item?._id || item?.id;
+                        if (idSet && (!itemId || !idSet.has(itemId))) return;
+                        if (cityFilter) {
+                            const itemCity =
+                                String(item?.address?.city || item?.city || item?.address?.full || "")
+                                    .toLowerCase();
+                            if (!itemCity.includes(cityFilter)) return;
+                        }
+                        if (tagList.length) {
+                            const itemTags = Array.isArray(item?.tags)
+                                ? item.tags.map((tag) => String(tag).toLowerCase())
+                                : [];
+                            const hasTag = tagList.some((tag) => itemTags.includes(tag));
+                            if (!hasTag) return;
+                        }
+                        results.push(item);
+                    });
+                    if (idSet && results.length >= idSet.size) break;
+                }
                 cursor = json?.pagination?.cursor?.next || "";
                 guard += 1;
             } while (cursor && guard < 25);
