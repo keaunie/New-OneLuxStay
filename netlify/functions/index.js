@@ -591,6 +591,7 @@ const fetchOpenApiListings = async ({
                 .map((value) => value.toLowerCase());
             let cursor = "";
             let guard = 0;
+            const maxPages = Number(process.env.GUESTY_LISTINGS_MAX_PAGES || 8);
 
             const pageLimit = Math.max(1, Math.min(Number(limit) || 50, MAX_LISTINGS_LIMIT));
 
@@ -620,7 +621,7 @@ const fetchOpenApiListings = async ({
                     const res = await guestyFetch(
                         `${OPEN_API_LISTINGS_URL}?${qs.toString()}`,
                         { headers },
-                        10000,
+                        6000,
                         5
                     );
                     if (!res.ok) {
@@ -634,8 +635,9 @@ const fetchOpenApiListings = async ({
                 };
 
                 const json = await fetchPage();
-                if (Array.isArray(json?.results)) {
-                    json.results.forEach((item) => {
+                const pageResults = Array.isArray(json?.results) ? json.results : [];
+                if (pageResults.length) {
+                    pageResults.forEach((item) => {
                         const itemId = item?._id || item?.id;
                         if (idSet && (!itemId || !idSet.has(itemId))) return;
                         if (cityFilter) {
@@ -657,7 +659,7 @@ const fetchOpenApiListings = async ({
                 }
                 cursor = json?.pagination?.cursor?.next || "";
                 guard += 1;
-            } while (cursor && guard < 25);
+            } while (cursor && guard < maxPages);
 
             setListingsCache(cacheKey, results);
             return results;
