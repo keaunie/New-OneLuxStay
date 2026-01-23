@@ -1350,87 +1350,39 @@ app.get("/api/listings/:id/availability", async (req, res) => {
 
     try {
         const result = await runDeduped(inflightAvailability, cacheKey, async () => {
-            const token = await getOpenApiToken();
-            const available = JSON.stringify({
-                checkIn: startDate,
-                checkOut: endDate,
-                minOccupancy: Number(minOccupancy) || 1,
-            });
+            const token = await getBookingEngineToken();
+            const ids = [id, unitTypeId].filter(Boolean);
+            const url = new URL(`${BOOKING_API_BASE}/listings`);
+            url.searchParams.set("limit", String(Math.min(100, ids.length || 1)));
+            url.searchParams.set("fields", "_id");
+            url.searchParams.set("checkIn", startDate);
+            url.searchParams.set("checkOut", endDate);
+            url.searchParams.set("minOccupancy", String(Number(minOccupancy) || 1));
+            if (city) url.searchParams.set("city", city);
+            if (ids.length) url.searchParams.set("ids", ids.join(","));
 
-            const tryQuery = async (query, attempt = 0) => {
-                const url = `${OPEN_API_BASE}/listings?${query}&fields=_id availability availabilityStatus prices terms title address&available=${encodeURIComponent(
-                    available
-                )}`;
-                const response = await guestyFetch(
-                    url,
-                    { headers: { Authorization: `Bearer ${token}`, accept: "application/json" } },
-                    10000,
-                    5
-                );
-                if (!response.ok) {
-                    errors.push({ status: response.status, body: await response.text().catch(() => "") });
-                    return null;
-                }
-                const json = await response.json();
-                if (Array.isArray(json?.results) && json.results.length > 0) return json;
-                errors.push({ status: 200, body: "No results" });
-                return null;
-            };
-
-            let json =
-                (await tryQuery(`ids=${encodeURIComponent(id)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)) ||
-                (city ? await tryQuery(`city=${encodeURIComponent(city)}`) : null) ||
-                (unitTypeId
-                    ? await tryQuery(`ids=${encodeURIComponent(unitTypeId)}${city ? `&city=${encodeURIComponent(city)}` : ""}`)
-                    : null);
-
-            if (!json) {
-                const rateLimited = errors.some((e) => e.status === 429);
-                const noResults = errors.some((e) => e.body === "No results");
-                if (noResults) {
-                    const payload = { isAvailable: false, availability: [], raw: null, errors };
-                    if (rateLimited) {
-                        return { status: 429, payload: { message: "Rate limited by Guesty", ...payload } };
-                    }
-                    return { status: 200, payload };
-                }
-                try {
-                    const quote = await createQuote({
-                        unitTypeId: unitTypeId || id,
-                        checkInDateLocalized: startDate,
-                        checkOutDateLocalized: endDate,
-                        numberOfGuests: { numberOfAdults: Number(minOccupancy) || 1, numberOfChildren: 0 },
-                        guestsCount: Number(minOccupancy) || 1,
-                        source: "website",
-                    });
-                    const payload = { isAvailable: true, availability: [], raw: { quote }, errors };
-                    setAvailabilityCache(cacheKey, payload);
-                    return { status: 200, payload };
-                } catch (quoteErr) {
-                    errors.push({
-                        status: quoteErr?.status || 500,
-                        body: quoteErr?.message || "Quote fallback failed",
-                    });
-                }
-                const payload = { isAvailable: false, availability: [], raw: null, errors };
-                if (rateLimited) {
-                    return { status: 429, payload: { message: "Rate limited by Guesty", ...payload } };
-                }
-                return { status: 200, payload };
+            const res = await guestyBookingFetch(
+                url.toString(),
+                { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
+                10000,
+                5
+            );
+            if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                const err = new Error(body || String(res.status));
+                err.status = res.status;
+                if (res.status === 429) err.rateLimited = true;
+                throw err;
             }
-
-            const record = Array.isArray(json?.results) ? json.results[0] : null;
-            const days = record?.availability || [];
-            const status = record?.availabilityStatus;
-            const isAvailable =
-                Array.isArray(days) && days.length
-                    ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
-                    : record
-                        ? typeof status === "string"
-                            ? status.toUpperCase() === "AVAILABLE"
-                            : true
-                        : false;
-            const payload = { isAvailable, availability: days, raw: json, errors };
+            const json = await res.json();
+            const results = Array.isArray(json?.results) ? json.results : [];
+            const matched = results.find((item) => item?._id === id || item?.id === id);
+            const payload = {
+                isAvailable: Boolean(matched),
+                availability: [],
+                raw: json,
+                errors,
+            };
             setAvailabilityCache(cacheKey, payload);
             return { status: 200, payload };
         });
@@ -1483,125 +1435,42 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
 
     try {
         const result = await runDeduped(inflightAvailability, cacheKey, async () => {
-            const deadline = Date.now() + AVAILABILITY_BULK_TIMEOUT_MS;
-            const token = await getOpenApiToken();
-            const available = JSON.stringify({
-                checkIn: startDate,
-                checkOut: endDate,
-                minOccupancy: Number(minOccupancy) || 1,
-            });
-            const rawResults = [];
+            const token = await getBookingEngineToken();
+            const url = new URL(`${BOOKING_API_BASE}/listings`);
+            url.searchParams.set("limit", String(Math.min(100, idList.length || 1)));
+            url.searchParams.set("fields", "_id");
+            url.searchParams.set("checkIn", startDate);
+            url.searchParams.set("checkOut", endDate);
+            url.searchParams.set("minOccupancy", String(Number(minOccupancy) || 1));
+            if (city) url.searchParams.set("city", city);
+            if (idList.length) url.searchParams.set("ids", idList.join(","));
 
-            const fetchChunk = async (chunk) => {
-                const url = `${OPEN_API_BASE}/listings?ids=${encodeURIComponent(
-                    chunk.join(",")
-                )}${city ? `&city=${encodeURIComponent(city)}` : ""}&fields=_id availability availabilityStatus&available=${encodeURIComponent(
-                    available
-                )}`;
-                const response = await guestyFetch(
-                    url,
-                    { headers: { Authorization: `Bearer ${token}`, accept: "application/json" } },
-                    10000,
-                    5
-                );
-                if (!response.ok) {
-                    errors.push({ status: response.status, body: await response.text().catch(() => "") });
-                    return null;
-                }
-                return response.json();
-            };
-
-            const results = [];
-            const chunkSize = 20;
-            for (let i = 0; i < idList.length; i += chunkSize) {
-                if (Date.now() > deadline) {
-                    errors.push({ status: 408, body: "Availability bulk timed out" });
-                    break;
-                }
-                const chunk = idList.slice(i, i + chunkSize);
-                const json = await fetchChunk(chunk);
-                if (Array.isArray(json?.results)) {
-                    results.push(...json.results);
-                    if (debugMode) rawResults.push(...json.results);
-                }
+            const res = await guestyBookingFetch(
+                url.toString(),
+                { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
+                10000,
+                5
+            );
+            if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                const err = new Error(body || String(res.status));
+                err.status = res.status;
+                if (res.status === 429) err.rateLimited = true;
+                throw err;
             }
-            const rateLimited = errors.some((e) => e.status === 429);
-            const timedOut = errors.some((e) => e.status === 408);
-            if (rateLimited && results.length === 0 && cachedStale) {
-                availabilityRateLimitedUntil.set(
-                    cacheKey,
-                    Date.now() + AVAILABILITY_RATE_LIMIT_MS
-                );
-                return {
-                    status: 200,
-                    payload: { ...cachedStale, cached: true, stale: true, rateLimited: true },
-                };
-            }
-            if (rateLimited && results.length === 0) {
-                availabilityRateLimitedUntil.set(
-                    cacheKey,
-                    Date.now() + AVAILABILITY_RATE_LIMIT_MS
-                );
-                return {
-                    status: 200,
-                    payload: {
-                        results: idList.map((id) => ({ id, available: false })),
-                        errors: [{ message: "Rate limited by Guesty" }],
-                        rateLimited: true,
-                    },
-                };
-            }
-            if (timedOut && results.length === 0 && cachedStale) {
-                return {
-                    status: 200,
-                    payload: { ...cachedStale, cached: true, stale: true, timedOut: true },
-                };
-            }
-
+            const json = await res.json();
+            const results = Array.isArray(json?.results) ? json.results : [];
             const map = new Map();
-            results.forEach((record) => {
-                const id = record?._id || record?.id;
-                if (!id) return;
-                const days = record?.availability || [];
-                const status = record?.availabilityStatus;
-            const available =
-                Array.isArray(days) && days.length
-                    ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
-                    : typeof status === "string"
-                        ? status.toUpperCase() === "AVAILABLE"
-                        : true;
-            map.set(id, available);
-        });
-
-            const missingIds = idList.filter((id) => !map.has(id));
-            for (const missingId of missingIds) {
-                if (rateLimited || timedOut || Date.now() > deadline) {
-                    map.set(missingId, false);
-                    continue;
-                }
-                try {
-                    const quote = await createQuote({
-                        unitTypeId: missingId,
-                        checkInDateLocalized: startDate,
-                        checkOutDateLocalized: endDate,
-                        numberOfGuests: { numberOfAdults: Number(minOccupancy) || 1, numberOfChildren: 0 },
-                        guestsCount: Number(minOccupancy) || 1,
-                        source: "website",
-                    });
-                    if (quote) map.set(missingId, true);
-                } catch (err) {
-                    errors.push({ status: err?.status || 500, body: err?.message || "Quote fallback failed" });
-                    map.set(missingId, false);
-                }
-            }
-
-            const output = idList.map((id) => ({
-                id,
-                available: map.get(id) ?? false,
+            results.forEach((listing) => {
+                const listingId = listing?._id || listing?.id;
+                if (listingId) map.set(listingId, true);
+            });
+            const output = idList.map((listingId) => ({
+                id: listingId,
+                available: map.get(listingId) ?? false,
             }));
 
             const payload = { results: output, errors };
-            if (debugMode) payload.raw = rawResults;
             setAvailabilityCache(cacheKey, payload);
             const prewarmIds = output.filter((item) => item.available).map((item) => item.id);
             prewarmQuoteCache(prewarmIds, {
@@ -1614,17 +1483,15 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
 
         res.status(result.status).json(result.payload);
     } catch (e) {
-        const rateLimited = errors.some((err) => err.status === 429);
-        if (rateLimited) {
-            availabilityRateLimitedUntil.set(
-                cacheKey,
-                Date.now() + AVAILABILITY_RATE_LIMIT_MS
-            );
-        }
-        if (rateLimited && cachedStale) {
-            return res.status(200).json({ ...cachedStale, cached: true, stale: true, rateLimited: true });
-        }
-        if (rateLimited) {
+        const isRateLimited =
+            e?.status === 429 ||
+            e?.rateLimited ||
+            String(e?.message || "").includes("TOO_MANY_REQUESTS");
+        if (isRateLimited) {
+            availabilityRateLimitedUntil.set(cacheKey, Date.now() + AVAILABILITY_RATE_LIMIT_MS);
+            if (cachedStale) {
+                return res.status(200).json({ ...cachedStale, cached: true, stale: true, rateLimited: true });
+            }
             return res.status(200).json({
                 results: idList.map((id) => ({ id, available: false })),
                 errors: [{ message: "Rate limited by Guesty" }],
@@ -1693,159 +1560,74 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
     try {
         const result = await runDeduped(inflightCalendars, cacheKey, async () => {
             const dayMap = new Map();
-            const normalizePlanLabel = (plan = {}) => {
-                const ratePlan = plan?.ratePlan || {};
-                const raw = ratePlan?.name || ratePlan?.title || ratePlan?.description || "";
-                return String(raw).trim();
-            };
-            const isNonRefundablePlan = (plan = {}) => {
-                const ratePlan = plan?.ratePlan || {};
-                const raw = normalizePlanLabel(plan);
-                return Boolean(
-                    ratePlan?.cancellationPolicy?.isNonRefundable ??
-                    ratePlan?.nonRefundable ??
-                    /non[- ]?refundable/i.test(raw)
-                );
-            };
-            const isStandardPlan = (plan = {}) => /standard/i.test(normalizePlanLabel(plan));
-            const pickPreferredPlan = (plans = []) => {
-                if (!plans.length) return null;
-                const standard = plans.find((p) => isStandardPlan(p));
-                if (standard) return standard;
-                const refundable = plans.find((p) => !isNonRefundablePlan(p));
-                return refundable || plans[0];
-            };
-            const mergeRestrictions = (base = {}, next = {}) => {
-                const minNightsValues = [base.minNights, next.minNights].filter(
-                    (value) => typeof value === "number"
-                );
-                const maxNightsValues = [base.maxNights, next.maxNights].filter(
-                    (value) => typeof value === "number"
-                );
-                return {
-                    minNights: minNightsValues.length ? Math.max(...minNightsValues) : null,
-                    maxNights: maxNightsValues.length ? Math.min(...maxNightsValues) : null,
-                    closedToArrival: Boolean(base.closedToArrival || next.closedToArrival),
-                    closedToDeparture: Boolean(base.closedToDeparture || next.closedToDeparture),
-                };
-            };
-            const getRestrictions = (day = {}) => {
+            const token = await getBookingEngineToken();
+            const url = new URL(`${BOOKING_API_BASE}/listings/${id}/calendar`);
+            url.searchParams.set("startDate", startIso);
+            url.searchParams.set("endDate", endIso);
+            const res = await guestyBookingFetch(
+                url.toString(),
+                { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
+                10000,
+                5
+            );
+            if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                const err = new Error(body || String(res.status));
+                err.status = res.status;
+                if (res.status === 429) err.rateLimited = true;
+                throw err;
+            }
+            const json = await res.json();
+            const calendarDays =
+                (Array.isArray(json?.calendar) && json.calendar) ||
+                (Array.isArray(json?.days) && json.days) ||
+                (Array.isArray(json?.results) && json.results) ||
+                [];
+            calendarDays.forEach((day) => {
+                const dateKey = normalizeDayDate(day);
+                if (!dateKey || dateKey < startIso || dateKey >= endIso) return;
+                const price =
+                    day?.price ??
+                    day?.basePrice ??
+                    day?.nightlyPrice ??
+                    day?.rate ??
+                    day?.amount ??
+                    null;
+                const currency =
+                    day?.currency ||
+                    day?.money?.currency ||
+                    json?.currency ||
+                    "USD";
                 const minNights =
-                    day.minNights ??
-                    day.minimumStay ??
-                    day.minStay ??
-                    day.minStayLength ??
+                    day?.minNights ??
+                    day?.minimumStay ??
+                    day?.minStay ??
+                    day?.minStayLength ??
                     day?.restrictions?.minNights ??
-                    day?.restrictions?.minStay ??
                     null;
                 const maxNights =
-                    day.maxNights ??
-                    day.maximumStay ??
-                    day.maxStay ??
-                    day.maxStayLength ??
+                    day?.maxNights ??
+                    day?.maximumStay ??
+                    day?.maxStay ??
+                    day?.maxStayLength ??
                     day?.restrictions?.maxNights ??
-                    day?.restrictions?.maxStay ??
                     null;
                 const closedToArrival =
-                    day.closedToArrival ??
-                    day.cta ??
-                    day?.restrictions?.closedToArrival ??
-                    day?.restrictions?.cta ??
-                    null;
+                    day?.closedToArrival ?? day?.cta ?? day?.restrictions?.closedToArrival ?? null;
                 const closedToDeparture =
-                    day.closedToDeparture ??
-                    day.ctd ??
-                    day?.restrictions?.closedToDeparture ??
-                    day?.restrictions?.ctd ??
-                    null;
-                return {
-                    minNights: typeof minNights === "number" ? minNights : null,
-                    maxNights: typeof maxNights === "number" ? maxNights : null,
-                    closedToArrival: Boolean(closedToArrival),
-                    closedToDeparture: Boolean(closedToDeparture),
-                };
-            };
-            let cursor = new Date(start);
-
-            while (cursor < end && !rateLimited) {
-                const chunkEnd = addDays(cursor, chunkDays);
-                const safeEnd = chunkEnd < end ? chunkEnd : end;
-
-                try {
-                    const quote = await createQuote({
-                        unitTypeId: id,
-                        checkInDateLocalized: toIsoDate(cursor),
-                        checkOutDateLocalized: toIsoDate(safeEnd),
-                        numberOfGuests: { numberOfAdults: guestsCount, numberOfChildren: 0 },
-                        guestsCount,
-                        source: "website",
-                    });
-
-                    const plans = Array.isArray(quote?.rates?.ratePlans)
-                        ? quote.rates.ratePlans
-                        : [];
-                    const selectedPlan = pickPreferredPlan(plans);
-                    const usablePlans = plans.length ? plans : [];
-                    usablePlans.forEach((plan, index) => {
-                        const isPricingPlan = selectedPlan ? plan === selectedPlan : index === 0;
-                        const planCurrency =
-                            plan?.money?.money?.currency ||
-                            plan?.money?.currency ||
-                            quote?.money?.money?.currency ||
-                            quote?.money?.currency ||
-                            "USD";
-                        const days = Array.isArray(plan?.days) ? plan.days : [];
-                        days.forEach((day) => {
-                            const dateKey = normalizeDayDate(day);
-                            const price = day?.manualPrice ?? day?.price ?? day?.basePrice;
-                            if (!dateKey || typeof price !== "number") return;
-                            if (dateKey < startIso || dateKey >= endIso) return;
-                            const existing = dayMap.get(dateKey);
-                            if (!existing) {
-                                dayMap.set(dateKey, {
-                                    date: dateKey,
-                                    price,
-                                    currency: day?.currency || planCurrency,
-                                    restrictions: getRestrictions(day),
-                                    ratePlanLabel: normalizePlanLabel(plan),
-                                });
-                                return;
-                            }
-                            existing.restrictions = mergeRestrictions(
-                                existing.restrictions,
-                                getRestrictions(day)
-                            );
-                            if (isPricingPlan) {
-                                existing.price = price;
-                                existing.currency = day?.currency || planCurrency;
-                                existing.ratePlanLabel = normalizePlanLabel(plan);
-                            }
-                        });
-                    });
-                } catch (err) {
-                    const tooMany =
-                        err?.status === 429 ||
-                        err?.rateLimited ||
-                        String(err?.message || "").includes("TOO_MANY_REQUESTS");
-                    if (tooMany) {
-                        rateLimited = true;
-                        calendarRateLimitedUntil.set(id, Date.now() + CALENDAR_RATE_LIMIT_MS);
-                        errors.push({
-                            message: "Rate limited by Guesty",
-                            start: toIsoDate(cursor),
-                            end: toIsoDate(safeEnd),
-                        });
-                        break;
-                    }
-                    errors.push({
-                        message: err?.message || "Quote failed",
-                        start: toIsoDate(cursor),
-                        end: toIsoDate(safeEnd),
-                    });
-                }
-
-                cursor = safeEnd;
-            }
+                    day?.closedToDeparture ?? day?.ctd ?? day?.restrictions?.closedToDeparture ?? null;
+                dayMap.set(dateKey, {
+                    date: dateKey,
+                    price: typeof price === "number" ? price : null,
+                    currency,
+                    restrictions: {
+                        minNights: typeof minNights === "number" ? minNights : null,
+                        maxNights: typeof maxNights === "number" ? maxNights : null,
+                        closedToArrival: Boolean(closedToArrival),
+                        closedToDeparture: Boolean(closedToDeparture),
+                    },
+                });
+            });
 
             const days = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
             const payload = {
@@ -1855,18 +1637,30 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                 guests: guestsCount,
                 days,
                 errors,
-                rateLimited:
-                    rateLimited ||
-                    errors.some((err) =>
-                        String(err?.message || "").includes("TOO_MANY_REQUESTS")
-                    ),
+                rateLimited: false,
             };
             setCalendarCache(cacheKey, payload);
-            return { status: rateLimited ? 429 : 200, payload };
+            return { status: 200, payload };
         });
 
-        res.status(result.status === 429 ? 200 : result.status).json(result.payload);
+        res.status(result.status).json(result.payload);
     } catch (e) {
+        const tooMany =
+            e?.status === 429 ||
+            e?.rateLimited ||
+            String(e?.message || "").includes("TOO_MANY_REQUESTS");
+        if (tooMany) {
+            calendarRateLimitedUntil.set(id, Date.now() + CALENDAR_RATE_LIMIT_MS);
+            return res.status(200).json({
+                listingId: id,
+                startDate: toIsoDate(start),
+                months: parsedMonths,
+                guests: guestsCount,
+                days: [],
+                errors: [{ message: "Rate limited by Guesty", start: startIso, end: endIso }],
+                rateLimited: true,
+            });
+        }
         res.status(502).json({ message: "Calendar pricing failed", error: e.message, errors });
     }
 });
