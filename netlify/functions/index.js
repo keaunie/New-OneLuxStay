@@ -1124,7 +1124,7 @@ app.get("/api/listings", async (req, res) => {
             return res.json({ results: cachedStale, cached: true, stale: true, rateLimited: true });
         }
 
-        const pm = await fetchOpenApiListings({
+        const pm = await fetchBookingListings({
             checkIn,
             checkOut,
             minOccupancy,
@@ -1370,7 +1370,7 @@ app.get("/api/listings/:id/availability", async (req, res) => {
     try {
         const result = await runDeduped(inflightAvailability, cacheKey, async () => {
             const ids = [id, unitTypeId].filter(Boolean).join(",");
-            const results = await fetchOpenApiListings({
+            const results = await fetchBookingListings({
                 checkIn: startDate,
                 checkOut: endDate,
                 minOccupancy,
@@ -1437,7 +1437,7 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
 
     try {
         const result = await runDeduped(inflightAvailability, cacheKey, async () => {
-            const results = await fetchOpenApiListings({
+            const results = await fetchBookingListings({
                 checkIn: startDate,
                 checkOut: endDate,
                 minOccupancy,
