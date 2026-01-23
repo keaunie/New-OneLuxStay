@@ -25,7 +25,27 @@ const OPEN_API_TOKEN_CACHE_PATH =
 ======================= */
 
 const app = express();
-app.use(cors());
+const corsOrigins = [
+    process.env.APP_ORIGIN,
+    "https://papayawhip-stinkbug-261234.hostingersite.com",
+    "https://oneluxstay.com",
+    "https://www.oneluxstay.com",
+    "http://localhost:8888",
+    "http://localhost:5173",
+    "http://localhost:3000",
+].filter(Boolean);
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            if (corsOrigins.includes(origin)) return callback(null, true);
+            return callback(new Error("Not allowed by CORS"));
+        },
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+    })
+);
+app.options("*", cors());
 app.use(
     express.json({
         verify: (req, _res, buf) => {
