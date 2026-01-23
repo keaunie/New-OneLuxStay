@@ -58,7 +58,6 @@ const stays = [
 ];
 
 const heroSlides = [
-  "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=1800&q=70",
   "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1800&auto=format&fit=crop&ixlib=rb-4.1.0",
   "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
   "https://assets.guesty.com/image/upload/v1760535614/production/666b3af27fc6d5653142b0af/t7p3cc6hqez89wsmj1gt.jpg",
@@ -373,6 +372,32 @@ function LandingPage() {
   const offersRef = useRef(null);
   const [activeShowcase, setActiveShowcase] = useState(0);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const patienceQuotes = [
+    "We are working on this. “Greatest things come to those who wait.”",
+    "We are working on this. “Patience is not the ability to wait, but the ability to keep a good attitude while waiting.”",
+    "We are working on this. “All things are difficult before they are easy.”",
+    "We are working on this. “The two most powerful warriors are patience and time.”",
+    "We are working on this. “Slow and steady wins the race.”",
+  ];
+  const [cityNoticeIndex, setCityNoticeIndex] = useState(0);
+  const [cityNotice, setCityNotice] = useState("");
+
+  const cityRoutes = {
+    Antwerp: "/antwerp",
+    "Los Angeles": "/losangeles",
+  };
+
+  const handleCityClick = (city) => {
+    const route = cityRoutes[city];
+    if (route) {
+      setCityNotice("");
+      navigate(route);
+      return;
+    }
+    const next = (cityNoticeIndex + 1) % patienceQuotes.length;
+    setCityNoticeIndex(next);
+    setCityNotice(patienceQuotes[next]);
+  };
 
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll(".landing-animate"));
@@ -504,11 +529,21 @@ function LandingPage() {
 
           <div className="landing-chip-row">
             {["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach", "Miami Beach"].map((city) => (
-              <span key={city} className="landing-chip">
+              <button
+                key={city}
+                type="button"
+                className={`landing-chip${cityRoutes[city] ? "" : " landing-chip--disabled"}`}
+                onClick={() => handleCityClick(city)}
+              >
                 {city.toUpperCase()}
-              </span>
+              </button>
             ))}
           </div>
+          {cityNotice && (
+            <div className="landing-chip-notice" role="status" aria-live="polite">
+              {cityNotice}
+            </div>
+          )}
 
           <form className="landing-hero-form glass" onSubmit={handleHeroSubmit}>
             <div className="landing-form-field">

@@ -216,6 +216,41 @@ html {
   font-size: 0.82rem;
   letter-spacing: 0.04em;
   box-shadow: 0 14px 40px rgba(63, 54, 47, 0.12);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.landing-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 44px rgba(63, 54, 47, 0.18);
+}
+
+.landing-chip--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 12px 30px rgba(63, 54, 47, 0.12);
+}
+
+.landing-chip--disabled:hover {
+  transform: none;
+  box-shadow: 0 12px 30px rgba(63, 54, 47, 0.12);
+}
+
+.landing-chip-notice {
+  margin-top: 10px;
+  text-align: center;
+  color: #2d241b;
+  font-style: italic;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  background: rgba(248, 244, 239, 0.9);
+  border: 1px solid rgba(86, 74, 63, 0.18);
+  padding: 8px 14px;
+  border-radius: 999px;
+  display: inline-block;
+  box-shadow: 0 12px 30px rgba(63, 54, 47, 0.18);
+  transition: box-shadow 0.2s ease;
 }
 
 .landing-chip-row {
