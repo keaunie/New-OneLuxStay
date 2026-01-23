@@ -1163,7 +1163,7 @@ app.get("/api/listings/:id/availability", async (req, res) => {
 });
 
 app.get("/api/listings/availability-bulk", async (req, res) => {
-    const { ids = "", startDate, endDate, minOccupancy = 1, city = "" } = req.query || {};
+    const { ids = "", startDate, endDate, minOccupancy = 1, city = "", debug = "", noCache = "" } = req.query || {};
     let idList = String(ids)
         .split(",")
         .map((value) => value.trim())
@@ -1185,11 +1185,13 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
         minOccupancy,
         city,
     ].join("|");
+    const debugMode = String(debug) === "1";
+    const skipCache = debugMode || String(noCache) === "1";
     const cached = getAvailabilityCache(cacheKey);
-    if (cached) return res.json({ ...cached, cached: true });
+    if (!skipCache && cached) return res.json({ ...cached, cached: true });
     const cachedStale = getAvailabilityCacheStale(cacheKey);
     const rateLimitedUntil = availabilityRateLimitedUntil.get(cacheKey) || 0;
-    if (Date.now() < rateLimitedUntil) {
+    if (!skipCache && Date.now() < rateLimitedUntil) {
         if (cachedStale) {
             return res.json({ ...cachedStale, cached: true, stale: true, rateLimited: true });
         }
@@ -1208,6 +1210,7 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
             checkOut: endDate,
             minOccupancy: Number(minOccupancy) || 1,
         });
+        const rawResults = [];
 
         const fetchChunk = async (chunk, attempt = 0) => {
             const url = `${openApiHost}/listings?ids=${encodeURIComponent(
@@ -1247,7 +1250,10 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
             }
             const chunk = idList.slice(i, i + chunkSize);
             const json = await fetchChunk(chunk);
-            if (Array.isArray(json?.results)) results.push(...json.results);
+            if (Array.isArray(json?.results)) {
+                results.push(...json.results);
+                if (debugMode) rawResults.push(...json.results);
+            }
         }
         const rateLimited = errors.some((e) => e.status === 429);
         const timedOut = errors.some((e) => e.status === 408);
@@ -1284,7 +1290,7 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
                     ? days.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
                     : typeof status === "string"
                         ? status.toUpperCase() === "AVAILABLE"
-                        : false;
+                        : true;
             map.set(id, availableResult);
         });
 
@@ -1314,6 +1320,7 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
         }));
 
         const payload = { results: output, errors };
+        if (debugMode) payload.raw = rawResults;
         setAvailabilityCache(cacheKey, payload);
         const prewarmIds = output.filter((item) => item.available).map((item) => item.id);
         prewarmQuoteCache(prewarmIds, {
