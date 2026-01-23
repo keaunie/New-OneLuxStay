@@ -1,6 +1,7 @@
 ﻿import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useId } from "react";
 import "./App.css";
+import SiteFooter from "./components/SiteFooter";
 
 const parseDate = (value) => {
   if (!value) return null;
@@ -15,7 +16,7 @@ const toISODate = (d) =>
 const stays = [
   {
     label: "The OneLuxStay way",
-    headline: "Luxury with a rhythm that matches yours.",
+    headline: "Elevated with a rhythm that matches yours.",
     copy: "Every detail is intentional - layered lighting, tactile materials, silent climate control, and seamless tech. Your concierge orchestrates arrivals, perks, and departures.",
     image:
       "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
@@ -500,7 +501,7 @@ function LandingPage() {
           <div className="landing-logo-mark">OneLuxStay</div>
           <p className="landing-kicker text-amber-300 tracking-[0.34em]">The art of luxurious stays</p>
           <h1 className="landing-display text-4xl md:text-5xl leading-tight text-center">
-            Experience Timeless Luxury Living
+            Experience Timeless Elevated Living
           </h1>
           <p className="text-lg text-slate-100/90 max-w-3xl text-center">
             Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Dubai, Los Angeles, Miami,
@@ -728,34 +729,7 @@ function LandingPage() {
             </div>
           </div>
         </section>
-        <footer className="landing-footer">
-          <div className="landing-footer-inner">
-            <div className="landing-footer-brand">
-              <p className="landing-logo-mark">OneLuxStay</p>
-              <p className="landing-footer-copy">
-                Curated stays, hotel-grade service, and concierge support in every city.
-              </p>
-            </div>
-            <div className="landing-footer-links">
-              <Link to="/stay">Browse stays</Link>
-              <a href="mailto:reservation@oneluxstay.com">reservation@oneluxstay.com</a>
-              <a href="tel:+1 213 866 3589">+1 (213) 866-3589</a>
-            </div>
-            <div className="landing-footer-meta">
-              <p className="landing-footer-kicker">Concierge</p>
-              <p>Available 24/7</p>
-              <p className="landing-footer-kicker">Email</p>
-              <p>Response within 24 hours</p>
-            </div>
-          </div>
-          <div className="landing-footer-bottom">
-            <p>© {new Date().getFullYear()} OneLuxStay. All rights reserved.</p>
-            <div className="landing-footer-legal">
-              <a href="#">Privacy</a>
-              <a href="#">Terms</a>
-            </div>
-          </div>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

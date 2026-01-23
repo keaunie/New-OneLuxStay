@@ -1104,7 +1104,7 @@ const CITY_TOUR_SLIDES = {
     },
     {
       title: "Westside Luxe",
-      subtitle: "Luxury retail and design districts.",
+      subtitle: "Elevated retail and design districts.",
       copy:
         "A day of curated shopping, design stops, and a slow lunch on the Westside before evening lights on Sunset.",
       highlights: ["Rodeo Drive", "The Grove", "Sunset Strip"],

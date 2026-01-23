@@ -5316,6 +5316,240 @@ html {
   border-color: #f5c243;
 }
 
+.policy-page {
+  font-family: var(--landing-font-body);
+  background: radial-gradient(circle at 15% 10%, rgba(201, 181, 156, 0.18), transparent 42%),
+    linear-gradient(180deg, #f9f8f6 0%, #efe9e3 52%, #f9f8f6 100%);
+  color: var(--ink);
+}
+
+.policy-hero {
+  background: linear-gradient(140deg, rgba(249, 248, 246, 0.96), rgba(239, 233, 227, 0.94));
+  border-bottom: 1px solid var(--landing-stroke);
+  position: relative;
+  overflow: hidden;
+}
+
+.policy-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 22px 24px 0;
+}
+
+.policy-topbar-link {
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  font-size: 0.72rem;
+  color: #8b7260;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(139, 114, 96, 0.45);
+  padding-bottom: 4px;
+}
+
+.policy-topbar-link:hover {
+  color: #6f5a4a;
+  border-color: rgba(111, 90, 74, 0.6);
+}
+
+.policy-hero-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 90px 24px 80px;
+  text-align: center;
+  display: grid;
+  gap: 14px;
+}
+
+.policy-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.34em;
+  font-size: 0.72rem;
+  color: #9c8368;
+}
+
+.policy-title {
+  font-size: clamp(2.4rem, 4vw, 3.2rem);
+  color: #3a3027;
+  margin: 0;
+}
+
+.policy-updated {
+  font-size: 0.95rem;
+  color: var(--landing-muted);
+}
+
+.policy-scroll {
+  margin: 10px auto 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: #8b7260;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  width: fit-content;
+}
+
+.policy-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  display: grid;
+  gap: 26px;
+}
+
+.policy-section {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(201, 181, 156, 0.45);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(63, 54, 47, 0.08);
+}
+
+.policy-section h2 {
+  font-family: var(--landing-font-display);
+  font-size: 1.45rem;
+  margin: 0 0 10px;
+}
+
+.policy-section p {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.policy-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-soft);
+  display: grid;
+  gap: 6px;
+}
+
+.policy-contact {
+  background: linear-gradient(140deg, rgba(201, 181, 156, 0.18), rgba(255, 255, 255, 0.75));
+}
+
+.policy-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.policy-contact-label {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  color: #8b7260;
+  margin: 0 0 4px;
+}
+
+.policy-footer {
+  border-top: 1px solid rgba(201, 181, 156, 0.4);
+  background: #f9f8f6;
+  padding: 50px 24px 30px;
+}
+
+.policy-footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) repeat(3, minmax(160px, 1fr));
+  gap: 28px;
+}
+
+.policy-footer-brand {
+  display: grid;
+  gap: 16px;
+  color: var(--ink-soft);
+}
+
+.policy-footer-brand p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.policy-footer-col h3 {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8b7260;
+}
+
+.policy-footer-col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.policy-footer-bottom {
+  max-width: 1100px;
+  margin: 30px auto 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(201, 181, 156, 0.4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.policy-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.policy-footer-links a {
+  color: #8b7260;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.policy-footer-links a:hover {
+  color: #6f5a4a;
+}
+
+@media (max-width: 900px) {
+  .policy-footer-inner {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .policy-topbar {
+    padding: 18px 18px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .policy-hero-inner {
+    padding: 70px 16px 60px;
+  }
+
+  .policy-body {
+    padding: 32px 16px 60px;
+  }
+
+  .policy-footer-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .policy-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 @keyframes la-tour-fade {
   from {
     opacity: 0;
