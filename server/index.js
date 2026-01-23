@@ -60,9 +60,8 @@ const stripe =
         ? new Stripe(stripeSecret, { apiVersion: "2023-10-16" })
         : null;
 
-if (!BOOKING_CLIENT_ID || !BOOKING_CLIENT_SECRET) {
-    throw new Error("Missing GUESTY_BE_CLIENT_ID or GUESTY_BE_CLIENT_SECRET");
-}
+const hasOpenApiCreds = Boolean(OPEN_API_CLIENT_ID && OPEN_API_CLIENT_SECRET);
+const hasBookingCreds = Boolean(BOOKING_CLIENT_ID && BOOKING_CLIENT_SECRET);
 
 /* =======================
    APP MIDDLEWARE
@@ -559,6 +558,11 @@ let bookingToken = null;
 let bookingTokenExp = 0;
 
 async function getBookingToken() {
+    if (!hasBookingCreds) {
+        throw new Error(
+            "Missing Booking Engine credentials (set GUESTY_BE_CLIENT_ID / GUESTY_BE_CLIENT_SECRET)"
+        );
+    }
     if (bookingToken && Date.now() < bookingTokenExp - 60_000) {
         return bookingToken;
     }
@@ -617,8 +621,10 @@ let openApiToken = null;
 let openApiExp = 0;
 
 async function getOpenApiToken() {
-    if (!OPEN_API_CLIENT_ID || !OPEN_API_CLIENT_SECRET) {
-        throw new Error("Missing GUESTY_OPEN_API_CLIENT_ID or GUESTY_OPEN_API_CLIENT_SECRET");
+    if (!hasOpenApiCreds) {
+        throw new Error(
+            "Missing Open API credentials (set GUESTY_OPEN_API_CLIENT_ID / GUESTY_OPEN_API_CLIENT_SECRET)"
+        );
     }
 
     if (openApiToken && Date.now() < openApiExp - 60_000) {
@@ -1008,14 +1014,7 @@ async function createQuoteOpenApi(payload) {
 }
 
 async function createQuote(payload) {
-    try {
-        return await createQuoteBookingEngine(payload);
-    } catch (err) {
-        if (BOOKING_FALLBACK_STATUSES.has(err?.status)) {
-            return createQuoteOpenApi(payload);
-        }
-        throw err;
-    }
+    return createQuoteOpenApi(payload);
 }
 
 async function createReservationOpenApi(payload) {
@@ -1073,7 +1072,7 @@ app.get("/api/listings", async (req, res) => {
             return res.json({ results: cachedStale, cached: true, stale: true, rateLimited: true });
         }
 
-        const pm = await fetchBookingListings({
+        const pm = await fetchOpenApiListings({
             checkIn,
             checkOut,
             minOccupancy,
@@ -1353,34 +1352,17 @@ app.get("/api/listings/:id/availability", async (req, res) => {
     if (cached) return res.json({ ...cached, cached: true });
 
     try {
-        const token = await getBookingToken();
-        const ids = [id, unitTypeId].filter(Boolean);
-        const url = new URL(`${guestyHost}/api/listings`);
-        url.searchParams.set("limit", String(Math.min(100, ids.length || 1)));
-        url.searchParams.set("fields", "_id");
-        url.searchParams.set("checkIn", startDate);
-        url.searchParams.set("checkOut", endDate);
-        url.searchParams.set("minOccupancy", String(Number(minOccupancy) || 1));
-        if (city) url.searchParams.set("city", city);
-        if (ids.length) url.searchParams.set("ids", ids.join(","));
-
-        const response = await guestyBookingFetch(
-            url.toString(),
-            { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
-            10000,
-            5
-        );
-        if (!response.ok) {
-            const body = await response.text().catch(() => "");
-            const err = new Error(body || String(response.status));
-            err.status = response.status;
-            if (response.status === 429) err.rateLimited = true;
-            throw err;
-        }
-        const json = await response.json();
-        const results = Array.isArray(json?.results) ? json.results : [];
+        const ids = [id, unitTypeId].filter(Boolean).join(",");
+        const results = await fetchOpenApiListings({
+            checkIn: startDate,
+            checkOut: endDate,
+            minOccupancy,
+            city,
+            ids,
+            limit: Math.min(100, ids ? ids.split(",").length : 1),
+        });
         const matched = results.find((item) => item?._id === id || item?.id === id);
-        const payload = { isAvailable: Boolean(matched), availability: [], raw: json, errors };
+        const payload = { isAvailable: Boolean(matched), availability: [], raw: results, errors };
         setAvailabilityCache(cacheKey, payload);
         res.json(payload);
     } catch (e) {
@@ -1429,31 +1411,14 @@ app.get("/api/listings/availability-bulk", async (req, res) => {
     }
 
     try {
-        const token = await getBookingToken();
-        const url = new URL(`${guestyHost}/api/listings`);
-        url.searchParams.set("limit", String(Math.min(100, idList.length || 1)));
-        url.searchParams.set("fields", "_id");
-        url.searchParams.set("checkIn", startDate);
-        url.searchParams.set("checkOut", endDate);
-        url.searchParams.set("minOccupancy", String(Number(minOccupancy) || 1));
-        if (city) url.searchParams.set("city", city);
-        if (idList.length) url.searchParams.set("ids", idList.join(","));
-
-        const response = await guestyBookingFetch(
-            url.toString(),
-            { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
-            10000,
-            5
-        );
-        if (!response.ok) {
-            const body = await response.text().catch(() => "");
-            const err = new Error(body || String(response.status));
-            err.status = response.status;
-            if (response.status === 429) err.rateLimited = true;
-            throw err;
-        }
-        const json = await response.json();
-        const results = Array.isArray(json?.results) ? json.results : [];
+        const results = await fetchOpenApiListings({
+            checkIn: startDate,
+            checkOut: endDate,
+            minOccupancy,
+            city,
+            ids: idList.join(","),
+            limit: Math.min(100, idList.length || 1),
+        });
         const map = new Map();
         results.forEach((listing) => {
             const listingId = listing?._id || listing?.id;
@@ -1540,87 +1505,171 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
     }
 
     const end = addMonths(start, parsedMonths);
+    const chunkDays = Math.max(
+        28,
+        Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+    );
     const startIso = toIsoDate(start);
     const endIso = toIsoDate(end);
     const errors = [];
+    let rateLimited = false;
 
     try {
         const result = await runDeduped(inflightCalendars, cacheKey, async () => {
             const dayMap = new Map();
-            const token = await getBookingToken();
-            const url = new URL(`${guestyHost}/api/listings/${id}/calendar`);
-            url.searchParams.set("startDate", startIso);
-            url.searchParams.set("endDate", endIso);
-            const response = await guestyBookingFetch(
-                url.toString(),
-                { headers: { accept: "application/json", authorization: `Bearer ${token}` } },
-                10000,
-                5
-            );
-            if (!response.ok) {
-                const body = await response.text().catch(() => "");
-                const err = new Error(body || String(response.status));
-                err.status = response.status;
-                if (response.status === 429) err.rateLimited = true;
-                throw err;
-            }
-            const json = await response.json();
-            const calendarDays =
-                (Array.isArray(json?.calendar) && json.calendar) ||
-                (Array.isArray(json?.days) && json.days) ||
-                (Array.isArray(json?.results) && json.results) ||
-                [];
-            calendarDays.forEach((day) => {
-                const dateKey = normalizeDayDate(day);
-                if (!dateKey || dateKey < startIso || dateKey >= endIso) return;
-                const price =
-                    day?.price ??
-                    day?.basePrice ??
-                    day?.nightlyPrice ??
-                    day?.rate ??
-                    day?.amount ??
-                    null;
-                const currency =
-                    day?.currency ||
-                    day?.money?.currency ||
-                    json?.currency ||
-                    "USD";
+            const normalizePlanLabel = (plan = {}) => {
+                const ratePlan = plan?.ratePlan || {};
+                const raw = ratePlan?.name || ratePlan?.title || ratePlan?.description || "";
+                return String(raw).trim();
+            };
+            const isNonRefundablePlan = (plan = {}) => {
+                const ratePlan = plan?.ratePlan || {};
+                const raw = normalizePlanLabel(plan);
+                return Boolean(
+                    ratePlan?.cancellationPolicy?.isNonRefundable ??
+                    ratePlan?.nonRefundable ??
+                    /non[- ]?refundable/i.test(raw)
+                );
+            };
+            const isStandardPlan = (plan = {}) => /standard/i.test(normalizePlanLabel(plan));
+            const pickPreferredPlan = (plans = []) => {
+                if (!plans.length) return null;
+                const standard = plans.find((p) => isStandardPlan(p));
+                if (standard) return standard;
+                const refundable = plans.find((p) => !isNonRefundablePlan(p));
+                return refundable || plans[0];
+            };
+            const mergeRestrictions = (base = {}, next = {}) => {
+                const minNightsValues = [base.minNights, next.minNights].filter(
+                    (value) => typeof value === "number"
+                );
+                const maxNightsValues = [base.maxNights, next.maxNights].filter(
+                    (value) => typeof value === "number"
+                );
+                return {
+                    minNights: minNightsValues.length ? Math.max(...minNightsValues) : null,
+                    maxNights: maxNightsValues.length ? Math.min(...maxNightsValues) : null,
+                    closedToArrival: Boolean(base.closedToArrival || next.closedToArrival),
+                    closedToDeparture: Boolean(base.closedToDeparture || next.closedToDeparture),
+                };
+            };
+            const getRestrictions = (day = {}) => {
                 const minNights =
-                    day?.minNights ??
-                    day?.minimumStay ??
-                    day?.minStay ??
-                    day?.minStayLength ??
+                    day.minNights ??
+                    day.minimumStay ??
+                    day.minStay ??
+                    day.minStayLength ??
                     day?.restrictions?.minNights ??
+                    day?.restrictions?.minStay ??
                     null;
                 const maxNights =
-                    day?.maxNights ??
-                    day?.maximumStay ??
-                    day?.maxStay ??
-                    day?.maxStayLength ??
+                    day.maxNights ??
+                    day.maximumStay ??
+                    day.maxStay ??
+                    day.maxStayLength ??
                     day?.restrictions?.maxNights ??
+                    day?.restrictions?.maxStay ??
                     null;
                 const closedToArrival =
-                    day?.closedToArrival ??
-                    day?.cta ??
+                    day.closedToArrival ??
+                    day.cta ??
                     day?.restrictions?.closedToArrival ??
+                    day?.restrictions?.cta ??
                     null;
                 const closedToDeparture =
-                    day?.closedToDeparture ??
-                    day?.ctd ??
+                    day.closedToDeparture ??
+                    day.ctd ??
                     day?.restrictions?.closedToDeparture ??
+                    day?.restrictions?.ctd ??
                     null;
-                dayMap.set(dateKey, {
-                    date: dateKey,
-                    price: typeof price === "number" ? price : null,
-                    currency,
-                    restrictions: {
-                        minNights: typeof minNights === "number" ? minNights : null,
-                        maxNights: typeof maxNights === "number" ? maxNights : null,
-                        closedToArrival: Boolean(closedToArrival),
-                        closedToDeparture: Boolean(closedToDeparture),
-                    },
-                });
-            });
+                return {
+                    minNights: typeof minNights === "number" ? minNights : null,
+                    maxNights: typeof maxNights === "number" ? maxNights : null,
+                    closedToArrival: Boolean(closedToArrival),
+                    closedToDeparture: Boolean(closedToDeparture),
+                };
+            };
+            let cursor = new Date(start);
+
+            while (cursor < end && !rateLimited) {
+                const chunkEnd = addDays(cursor, chunkDays);
+                const safeEnd = chunkEnd < end ? chunkEnd : end;
+
+                try {
+                    const quote = await createQuote({
+                        listingId: id,
+                        checkInDateLocalized: toIsoDate(cursor),
+                        checkOutDateLocalized: toIsoDate(safeEnd),
+                        numberOfGuests: { numberOfAdults: guestsCount, numberOfChildren: 0 },
+                        guestsCount,
+                        source: "website",
+                    });
+
+                    const plans = Array.isArray(quote?.rates?.ratePlans)
+                        ? quote.rates.ratePlans
+                        : [];
+                    const selectedPlan = pickPreferredPlan(plans);
+                    const usablePlans = plans.length ? plans : [];
+                    usablePlans.forEach((plan, index) => {
+                        const isPricingPlan = selectedPlan ? plan === selectedPlan : index === 0;
+                        const planCurrency =
+                            plan?.money?.money?.currency ||
+                            plan?.money?.currency ||
+                            quote?.money?.money?.currency ||
+                            quote?.money?.currency ||
+                            "USD";
+                        const days = Array.isArray(plan?.days) ? plan.days : [];
+                        days.forEach((day) => {
+                            const dateKey = normalizeDayDate(day);
+                            const price = day?.manualPrice ?? day?.price ?? day?.basePrice;
+                            if (!dateKey || typeof price !== "number") return;
+                            if (dateKey < startIso || dateKey >= endIso) return;
+                            const existing = dayMap.get(dateKey);
+                            if (!existing) {
+                                dayMap.set(dateKey, {
+                                    date: dateKey,
+                                    price,
+                                    currency: day?.currency || planCurrency,
+                                    restrictions: getRestrictions(day),
+                                    ratePlanLabel: normalizePlanLabel(plan),
+                                });
+                                return;
+                            }
+                            existing.restrictions = mergeRestrictions(
+                                existing.restrictions,
+                                getRestrictions(day)
+                            );
+                            if (isPricingPlan) {
+                                existing.price = price;
+                                existing.currency = day?.currency || planCurrency;
+                                existing.ratePlanLabel = normalizePlanLabel(plan);
+                            }
+                        });
+                    });
+                } catch (err) {
+                    const tooMany =
+                        err?.status === 429 ||
+                        err?.rateLimited ||
+                        String(err?.message || "").includes("TOO_MANY_REQUESTS");
+                    if (tooMany) {
+                        rateLimited = true;
+                        calendarRateLimitedUntil.set(id, Date.now() + CALENDAR_RATE_LIMIT_MS);
+                        errors.push({
+                            message: "Rate limited by Guesty",
+                            start: toIsoDate(cursor),
+                            end: toIsoDate(safeEnd),
+                        });
+                        break;
+                    }
+                    errors.push({
+                        message: err?.message || "Quote failed",
+                        start: toIsoDate(cursor),
+                        end: toIsoDate(safeEnd),
+                    });
+                }
+
+                cursor = safeEnd;
+            }
 
             const days = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
             const payload = {
@@ -1630,30 +1679,18 @@ app.get("/api/listings/:id/calendar-prices", async (req, res) => {
                 guests: guestsCount,
                 days,
                 errors,
-                rateLimited: false,
+                rateLimited:
+                    rateLimited ||
+                    errors.some((err) =>
+                        String(err?.message || "").includes("TOO_MANY_REQUESTS")
+                    ),
             };
             setCalendarCache(cacheKey, payload);
-            return { status: 200, payload };
+            return { status: rateLimited ? 429 : 200, payload };
         });
 
-        res.status(result.status).json(result.payload);
+        res.status(result.status === 429 ? 200 : result.status).json(result.payload);
     } catch (e) {
-        const tooMany =
-            e?.status === 429 ||
-            e?.rateLimited ||
-            String(e?.message || "").includes("TOO_MANY_REQUESTS");
-        if (tooMany) {
-            calendarRateLimitedUntil.set(id, Date.now() + CALENDAR_RATE_LIMIT_MS);
-            return res.status(200).json({
-                listingId: id,
-                startDate: toIsoDate(start),
-                months: parsedMonths,
-                guests: guestsCount,
-                days: [],
-                errors: [{ message: "Rate limited by Guesty", start: startIso, end: endIso }],
-                rateLimited: true,
-            });
-        }
         res.status(502).json({ message: "Calendar pricing failed", error: e.message, errors });
     }
 });
