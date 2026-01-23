@@ -1188,6 +1188,14 @@ app.get("/api/diagnostics/listings", async (_req, res) => {
         },
     };
 
+    const safeTimeout = (promise, ms, label) =>
+        Promise.race([
+            promise,
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+            ),
+        ]);
+
     try {
         const token = await getBookingEngineToken();
         const url = new URL(PM_CONTENT_URL);
@@ -1200,7 +1208,11 @@ app.get("/api/diagnostics/listings", async (_req, res) => {
         };
         if (pmAidCs) headers["g-aid-cs"] = pmAidCs;
         if (pmRequestContext) headers["x-request-context"] = pmRequestContext;
-        const bookingRes = await guestyBookingFetch(url.toString(), { headers }, 10000, 1);
+        const bookingRes = await safeTimeout(
+            guestyBookingFetch(url.toString(), { headers }, 6000, 0),
+            6500,
+            "Booking diagnostics"
+        );
         diagnostics.booking.status = bookingRes.status;
         diagnostics.booking.headers = {
             "retry-after": bookingRes.headers.get("retry-after"),
@@ -1222,11 +1234,15 @@ app.get("/api/diagnostics/listings", async (_req, res) => {
         url.searchParams.set("limit", "1");
         url.searchParams.set("sort", "-createdAt");
         url.searchParams.set("fields", "_id title");
-        const openRes = await guestyFetch(
-            url.toString(),
-            { headers: { accept: "application/json", Authorization: `Bearer ${token}` } },
-            10000,
-            1
+        const openRes = await safeTimeout(
+            guestyFetch(
+                url.toString(),
+                { headers: { accept: "application/json", Authorization: `Bearer ${token}` } },
+                6000,
+                0
+            ),
+            6500,
+            "Open API diagnostics"
         );
         diagnostics.openApi.status = openRes.status;
         diagnostics.openApi.headers = {
