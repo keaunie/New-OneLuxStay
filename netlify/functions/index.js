@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import Stripe from "stripe";
+import fetch from "node-fetch";
 
 dotenv.config();
 
@@ -114,11 +115,12 @@ const hasOpenApiCreds = Boolean(OPEN_API_CLIENT_ID && OPEN_API_CLIENT_SECRET);
    UTILS
 ======================= */
 
+const fetchImpl = globalThis.fetch || fetch;
 const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
-        return await fetch(url, { ...options, signal: controller.signal });
+        return await fetchImpl(url, { ...options, signal: controller.signal });
     } finally {
         clearTimeout(id);
     }
