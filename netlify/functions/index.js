@@ -579,7 +579,7 @@ const fetchOpenApiListings = async ({
             };
             const results = [];
             const pageLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
-            const maxPages = Number(process.env.GUESTY_LISTINGS_MAX_PAGES || 8);
+            const maxPages = Number(process.env.GUESTY_LISTINGS_MAX_PAGES || 1);
             let guard = 0;
             let skip = 0;
 
@@ -613,7 +613,7 @@ const fetchOpenApiListings = async ({
                     const res = await guestyFetch(
                         `${OPEN_API_LISTINGS_URL}?${qs.toString()}`,
                         { headers },
-                        6000,
+                        4000,
                         5
                     );
                     if (!res.ok) {
