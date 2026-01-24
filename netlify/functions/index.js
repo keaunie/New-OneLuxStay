@@ -595,13 +595,10 @@ const fetchOpenApiListings = async ({
                 qs.set("listed", "true");
                 qs.set("pmsActive", "true");
                 if (checkIn && checkOut) {
+                    const occupancy = Number(minOccupancy) || 1;
                     qs.set(
                         "available",
-                        JSON.stringify({
-                            checkIn,
-                            checkOut,
-                            minOccupancy: Number(minOccupancy) || 1,
-                        })
+                        `{"checkIn":"${checkIn}","checkOut":"${checkOut}","minOccupancy":${occupancy}}`
                     );
                 }
                 if (city) qs.set("city", city);
