@@ -25,6 +25,7 @@ dist-ssr
 
 # Local token cache
 .guesty-token-cache.json
+.guesty-openapi-token.json
 
 # Local Netlify folder
 .netlify

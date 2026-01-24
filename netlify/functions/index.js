@@ -578,22 +578,10 @@ const fetchOpenApiListings = async ({
                 Authorization: `Bearer ${token}`,
             };
             const results = [];
-            const idList = String(ids || "")
-                .split(",")
-                .map((value) => value.trim())
-                .filter(Boolean);
-            const idSet = idList.length ? new Set(idList) : null;
-            const cityFilter = String(city || "").trim().toLowerCase();
-            const tagList = String(tags || "")
-                .split(",")
-                .map((value) => value.trim())
-                .filter(Boolean)
-                .map((value) => value.toLowerCase());
-            let cursor = "";
-            let guard = 0;
+            const pageLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
             const maxPages = Number(process.env.GUESTY_LISTINGS_MAX_PAGES || 8);
-
-            const pageLimit = Math.max(1, Math.min(Number(limit) || 50, MAX_LISTINGS_LIMIT));
+            let guard = 0;
+            let skip = 0;
 
             do {
                 const qs = new URLSearchParams();
@@ -601,10 +589,11 @@ const fetchOpenApiListings = async ({
                 qs.set("sort", "-createdAt");
                 qs.set(
                     "fields",
-                    "_id,nickname,title,type,address,address.full,address.city,address.country,terms,prices,picture,pictures,accommodates,bedrooms,bathrooms,propertyType,timezone,tags,mtl"
+                    "_id nickname title type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags mtl"
                 );
                 qs.set("active", "true");
                 qs.set("listed", "true");
+                qs.set("pmsActive", "true");
                 if (checkIn && checkOut) {
                     qs.set(
                         "available",
@@ -615,7 +604,10 @@ const fetchOpenApiListings = async ({
                         })
                     );
                 }
-                if (cursor) qs.set("cursor", cursor);
+                if (city) qs.set("city", city);
+                if (tags) qs.set("tags", tags);
+                if (ids) qs.set("ids", ids);
+                qs.set("skip", String(skip));
 
                 const fetchPage = async () => {
                     const res = await guestyFetch(
@@ -636,30 +628,10 @@ const fetchOpenApiListings = async ({
 
                 const json = await fetchPage();
                 const pageResults = Array.isArray(json?.results) ? json.results : [];
-                if (pageResults.length) {
-                    pageResults.forEach((item) => {
-                        const itemId = item?._id || item?.id;
-                        if (idSet && (!itemId || !idSet.has(itemId))) return;
-                        if (cityFilter) {
-                            const itemCity =
-                                String(item?.address?.city || item?.city || item?.address?.full || "")
-                                    .toLowerCase();
-                            if (!itemCity.includes(cityFilter)) return;
-                        }
-                        if (tagList.length) {
-                            const itemTags = Array.isArray(item?.tags)
-                                ? item.tags.map((tag) => String(tag).toLowerCase())
-                                : [];
-                            const hasTag = tagList.some((tag) => itemTags.includes(tag));
-                            if (!hasTag) return;
-                        }
-                        results.push(item);
-                    });
-                    if (idSet && results.length >= idSet.size) break;
-                }
-                cursor = json?.pagination?.cursor?.next || "";
+                if (pageResults.length) results.push(...pageResults);
+                skip += pageResults.length || pageLimit;
                 guard += 1;
-            } while (cursor && guard < maxPages);
+            } while (guard < maxPages);
 
             setListingsCache(cacheKey, results);
             return results;
@@ -828,6 +800,15 @@ app.get("/api/listings", async (req, res) => {
             message: "Listings failed",
             error: e.message,
         });
+    }
+});
+
+app.get("/api/open-api-token", async (_req, res) => {
+    try {
+        const token = await getOpenApiToken();
+        res.json({ access_token: token, expires_at: openApiExp });
+    } catch (e) {
+        res.status(500).json({ message: "Token fetch failed", error: e.message });
     }
 });
 
