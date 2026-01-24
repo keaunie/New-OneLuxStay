@@ -620,6 +620,7 @@ const fetchOpenApiListings = async ({
                         const body = await res.text().catch(() => "");
                         const err = new Error(body || String(res.status));
                         err.status = res.status;
+                        err.details = body || null;
                         if (res.status === 429) err.rateLimited = true;
                         throw err;
                     }
@@ -796,9 +797,11 @@ app.get("/api/listings", async (req, res) => {
                 rateLimited: true,
             });
         }
-        res.status(500).json({
+        res.status(502).json({
             message: "Listings failed",
             error: e.message,
+            status: e.status || null,
+            details: e.details || null,
         });
     }
 });
