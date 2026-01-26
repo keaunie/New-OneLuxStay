@@ -580,8 +580,8 @@ const fetchOpenApiListings = async ({
                 Authorization: `Bearer ${token}`,
             };
             const results = [];
-            const pageLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
-            const maxPages = Number(process.env.GUESTY_LISTINGS_MAX_PAGES || 1);
+            const pageLimit = Math.max(1, Math.min(Number(limit) || 100, 100));
+            const maxPages = Number(process.env.GUESTY_LISTINGS_MAX_PAGES || 2);
             let guard = 0;
             let skip = 0;
 
