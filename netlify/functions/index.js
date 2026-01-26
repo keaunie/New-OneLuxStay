@@ -521,7 +521,7 @@ async function getOpenApiToken() {
         return openApiToken;
     }
 
-    const res = await guestyFetch(
+    const res = await fetchWithTimeout(
         OPEN_API_TOKEN_URL,
         {
             method: "POST",
@@ -533,8 +533,7 @@ async function getOpenApiToken() {
                 client_secret: OPEN_API_CLIENT_SECRET,
             }),
         },
-        10000,
-        5
+        4000
     );
 
     if (!res.ok) {
@@ -614,8 +613,8 @@ const fetchOpenApiListings = async ({
                     const res = await guestyFetch(
                         `${OPEN_API_LISTINGS_URL}?${qs.toString()}`,
                         { headers },
-                        4000,
-                        5
+                        3500,
+                        1
                     );
                     if (!res.ok) {
                         const body = await res.text().catch(() => "");
