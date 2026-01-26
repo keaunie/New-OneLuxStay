@@ -387,6 +387,54 @@ app.get("/api/listings", rateLimit({ windowMs: 60_000, max: 30 }), async (req, r
 });
 
 
+app.get("/api/listings/all", async (req, res) => {
+    try {
+        const token = await getGuestyTokenFromCache();
+        const limit = 100;
+        let skip = 0;
+        let allListings = [];
+        let total = Infinity;
+
+        while (skip < total) {
+            const url = new URL("https://open-api.guesty.com/v1/listings");
+            url.searchParams.set("limit", limit);
+            url.searchParams.set("skip", skip);
+
+            const response = await fetchWithTimeout(url.toString(), {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
+            const data = await response.json();
+
+            if (Array.isArray(data?.results)) {
+                allListings.push(...data.results);
+            }
+
+            total = data.count;
+            skip += limit;
+        }
+
+        res.json({
+            total: allListings.length,
+            listings: allListings,
+        });
+    } catch (err) {
+        res.status(500).json({
+            message: "Failed to fetch all listings",
+            error: err.message,
+        });
+    }
+});
+
+
 
 
 export const handler = serverless(app, { basePath: "/.netlify/functions/index" });
