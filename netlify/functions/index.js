@@ -6,6 +6,12 @@ import Stripe from "stripe";
 import fetch from "node-fetch";
 
 dotenv.config();
+const logGuestyToken = (message, extra = {}) => {
+    console.log(
+        `[Guesty Token] ${message}`,
+        Object.keys(extra).length ? extra : ""
+    );
+};
 
 const app = express();
 
@@ -140,31 +146,57 @@ let guestyTokenCache = {
 const getGuestyTokenFromCache = async () => {
     const now = Date.now();
 
+    // ✅ Reuse valid cached token
     if (
         guestyTokenCache.token &&
         guestyTokenCache.expiresAt > now + 5 * 60_000
     ) {
+        const minutesLeft = Math.floor(
+            (guestyTokenCache.expiresAt - now) / 1000 / 60
+        );
+
+        logGuestyToken("Using cached token", {
+            minutesRemaining: minutesLeft,
+        });
+
         return guestyTokenCache.token;
     }
 
+    // 🟡 Another request is already refreshing the token
     if (guestyTokenCache.refreshing) {
+        logGuestyToken("Waiting for token refresh to complete");
         return new Promise((resolve, reject) => {
             guestyTokenCache.waiters.push({ resolve, reject });
         });
     }
 
     guestyTokenCache.refreshing = true;
+    logGuestyToken("Refreshing access token");
 
     try {
         const data = await getGuestyAccessToken();
-        guestyTokenCache.token = data.access_token;
-        guestyTokenCache.expiresAt = now + data.expires_in * 1000;
 
-        guestyTokenCache.waiters.forEach(w => w.resolve(data.access_token));
+        guestyTokenCache.token = data.access_token;
+        guestyTokenCache.expiresAt =
+            Date.now() + data.expires_in * 1000;
+
+        logGuestyToken("New token acquired", {
+            expiresInHours: Math.round(data.expires_in / 3600),
+            expiresAt: new Date(guestyTokenCache.expiresAt).toISOString(),
+        });
+
+        // Wake up queued requests
+        guestyTokenCache.waiters.forEach(w =>
+            w.resolve(data.access_token)
+        );
         guestyTokenCache.waiters = [];
 
         return data.access_token;
     } catch (err) {
+        logGuestyToken("Token refresh FAILED", {
+            error: err.message,
+        });
+
         guestyTokenCache.waiters.forEach(w => w.reject(err));
         guestyTokenCache.waiters = [];
         throw err;
