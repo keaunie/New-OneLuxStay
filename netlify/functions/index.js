@@ -13,6 +13,10 @@ const logGuestyToken = (message, extra = {}) => {
     );
 };
 
+let guestyOauthBlockedUntil = 0;
+
+
+
 const app = express();
 
 /* =========================
@@ -162,6 +166,12 @@ const getGuestyTokenFromCache = async () => {
         return guestyTokenCache.token;
     }
 
+    if (Date.now() < guestyOauthBlockedUntil) {
+        throw new Error(
+            "Guesty OAuth temporarily blocked. Retry later."
+        );
+    }
+
     // 🟡 Another request is already refreshing the token
     if (guestyTokenCache.refreshing) {
         logGuestyToken("Waiting for token refresh to complete");
@@ -193,14 +203,17 @@ const getGuestyTokenFromCache = async () => {
 
         return data.access_token;
     } catch (err) {
-        logGuestyToken("Token refresh FAILED", {
-            error: err.message,
-        });
+        if (err.message.includes("TOO_MANY_REQUESTS")) {
+            guestyOauthBlockedUntil = Date.now() + 6 * 60 * 60 * 1000;
+            console.warn("[Guesty Token] OAuth blocked — backing off 6 hours");
+        }
 
         guestyTokenCache.waiters.forEach(w => w.reject(err));
         guestyTokenCache.waiters = [];
         throw err;
-    } finally {
+    }
+
+    finally {
         guestyTokenCache.refreshing = false;
     }
 };
