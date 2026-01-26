@@ -4,8 +4,13 @@ import dotenv from "dotenv";
 import serverless from "serverless-http";
 import Stripe from "stripe";
 import fetch from "node-fetch";
+import { getStore } from "@netlify/blobs";
 
 dotenv.config();
+
+/* =========================
+   Logging helper
+========================= */
 const logGuestyToken = (message, extra = {}) => {
     console.log(
         `[Guesty Token] ${message}`,
@@ -13,11 +18,11 @@ const logGuestyToken = (message, extra = {}) => {
     );
 };
 
-let guestyOauthBlockedUntil = 0;
-
-
-
+/* =========================
+   App init
+========================= */
 const app = express();
+let guestyOauthBlockedUntil = 0;
 
 /* =========================
    CORS
@@ -103,7 +108,7 @@ const rateLimit = ({ windowMs = 60_000, max = 30 } = {}) => {
 };
 
 /* =========================
-   Guesty OAuth (SAFE)
+   Guesty OAuth
 ========================= */
 const getGuestyAccessToken = async () => {
     const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
@@ -139,87 +144,104 @@ const getGuestyAccessToken = async () => {
     return response.json();
 };
 
-// 🔐 Token cache with refresh lock
-let guestyTokenCache = {
-    token: null,
-    expiresAt: 0,
-    refreshing: false,
-    waiters: [],
-};
+/* =========================
+   Netlify Blobs token store
+========================= */
+const guestyStore = getStore("guesty-auth");
+
+// in-memory fast cache (per instance)
+let inMemoryToken = null;
+let inMemoryExpiresAt = 0;
+
+// refresh lock (per instance)
+let refreshing = false;
+let waiters = [];
+
+const TOKEN_REFRESH_BUFFER = 5 * 60 * 1000; // 5 minutes
 
 const getGuestyTokenFromCache = async () => {
     const now = Date.now();
 
-    // ✅ Reuse valid cached token
+    /* ========= 1. In-memory ========= */
+    if (inMemoryToken && inMemoryExpiresAt > now + TOKEN_REFRESH_BUFFER) {
+        logGuestyToken("Using in-memory token");
+        return inMemoryToken;
+    }
+
+    /* ========= 2. Netlify Blobs ========= */
+    const stored = await guestyStore.get("access-token", { type: "json" });
+
     if (
-        guestyTokenCache.token &&
-        guestyTokenCache.expiresAt > now + 5 * 60_000
+        stored?.token &&
+        stored?.expiresAt > now + TOKEN_REFRESH_BUFFER
     ) {
-        const minutesLeft = Math.floor(
-            (guestyTokenCache.expiresAt - now) / 1000 / 60
-        );
-
-        logGuestyToken("Using cached token", {
-            minutesRemaining: minutesLeft,
+        logGuestyToken("Using Netlify Blobs token", {
+            minutesRemaining: Math.floor(
+                (stored.expiresAt - now) / 1000 / 60
+            ),
         });
 
-        return guestyTokenCache.token;
+        inMemoryToken = stored.token;
+        inMemoryExpiresAt = stored.expiresAt;
+        return stored.token;
     }
 
-    if (Date.now() < guestyOauthBlockedUntil) {
-        throw new Error(
-            "Guesty OAuth temporarily blocked. Retry later."
-        );
+    /* ========= 3. OAuth backoff ========= */
+    if (now < guestyOauthBlockedUntil) {
+        throw new Error("Guesty OAuth temporarily blocked. Retry later.");
     }
 
-    // 🟡 Another request is already refreshing the token
-    if (guestyTokenCache.refreshing) {
-        logGuestyToken("Waiting for token refresh to complete");
+    /* ========= 4. Single-flight refresh ========= */
+    if (refreshing) {
+        logGuestyToken("Waiting for token refresh");
         return new Promise((resolve, reject) => {
-            guestyTokenCache.waiters.push({ resolve, reject });
+            waiters.push({ resolve, reject });
         });
     }
 
-    guestyTokenCache.refreshing = true;
-    logGuestyToken("Refreshing access token");
+    refreshing = true;
+    logGuestyToken("Refreshing Guesty access token");
 
     try {
         const data = await getGuestyAccessToken();
+        const expiresAt = Date.now() + data.expires_in * 1000;
 
-        guestyTokenCache.token = data.access_token;
-        guestyTokenCache.expiresAt =
-            Date.now() + data.expires_in * 1000;
+        const payload = {
+            token: data.access_token,
+            expiresAt,
+        };
 
-        logGuestyToken("New token acquired", {
+        // store globally
+        await guestyStore.setJSON("access-token", payload);
+
+        // store locally
+        inMemoryToken = payload.token;
+        inMemoryExpiresAt = payload.expiresAt;
+
+        logGuestyToken("New token stored", {
             expiresInHours: Math.round(data.expires_in / 3600),
-            expiresAt: new Date(guestyTokenCache.expiresAt).toISOString(),
         });
 
-        // Wake up queued requests
-        guestyTokenCache.waiters.forEach(w =>
-            w.resolve(data.access_token)
-        );
-        guestyTokenCache.waiters = [];
+        waiters.forEach(w => w.resolve(payload.token));
+        waiters = [];
 
-        return data.access_token;
+        return payload.token;
     } catch (err) {
         if (err.message.includes("TOO_MANY_REQUESTS")) {
             guestyOauthBlockedUntil = Date.now() + 6 * 60 * 60 * 1000;
             console.warn("[Guesty Token] OAuth blocked — backing off 6 hours");
         }
 
-        guestyTokenCache.waiters.forEach(w => w.reject(err));
-        guestyTokenCache.waiters = [];
+        waiters.forEach(w => w.reject(err));
+        waiters = [];
         throw err;
-    }
-
-    finally {
-        guestyTokenCache.refreshing = false;
+    } finally {
+        refreshing = false;
     }
 };
 
 /* =========================
-   Stripe
+   Stripe (unchanged)
 ========================= */
 const stripeSecret = process.env.STRIPE_SECRET_KEY || "";
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
