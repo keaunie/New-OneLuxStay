@@ -30,7 +30,6 @@ app.use(
         allowedHeaders: ["Content-Type", "Authorization", "Stripe-Signature"],
     })
 );
-app.options("*", cors());
 
 app.use(
     express.json({
