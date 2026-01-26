@@ -6,7 +6,7 @@ import reviewsHollywood from "./data/reviews-hollywood.json";
 import reviewsDodger from "./data/reviews-dodger.json";
 import CardSwap, { Card } from "./components/CardSwap";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
