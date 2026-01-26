@@ -31,6 +31,7 @@ const corsOrigins = [
     "https://oneluxstay.com",
     "https://www.oneluxstay.com",
     "http://localhost:8888",
+    "http://localhost:8888/",
     "http://localhost:5173",
     "http://localhost:3000",
 ].filter(Boolean);
@@ -540,6 +541,7 @@ async function getOpenApiToken() {
         const body = await res.text().catch(() => "");
         const err = new Error(body || String(res.status));
         err.status = res.status;
+        err.details = body || null;
         if (res.status === 429) err.rateLimited = true;
         throw err;
     }
@@ -1642,6 +1644,15 @@ app.get("/api/landmarks", async (req, res) => {
     } catch (e) {
         res.status(502).json({ message: "Landmarks lookup failed", error: e.message });
     }
+});
+
+app.use((err, _req, res, _next) => {
+    console.error("Unhandled error", err?.message || err);
+    if (res.headersSent) return;
+    res.status(500).json({
+        message: "Unhandled server error",
+        error: err?.message || String(err),
+    });
 });
 
 /* =======================
