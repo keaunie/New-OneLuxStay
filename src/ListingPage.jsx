@@ -433,7 +433,7 @@ function ListingPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/listings/all`, { cache: "no-store" });
+        const res = await fetch(`${apiBase}/api/listings`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
         const sanitizedListings = (json.results || []).filter((listing) => {
