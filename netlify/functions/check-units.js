@@ -214,7 +214,7 @@ const handleAvailabilityBulk = async (event, token, tokenSource) => {
   });
 
   const res = await fetchWithTimeout(
-    `${OPEN_API_HOST}/availability-pricing/api/calendar/listings?${qs.toString()}`,
+    `${OPEN_API_V1}/availability-pricing/api/calendar/listings?${qs.toString()}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -323,7 +323,7 @@ const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
   });
 
   const res = await fetchWithTimeout(
-    `${OPEN_API_HOST}/availability-pricing/api/calendar/listings/${listingId}?${qs.toString()}`,
+    `${OPEN_API_V1}/availability-pricing/api/calendar/listings/${listingId}?${qs.toString()}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
