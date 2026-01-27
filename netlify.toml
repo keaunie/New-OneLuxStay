@@ -21,3 +21,7 @@ targetPort = 5174
 from = "/*"
 to = "/index.html"
 status = 200
+
+
+[functions."refresh-guesty-token"]
+  schedule = "@daily"

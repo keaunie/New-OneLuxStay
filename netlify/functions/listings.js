@@ -6,7 +6,14 @@ import { getStore } from "@netlify/blobs";
 ========================= */
 const RATE_STORE = "guesty-rate";
 const RATE_KEY = "last-call";
-const MIN_INTERVAL_MS = 120; // ~8 req/sec GLOBAL (very safe)
+const MIN_INTERVAL_MS = 120; // ~8 req/sec GLOBAL
+
+/* =========================
+   Config
+========================= */
+const GUESTY_ME_URL = "https://open-api.guesty.com/v1/me";
+const TOKEN_STORE_NAME = "guesty-oauth";
+const TOKEN_KEY = "access-token";
 
 /* =========================
    Helpers
@@ -54,113 +61,27 @@ const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
 };
 
 /* =========================
-   Guesty OAuth
+   PART 3 — READ-ONLY TOKEN
+   (NO OAUTH, NO REFRESH)
 ========================= */
-const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
-const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/me";
-
-const TOKEN_STORE_NAME = "guesty-oauth";
-const TOKEN_KEY = "access-token";
-
-let inMemoryToken = null;
-let inMemoryTokenExpiresAt = 0;
-let inMemoryRefreshLock = false;
-let waiters = [];
-
-const requestGuestyToken = async () => {
-    const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
-    const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-        throw new Error("Missing Guesty API credentials");
-    }
-
-    const body = new URLSearchParams({
-        grant_type: "client_credentials",
-        scope: "open-api",
-        client_id: clientId,
-        client_secret: clientSecret,
-    });
-
-    const response = await fetchWithTimeout(GUESTY_TOKEN_URL, {
-        method: "POST",
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: body.toString(),
-    });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
-
-    return response.json();
-};
-
 const getGuestyToken = async () => {
-    const now = Date.now();
+    const store = getStore(TOKEN_STORE_NAME);
+    const cached = await store.get(TOKEN_KEY, { type: "json" });
 
-    if (inMemoryToken && inMemoryTokenExpiresAt > now + 5 * 60_000) {
-        return { token: inMemoryToken, source: "memory" };
+    if (!cached?.token) {
+        throw new Error(
+            "Guesty token not found in Blob. Run scheduled refresh function."
+        );
     }
 
-    let store;
-    let cached;
-
-    try {
-        store = getStore(TOKEN_STORE_NAME);
-        cached = await store.get(TOKEN_KEY, { type: "json" });
-    } catch (e) {
-        console.warn("[Guesty] Blob store unavailable, using memory only");
+    if (cached.expiresAt && cached.expiresAt < Date.now()) {
+        throw new Error(
+            "Guesty token expired. Wait for scheduled refresh."
+        );
     }
 
-    if (cached && cached.expiresAt > now + 5 * 60_000) {
-        inMemoryToken = cached.token;
-        inMemoryTokenExpiresAt = cached.expiresAt;
-        return { token: cached.token, source: "blob" };
-    }
-
-    if (inMemoryRefreshLock) {
-        return new Promise((resolve, reject) => {
-            waiters.push({ resolve, reject });
-        });
-    }
-
-    inMemoryRefreshLock = true;
-
-    try {
-        const data = await requestGuestyToken();
-
-        const tokenData = {
-            token: data.access_token,
-            expiresAt: now + data.expires_in * 1000,
-        };
-
-        await store.setJSON(TOKEN_KEY, tokenData);
-
-        inMemoryToken = tokenData.token;
-        inMemoryTokenExpiresAt = tokenData.expiresAt;
-
-        waiters.forEach(w => w.resolve({ token: tokenData.token, source: "fresh" }));
-        waiters = [];
-
-        return { token: tokenData.token, source: "fresh" };
-    } catch (err) {
-        waiters.forEach(w => w.reject(err));
-        waiters = [];
-        throw err;
-    } finally {
-        inMemoryRefreshLock = false;
-    }
+    return { token: cached.token, source: "blob" };
 };
-
-
-
-console.log("ENV CHECK", {
-    hasClientId: !!process.env.GUESTY_OPEN_API_CLIENT_ID,
-    hasClientSecret: !!process.env.GUESTY_OPEN_API_CLIENT_SECRET,
-});
 
 /* =========================
    Netlify Function Handler
@@ -175,34 +96,15 @@ export async function handler(event) {
     try {
         const { token, source } = await getGuestyToken();
         tokenSource = source;
-        const params = new URLSearchParams({
-            limit: "10",
-            fields: "id,title,status",
-            ...(event.queryStringParameters || {}),
-        });
 
-        const url = `${GUESTY_LISTINGS_URL}?${params.toString()}`;
-
-        let response;
-
-        for (let attempt = 0; attempt < 3; attempt++) {
-            response = await runWithGuestyLimit(() =>
-                fetchWithTimeout(url, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        Accept: "application/json",
-                    },
-                })
-            );
-
-            if (response.status !== 429) break;
-
-            const retryAfter =
-                Number(response.headers.get("retry-after")) || 2;
-
-            console.warn(`[Guesty] 429 — sleeping ${retryAfter}s`);
-            await sleep((retryAfter + 1) * 1000);
-        }
+        const response = await runWithGuestyLimit(() =>
+            fetchWithTimeout(GUESTY_ME_URL, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "application/json",
+                },
+            })
+        );
 
         if (!response.ok) {
             throw new Error(await response.text());
@@ -215,12 +117,11 @@ export async function handler(event) {
             { ...data, tokenSource },
             { "X-Guesty-Token-Cache": tokenSource }
         );
-
     } catch (err) {
         return jsonResponse(
             500,
             {
-                message: "Failed to fetch Guesty listings",
+                message: "Failed to call Guesty API",
                 error: err.message,
                 tokenSource,
             },
