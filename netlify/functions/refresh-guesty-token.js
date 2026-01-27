@@ -27,7 +27,7 @@ export async function handler() {
             method: "POST",
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
-                Accept: "application/json",
+                "Accept": "application/json",
             },
             body: body.toString(),
         });
