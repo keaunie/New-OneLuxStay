@@ -5,34 +5,29 @@ const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 
-/* =========================
-   Blob helper (REQUIRED)
-========================= */
-const getBlobStore = () => {
-    const siteID = process.env.NETLIFY_SITE_ID;
-    const token = process.env.NETLIFY_API_TOKEN;
-
-    if (!siteID || !token) {
-        throw new Error("Missing NETLIFY_SITE_ID or NETLIFY_API_TOKEN");
-    }
-
-    return getStore(TOKEN_STORE_NAME, { siteID, token });
-};
-
 export async function handler() {
     try {
-        const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
-        const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
+        const {
+            GUESTY_OPEN_API_CLIENT_ID,
+            GUESTY_OPEN_API_CLIENT_SECRET,
+            NETLIFY_SITE_ID,
+            NETLIFY_BLOBS_TOKEN,
+        } = process.env;
 
-        if (!clientId || !clientSecret) {
-            throw new Error("Missing Guesty credentials");
+        if (
+            !GUESTY_OPEN_API_CLIENT_ID ||
+            !GUESTY_OPEN_API_CLIENT_SECRET ||
+            !NETLIFY_SITE_ID ||
+            !NETLIFY_BLOBS_TOKEN
+        ) {
+            throw new Error("Missing required environment variables");
         }
 
         const body = new URLSearchParams({
             grant_type: "client_credentials",
             scope: "open-api",
-            client_id: clientId,
-            client_secret: clientSecret,
+            client_id: GUESTY_OPEN_API_CLIENT_ID,
+            client_secret: GUESTY_OPEN_API_CLIENT_SECRET,
         });
 
         const response = await fetch(GUESTY_TOKEN_URL, {
@@ -52,10 +47,15 @@ export async function handler() {
 
         const tokenData = {
             token: data.access_token,
-            expiresAt: Date.now() + data.expires_in * 1000, // ~24 hours
+            expiresAt: Date.now() + data.expires_in * 1000, // ~24h
         };
 
-        const store = getBlobStore();
+        const store = getStore({
+            name: TOKEN_STORE_NAME,
+            siteID: NETLIFY_SITE_ID,
+            token: NETLIFY_BLOBS_TOKEN,
+        });
+
         await store.setJSON(TOKEN_KEY, tokenData);
 
         return {
@@ -66,8 +66,6 @@ export async function handler() {
             }),
         };
     } catch (err) {
-        console.error("[refresh-guesty-token] ERROR:", err);
-
         return {
             statusCode: 500,
             body: JSON.stringify({
