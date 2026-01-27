@@ -61,6 +61,9 @@ export async function handler(event) {
             limit: "100",
             fields:
                 "_id id title nickname type address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags accountId",
+            active: "true",
+            listed: "true",
+            pmsActive: "true",
             ...(event.queryStringParameters || {}),
         });
 
