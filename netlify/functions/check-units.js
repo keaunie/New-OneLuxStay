@@ -255,6 +255,56 @@ const handleAvailabilityBulk = async (event, token, tokenSource) => {
   return jsonResponse(200, { results, tokenSource });
 };
 
+const handleCalendarMulti = async (event, token, tokenSource) => {
+  const {
+    listingIds = "",
+    startDate = "",
+    endDate = "",
+    includeAllotment = "false",
+    ignoreInactiveChildAllotment = "false",
+    ignoreUnlistedChildAllotment = "false",
+  } = event.queryStringParameters || {};
+
+  if (!listingIds || !startDate || !endDate) {
+    return jsonResponse(400, { message: "Missing listingIds, startDate, or endDate" });
+  }
+
+  const qs = new URLSearchParams({
+    listingIds,
+    startDate,
+    endDate,
+    includeAllotment,
+    ignoreInactiveChildAllotment,
+    ignoreUnlistedChildAllotment,
+  });
+
+  const res = await fetchWithTimeout(
+    `${OPEN_API_HOST}/availability-pricing/api/calendar/listings?${qs.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (res.status === 429) {
+    return jsonResponse(200, {
+      results: [],
+      errors: [{ message: "Rate limited by Guesty" }],
+      rateLimited: true,
+      tokenSource,
+    });
+  }
+
+  if (!res.ok) {
+    return jsonResponse(502, { message: "Calendar multi failed", error: await res.text() });
+  }
+
+  const payload = await res.json();
+  return jsonResponse(200, { ...payload, tokenSource });
+};
+
 const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
   const { startDate, endDate, months = "1" } = event.queryStringParameters || {};
   if (!listingId || !startDate) {
@@ -382,7 +432,7 @@ export async function handler(event) {
     return jsonResponse(200, {});
   }
 
-  const path = event.path.replace("/.netlify/functions/api", "");
+  const path = event.path.replace("/.netlify/functions/check-units", "");
   const { token, source } = await getGuestyToken();
 
   if (path === "/listings/availability-bulk" && event.httpMethod === "GET") {
@@ -392,6 +442,10 @@ export async function handler(event) {
   if (path.startsWith("/listings/") && path.endsWith("/calendar-prices") && event.httpMethod === "GET") {
     const listingId = path.split("/")[2];
     return handleCalendarPrices(event, token, source, listingId);
+  }
+
+  if (path === "/listings/calendar-multi" && event.httpMethod === "GET") {
+    return handleCalendarMulti(event, token, source);
   }
 
   if (path === "/reservations/quotes-bulk" && event.httpMethod === "POST") {
