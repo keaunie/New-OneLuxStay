@@ -110,7 +110,9 @@ const getGuestyToken = async () => {
     try {
         store = getStore(TOKEN_STORE_NAME);
         cached = await store.get(TOKEN_KEY, { type: "json" });
-    } catch { }
+    } catch (e) {
+        console.warn("[Guesty] Blob store unavailable, using memory only");
+    }
 
     if (cached && cached.expiresAt > now + 5 * 60_000) {
         inMemoryToken = cached.token;
@@ -151,6 +153,13 @@ const getGuestyToken = async () => {
         inMemoryRefreshLock = false;
     }
 };
+
+
+
+console.log("ENV CHECK", {
+    hasClientId: !!process.env.GUESTY_OPEN_API_CLIENT_ID,
+    hasClientSecret: !!process.env.GUESTY_OPEN_API_CLIENT_SECRET,
+});
 
 /* =========================
    Netlify Function Handler
