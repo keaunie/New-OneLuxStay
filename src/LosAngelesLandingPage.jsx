@@ -103,6 +103,11 @@ const formatCalendarPrice = (value, currency) => {
   }
 };
 
+const getPrimaryListingId = (listings = []) =>
+  listings
+    .map((listing) => listing.unitTypeId || listing.id || listing._id)
+    .find(Boolean);
+
 const monthKey = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
@@ -1745,7 +1750,7 @@ export default function LosAngelesLandingPage() {
         months: "1",
         guests: "2",
       });
-      const res = await fetch(`${apiBase}/api/listings/${listingId}/calendar-prices?${qs}`);
+      const res = await fetch(`${apiBase}/check-units/listings/${listingId}/calendar-prices?${qs}`);
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.message || "Calendar pricing failed");
@@ -1896,7 +1901,7 @@ export default function LosAngelesLandingPage() {
       }
 
       try {
-        const res = await fetch(`${apiBase}/api/reservations/quotes-bulk`, {
+        const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ requests }),
@@ -1954,7 +1959,7 @@ export default function LosAngelesLandingPage() {
     });
   }, [sectionQuotes]);
 
-  const fetchAvailabilityListings = async () => {
+  const fetchAvailabilityListings = async ({ listingIds, listingId } = {}) => {
     if (!activeSection) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
@@ -1964,9 +1969,10 @@ export default function LosAngelesLandingPage() {
     setSectionAvailabilityError("");
     try {
       const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const items = activeSection.listings
-        .map((listing) => listing.id || listing._id)
-        .filter(Boolean);
+      const items = (Array.isArray(listingIds) && listingIds.length
+        ? listingIds
+        : activeSection.listings.map((listing) => listing.id || listing._id)
+      ).filter(Boolean);
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const qs = new URLSearchParams({
         ids: items.join(","),
@@ -1974,7 +1980,7 @@ export default function LosAngelesLandingPage() {
         endDate: sectionCheckOut,
         minOccupancy: sectionGuests || "1",
       }).toString();
-      const bulkRes = await fetch(`${apiBase}/api/listings/availability-bulk?${qs}`, {
+      const bulkRes = await fetch(`${apiBase}/check-units/listings/availability-bulk?${qs}`, {
         cache: "no-store",
       });
       if (!bulkRes.ok) {
@@ -1988,9 +1994,10 @@ export default function LosAngelesLandingPage() {
         acc[item.id] = item.available;
         return acc;
       }, {});
-      const availableListings = activeSection.listings.filter((listing) =>
-        availableIds.has(listing.id || listing._id)
-      );
+      const availableListings = activeSection.listings.filter((listing) => {
+        const listingKey = listing.id || listing._id;
+        return listingKey && availableIds.has(listingKey);
+      });
       setSectionAvailability(availableListings);
       setSectionAvailabilityMap(availabilityMap);
       setSectionAvailabilityActive(true);
@@ -2008,7 +2015,7 @@ export default function LosAngelesLandingPage() {
         })
         .filter(Boolean);
       if (quoteRequests.length) {
-        const res = await fetch(`${apiBase}/api/reservations/quotes-bulk`, {
+        const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ requests: quoteRequests }),
@@ -2032,6 +2039,21 @@ export default function LosAngelesLandingPage() {
       } else {
         setSectionQuotes({});
       }
+
+      if (listingId) {
+        const calendarKey = listingId;
+        const monthStart = new Date(sectionCalendarStartDate);
+        monthStart.setDate(1);
+        fetchCalendarMonth(
+          calendarKey,
+          monthStart,
+          sectionCalendarCacheRef,
+          sectionCalendarDaysRef,
+          setSectionCalendarLoading,
+          setSectionCalendarError,
+          setSectionCalendarPrices
+        );
+      }
     } catch (err) {
       setSectionAvailabilityError(err.message || "Unable to load availability.");
     } finally {
@@ -2054,7 +2076,7 @@ export default function LosAngelesLandingPage() {
     setSectionReserveLoadingId(listingId);
 
     try {
-      const res = await fetch(`${apiBase}/api/checkout`, {
+      const res = await fetch(`${apiBase}/check-units/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2528,6 +2550,13 @@ export default function LosAngelesLandingPage() {
                           className="antwerp-card__ghost"
                           onClick={() => {
                             setActiveSectionKey(group.key);
+                            const listingIds = group.listings
+                              .map((listing) => listing.id || listing._id)
+                              .filter(Boolean);
+                            const listingId = getPrimaryListingId(group.listings);
+                            if (listingIds.length) {
+                              fetchAvailabilityListings({ listingIds, listingId });
+                            }
                           }}
                         >
                           View units in {group.label}
