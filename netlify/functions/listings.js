@@ -58,7 +58,7 @@ export async function handler(event) {
         }
 
         const params = new URLSearchParams({
-            limit: "10",
+            limit: "100",
             fields: "id,title,status",
             ...(event.queryStringParameters || {}),
         });
