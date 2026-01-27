@@ -57,7 +57,8 @@ const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
    Guesty OAuth
 ========================= */
 const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
-const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
+const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/me";
+
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 
