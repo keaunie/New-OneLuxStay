@@ -6,7 +6,8 @@ import reviewsHollywood from "./data/reviews-hollywood.json";
 import reviewsDodger from "./data/reviews-dodger.json";
 import CardSwap, { Card } from "./components/CardSwap";
 
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
+const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
+const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
@@ -1282,6 +1283,7 @@ export default function LosAngelesLandingPage() {
   const listingInfoRef = useRef(null);
   const mapLoadedRef = useRef(false);
   const losAngelesListingsRef = useRef([]);
+  const [isMapEnabled, setIsMapEnabled] = useState(false);
 
   const activeAmenityList = useMemo(() => {
     if (!activeListing) return [];
@@ -1469,7 +1471,7 @@ export default function LosAngelesLandingPage() {
     let active = true;
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/listings`, { cache: "no-store" });
+        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
         if (!active) return;
@@ -1499,6 +1501,7 @@ export default function LosAngelesLandingPage() {
   }, [listings]);
 
   useEffect(() => {
+    if (!isMapEnabled) return;
     if (!mapRef.current || mapLoadedRef.current || !mapsApiKey) return;
     const target = mapRef.current;
     const observer = new IntersectionObserver(
@@ -1579,7 +1582,7 @@ export default function LosAngelesLandingPage() {
     return listings.filter((listing) => {
       return isLosAngelesListing(listing);
     });
-  }, [listings]);
+  }, [listings, isMapEnabled, mapsApiKey]);
 
   const syncListingMarkers = (listingsToUse = losAngelesListingsRef.current) => {
     const maps = mapsApiRef.current;
@@ -2554,18 +2557,53 @@ export default function LosAngelesLandingPage() {
                 <p className="antwerp-muted">
                   See nearby landmarks and public transport around Hollywood Blvd.
                 </p>
-                <div
-                  ref={mapRef}
-                  aria-label="Google map showing Hollywood Blvd with nearby landmarks and public transport"
-                  className="la-units-map"
-                  style={{
-                    width: "100%",
-                    borderRadius: "20px",
-                    border: "1px solid rgba(201, 181, 156, 0.6)",
-                    overflow: "hidden",
-                    background: "rgba(249, 248, 246, 0.8)",
-                  }}
-                />
+                {!isMapEnabled ? (
+                  <div
+                    className="la-units-map"
+                    style={{
+                      width: "100%",
+                      borderRadius: "20px",
+                      border: "1px solid rgba(201, 181, 156, 0.6)",
+                      overflow: "hidden",
+                      background: "rgba(249, 248, 246, 0.8)",
+                      minHeight: "260px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "10px",
+                      textAlign: "center",
+                      padding: "24px",
+                    }}
+                  >
+                    <p className="antwerp-muted" style={{ margin: 0 }}>
+                      Map loads on demand to keep the page fast.
+                    </p>
+                    <button
+                      type="button"
+                      className="antwerp-card__ghost"
+                      onClick={() => {
+                        mapLoadedRef.current = false;
+                        setIsMapEnabled(true);
+                      }}
+                    >
+                      Enable map
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    ref={mapRef}
+                    aria-label="Google map showing Hollywood Blvd with nearby landmarks and public transport"
+                    className="la-units-map"
+                    style={{
+                      width: "100%",
+                      borderRadius: "20px",
+                      border: "1px solid rgba(201, 181, 156, 0.6)",
+                      overflow: "hidden",
+                      background: "rgba(249, 248, 246, 0.8)",
+                    }}
+                  />
+                )}
               </div>
             </aside>
           </div>

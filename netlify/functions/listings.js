@@ -11,6 +11,8 @@ const TOKEN_KEY = "access-token";
 
 let inMemoryRefreshLock = false;
 let waiters = [];
+let inMemoryToken = null;
+let inMemoryTokenExpiresAt = 0;
 
 /* =========================
    Helpers
@@ -71,13 +73,29 @@ const requestGuestyToken = async () => {
 };
 
 const getGuestyToken = async () => {
-    const store = getStore(TOKEN_STORE_NAME);
     const now = Date.now();
 
+    if (inMemoryToken && inMemoryTokenExpiresAt > now + 5 * 60_000) {
+        return inMemoryToken;
+    }
+
     // 🔹 Check shared token
-    const cached = await store.get(TOKEN_KEY, { type: "json" });
+    let store = null;
+    let cached = null;
+    try {
+        const siteID = process.env.NETLIFY_SITE_ID;
+        const token = process.env.NETLIFY_API_TOKEN;
+        store = siteID && token
+            ? getStore(TOKEN_STORE_NAME, { siteID, token })
+            : getStore(TOKEN_STORE_NAME);
+        cached = await store.get(TOKEN_KEY, { type: "json" });
+    } catch {
+        store = null;
+    }
 
     if (cached && cached.expiresAt > now + 5 * 60_000) {
+        inMemoryToken = cached.token;
+        inMemoryTokenExpiresAt = cached.expiresAt;
         return cached.token;
     }
 
@@ -98,7 +116,11 @@ const getGuestyToken = async () => {
             expiresAt: now + data.expires_in * 1000,
         };
 
-        await store.setJSON(TOKEN_KEY, tokenData);
+        if (store) {
+            await store.setJSON(TOKEN_KEY, tokenData);
+        }
+        inMemoryToken = tokenData.token;
+        inMemoryTokenExpiresAt = tokenData.expiresAt;
 
         waiters.forEach(w => w.resolve(tokenData.token));
         waiters = [];
