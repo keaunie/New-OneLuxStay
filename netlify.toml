@@ -18,6 +18,12 @@ node_bundler = "esbuild"
 targetPort = 5174
 
 [[redirects]]
+from = "/.netlify/functions/*"
+to = "/.netlify/functions/:splat"
+status = 200
+force = true
+
+[[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200
