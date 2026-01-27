@@ -7,27 +7,17 @@ functions = "netlify/functions"
 node_bundler = "esbuild"
 
 [build.environment]
-  NODE_VERSION = "18"
-  GUESTY_MAX_CONCURRENT = "1"
-  GUESTY_MIN_INTERVAL_MS = "10000"
-  GUESTY_QUOTE_BULK_LIMIT = "2"
-  GUESTY_QUOTE_BULK_TIMEOUT_MS = "10000"
-  GUESTY_QUOTE_BULK_PREWARM_LIMIT = "2"
+NODE_VERSION = "18"
 
 [dev]
 targetPort = 5174
 
-[[redirects]]
-from = "/.netlify/functions/*"
-to = "/.netlify/functions/:splat"
-status = 200
-force = true
-
+# SPA fallback — KEEP THIS
 [[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200
 
-
+# Scheduled function — KEEP THIS
 [functions."refresh-guesty-token"]
-  schedule = "@daily"
+schedule = "@daily"
