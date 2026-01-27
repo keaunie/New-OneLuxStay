@@ -1,6 +1,3 @@
-import fetch from "node-fetch";
-import { getStore } from "@netlify/blobs";
-
 const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
@@ -20,13 +17,30 @@ const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
+        if (typeof fetch !== "function") {
+            throw new Error("Fetch is not available in this runtime");
+        }
         return await fetch(url, { ...options, signal: controller.signal });
     } finally {
         clearTimeout(id);
     }
 };
 
+const getBlobStore = async () => {
+    try {
+        const { getStore } = await import("@netlify/blobs");
+        const siteID = process.env.NETLIFY_SITE_ID;
+        const apiToken = process.env.NETLIFY_API_TOKEN;
+        return siteID && apiToken
+            ? getStore(TOKEN_STORE_NAME, { siteID, token: apiToken })
+            : getStore(TOKEN_STORE_NAME);
+    } catch {
+        return null;
+    }
+};
+
 export async function handler(event) {
+    console.log("[refresh-guesty-token] invoked");
     if (event.httpMethod === "OPTIONS") {
         return jsonResponse(200, {});
     }
@@ -65,16 +79,10 @@ export async function handler(event) {
         const tokenData = { token: data.access_token, expiresAt };
 
         let stored = false;
-        try {
-            const siteID = process.env.NETLIFY_SITE_ID;
-            const apiToken = process.env.NETLIFY_API_TOKEN;
-            const store = siteID && apiToken
-                ? getStore(TOKEN_STORE_NAME, { siteID, token: apiToken })
-                : getStore(TOKEN_STORE_NAME);
+        const store = await getBlobStore();
+        if (store) {
             await store.setJSON(TOKEN_KEY, tokenData);
             stored = true;
-        } catch {
-            stored = false;
         }
 
         globalThis.GUESTY_TOKEN = tokenData.token;
