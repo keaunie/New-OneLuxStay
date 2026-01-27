@@ -1975,12 +1975,12 @@ export default function LosAngelesLandingPage() {
       ).filter(Boolean);
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const qs = new URLSearchParams({
-        ids: items.join(","),
+        listingIds: items.join(","),
         startDate: sectionCheckIn,
         endDate: sectionCheckOut,
         minOccupancy: sectionGuests || "1",
       }).toString();
-      const bulkRes = await fetch(`${apiBase}/check-units/listings/availability-bulk?${qs}`, {
+      const bulkRes = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
         cache: "no-store",
       });
       if (!bulkRes.ok) {
