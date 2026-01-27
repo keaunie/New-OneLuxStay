@@ -163,8 +163,10 @@ export async function handler(event) {
         return jsonResponse(200, {});
     }
 
+    let tokenSource = null;
     try {
         const { token, source } = await getGuestyToken();
+        tokenSource = source;
         const params = new URLSearchParams(event.queryStringParameters || {});
         const url = `${GUESTY_LISTINGS_URL}?${params.toString()}`;
 
@@ -205,9 +207,14 @@ export async function handler(event) {
         );
 
     } catch (err) {
-        return jsonResponse(500, {
-            message: "Failed to fetch Guesty listings",
-            error: err.message,
-        });
+        return jsonResponse(
+            500,
+            {
+                message: "Failed to fetch Guesty listings",
+                error: err.message,
+                tokenSource,
+            },
+            { "X-Guesty-Token-Cache": tokenSource || "unknown" }
+        );
     }
 }
