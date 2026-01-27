@@ -2,50 +2,35 @@ import fetch from "node-fetch";
 import { getStore } from "@netlify/blobs";
 
 /* =========================
-   Guesty Rate Queue
+   GLOBAL RATE LIMIT (SAFE)
 ========================= */
-const MAX_CONCURRENT = 6; // ⬅️ IMPORTANT: must be <= 15/sec
-let activeRequests = 0;
-const queue = [];
-
-const runWithGuestyLimit = async (fn) => {
-    if (activeRequests >= MAX_CONCURRENT) {
-        await new Promise(resolve => queue.push(resolve));
-    }
-
-    activeRequests++;
-
-    try {
-        return await fn();
-    } finally {
-        activeRequests--;
-        if (queue.length > 0) {
-            queue.shift()();
-        }
-    }
-};
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-/* =========================
-   Config
-========================= */
-const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
-const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
-const TOKEN_STORE_NAME = "guesty-oauth";
-const TOKEN_KEY = "access-token";
-
-/* =========================
-   In-memory token cache
-========================= */
-let inMemoryRefreshLock = false;
-let waiters = [];
-let inMemoryToken = null;
-let inMemoryTokenExpiresAt = 0;
+const RATE_STORE = "guesty-rate";
+const RATE_KEY = "last-call";
+const MIN_INTERVAL_MS = 120; // ~8 req/sec GLOBAL (very safe)
 
 /* =========================
    Helpers
 ========================= */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const runWithGuestyLimit = async (fn) => {
+    const store = getStore(RATE_STORE);
+
+    while (true) {
+        const now = Date.now();
+        const last = await store.get(RATE_KEY, { type: "json" });
+
+        if (!last || now - last >= MIN_INTERVAL_MS) {
+            await store.setJSON(RATE_KEY, now);
+            break;
+        }
+
+        await sleep(50);
+    }
+
+    return fn();
+};
+
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
     statusCode,
     headers: {
@@ -71,6 +56,16 @@ const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
 /* =========================
    Guesty OAuth
 ========================= */
+const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
+const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
+const TOKEN_STORE_NAME = "guesty-oauth";
+const TOKEN_KEY = "access-token";
+
+let inMemoryToken = null;
+let inMemoryTokenExpiresAt = 0;
+let inMemoryRefreshLock = false;
+let waiters = [];
+
 const requestGuestyToken = async () => {
     const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
     const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
@@ -139,17 +134,19 @@ const getGuestyToken = async () => {
             expiresAt: now + data.expires_in * 1000,
         };
 
-        if (store) {
-            await store.setJSON(TOKEN_KEY, tokenData);
-        }
+        await store.setJSON(TOKEN_KEY, tokenData);
 
         inMemoryToken = tokenData.token;
         inMemoryTokenExpiresAt = tokenData.expiresAt;
 
-        waiters.forEach(w => w.resolve(tokenData.token));
+        waiters.forEach(w => w.resolve({ token: tokenData.token, source: "fresh" }));
         waiters = [];
 
         return { token: tokenData.token, source: "fresh" };
+    } catch (err) {
+        waiters.forEach(w => w.reject(err));
+        waiters = [];
+        throw err;
     } finally {
         inMemoryRefreshLock = false;
     }
@@ -164,9 +161,11 @@ export async function handler(event) {
     }
 
     let tokenSource = "unknown";
+
     try {
         const { token, source } = await getGuestyToken();
-        tokenSource = source || "unknown";
+        tokenSource = source;
+
         const params = new URLSearchParams(event.queryStringParameters || {});
         const url = `${GUESTY_LISTINGS_URL}?${params.toString()}`;
 
@@ -185,13 +184,10 @@ export async function handler(event) {
             if (response.status !== 429) break;
 
             const retryAfter =
-                Number(response.headers.get("retry-after")) || 1;
+                Number(response.headers.get("retry-after")) || 2;
 
-            console.warn(
-                `[Guesty] 429 received — retrying after ${retryAfter}s`
-            );
-
-            await sleep(retryAfter * 1000);
+            console.warn(`[Guesty] 429 — sleeping ${retryAfter}s`);
+            await sleep((retryAfter + 1) * 1000);
         }
 
         if (!response.ok) {
@@ -202,8 +198,8 @@ export async function handler(event) {
 
         return jsonResponse(
             200,
-            { ...data, tokenSource: source },
-            { "X-Guesty-Token-Cache": source }
+            { ...data, tokenSource },
+            { "X-Guesty-Token-Cache": tokenSource }
         );
 
     } catch (err) {
