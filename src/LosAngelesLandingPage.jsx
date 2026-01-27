@@ -1941,6 +1941,18 @@ export default function LosAngelesLandingPage() {
     }
   };
 
+  const handleSectionCalendarOpen = (open) => {
+    setIsSectionCalendarOpen(open);
+    if (!open || !activeSection) return;
+    const listingIds = activeSection.listings
+      .map((listing) => listing.id || listing._id)
+      .filter(Boolean);
+    if (!listingIds.length) return;
+    const monthStart = new Date(sectionCalendarStartDate);
+    monthStart.setDate(1);
+    fetchSectionCalendarMultiMonth(listingIds, monthStart);
+  };
+
   useEffect(() => {
     if (!activeSection) return;
     const listingId =
@@ -3024,18 +3036,25 @@ export default function LosAngelesLandingPage() {
                           activeSection.listings[0]?._id;
                         if (!listingId) return;
                         const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-                        fetchCalendarMonth(
-                          listingId,
-                          monthStart,
-                          sectionCalendarCacheRef,
-                          sectionCalendarDaysRef,
-                          sectionCalendarInflightRef,
-                          setSectionCalendarLoading,
-                          setSectionCalendarError,
-                          setSectionCalendarPrices
-                        );
+                        const listingIds = activeSection.listings
+                          .map((listing) => listing.id || listing._id)
+                          .filter(Boolean);
+                        if (listingIds.length) {
+                          fetchSectionCalendarMultiMonth(listingIds, monthStart);
+                        } else {
+                          fetchCalendarMonth(
+                            listingId,
+                            monthStart,
+                            sectionCalendarCacheRef,
+                            sectionCalendarDaysRef,
+                            sectionCalendarInflightRef,
+                            setSectionCalendarLoading,
+                            setSectionCalendarError,
+                            setSectionCalendarPrices
+                          );
+                        }
                       }}
-                      onOpenChange={setIsSectionCalendarOpen}
+                      onOpenChange={handleSectionCalendarOpen}
                       onChange={({ checkIn, checkOut }) => {
                         setSectionCheckIn(checkIn);
                         setSectionCheckOut(checkOut);
