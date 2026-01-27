@@ -7,7 +7,7 @@ functions = "netlify/functions"
 node_bundler = "esbuild"
 
 [build.environment]
-NODE_VERSION = "20"
+  NODE_VERSION = "18"
   GUESTY_MAX_CONCURRENT = "1"
   GUESTY_MIN_INTERVAL_MS = "10000"
   GUESTY_QUOTE_BULK_LIMIT = "2"

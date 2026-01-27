@@ -1,11 +1,5 @@
-import fetch from "node-fetch";
-
 const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
 
-/**
- * In-memory token cache
- * (shared across warm Netlify invocations)
- */
 globalThis.GUESTY_TOKEN = globalThis.GUESTY_TOKEN || null;
 globalThis.GUESTY_TOKEN_EXPIRES = globalThis.GUESTY_TOKEN_EXPIRES || 0;
 
@@ -47,7 +41,7 @@ export async function handler() {
 
     globalThis.GUESTY_TOKEN = data.access_token;
     globalThis.GUESTY_TOKEN_EXPIRES =
-        Date.now() + data.expires_in * 1000; // ~24h
+        Date.now() + data.expires_in * 1000;
 
     return {
         statusCode: 200,

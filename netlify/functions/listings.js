@@ -1,13 +1,5 @@
-import fetch from "node-fetch";
-
-/* =========================
-   CONFIG
-========================= */
 const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
 
-/* =========================
-   HELPERS
-========================= */
 const jsonResponse = (statusCode, body) => ({
     statusCode,
     headers: {
@@ -19,33 +11,21 @@ const jsonResponse = (statusCode, body) => ({
     body: JSON.stringify(body),
 });
 
-/* =========================
-   TOKEN ACCESS (MEMORY)
-========================= */
-const getGuestyToken = () => {
-    if (
-        !globalThis.GUESTY_TOKEN ||
-        !globalThis.GUESTY_TOKEN_EXPIRES ||
-        globalThis.GUESTY_TOKEN_EXPIRES < Date.now()
-    ) {
-        throw new Error(
-            "Guesty token missing or expired. Wait for scheduled refresh."
-        );
-    }
-
-    return globalThis.GUESTY_TOKEN;
-};
-
-/* =========================
-   FUNCTION HANDLER
-========================= */
 export async function handler(event) {
     if (event.httpMethod === "OPTIONS") {
         return jsonResponse(200, {});
     }
 
     try {
-        const token = getGuestyToken();
+        if (
+            !globalThis.GUESTY_TOKEN ||
+            !globalThis.GUESTY_TOKEN_EXPIRES ||
+            globalThis.GUESTY_TOKEN_EXPIRES < Date.now()
+        ) {
+            throw new Error(
+                "Guesty token missing or expired. Wait for scheduled refresh."
+            );
+        }
 
         const params = new URLSearchParams({
             limit: "10",
@@ -57,7 +37,7 @@ export async function handler(event) {
             `${GUESTY_LISTINGS_URL}?${params.toString()}`,
             {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${globalThis.GUESTY_TOKEN}`,
                     Accept: "application/json",
                 },
             }
