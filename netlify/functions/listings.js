@@ -163,10 +163,10 @@ export async function handler(event) {
         return jsonResponse(200, {});
     }
 
-    let tokenSource = null;
+    let tokenSource = "unknown";
     try {
         const { token, source } = await getGuestyToken();
-        tokenSource = source;
+        tokenSource = source || "unknown";
         const params = new URLSearchParams(event.queryStringParameters || {});
         const url = `${GUESTY_LISTINGS_URL}?${params.toString()}`;
 
@@ -214,7 +214,7 @@ export async function handler(event) {
                 error: err.message,
                 tokenSource,
             },
-            { "X-Guesty-Token-Cache": tokenSource || "unknown" }
+            { "X-Guesty-Token-Cache": tokenSource }
         );
     }
 }
