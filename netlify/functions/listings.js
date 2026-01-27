@@ -1,27 +1,37 @@
-import fetch from "node-fetch";
 import { getStore } from "@netlify/blobs";
 
 /* =========================
-   GLOBAL RATE LIMIT (SAFE)
-========================= */
-const RATE_STORE = "guesty-rate";
-const RATE_KEY = "last-call";
-const MIN_INTERVAL_MS = 120; // ~8 req/sec GLOBAL
-
-/* =========================
-   Config
+   CONFIG
 ========================= */
 const GUESTY_ME_URL = "https://open-api.guesty.com/v1/me";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 
+const RATE_STORE = "guesty-rate";
+const RATE_KEY = "last-call";
+const MIN_INTERVAL_MS = 120;
+
+/* =========================
+   Blob helper (MANDATORY)
+========================= */
+const getBlobStore = (name) => {
+    const siteID = process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_API_TOKEN;
+
+    if (!siteID || !token) {
+        throw new Error("Missing NETLIFY_SITE_ID or NETLIFY_API_TOKEN");
+    }
+
+    return getStore(name, { siteID, token });
+};
+
 /* =========================
    Helpers
 ========================= */
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const runWithGuestyLimit = async (fn) => {
-    const store = getStore(RATE_STORE);
+    const store = getBlobStore(RATE_STORE);
 
     while (true) {
         const now = Date.now();
@@ -38,67 +48,41 @@ const runWithGuestyLimit = async (fn) => {
     return fn();
 };
 
-const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
-    statusCode,
-    headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        ...extraHeaders,
-    },
-    body: JSON.stringify(body),
-});
-
-const fetchWithTimeout = async (url, options = {}, timeout = 15000) => {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-        return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-        clearTimeout(id);
-    }
-};
-
 /* =========================
-   PART 3 — READ-ONLY TOKEN
-   (NO OAUTH, NO REFRESH)
+   READ-ONLY TOKEN (PART 3)
 ========================= */
 const getGuestyToken = async () => {
-    const store = getStore(TOKEN_STORE_NAME);
+    const store = getBlobStore(TOKEN_STORE_NAME);
     const cached = await store.get(TOKEN_KEY, { type: "json" });
 
     if (!cached?.token) {
-        throw new Error(
-            "Guesty token not found in Blob. Run scheduled refresh function."
-        );
+        throw new Error("Guesty token not found in Blob");
     }
 
-    if (cached.expiresAt && cached.expiresAt < Date.now()) {
-        throw new Error(
-            "Guesty token expired. Wait for scheduled refresh."
-        );
+    if (cached.expiresAt < Date.now()) {
+        throw new Error("Guesty token expired");
     }
 
     return { token: cached.token, source: "blob" };
 };
 
 /* =========================
-   Netlify Function Handler
+   Handler
 ========================= */
 export async function handler(event) {
     if (event.httpMethod === "OPTIONS") {
-        return jsonResponse(200, {});
+        return {
+            statusCode: 200,
+            headers: { "Access-Control-Allow-Origin": "*" },
+            body: "",
+        };
     }
 
-    let tokenSource = "unknown";
-
     try {
-        const { token, source } = await getGuestyToken();
-        tokenSource = source;
+        const { token } = await getGuestyToken();
 
         const response = await runWithGuestyLimit(() =>
-            fetchWithTimeout(GUESTY_ME_URL, {
+            fetch(GUESTY_ME_URL, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: "application/json",
@@ -106,26 +90,33 @@ export async function handler(event) {
             })
         );
 
-        if (!response.ok) {
-            throw new Error(await response.text());
-        }
-
         const data = await response.json();
 
-        return jsonResponse(
-            200,
-            { ...data, tokenSource },
-            { "X-Guesty-Token-Cache": tokenSource }
-        );
+        if (!response.ok) {
+            throw new Error(JSON.stringify(data));
+        }
+
+        return {
+            statusCode: 200,
+            headers: {
+                "Content-Type": "application/json",
+                "X-Guesty-Token-Cache": "blob",
+            },
+            body: JSON.stringify(data),
+        };
     } catch (err) {
-        return jsonResponse(
-            500,
-            {
+        console.error("Guesty ME error:", err);
+
+        return {
+            statusCode: 500,
+            headers: {
+                "Content-Type": "application/json",
+                "X-Guesty-Token-Cache": "error",
+            },
+            body: JSON.stringify({
                 message: "Failed to call Guesty API",
                 error: err.message,
-                tokenSource,
-            },
-            { "X-Guesty-Token-Cache": tokenSource }
-        );
+            }),
+        };
     }
 }
