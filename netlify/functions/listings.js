@@ -174,8 +174,12 @@ export async function handler(event) {
     try {
         const { token, source } = await getGuestyToken();
         tokenSource = source;
+        const params = new URLSearchParams({
+            limit: "10",
+            fields: "id,title,status",
+            ...(event.queryStringParameters || {}),
+        });
 
-        const params = new URLSearchParams(event.queryStringParameters || {});
         const url = `${GUESTY_LISTINGS_URL}?${params.toString()}`;
 
         let response;
