@@ -77,6 +77,23 @@ const parseDateValue = (value) => {
 const toISODate = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+const toNumber = (value) => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const firstNumber = (...values) => {
+  for (const value of values) {
+    const num = toNumber(value);
+    if (num !== null) return num;
+  }
+  return null;
+};
+
 const buildCalendarMonth = (baseDate) => {
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth();
@@ -135,17 +152,17 @@ const isCalendarDayAvailable = (day) => {
 const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
   const date = getCalendarDayKey(day);
   if (!date) return null;
-  const price =
-    day?.price ??
-    day?.nightlyPrice ??
-    day?.nightlyRate ??
-    day?.basePrice ??
-    day?.basePricePerNight ??
-    day?.price?.amount ??
-    day?.price?.value ??
-    day?.money?.amount ??
-    day?.money?.money?.amount ??
-    null;
+  const price = firstNumber(
+    day?.price,
+    day?.nightlyPrice,
+    day?.nightlyRate,
+    day?.basePrice,
+    day?.basePricePerNight,
+    day?.price?.amount,
+    day?.price?.value,
+    day?.money?.amount,
+    day?.money?.money?.amount
+  );
   const currency =
     day?.currency ||
     day?.price?.currency ||
@@ -153,29 +170,29 @@ const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
     day?.money?.money?.currency ||
     fallbackCurrency ||
     "USD";
-  const minNights =
-    day?.minNights ??
-    day?.minimumStay ??
-    day?.minStay ??
-    day?.minStayLength ??
-    day?.restrictions?.minNights ??
-    day?.restrictions?.minStay ??
-    null;
-  const maxNights =
-    day?.maxNights ??
-    day?.maximumStay ??
-    day?.maxStay ??
-    day?.maxStayLength ??
-    day?.restrictions?.maxNights ??
-    day?.restrictions?.maxStay ??
-    null;
+  const minNights = firstNumber(
+    day?.minNights,
+    day?.minimumStay,
+    day?.minStay,
+    day?.minStayLength,
+    day?.restrictions?.minNights,
+    day?.restrictions?.minStay
+  );
+  const maxNights = firstNumber(
+    day?.maxNights,
+    day?.maximumStay,
+    day?.maxStay,
+    day?.maxStayLength,
+    day?.restrictions?.maxNights,
+    day?.restrictions?.maxStay
+  );
   return {
     date,
-    price: typeof price === "number" ? price : null,
+    price,
     currency,
     restrictions: {
-      minNights: typeof minNights === "number" ? minNights : null,
-      maxNights: typeof maxNights === "number" ? maxNights : null,
+      minNights,
+      maxNights,
       closedToArrival: Boolean(day?.closedToArrival ?? day?.cta ?? day?.restrictions?.cta),
       closedToDeparture: Boolean(day?.closedToDeparture ?? day?.ctd ?? day?.restrictions?.ctd),
     },
