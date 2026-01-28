@@ -204,6 +204,33 @@ const getPrimaryListingId = (listings = []) =>
     .map((listing) => listing.unitTypeId || listing.id || listing._id)
     .find(Boolean);
 
+const getListingId = (listing) => listing?.id || listing?._id || null;
+
+const getParentListingId = (listing) => listing?.unitTypeId || getListingId(listing);
+
+const isParentListing = (listing) => {
+  const id = getListingId(listing);
+  return !listing?.unitTypeId || listing.unitTypeId === id;
+};
+
+const groupListingsByParent = (listings = []) => {
+  const groups = {};
+  listings.forEach((listing) => {
+    const parentId = getParentListingId(listing);
+    const listingId = getListingId(listing);
+    if (!parentId || !listingId) return;
+    if (!groups[parentId]) {
+      groups[parentId] = { parentId, parent: null, children: [] };
+    }
+    if (isParentListing(listing)) {
+      groups[parentId].parent = listing;
+    } else {
+      groups[parentId].children.push(listing);
+    }
+  });
+  return groups;
+};
+
 const monthKey = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
@@ -230,13 +257,44 @@ const formatDisplayDate = (value) => {
 };
 
 const getListingMinNights = (listing) => {
-  const minNights =
-    listing?.terms?.minNights ??
-    listing?.terms?.minimumStay ??
-    listing?.terms?.minStay ??
-    listing?.terms?.minStayLength ??
-    null;
+  const minNights = firstNumber(
+    listing?.terms?.minNights,
+    listing?.terms?.minimumStay,
+    listing?.terms?.minStay,
+    listing?.terms?.minStayLength,
+    listing?.minNights,
+    listing?.minimumStay,
+    listing?.minStay,
+    listing?.prices?.minNights,
+    listing?.prices?.minimumStay,
+    listing?.prices?.minStay,
+    listing?.calendarRules?.minNights
+  );
   return typeof minNights === "number" && minNights > 1 ? minNights : null;
+};
+
+const normalizeListingPricing = (listing = {}) => {
+  const normalized = { ...listing };
+  if (typeof normalized.basePrice !== "number") {
+    const basePrice = firstNumber(
+      listing?.basePrice,
+      listing?.prices?.basePrice,
+      listing?.prices?.basePricePerNight,
+      listing?.prices?.nightly,
+      listing?.prices?.basePrice?.amount,
+      listing?.prices?.nightly?.amount
+    );
+    if (basePrice !== null) normalized.basePrice = basePrice;
+  }
+  if (!normalized.currency) {
+    normalized.currency =
+      listing?.currency ||
+      listing?.prices?.currency ||
+      listing?.prices?.basePrice?.currency ||
+      listing?.prices?.nightly?.currency ||
+      "USD";
+  }
+  return normalized;
 };
 
 const DateRangePicker = ({
@@ -805,12 +863,6 @@ const getReviewStats = (reviews) => {
     return { rating, count };
   }
   return { rating: null, count: null };
-};
-
-const toNumber = (value) => {
-  if (value === null || value === undefined) return null;
-  const num = typeof value === "string" ? Number.parseFloat(value) : value;
-  return Number.isFinite(num) ? num : null;
 };
 
 const parseCoords = (latValue, lngValue) => {
@@ -1576,7 +1628,10 @@ export default function LosAngelesLandingPage() {
         if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
         if (!active) return;
-        setListings(json.results || []);
+        const results = Array.isArray(json.results)
+          ? json.results.map((listing) => normalizeListingPricing(listing))
+          : [];
+        setListings(results);
       } catch (err) {
         if (!active) return;
         setError(err.message || "Unable to load listings.");
@@ -2210,12 +2265,33 @@ export default function LosAngelesLandingPage() {
         });
       }
 
-      const availableListings = activeSection.listings.filter((listing) => {
-        const listingKey = listing.id || listing._id;
-        return listingKey && (availableIds.size ? availableIds.has(listingKey) : true);
-      });
-      setSectionAvailability(availableListings);
-      setSectionAvailabilityMap(availabilityMap);
+      const parentGroups = groupListingsByParent(activeSection.listings);
+      const parentAvailabilityMap = {};
+      const hasAvailabilityData = Object.keys(availabilityMap).length > 0;
+      const availableParentListings = Object.values(parentGroups)
+        .map((group) => {
+          const childCandidates = group.children.length
+            ? group.children
+            : group.parent
+              ? [group.parent]
+              : [];
+          const childIds = childCandidates.map((item) => getListingId(item)).filter(Boolean);
+          const hasAvailableChild = hasAvailabilityData
+            ? childIds.some((id) => availabilityMap[id] === true)
+            : true;
+          parentAvailabilityMap[group.parentId] = hasAvailableChild;
+          if (!hasAvailableChild) return null;
+          const displayListing = group.parent || null;
+          if (displayListing) {
+            const displayId = getListingId(displayListing);
+            if (displayId) parentAvailabilityMap[displayId] = hasAvailableChild;
+          }
+          return displayListing;
+        })
+        .filter(Boolean);
+
+      setSectionAvailability(availableParentListings);
+      setSectionAvailabilityMap(parentAvailabilityMap);
       setSectionAvailabilityActive(true);
 
       const calendarListingId = listingId || getPrimaryListingId(activeSection.listings);
@@ -2251,9 +2327,9 @@ export default function LosAngelesLandingPage() {
         }
       }
 
-      const quoteRequests = availableListings
+      const quoteRequests = availableParentListings
         .map((listing) => {
-          const quoteListingId = listing.unitTypeId || listing.id || listing._id;
+          const quoteListingId = listing.id || listing._id;
           if (!quoteListingId) return null;
           return {
             listingId: quoteListingId,
@@ -2272,9 +2348,9 @@ export default function LosAngelesLandingPage() {
         if (res.ok) {
           const data = await res.json();
           const quotes = {};
-          availableListings.forEach((listing) => {
+          availableParentListings.forEach((listing) => {
             const listingKey = listing.id || listing._id;
-            const quoteListingId = listing.unitTypeId || listing.id || listing._id;
+            const quoteListingId = listing.id || listing._id;
             if (!listingKey || !quoteListingId) return;
             const quoteData = data?.results?.[quoteListingId];
             if (!quoteData) return;
@@ -3175,7 +3251,23 @@ export default function LosAngelesLandingPage() {
                 </div>
               ) : (
                 <>
-                  {activeSection.listings.map((listing) => {
+                  {(() => {
+                    const listingsToRender = (() => {
+                      if (!activeSection?.listings?.length) return [];
+                      if (sectionAvailabilityActive) return sectionAvailability;
+                      const parentGroups = groupListingsByParent(activeSection.listings);
+                      return Object.values(parentGroups)
+                        .map((group) => group.parent)
+                        .filter(Boolean);
+                    })();
+                    if (sectionAvailabilityActive && !listingsToRender.length) {
+                      return (
+                        <div className="la-section-hero__notice" role="status">
+                          No available units for these dates.
+                        </div>
+                      );
+                    }
+                    return listingsToRender.map((listing) => {
                     const listingId = listing.id || listing._id;
                     const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
                     const listingCurrency = listing.currency || "USD";
@@ -3438,7 +3530,8 @@ export default function LosAngelesLandingPage() {
                         </div>
                       </article>
                     );
-                  })}
+                  });
+                })()}
                 </>
               )}
             </div>
