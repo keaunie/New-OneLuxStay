@@ -1944,13 +1944,15 @@ export default function LosAngelesLandingPage() {
   const handleSectionCalendarOpen = (open) => {
     setIsSectionCalendarOpen(open);
     if (!open || !activeSection) return;
+    const baseDate = parseDateValue(sectionCheckIn) || new Date();
+    baseDate.setDate(1);
+    baseDate.setHours(0, 0, 0, 0);
+    setSectionCalendarStartDate(baseDate);
     const listingIds = activeSection.listings
       .map((listing) => listing.id || listing._id)
       .filter(Boolean);
     if (!listingIds.length) return;
-    const monthStart = new Date(sectionCalendarStartDate);
-    monthStart.setDate(1);
-    fetchSectionCalendarMultiMonth(listingIds, monthStart);
+    fetchSectionCalendarMultiMonth(listingIds, baseDate);
   };
 
   useEffect(() => {
