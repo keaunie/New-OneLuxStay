@@ -377,8 +377,16 @@ const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
   }
 
   const payload = await res.json();
-  const daysRaw = payload?.days || payload?.calendar || payload?.data || payload?.results || [];
-  const currency = payload?.currency;
+  const daysRaw =
+    payload?.days ||
+    payload?.calendar ||
+    payload?.data?.days ||
+    payload?.data?.calendar ||
+    payload?.data?.results ||
+    payload?.data ||
+    payload?.results ||
+    [];
+  const currency = payload?.currency || payload?.data?.currency;
   const days = Array.isArray(daysRaw)
     ? daysRaw.map((day) => normalizeCalendarDay(day, currency)).filter(Boolean)
     : [];
