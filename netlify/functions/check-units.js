@@ -160,12 +160,18 @@ const normalizeCalendarDay = (day, fallbackCurrency) => {
     day?.nightlyPrice ??
     day?.nightlyRate ??
     day?.basePrice ??
-    (typeof day?.money?.amount === "number" ? day.money.amount : null) ??
+    day?.basePricePerNight ??
+    day?.price?.amount ??
+    day?.price?.value ??
+    day?.money?.amount ??
+    day?.money?.money?.amount ??
     null;
 
   const currency =
     day?.currency ||
+    day?.price?.currency ||
     day?.money?.currency ||
+    day?.money?.money?.currency ||
     fallbackCurrency ||
     "USD";
 
@@ -175,6 +181,7 @@ const normalizeCalendarDay = (day, fallbackCurrency) => {
     day?.minStay ??
     day?.minStayLength ??
     day?.restrictions?.minNights ??
+    day?.restrictions?.minStay ??
     null;
 
   const maxNights =
@@ -183,6 +190,7 @@ const normalizeCalendarDay = (day, fallbackCurrency) => {
     day?.maxStay ??
     day?.maxStayLength ??
     day?.restrictions?.maxNights ??
+    day?.restrictions?.maxStay ??
     null;
 
   return {
