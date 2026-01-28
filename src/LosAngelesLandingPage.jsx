@@ -120,6 +120,23 @@ const formatCalendarPrice = (value, currency) => {
   }
 };
 
+const extractMinNightsFromDays = (days = []) => {
+  if (!Array.isArray(days) || !days.length) return null;
+  const values = days
+    .map((day) => {
+      if (!day) return null;
+      if (typeof day?.restrictions?.minNights === "number") return day.restrictions.minNights;
+      return firstNumber(
+        day?.minNights,
+        day?.minimumStay,
+        day?.minStay,
+        day?.minStayLength
+      );
+    })
+    .filter((value) => typeof value === "number" && value > 1);
+  return values.length ? Math.max(...values) : null;
+};
+
 const enumerateDateRange = (start, end) => {
   if (!start || !end) return [];
   const cursor = new Date(start);
@@ -199,18 +216,46 @@ const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
   };
 };
 
-const getPrimaryListingId = (listings = []) =>
-  listings
-    .map((listing) => listing.unitTypeId || listing.id || listing._id)
-    .find(Boolean);
-
 const getListingId = (listing) => listing?.id || listing?._id || null;
 
-const getParentListingId = (listing) => listing?.unitTypeId || getListingId(listing);
+const isChildListing = (listing) => {
+  if (!listing) return false;
+  const type = typeof listing.type === "string" ? listing.type.toUpperCase() : "";
+  return type.includes("CHILD");
+};
+
+const getPrimaryListingId = (listings = []) => {
+  const parent = listings.find((listing) => !isChildListing(listing));
+  if (parent) return parent.unitTypeId || parent.id || parent._id;
+  return listings
+    .map((listing) => listing.unitTypeId || listing.id || listing._id)
+    .find(Boolean);
+};
+
+const getListingGroupKey = (listing) => {
+  if (!listing) return null;
+  const title = typeof listing.title === "string" ? listing.title.trim().toLowerCase() : "";
+  const address = listing.address || {};
+  const addressFull =
+    typeof address.full === "string"
+      ? address.full.trim().toLowerCase()
+      : typeof listing.location === "string"
+        ? listing.location.trim().toLowerCase()
+        : "";
+  const city =
+    typeof address.city === "string" ? address.city.trim().toLowerCase() : "";
+  const propertyType =
+    typeof listing.propertyType === "string" ? listing.propertyType.trim().toLowerCase() : "";
+  return [title, addressFull, city, propertyType].filter(Boolean).join("|") || null;
+};
+
+const getParentListingId = (listing) =>
+  listing?.unitTypeId || getListingGroupKey(listing) || getListingId(listing);
 
 const isParentListing = (listing) => {
   const id = getListingId(listing);
-  return !listing?.unitTypeId || listing.unitTypeId === id;
+  if (listing?.unitTypeId) return listing.unitTypeId === id;
+  return !isChildListing(listing);
 };
 
 const groupListingsByParent = (listings = []) => {
@@ -271,6 +316,18 @@ const getListingMinNights = (listing) => {
     listing?.calendarRules?.minNights
   );
   return typeof minNights === "number" && minNights > 1 ? minNights : null;
+};
+
+const getListingMinNightsWithParent = (listing, listings = []) => {
+  if (!listing) return null;
+  const direct = getListingMinNights(listing);
+  if (direct) return direct;
+  const groupKey = getListingGroupKey(listing);
+  if (!groupKey) return null;
+  const parent = listings.find(
+    (entry) => !isChildListing(entry) && getListingGroupKey(entry) === groupKey
+  );
+  return parent ? getListingMinNights(parent) : null;
 };
 
 const normalizeListingPricing = (listing = {}) => {
@@ -1394,6 +1451,7 @@ export default function LosAngelesLandingPage() {
   const [calendarPrices, setCalendarPrices] = useState(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState("");
+  const [calendarMinNightsOverride, setCalendarMinNightsOverride] = useState(null);
   const [calendarMonthIndex, setCalendarMonthIndex] = useState(0);
   const [calendarStartDate, setCalendarStartDate] = useState(() => {
     const start = new Date();
@@ -1406,11 +1464,13 @@ export default function LosAngelesLandingPage() {
   const calendarGlobalCacheRef = useRef({});
   const calendarGlobalDaysRef = useRef({});
   const calendarGlobalInflightRef = useRef({});
+  const calendarMinNightsCacheRef = useRef({});
   const [isListingCalendarOpen, setIsListingCalendarOpen] = useState(false);
   const calendarInflightRef = useRef({});
   const [sectionCalendarPrices, setSectionCalendarPrices] = useState(null);
   const [sectionCalendarLoading, setSectionCalendarLoading] = useState(false);
   const [sectionCalendarError, setSectionCalendarError] = useState("");
+  const [sectionCalendarMinNightsOverride, setSectionCalendarMinNightsOverride] = useState(null);
   const [sectionCalendarMonthIndex, setSectionCalendarMonthIndex] = useState(0);
   const [sectionCalendarStartDate, setSectionCalendarStartDate] = useState(() => {
     const start = new Date();
@@ -1559,6 +1619,7 @@ export default function LosAngelesLandingPage() {
     }
     setSectionCheckIn("");
     setSectionCheckOut("");
+    setCalendarMinNightsOverride(null);
   }, [activeListing]);
 
   useEffect(() => {
@@ -1598,6 +1659,7 @@ export default function LosAngelesLandingPage() {
       setExpandedQuoteRows({});
       setSectionCalendarError("");
       setSectionCalendarMonthIndex(0);
+      setSectionCalendarMinNightsOverride(null);
     }
   }, [activeSectionKey]);
 
@@ -1845,14 +1907,21 @@ export default function LosAngelesLandingPage() {
   }, [groupedListings]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
-  const listingMinNightsFallback = useMemo(() => getListingMinNights(activeListing), [activeListing]);
+  const listingMinNightsFallback = useMemo(() => {
+    if (typeof calendarMinNightsOverride === "number") return calendarMinNightsOverride;
+    return getListingMinNightsWithParent(activeListing, losAngelesListings);
+  }, [calendarMinNightsOverride, activeListing, losAngelesListings]);
   const sectionMinNightsFallback = useMemo(() => {
     if (!activeSection?.listings?.length) return null;
     const values = activeSection.listings
-      .map((listing) => getListingMinNights(listing))
+      .map((listing) => getListingMinNightsWithParent(listing, activeSection.listings))
       .filter((value) => typeof value === "number");
-    return values.length ? Math.max(...values) : null;
-  }, [activeSection]);
+    const listingFallback = values.length ? Math.max(...values) : null;
+    if (typeof sectionCalendarMinNightsOverride === "number") {
+      return Math.max(sectionCalendarMinNightsOverride, listingFallback || 0) || sectionCalendarMinNightsOverride;
+    }
+    return listingFallback;
+  }, [activeSection, sectionCalendarMinNightsOverride]);
 
   const fetchCalendarMonth = async (
     listingId,
@@ -1874,6 +1943,7 @@ export default function LosAngelesLandingPage() {
         daysRef.current[listingId] = { ...(daysRef.current[listingId] || {}), ...sharedDays };
         setPrices(buildCalendarPayload(daysRef.current[listingId]));
       }
+      fetchCalendarMinNightsFromMulti(listingId, targetDate);
       return;
     }
     if (inflightRef.current[key]) return;
@@ -1946,12 +2016,90 @@ export default function LosAngelesLandingPage() {
         ...map,
       };
       setPrices(buildCalendarPayload(map));
+      fetchCalendarMinNightsFromMulti(listingId, targetDate);
     } catch (err) {
       setError(err?.message || "Calendar pricing is unavailable.");
     } finally {
       setLoading(false);
       inflightRef.current[key] = false;
       calendarGlobalInflightRef.current[key] = false;
+    }
+  };
+
+  const fetchCalendarMinNightsFromMulti = async (listingId, targetDate) => {
+    const key = `${listingId}-${monthKey(targetDate)}`;
+    if (calendarMinNightsCacheRef.current[key]) return;
+    calendarMinNightsCacheRef.current[key] = true;
+    try {
+      const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1);
+      const qs = new URLSearchParams({
+        listingIds: listingId,
+        startDate: toISODate(monthStart),
+        endDate: toISODate(monthEnd),
+        includeAllotment: "true",
+      }).toString();
+      const res = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      let days = null;
+      if (data?.normalizedCalendars?.[listingId]) {
+        days = data.normalizedCalendars[listingId];
+      } else {
+        const calendarEntries = Array.isArray(data?.calendars)
+          ? data.calendars
+          : Array.isArray(data?.listings)
+            ? data.listings
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
+        const entry = calendarEntries.find((item) => getCalendarEntryId(item) === listingId);
+        if (entry) {
+          const rawDays = entry?.days || entry?.calendar || entry?.data || [];
+          days = rawDays
+            .map((day) => normalizeCalendarDayForUi(day, entry?.currency))
+            .filter(Boolean);
+        }
+      }
+      const normalizedDays = Array.isArray(days)
+        ? days.map((day) => normalizeCalendarDayForUi(day, null)).filter(Boolean)
+        : [];
+      const minNights = extractMinNightsFromDays(normalizedDays);
+      if (typeof minNights === "number") {
+        setCalendarMinNightsOverride(minNights);
+      }
+      if (normalizedDays.length) {
+        if (!calendarDaysRef.current[listingId]) {
+          calendarDaysRef.current[listingId] = {};
+        }
+        const map = calendarDaysRef.current[listingId];
+        normalizedDays.forEach((day) => {
+          if (!day?.date) return;
+          const existing = map[day.date] || {};
+          map[day.date] = {
+            ...existing,
+            date: day.date,
+            price: typeof day.price === "number" ? day.price : existing.price ?? null,
+            currency: day.currency || existing.currency || null,
+            restrictions: {
+              ...existing.restrictions,
+              minNights: day?.restrictions?.minNights ?? existing?.restrictions?.minNights ?? null,
+              maxNights: day?.restrictions?.maxNights ?? existing?.restrictions?.maxNights ?? null,
+              closedToArrival: day?.restrictions?.closedToArrival ?? existing?.restrictions?.closedToArrival ?? false,
+              closedToDeparture: day?.restrictions?.closedToDeparture ?? existing?.restrictions?.closedToDeparture ?? false,
+            },
+          };
+        });
+        calendarGlobalDaysRef.current[listingId] = {
+          ...(calendarGlobalDaysRef.current[listingId] || {}),
+          ...map,
+        };
+        setPrices(buildCalendarPayload(map));
+      }
+    } catch {
+      // ignore multi calendar failures for min nights
     }
   };
 
@@ -2005,6 +2153,10 @@ export default function LosAngelesLandingPage() {
         sectionCalendarDaysRef.current[primaryId] = dayMap;
         sectionCalendarCacheRef.current[key] = true;
         setSectionCalendarPrices(buildCalendarPayload(dayMap));
+        const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
+        if (typeof minNightsOverride === "number") {
+          setSectionCalendarMinNightsOverride(minNightsOverride);
+        }
       }
     } catch (err) {
       setSectionCalendarError(err?.message || "Calendar pricing is unavailable.");
@@ -2103,10 +2255,10 @@ export default function LosAngelesLandingPage() {
       };
 
       const requests = groupedListings
-        .slice(0, 3)
         .map((group) => {
-          const listing = group.listings[0];
-          const listingId = listing?.unitTypeId || listing?.id || listing?._id;
+          const listing =
+            group.listings.find((entry) => !isChildListing(entry)) || group.listings[0];
+          const listingId = listing?.id || listing?._id;
           if (!listingId) return null;
           return {
             listingId,
@@ -2131,9 +2283,10 @@ export default function LosAngelesLandingPage() {
         if (!res.ok) return;
         const quoteJson = await res.json();
         const resultMap = quoteJson?.results || {};
-        groupedListings.slice(0, 3).forEach((group) => {
-          const listing = group.listings[0];
-          const listingId = listing?.unitTypeId || listing?.id || listing?._id;
+        groupedListings.forEach((group) => {
+          const listing =
+            group.listings.find((entry) => !isChildListing(entry)) || group.listings[0];
+          const listingId = listing?.id || listing?._id;
           if (!listingId) return;
           const quoteData = resultMap[listingId];
           if (!quoteData) return;
@@ -2296,9 +2449,29 @@ export default function LosAngelesLandingPage() {
 
       const calendarListingId = listingId || getPrimaryListingId(activeSection.listings);
       if (calendarListingId) {
-        if (normalizedCalendars?.[calendarListingId]) {
+      if (normalizedCalendars?.[calendarListingId]) {
+        const dayMap = {};
+        normalizedCalendars[calendarListingId]
+          .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
+          .filter(Boolean)
+          .forEach((day) => {
+            dayMap[day.date] = day;
+          });
+        sectionCalendarDaysRef.current[calendarListingId] = dayMap;
+        setSectionCalendarPrices(buildCalendarPayload(dayMap));
+        calendarMultiLoaded = true;
+        const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
+        if (typeof minNightsOverride === "number") {
+          setSectionCalendarMinNightsOverride(minNightsOverride);
+        }
+      } else if (calendarEntries.length) {
+        const calendarEntry = calendarEntries.find(
+          (entry) => getCalendarEntryId(entry) === calendarListingId
+        );
+        if (calendarEntry) {
+          const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
           const dayMap = {};
-          normalizedCalendars[calendarListingId]
+          days
             .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
             .filter(Boolean)
             .forEach((day) => {
@@ -2307,24 +2480,12 @@ export default function LosAngelesLandingPage() {
           sectionCalendarDaysRef.current[calendarListingId] = dayMap;
           setSectionCalendarPrices(buildCalendarPayload(dayMap));
           calendarMultiLoaded = true;
-        } else if (calendarEntries.length) {
-          const calendarEntry = calendarEntries.find(
-            (entry) => getCalendarEntryId(entry) === calendarListingId
-          );
-          if (calendarEntry) {
-            const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
-            const dayMap = {};
-            days
-              .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
-              .filter(Boolean)
-              .forEach((day) => {
-                dayMap[day.date] = day;
-              });
-            sectionCalendarDaysRef.current[calendarListingId] = dayMap;
-            setSectionCalendarPrices(buildCalendarPayload(dayMap));
-            calendarMultiLoaded = true;
+          const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
+          if (typeof minNightsOverride === "number") {
+            setSectionCalendarMinNightsOverride(minNightsOverride);
           }
         }
+      }
       }
 
       const quoteRequests = availableParentListings

@@ -14,48 +14,49 @@ const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
     body: JSON.stringify(body),
 });
 
+const getBlobStore = async () => {
+    try {
+        const { getStore } = await import("@netlify/blobs");
+        const siteID = process.env.NETLIFY_SITE_ID;
+        const apiToken = process.env.NETLIFY_API_TOKEN;
+        return siteID && apiToken
+            ? getStore(TOKEN_STORE_NAME, { siteID, token: apiToken })
+            : getStore(TOKEN_STORE_NAME);
+    } catch {
+        return null;
+    }
+};
+
+const getGuestyToken = async () => {
+    const now = Date.now();
+    if (globalThis.GUESTY_TOKEN && globalThis.GUESTY_TOKEN_EXPIRES > now + 60_000) {
+        return { token: globalThis.GUESTY_TOKEN, source: "memory" };
+    }
+
+    const store = await getBlobStore();
+    if (store) {
+        let cached = await store.get(TOKEN_KEY, { type: "json" });
+        if (!cached) {
+            const raw = await store.get(TOKEN_KEY, { type: "text" });
+            cached = raw ? JSON.parse(raw) : null;
+        }
+        if (cached && cached.token && cached.expiresAt > now + 60_000) {
+            globalThis.GUESTY_TOKEN = cached.token;
+            globalThis.GUESTY_TOKEN_EXPIRES = cached.expiresAt;
+            return { token: cached.token, source: "blob" };
+        }
+    }
+
+    throw new Error("Guesty token missing or expired. Refresh token first.");
+};
+
 export async function handler(event) {
     if (event.httpMethod === "OPTIONS") {
         return jsonResponse(200, {});
     }
 
     try {
-        let token = globalThis.GUESTY_TOKEN || null;
-        let tokenSource = token ? "memory" : null;
-        const now = Date.now();
-
-        if (token && globalThis.GUESTY_TOKEN_EXPIRES && globalThis.GUESTY_TOKEN_EXPIRES < now) {
-            token = null;
-            tokenSource = null;
-        }
-
-        if (!token) {
-            try {
-                const { getStore } = await import("@netlify/blobs");
-                const siteID = process.env.NETLIFY_SITE_ID;
-                const apiToken = process.env.NETLIFY_API_TOKEN;
-                const store = siteID && apiToken
-                    ? getStore(TOKEN_STORE_NAME, { siteID, token: apiToken })
-                    : getStore(TOKEN_STORE_NAME);
-                let cached = await store.get(TOKEN_KEY, { type: "json" });
-                if (!cached) {
-                    const raw = await store.get(TOKEN_KEY, { type: "text" });
-                    cached = raw ? JSON.parse(raw) : null;
-                }
-                if (cached && cached.token && cached.expiresAt > now + 60_000) {
-                    token = cached.token;
-                    tokenSource = "blob";
-                    globalThis.GUESTY_TOKEN = cached.token;
-                    globalThis.GUESTY_TOKEN_EXPIRES = cached.expiresAt;
-                }
-            } catch {
-                // ignore blob errors
-            }
-        }
-
-        if (!token) {
-            throw new Error("Guesty token missing or expired. Refresh token first.");
-        }
+        const { token, source: tokenSource } = await getGuestyToken();
 
         const params = new URLSearchParams({
             limit: "170",
