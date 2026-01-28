@@ -1972,14 +1972,7 @@ export default function LosAngelesLandingPage() {
     } else {
       setSectionCalendarPrices(null);
     }
-    if (!isSectionCalendarOpen) return;
-    const listingIds = activeSection.listings
-      .map((listing) => listing.id || listing._id)
-      .filter(Boolean);
-    const monthStart = new Date(sectionCalendarStartDate);
-    monthStart.setDate(1);
-    fetchSectionCalendarMultiMonth(listingIds, monthStart);
-  }, [activeSection, isSectionCalendarOpen]);
+  }, [activeSection]);
 
   useEffect(() => {
     if (!groupedListings.length || !sectionCheckIn || !sectionCheckOut) {
@@ -2144,6 +2137,7 @@ export default function LosAngelesLandingPage() {
         throw new Error(errText || "Availability failed");
       }
       const bulkJson = await bulkRes.json();
+      const normalizedCalendars = bulkJson?.normalizedCalendars || null;
       const calendarEntries = Array.isArray(bulkJson?.calendars)
         ? bulkJson.calendars
         : Array.isArray(bulkJson?.listings)
@@ -2158,7 +2152,21 @@ export default function LosAngelesLandingPage() {
       const availabilityMap = {};
       const availableIds = new Set();
 
-      if (calendarEntries.length) {
+      if (normalizedCalendars) {
+        Object.entries(normalizedCalendars).forEach(([entryId, days]) => {
+          if (!entryId) return;
+          const dayMap = new Map(
+            Array.isArray(days)
+              ? days
+                .map((day) => [day?.date, day])
+                .filter(([key]) => key)
+              : []
+          );
+          const isAvailable = dateList.every((date) => isCalendarDayAvailable(dayMap.get(date)));
+          availabilityMap[entryId] = isAvailable;
+          if (isAvailable) availableIds.add(entryId);
+        });
+      } else if (calendarEntries.length) {
         calendarEntries.forEach((entry) => {
           const entryId = getCalendarEntryId(entry);
           if (!entryId) return;
@@ -2192,14 +2200,10 @@ export default function LosAngelesLandingPage() {
       setSectionAvailabilityActive(true);
 
       const calendarListingId = listingId || getPrimaryListingId(activeSection.listings);
-      if (calendarEntries.length && calendarListingId) {
-        const calendarEntry = calendarEntries.find(
-          (entry) => getCalendarEntryId(entry) === calendarListingId
-        );
-        if (calendarEntry) {
-          const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
+      if (calendarListingId) {
+        if (normalizedCalendars?.[calendarListingId]) {
           const dayMap = {};
-          days
+          normalizedCalendars[calendarListingId]
             .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
             .filter(Boolean)
             .forEach((day) => {
@@ -2208,6 +2212,23 @@ export default function LosAngelesLandingPage() {
           sectionCalendarDaysRef.current[calendarListingId] = dayMap;
           setSectionCalendarPrices(buildCalendarPayload(dayMap));
           calendarMultiLoaded = true;
+        } else if (calendarEntries.length) {
+          const calendarEntry = calendarEntries.find(
+            (entry) => getCalendarEntryId(entry) === calendarListingId
+          );
+          if (calendarEntry) {
+            const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
+            const dayMap = {};
+            days
+              .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
+              .filter(Boolean)
+              .forEach((day) => {
+                dayMap[day.date] = day;
+              });
+            sectionCalendarDaysRef.current[calendarListingId] = dayMap;
+            setSectionCalendarPrices(buildCalendarPayload(dayMap));
+            calendarMultiLoaded = true;
+          }
         }
       }
 
@@ -3029,30 +3050,7 @@ export default function LosAngelesLandingPage() {
                       fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
                       fallbackMinNights={sectionMinNightsFallback}
                       onMonthChange={(month) => {
-                        if (!activeSection) return;
-                        const listingId =
-                          activeSection.listings[0]?.unitTypeId ||
-                          activeSection.listings[0]?.id ||
-                          activeSection.listings[0]?._id;
-                        if (!listingId) return;
-                        const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-                        const listingIds = activeSection.listings
-                          .map((listing) => listing.id || listing._id)
-                          .filter(Boolean);
-                        if (listingIds.length) {
-                          fetchSectionCalendarMultiMonth(listingIds, monthStart);
-                        } else {
-                          fetchCalendarMonth(
-                            listingId,
-                            monthStart,
-                            sectionCalendarCacheRef,
-                            sectionCalendarDaysRef,
-                            sectionCalendarInflightRef,
-                            setSectionCalendarLoading,
-                            setSectionCalendarError,
-                            setSectionCalendarPrices
-                          );
-                        }
+                        setSectionCalendarStartDate(new Date(month.getFullYear(), month.getMonth(), 1));
                       }}
                       onOpenChange={handleSectionCalendarOpen}
                       onChange={({ checkIn, checkOut }) => {

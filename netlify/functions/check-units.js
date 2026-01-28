@@ -302,7 +302,27 @@ const handleCalendarMulti = async (event, token, tokenSource) => {
   }
 
   const payload = await res.json();
-  return jsonResponse(200, { ...payload, tokenSource });
+  const calendars = normalizeCalendarItems(payload);
+  const normalizedCalendars = {};
+  const normalizedList =
+    calendars.length
+      ? calendars
+      : payload?.listingId && Array.isArray(payload?.days)
+        ? [payload]
+        : [];
+
+  normalizedList.forEach((entry) => {
+    const listingId = entry?.listingId || entry?.id || entry?._id;
+    if (!listingId) return;
+    const daysRaw = entry?.days || entry?.calendar || entry?.data || entry?.availability || [];
+    const currency = entry?.currency;
+    const days = Array.isArray(daysRaw)
+      ? daysRaw.map((day) => normalizeCalendarDay(day, currency)).filter(Boolean)
+      : [];
+    normalizedCalendars[listingId] = days;
+  });
+
+  return jsonResponse(200, { ...payload, normalizedCalendars, tokenSource });
 };
 
 const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
