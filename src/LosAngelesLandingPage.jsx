@@ -489,7 +489,14 @@ const DateRangePicker = ({
       checkIn: nextStart ? toISODate(nextStart) : "",
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
-    if (nextStart && nextEnd) setOpenState(false);
+    if (nextStart && nextEnd) {
+      const minNights =
+        dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null;
+      const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
+      const violatesMin =
+        typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
+      if (!violatesMin) setOpenState(false);
+    }
   };
 
   const selectedNights = diffNights(value.checkIn, value.checkOut);
@@ -583,6 +590,13 @@ const DateRangePicker = ({
               </button>
             </div>
           </div>
+          {selectedMinNights &&
+            selectedNights > 0 &&
+            selectedNights < selectedMinNights && (
+              <div className="la-date-alert" role="alert">
+                There is a Minimum of {selectedMinNights} nights restriction, please adjust your dates
+              </div>
+            )}
           <div className="la-date-body">
             <div className="la-date-months">
               {[primaryMonth, secondaryMonth].map((monthObj) => (
@@ -691,13 +705,6 @@ const DateRangePicker = ({
                 Done
               </button>
             </div>
-            {selectedMinNights &&
-              selectedNights > 0 &&
-              selectedNights < selectedMinNights && (
-                <div className="la-date-alert" role="alert">
-                  A {selectedMinNights}-night minimum stay applies to this rate. Please adjust your booking to continue.
-                </div>
-              )}
           </div>
         </div>
       )}
