@@ -32,6 +32,16 @@ function SiteFooter() {
           </ul>
         </div>
         <div className="policy-footer-col">
+          <h3>Cities</h3>
+          <ul>
+            <li>Antwerp</li>
+            <li>Dubai</li>
+            <li>Los Angeles</li>
+            <li>Miami</li>
+            <li>Redondo Beach</li>
+          </ul>
+        </div>
+        <div className="policy-footer-col">
           <h3>Connect</h3>
           <ul>
             <li>+1 213 866 3589</li>

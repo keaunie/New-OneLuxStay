@@ -1274,7 +1274,7 @@ function ListingPage() {
               >
                 WhatsApp +971 58 885 8935
               </a>
-              <p className="la-inquiry-modal__note">We usually respond within 24 hours.</p>
+              <p className="la-inquiry-modal__note">We usually respond within an hour.</p>
             </div>
           </div>
         </div>

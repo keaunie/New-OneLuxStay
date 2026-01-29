@@ -280,6 +280,55 @@ const handleAvailabilityBulk = async (event, token, tokenSource) => {
   return jsonResponse(200, { results, tokenSource });
 };
 
+const handleAvailabilityQuery = async (event, token, tokenSource) => {
+  const { ids = "", checkIn = "", checkOut = "", minOccupancy = "1" } =
+    event.queryStringParameters || {};
+  if (!ids || !checkIn || !checkOut) {
+    return jsonResponse(400, { message: "Missing ids, checkIn, or checkOut" });
+  }
+
+  const available = {
+    checkIn,
+    checkOut,
+    minOccupancy: Number(minOccupancy) || 1,
+  };
+
+  const qs = new URLSearchParams({
+    ids,
+    available: JSON.stringify(available),
+  });
+
+  const res = await fetchWithTimeout(`${OPEN_API_V1}/listings?${qs.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 429) {
+    return jsonResponse(200, {
+      results: [],
+      errors: [{ message: "Rate limited by Guesty" }],
+      rateLimited: true,
+      tokenSource,
+    });
+  }
+
+  if (!res.ok) {
+    return jsonResponse(502, { message: "Availability query failed", error: await res.text() });
+  }
+
+  const payload = await res.json();
+  const results = Array.isArray(payload?.results)
+    ? payload.results.map((item) => ({
+        id: item?._id || item?.id,
+        available: true,
+      }))
+    : [];
+
+  return jsonResponse(200, { results, tokenSource });
+};
+
 const handleCalendarMulti = async (event, token, tokenSource) => {
   const {
     listingIds = "",
@@ -490,6 +539,10 @@ export async function handler(event) {
 
   if (path === "/listings/availability-bulk" && event.httpMethod === "GET") {
     return handleAvailabilityBulk(event, token, source);
+  }
+
+  if (path === "/listings/availability-query" && event.httpMethod === "GET") {
+    return handleAvailabilityQuery(event, token, source);
   }
 
   if (path.startsWith("/listings/") && path.endsWith("/calendar-prices") && event.httpMethod === "GET") {

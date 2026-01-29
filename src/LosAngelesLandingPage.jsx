@@ -5,6 +5,7 @@ import reviewsHwh from "./data/reviews-hwh.json";
 import reviewsHollywood from "./data/reviews-hollywood.json";
 import reviewsDodger from "./data/reviews-dodger.json";
 import CardSwap, { Card } from "./components/CardSwap";
+import SiteFooter from "./components/SiteFooter";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -274,6 +275,31 @@ const groupListingsByParent = (listings = []) => {
     }
   });
   return groups;
+};
+
+const getCalendarListingId = (listing, listings = []) => {
+  if (!listing) return null;
+  if (isChildListing(listing)) return getListingId(listing);
+  const groupKey = getListingGroupKey(listing);
+  if (!groupKey) return getListingId(listing);
+  const child = listings.find(
+    (entry) => isChildListing(entry) && getListingGroupKey(entry) === groupKey
+  );
+  return getListingId(child || listing);
+};
+
+const getLowestPriceListing = (listings = []) => {
+  let best = null;
+  let bestPrice = null;
+  listings.forEach((listing) => {
+    const price = typeof listing?.basePrice === "number" ? listing.basePrice : null;
+    if (price === null) return;
+    if (bestPrice === null || price < bestPrice) {
+      bestPrice = price;
+      best = listing;
+    }
+  });
+  return best;
 };
 
 const monthKey = (date) =>
@@ -1045,6 +1071,12 @@ const SECTION_REVIEWS = {
   "la-downtown": [],
   other: reviewsDodger,
 };
+const GOOGLE_REVIEW_LINKS = {
+  "la-hollywood":
+    "https://www.google.com/maps/place/One+Lux+Stay+Hollywood+View+LA+Suites/@34.096727,-118.3144848,908m/data=!3m1!1e3!4m11!3m10!1s0x80c2bf1c3a41cc15:0xbc828ded239ae8a3!5m2!4m1!1i2!8m2!3d34.0967226!4d-118.3119099!9m1!1b1!16s%2Fg%2F11l6btbhs4?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
+  "la-hwh":
+    "https://www.google.com/maps/place/One+Lux+Stay+HWH+Downtown+Los+Angeles/@34.0489709,-118.250392,908m/data=!3m2!1e3!5s0x80c2c64a33a4e947:0x3882004a8f34fba8!4m11!3m10!1s0x80c2c7d2fa15aab3:0x71a2178b49e7af8a!5m2!4m1!1i2!8m2!3d34.0489665!4d-118.2478171!9m1!1b1!16s%2Fg%2F11rsrqx5ls?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
+};
 const HOLLYWOOD_FACILITIES = [
   "Outdoor swimming pool",
   "Free parking",
@@ -1432,6 +1464,7 @@ export default function LosAngelesLandingPage() {
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
+  const [isReviewExpanded, setIsReviewExpanded] = useState(false);
   const [checkoutGuest, setCheckoutGuest] = useState({
     firstName: "",
     lastName: "",
@@ -1533,7 +1566,7 @@ export default function LosAngelesLandingPage() {
 
   useEffect(() => {
     if (!activeListing || !isListingCalendarOpen) return;
-    const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
+    const listingId = getCalendarListingId(activeListing, losAngelesListings);
     if (!listingId) return;
     const monthBase = new Date(calendarStartDate);
     monthBase.setMonth(monthBase.getMonth() + calendarMonthIndex);
@@ -1660,6 +1693,7 @@ export default function LosAngelesLandingPage() {
       setSectionCalendarError("");
       setSectionCalendarMonthIndex(0);
       setSectionCalendarMinNightsOverride(null);
+      setIsReviewExpanded(false);
     }
   }, [activeSectionKey]);
 
@@ -2032,7 +2066,7 @@ export default function LosAngelesLandingPage() {
     calendarMinNightsCacheRef.current[key] = true;
     try {
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1);
+      const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 12, 1);
       const qs = new URLSearchParams({
         listingIds: listingId,
         startDate: toISODate(monthStart),
@@ -2115,9 +2149,11 @@ export default function LosAngelesLandingPage() {
 
     try {
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1);
+      const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 12, 1);
+      const pricingListing = getLowestPriceListing(activeSection?.listings || []);
+      const pricingListingId = getListingId(pricingListing) || listingIds[0];
       const qs = new URLSearchParams({
-        listingIds: listingIds.join(","),
+        listingIds: pricingListingId,
         startDate: toISODate(monthStart),
         endDate: toISODate(monthEnd),
         includeAllotment: "true",
@@ -2138,25 +2174,37 @@ export default function LosAngelesLandingPage() {
           : Array.isArray(data?.data)
             ? data.data
             : [];
-      const calendarEntry = calendarEntries.find(
-        (entry) => getCalendarEntryId(entry) === primaryId
-      );
-      if (calendarEntry) {
-        const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
-        const dayMap = {};
-        days
-          .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
-          .filter(Boolean)
-          .forEach((day) => {
-            dayMap[day.date] = day;
-          });
-        sectionCalendarDaysRef.current[primaryId] = dayMap;
-        sectionCalendarCacheRef.current[key] = true;
-        setSectionCalendarPrices(buildCalendarPayload(dayMap));
-        const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
-        if (typeof minNightsOverride === "number") {
-          setSectionCalendarMinNightsOverride(minNightsOverride);
+      const currencyFallback =
+        pricingListing?.currency || activeSection?.listings?.[0]?.currency || "USD";
+      let days = [];
+
+      if (data?.normalizedCalendars?.[pricingListingId]) {
+        days = data.normalizedCalendars[pricingListingId];
+      } else if (Array.isArray(data?.data?.days)) {
+        days = data.data.days;
+      } else {
+        const entry = calendarEntries.find(
+          (item) => getCalendarEntryId(item) === pricingListingId
+        );
+        if (entry) {
+          days = entry?.days || entry?.calendar || entry?.data || [];
         }
+      }
+
+      const dayMap = {};
+      days
+        .map((day) => normalizeCalendarDayForUi(day, currencyFallback))
+        .filter(Boolean)
+        .forEach((day) => {
+          dayMap[day.date] = day;
+        });
+
+      sectionCalendarDaysRef.current[primaryId] = dayMap;
+      sectionCalendarCacheRef.current[key] = true;
+      setSectionCalendarPrices(buildCalendarPayload(dayMap));
+      const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
+      if (typeof minNightsOverride === "number") {
+        setSectionCalendarMinNightsOverride(minNightsOverride);
       }
     } catch (err) {
       setSectionCalendarError(err?.message || "Calendar pricing is unavailable.");
@@ -2345,10 +2393,19 @@ export default function LosAngelesLandingPage() {
     try {
       const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       let calendarMultiLoaded = false;
-      const items = (Array.isArray(listingIds) && listingIds.length
-        ? listingIds
-        : activeSection.listings.map((listing) => listing.id || listing._id)
-      ).filter(Boolean);
+      const childIds = activeSection.listings
+        .filter((listing) => isChildListing(listing))
+        .map((listing) => listing.id || listing._id)
+        .filter(Boolean);
+      const itemsFromArg = Array.isArray(listingIds)
+        ? listingIds.filter((id) => childIds.includes(id))
+        : [];
+      const items = (itemsFromArg.length ? itemsFromArg : childIds).filter(Boolean);
+      if (!items.length) {
+        setSectionAvailabilityError("No child units found for availability.");
+        setSectionAvailabilityLoading(false);
+        return;
+      }
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const qs = new URLSearchParams({
         listingIds: items.join(","),
@@ -2356,6 +2413,30 @@ export default function LosAngelesLandingPage() {
         endDate: sectionCheckOut,
         minOccupancy: sectionGuests || "1",
       }).toString();
+      const availabilityQs = new URLSearchParams({
+        ids: items.join(","),
+        checkIn: sectionCheckIn,
+        checkOut: sectionCheckOut,
+        minOccupancy: sectionGuests || "1",
+      }).toString();
+      const availabilityRes = await fetch(
+        `${apiBase}/check-units/listings/availability-query?${availabilityQs}`,
+        { cache: "no-store" }
+      );
+      if (!availabilityRes.ok) {
+        const errText = await availabilityRes.text().catch(() => "");
+        throw new Error(errText || "Availability failed");
+      }
+      const availabilityJson = await availabilityRes.json();
+      const availabilityResults = Array.isArray(availabilityJson?.results)
+        ? availabilityJson.results
+        : [];
+      const availableIds = new Set(availabilityResults.map((item) => item.id).filter(Boolean));
+      const availabilityMap = {};
+      items.forEach((id) => {
+        availabilityMap[id] = availableIds.has(id);
+      });
+
       const bulkRes = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
         cache: "no-store",
       });
@@ -2375,65 +2456,17 @@ export default function LosAngelesLandingPage() {
               ? bulkJson.results
               : [];
 
-      const dateList = enumerateDateRange(sectionCheckIn, sectionCheckOut);
-      const availabilityMap = {};
-      const availableIds = new Set();
-
-      if (normalizedCalendars) {
-        Object.entries(normalizedCalendars).forEach(([entryId, days]) => {
-          if (!entryId) return;
-          const dayMap = new Map(
-            Array.isArray(days)
-              ? days
-                .map((day) => [day?.date, day])
-                .filter(([key]) => key)
-              : []
-          );
-          const isAvailable = dateList.every((date) => isCalendarDayAvailable(dayMap.get(date)));
-          availabilityMap[entryId] = isAvailable;
-          if (isAvailable) availableIds.add(entryId);
-        });
-      } else if (calendarEntries.length) {
-        calendarEntries.forEach((entry) => {
-          const entryId = getCalendarEntryId(entry);
-          if (!entryId) return;
-          const days = entry?.days || entry?.calendar || entry?.data || entry?.availability || [];
-          const dayMap = new Map(
-            Array.isArray(days)
-              ? days
-                .map((day) => [getCalendarDayKey(day), day])
-                .filter(([key]) => key)
-              : []
-          );
-          const isAvailable = dateList.every((date) => isCalendarDayAvailable(dayMap.get(date)));
-          availabilityMap[entryId] = isAvailable;
-          if (isAvailable) availableIds.add(entryId);
-        });
-      } else {
-        const checks = Array.isArray(bulkJson?.results) ? bulkJson.results : [];
-        checks.forEach((item) => {
-          if (!item?.id) return;
-          availabilityMap[item.id] = item.available;
-          if (item.available) availableIds.add(item.id);
-        });
-      }
+      // availability is driven by availability-query results (child-only)
 
       const parentGroups = groupListingsByParent(activeSection.listings);
       const parentAvailabilityMap = {};
-      const hasAvailabilityData = Object.keys(availabilityMap).length > 0;
-      const availableParentListings = Object.values(parentGroups)
+      const availableParents = Object.values(parentGroups)
         .map((group) => {
-          const childCandidates = group.children.length
-            ? group.children
-            : group.parent
-              ? [group.parent]
-              : [];
-          const childIds = childCandidates.map((item) => getListingId(item)).filter(Boolean);
-          const hasAvailableChild = hasAvailabilityData
+          const childIds = group.children.map((item) => getListingId(item)).filter(Boolean);
+          const hasAvailableChild = childIds.length
             ? childIds.some((id) => availabilityMap[id] === true)
-            : true;
+            : false;
           parentAvailabilityMap[group.parentId] = hasAvailableChild;
-          if (!hasAvailableChild) return null;
           const displayListing = group.parent || null;
           if (displayListing) {
             const displayId = getListingId(displayListing);
@@ -2443,35 +2476,15 @@ export default function LosAngelesLandingPage() {
         })
         .filter(Boolean);
 
-      setSectionAvailability(availableParentListings);
+      setSectionAvailability(availableParents);
       setSectionAvailabilityMap(parentAvailabilityMap);
       setSectionAvailabilityActive(true);
 
       const calendarListingId = listingId || getPrimaryListingId(activeSection.listings);
       if (calendarListingId) {
-      if (normalizedCalendars?.[calendarListingId]) {
-        const dayMap = {};
-        normalizedCalendars[calendarListingId]
-          .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
-          .filter(Boolean)
-          .forEach((day) => {
-            dayMap[day.date] = day;
-          });
-        sectionCalendarDaysRef.current[calendarListingId] = dayMap;
-        setSectionCalendarPrices(buildCalendarPayload(dayMap));
-        calendarMultiLoaded = true;
-        const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
-        if (typeof minNightsOverride === "number") {
-          setSectionCalendarMinNightsOverride(minNightsOverride);
-        }
-      } else if (calendarEntries.length) {
-        const calendarEntry = calendarEntries.find(
-          (entry) => getCalendarEntryId(entry) === calendarListingId
-        );
-        if (calendarEntry) {
-          const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
+        if (normalizedCalendars?.[calendarListingId]) {
           const dayMap = {};
-          days
+          normalizedCalendars[calendarListingId]
             .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
             .filter(Boolean)
             .forEach((day) => {
@@ -2484,11 +2497,31 @@ export default function LosAngelesLandingPage() {
           if (typeof minNightsOverride === "number") {
             setSectionCalendarMinNightsOverride(minNightsOverride);
           }
+        } else if (calendarEntries.length) {
+          const calendarEntry = calendarEntries.find(
+            (entry) => getCalendarEntryId(entry) === calendarListingId
+          );
+          if (calendarEntry) {
+            const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
+            const dayMap = {};
+            days
+              .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
+              .filter(Boolean)
+              .forEach((day) => {
+                dayMap[day.date] = day;
+              });
+            sectionCalendarDaysRef.current[calendarListingId] = dayMap;
+            setSectionCalendarPrices(buildCalendarPayload(dayMap));
+            calendarMultiLoaded = true;
+            const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
+            if (typeof minNightsOverride === "number") {
+              setSectionCalendarMinNightsOverride(minNightsOverride);
+            }
+          }
         }
       }
-      }
 
-      const quoteRequests = availableParentListings
+      const quoteRequests = availableParents
         .map((listing) => {
           const quoteListingId = listing.id || listing._id;
           if (!quoteListingId) return null;
@@ -2509,7 +2542,7 @@ export default function LosAngelesLandingPage() {
         if (res.ok) {
           const data = await res.json();
           const quotes = {};
-          availableParentListings.forEach((listing) => {
+          availableParents.forEach((listing) => {
             const listingKey = listing.id || listing._id;
             const quoteListingId = listing.id || listing._id;
             if (!listingKey || !quoteListingId) return;
@@ -2724,9 +2757,9 @@ export default function LosAngelesLandingPage() {
             right now for Los Angeles units.
           </p>
           <div className="antwerp-hero__actions">
-            <Link to="/stay" className="antwerp-cta">
-              Browse all available units
-            </Link>
+            <a href="#la-city-tour" className="antwerp-cta">
+              Browse tours
+            </a>
             <a href="#los-angeles-units" className="antwerp-ghost">
               Explore units
             </a>
@@ -2849,7 +2882,7 @@ export default function LosAngelesLandingPage() {
       </header>
 
       <main className="antwerp-main">
-        <section className="la-city-tour" aria-label="USA city tours">
+        <section id="la-city-tour" className="la-city-tour" aria-label="USA city tours">
           <div
             key={tourCity}
             className="la-city-tour__bg"
@@ -3139,7 +3172,18 @@ export default function LosAngelesLandingPage() {
               </button>
               <div>
                 <p className="la-section-modal__tag">Available now</p>
-                <h3>{activeSection.label}</h3>
+                <h3>{(() => {
+                  switch (activeSection.key) {
+                    case "la-hwh":
+                      return "One Lux Stay HWH Downtown Los Angeles";
+                    case "la-downtown":
+                      return "One Lux Stay LA Plaza Village";
+                    case "la-hollywood":
+                      return "One Lux Stay Hollywood View LA Suites";
+                    default:
+                      return `One Lux Stay ${activeSection.label}`;
+                  }
+                })()}</h3>
                 <p className="la-section-modal__subtitle">
                   {activeSection.listings.length} units ready for your dates.
                 </p>
@@ -3268,14 +3312,51 @@ export default function LosAngelesLandingPage() {
                       </a>
                     </div>
                     <div className="la-section-hero__review">
-                      <div>
-                        <strong>Guest pulse</strong>
-                        <span>{reviewCount ? `${reviewCount} reviews` : "No review data"}</span>
-                      </div>
-                      <div className="la-section-hero__score">
-                        {averageRating ? `${averageRating} / 5` : "--"}
-                      </div>
-                      <p>{reviewQuote}</p>
+                      {(() => {
+                        const reviewText = reviewQuote || "";
+                        const limit = 80;
+                        const shouldTruncate = reviewText.length > limit;
+                        const displayText = shouldTruncate && !isReviewExpanded
+                          ? `${reviewText.slice(0, limit).trim()}...`
+                          : reviewText;
+                        const reviewsLink = GOOGLE_REVIEW_LINKS[activeSection.key];
+                        return (
+                          <>
+                            <div>
+                              <strong>Guest pulse</strong>
+                              {reviewCount ? (
+                                reviewsLink ? (
+                                  <a
+                                    className="la-section-hero__review-link"
+                                    href={reviewsLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {reviewCount} reviews
+                                  </a>
+                                ) : (
+                                  <span>{reviewCount} reviews</span>
+                                )
+                              ) : (
+                                <span>No review data</span>
+                              )}
+                            </div>
+                            <div className="la-section-hero__score">
+                              {averageRating ? `${averageRating} / 5` : "--"}
+                            </div>
+                            <p>{displayText}</p>
+                            {shouldTruncate && (
+                              <button
+                                type="button"
+                                className="la-section-hero__review-toggle"
+                                onClick={() => setIsReviewExpanded((prev) => !prev)}
+                              >
+                                {isReviewExpanded ? "See less" : "See more"}
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="la-section-hero__map">
                       {mapUrl ? (
@@ -3429,270 +3510,272 @@ export default function LosAngelesLandingPage() {
                       );
                     }
                     return listingsToRender.map((listing) => {
-                    const listingId = listing.id || listing._id;
-                    const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
-                    const listingCurrency = listing.currency || "USD";
-                    const fullDescription = formatFullDescription(listing);
-                    const shortDescription = getFirstSentence(fullDescription);
-                    const quote = listingId ? sectionQuotes[listingId] : null;
-                    const planOptions = quote?.plans || [];
-                    const selectedPlanId =
-                      selectedRatePlans[listingId] ||
-                      quote?.defaultPlanId ||
-                      planOptions[0]?.id ||
-                      "";
-                    const selectedPlan =
-                      planOptions.find((plan) => plan.id === selectedPlanId) || planOptions[0];
-                    const baseNightly = selectedPlan?.nightly ?? listing.basePrice;
-                    const priceCurrency = selectedPlan?.currency ?? listingCurrency;
-                    const breakdown = selectedPlan?.breakdown;
-                    const isLoadingRates = sectionAvailabilityLoading;
-                    const fallbackTotal =
-                      typeof baseNightly === "number" && quote?.nights
-                        ? baseNightly * quote.nights +
-                        (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0)
-                        : null;
-                    const total =
-                      breakdown?.total ??
-                      breakdown?.subtotal ??
-                      selectedPlan?.total ??
-                      fallbackTotal ??
-                      null;
-                    const originalTotal =
-                      breakdown && typeof breakdown.discountAmount === "number"
-                        ? breakdown.total + breakdown.discountAmount
-                        : null;
-                    const checkoutListingId =
-                      listing.unitTypeId || listing.id || listing._id || listingId;
-                    const isUnavailable =
-                      sectionAvailabilityActive && sectionAvailabilityMap[listingId] === false;
-                    const isReserving = sectionReserveLoadingId === checkoutListingId;
-                    const priceValue =
-                      typeof total === "number"
-                        ? total
-                        : typeof baseNightly === "number"
-                          ? baseNightly
-                          : baseNightly;
-                    const breakdownId = `la-quote-${listingId}`;
-                    const isExpanded = Boolean(expandedQuoteRows[listingId]);
-                    return (
-                      <article key={listingId} className="la-booking-table__row" role="row">
-                        <div className="la-booking-table__cell" role="cell">
-                          <div className="la-booking-table__title">
-                            {image ? (
-                              <img src={image} alt="" loading="lazy" />
-                            ) : (
-                              <div className="la-booking-table__placeholder" aria-hidden="true" />
-                            )}
-                            <div>
-                              <p className="la-booking-table__eyebrow">
-                                {listing.propertyType || listing.roomType || "Residence"}
-                              </p>
-                              <h4>{sanitizeText(listing.title)}</h4>
-                              <p className="la-booking-table__room-meta">
-                                <span className="la-booking-table__meta-icon" aria-hidden="true">
-                                  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                    <path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z" />
-                                  </svg>
-                                </span>
-                                <span>
-                                  {typeof listing.beds === "number" || typeof listing.bedrooms === "number"
-                                    ? `Beds ${listing.beds ?? listing.bedrooms}`
-                                    : "Beds --"}
-                                </span>
-                              </p>
-                              <p className="la-booking-table__address">{formatAddress(listing)}</p>
-                              <p className="la-booking-table__summary">
-                                {shortDescription || "Signature OneLuxStay residence in Los Angeles."}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="la-booking-table__cell" role="cell">
-                          <div className="la-booking-table__guests" aria-label={`Sleeps ${listing.accommodates || "--"}`}>
-                            <div className="la-booking-table__guest-icons" aria-hidden="true">
-                              {Array.from({ length: Math.min(Number(listing.accommodates) || 1, 5) }).map((_, idx) => (
-                                <svg key={`${listingId}-guest-${idx}`} viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                  <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z" />
-                                </svg>
-                              ))}
-                            </div>
-                            <span className="sr-only">Sleeps {listing.accommodates || "--"}</span>
-                          </div>
-                        </div>
-                        <div className="la-booking-table__cell" role="cell">
-                          <div className="la-booking-table__price">
-                            {isLoadingRates ? (
-                              <>
-                                <strong>Checking rates...</strong>
-                                <span>Updating totals</span>
-                              </>
-                            ) : isUnavailable ? (
-                              <>
-                                <strong>Inquire for exact pricing</strong>
-                                <span>We’ll confirm rates & availability.</span>
-                              </>
-                            ) : (
-                              <>
-                                {originalTotal && originalTotal > priceValue && (
-                                  <span className="la-booking-table__price-original">
-                                    {formatCurrency(originalTotal, priceCurrency)}
+                      const listingId = listing.id || listing._id;
+                      const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
+                      const listingCurrency = listing.currency || "USD";
+                      const fullDescription = formatFullDescription(listing);
+                      const shortDescription = getFirstSentence(fullDescription);
+                      const quote = listingId ? sectionQuotes[listingId] : null;
+                      const planOptions = quote?.plans || [];
+                      const selectedPlanId =
+                        selectedRatePlans[listingId] ||
+                        quote?.defaultPlanId ||
+                        planOptions[0]?.id ||
+                        "";
+                      const selectedPlan =
+                        planOptions.find((plan) => plan.id === selectedPlanId) || planOptions[0];
+                      const baseNightly = selectedPlan?.nightly ?? listing.basePrice;
+                      const priceCurrency = selectedPlan?.currency ?? listingCurrency;
+                      const breakdown = selectedPlan?.breakdown;
+                      const isLoadingRates = sectionAvailabilityLoading;
+                      const fallbackTotal =
+                        typeof baseNightly === "number" && quote?.nights
+                          ? baseNightly * quote.nights +
+                          (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0)
+                          : null;
+                      const total =
+                        breakdown?.total ??
+                        breakdown?.subtotal ??
+                        selectedPlan?.total ??
+                        fallbackTotal ??
+                        null;
+                      const originalTotal =
+                        breakdown && typeof breakdown.discountAmount === "number"
+                          ? breakdown.total + breakdown.discountAmount
+                          : null;
+                      const checkoutListingId =
+                        listing.unitTypeId || listing.id || listing._id || listingId;
+                      const isUnavailable =
+                        sectionAvailabilityActive && sectionAvailabilityMap[listingId] === false;
+                      const isReserving = sectionReserveLoadingId === checkoutListingId;
+                      const priceValue =
+                        typeof total === "number"
+                          ? total
+                          : typeof baseNightly === "number"
+                            ? baseNightly
+                            : baseNightly;
+                      const breakdownId = `la-quote-${listingId}`;
+                      const isExpanded = Boolean(expandedQuoteRows[listingId]);
+                      return (
+                        <article key={listingId} className="la-booking-table__row" role="row">
+                          <div className="la-booking-table__cell" role="cell">
+                            <div className="la-booking-table__title">
+                              {image ? (
+                                <img src={image} alt="" loading="lazy" />
+                              ) : (
+                                <div className="la-booking-table__placeholder" aria-hidden="true" />
+                              )}
+                              <div>
+                                <p className="la-booking-table__eyebrow">
+                                  {listing.propertyType || listing.roomType || "Residence"}
+                                </p>
+                                <h4>{sanitizeText(listing.title)}</h4>
+                                <p className="la-booking-table__room-meta">
+                                  <span className="la-booking-table__meta-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                      <path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z" />
+                                    </svg>
                                   </span>
-                                )}
-                                <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
-                                <span>
-                                  Total (cleaning + tax included)
-                                </span>
-                              </>
-                            )}
+                                  <span>
+                                    {typeof listing.beds === "number" || typeof listing.bedrooms === "number"
+                                      ? `Beds ${listing.beds ?? listing.bedrooms}`
+                                      : "Beds --"}
+                                  </span>
+                                </p>
+                                <p className="la-booking-table__address">{formatAddress(listing)}</p>
+                                <p className="la-booking-table__summary">
+                                  {shortDescription || "Signature OneLuxStay residence in Los Angeles."}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="la-booking-table__cell" role="cell">
+                            <div className="la-booking-table__guests" aria-label={`Sleeps ${listing.accommodates || "--"}`}>
+                              <div className="la-booking-table__guest-icons" aria-hidden="true">
+                                {Array.from({ length: Math.min(Number(listing.accommodates) || 1, 5) }).map((_, idx) => (
+                                  <svg key={`${listingId}-guest-${idx}`} viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                    <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z" />
+                                  </svg>
+                                ))}
+                              </div>
+                              <span className="sr-only">Sleeps {listing.accommodates || "--"}</span>
+                            </div>
+                          </div>
+                          <div className="la-booking-table__cell" role="cell">
+                            <div className="la-booking-table__price">
+                              {isLoadingRates ? (
+                                <>
+                                  <strong>Checking rates...</strong>
+                                  <span>Updating totals</span>
+                                </>
+                              ) : isUnavailable ? (
+                                <>
+                                  <strong>Inquire for exact pricing</strong>
+                                  <span>We’ll confirm rates & availability.</span>
+                                </>
+                              ) : (
+                                <>
+                                  {originalTotal && originalTotal > priceValue && (
+                                    <span className="la-booking-table__price-original">
+                                      {formatCurrency(originalTotal, priceCurrency)}
+                                    </span>
+                                  )}
+                                  <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
+                                  <span>
+                                    Total (cleaning + tax included)
+                                  </span>
+                                </>
+                              )}
+                              {!isUnavailable && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="la-booking-table__breakdown-toggle"
+                                    aria-expanded={isExpanded}
+                                    aria-controls={breakdownId}
+                                    disabled={isLoadingRates}
+                                    onClick={() =>
+                                      setExpandedQuoteRows((prev) => ({
+                                        ...prev,
+                                        [listingId]: !prev[listingId],
+                                      }))
+                                    }
+                                  >
+                                    {isLoadingRates
+                                      ? "Price breakdown loading..."
+                                      : isExpanded
+                                        ? "Hide price breakdown"
+                                        : "View price breakdown"}
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="la-booking-table__breakdown" role="region" id={breakdownId}>
+                                      {breakdown ? (
+                                        <>
+                                          <div>
+                                            <span>Accommodation</span>
+                                            <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
+                                          </div>
+                                          {breakdown.discountAmount > 0 && (
+                                            <div>
+                                              <span>
+                                                Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                                              </span>
+                                              <strong>
+                                                -{formatCurrency(breakdown.discountAmount, priceCurrency)}
+                                              </strong>
+                                            </div>
+                                          )}
+                                          <div>
+                                            <span>Cleaning</span>
+                                            <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
+                                          </div>
+                                          <div>
+                                            <span>Taxes</span>
+                                            <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                                          </div>
+                                          <div>
+                                            <span>Fees</span>
+                                            <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                                          </div>
+                                          <div className="la-booking-table__total">
+                                            <span>Total</span>
+                                            <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                                          </div>
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="la-booking-table__cell" role="cell">
                             {!isUnavailable && (
-                              <>
+                              <ul className="la-booking-table__choices">
+                                {planOptions.length > 0 ? (
+                                  <li>
+                                    <label htmlFor={`rate-plan-${listingId}`} className="sr-only">
+                                      Select rate plan
+                                    </label>
+                                    <select
+                                      id={`rate-plan-${listingId}`}
+                                      value={selectedPlanId}
+                                      disabled={isLoadingRates}
+                                      onChange={(e) =>
+                                        setSelectedRatePlans((prev) => ({
+                                          ...prev,
+                                          [listingId]: e.target.value,
+                                        }))
+                                      }
+                                      className="la-booking-table__rate-select"
+                                    >
+                                      {planOptions.map((plan) => (
+                                        <option key={plan.id} value={plan.id}>
+                                          {plan.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </li>
+                                ) : null}
+                                <li>Policies shown at checkout</li>
+                              </ul>
+                            )}
+                          </div>
+                          <div className="la-booking-table__cell" role="cell">
+                            <div className="la-booking-table__cta-group">
+                              {isUnavailable ? (
                                 <button
                                   type="button"
-                                  className="la-booking-table__breakdown-toggle"
-                                  aria-expanded={isExpanded}
-                                  aria-controls={breakdownId}
-                                  disabled={isLoadingRates}
-                                  onClick={() =>
-                                    setExpandedQuoteRows((prev) => ({
-                                      ...prev,
-                                      [listingId]: !prev[listingId],
-                                    }))
-                                  }
+                                  className="la-booking-table__reserve la-booking-table__inquire"
+                                  onClick={() => {
+                                    setInquiryListing(listing);
+                                    setIsInquiryOpen(true);
+                                  }}
                                 >
-                                  {isLoadingRates
-                                    ? "Price breakdown loading..."
-                                    : isExpanded
-                                      ? "Hide price breakdown"
-                                      : "View price breakdown"}
+                                  Inquire
                                 </button>
-                                {isExpanded && (
-                                  <div className="la-booking-table__breakdown" role="region" id={breakdownId}>
-                                    {breakdown ? (
-                                      <>
-                                        <div>
-                                          <span>Accommodation</span>
-                                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                                        </div>
-                                        {breakdown.discountAmount > 0 && (
-                                          <div>
-                                            <span>
-                                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                                            </span>
-                                            <strong>
-                                              -{formatCurrency(breakdown.discountAmount, priceCurrency)}
-                                            </strong>
-                                          </div>
-                                        )}
-                                        <div>
-                                          <span>Cleaning</span>
-                                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                                        </div>
-                                        <div>
-                                          <span>Taxes</span>
-                                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                                        </div>
-                                        <div>
-                                          <span>Fees</span>
-                                          <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
-                                        </div>
-                                        <div className="la-booking-table__total">
-                                          <span>Total</span>
-                                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                                        </div>
-                                      </>
-                                    ) : null}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <div className="la-booking-table__cell" role="cell">
-                          <ul className="la-booking-table__choices">
-                            {planOptions.length > 0 ? (
-                              <li>
-                                <label htmlFor={`rate-plan-${listingId}`} className="sr-only">
-                                  Select rate plan
-                                </label>
-                                <select
-                                  id={`rate-plan-${listingId}`}
-                                  value={selectedPlanId}
-                                  disabled={isLoadingRates}
-                                  onChange={(e) =>
-                                    setSelectedRatePlans((prev) => ({
-                                      ...prev,
-                                      [listingId]: e.target.value,
-                                    }))
-                                  }
-                                  className="la-booking-table__rate-select"
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="la-booking-table__reserve"
+                                  disabled={isLoadingRates || isReserving}
+                                  onClick={() => {
+                                    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
+                                      setPendingCheckout({
+                                        listingId: checkoutListingId,
+                                        listingTitle: listing.title,
+                                        amount: typeof total === "number" ? total : null,
+                                        currency: priceCurrency,
+                                      });
+                                      setCheckoutGuestError("");
+                                      setIsCheckoutGuestOpen(true);
+                                      return;
+                                    }
+                                    handleSectionCheckout({
+                                      listingId: checkoutListingId,
+                                      listingTitle: listing.title,
+                                      amount: typeof total === "number" ? total : null,
+                                      currency: priceCurrency,
+                                      guest: checkoutGuest,
+                                    });
+                                  }}
                                 >
-                                  {planOptions.map((plan) => (
-                                    <option key={plan.id} value={plan.id}>
-                                      {plan.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </li>
-                            ) : null}
-                            <li>Policies shown at checkout</li>
-                          </ul>
-                        </div>
-                        <div className="la-booking-table__cell" role="cell">
-                          <div className="la-booking-table__cta-group">
-                            {isUnavailable ? (
+                                  {isReserving ? "Redirecting..." : "Reserve"}
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                className="la-booking-table__reserve la-booking-table__inquire"
-                                onClick={() => {
-                                  setInquiryListing(listing);
-                                  setIsInquiryOpen(true);
-                                }}
+                                className="la-booking-table__cta"
+                                disabled={isLoadingRates}
                               >
-                                Inquire
+                                Virtual tour
                               </button>
-                            ) : (
-                            <button
-                              type="button"
-                              className="la-booking-table__reserve"
-                              disabled={isLoadingRates || isReserving}
-                              onClick={() => {
-                                if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
-                                  setPendingCheckout({
-                                    listingId: checkoutListingId,
-                                    listingTitle: listing.title,
-                                    amount: typeof total === "number" ? total : null,
-                                    currency: priceCurrency,
-                                  });
-                                  setCheckoutGuestError("");
-                                  setIsCheckoutGuestOpen(true);
-                                  return;
-                                }
-                                handleSectionCheckout({
-                                  listingId: checkoutListingId,
-                                  listingTitle: listing.title,
-                                  amount: typeof total === "number" ? total : null,
-                                  currency: priceCurrency,
-                                  guest: checkoutGuest,
-                                });
-                              }}
-                            >
-                              {isReserving ? "Redirecting..." : "Reserve"}
-                            </button>
-                            )}
-                            <button
-                              type="button"
-                              className="la-booking-table__cta"
-                              disabled={isLoadingRates}
-                            >
-                              Virtual tour
-                            </button>
+                            </div>
                           </div>
-                        </div>
-                      </article>
-                    );
-                  });
-                })()}
+                        </article>
+                      );
+                    });
+                  })()}
                 </>
               )}
             </div>
@@ -3737,7 +3820,7 @@ export default function LosAngelesLandingPage() {
               >
                 WhatsApp +971 58 885 8935
               </a>
-              <p className="la-inquiry-modal__note">We usually respond within 24 hours.</p>
+              <p className="la-inquiry-modal__note">We usually respond within an hour</p>
             </div>
           </div>
         </div>
@@ -3998,28 +4081,21 @@ export default function LosAngelesLandingPage() {
             <div className="la-unit-modal__booking" aria-label="Availability check">
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                dayPrices={calendarDayMap}
-                isLoading={calendarLoading}
-                fallbackPrice={activeListing?.basePrice}
-                fallbackCurrency={activeListing?.currency || "USD"}
-                fallbackMinNights={listingMinNightsFallback}
+                dayPrices={sectionCalendarDayMap}
+                isLoading={sectionCalendarLoading}
+                fallbackPrice={activeSection?.listings?.[0]?.basePrice}
+                fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
+                fallbackMinNights={sectionMinNightsFallback}
                 onMonthChange={(month) => {
-                  if (!activeListing) return;
-                  const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
-                  if (!listingId) return;
                   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-                  fetchCalendarMonth(
-                    listingId,
-                    monthStart,
-                    calendarCacheRef,
-                    calendarDaysRef,
-                    calendarInflightRef,
-                    setCalendarLoading,
-                    setCalendarError,
-                    setCalendarPrices
-                  );
+                  if (!activeSection) return;
+                  const listingIds = activeSection.listings
+                    .map((listing) => listing.id || listing._id)
+                    .filter(Boolean);
+                  if (!listingIds.length) return;
+                  fetchSectionCalendarMultiMonth(listingIds, monthStart);
                 }}
-                onOpenChange={setIsListingCalendarOpen}
+                onOpenChange={handleSectionCalendarOpen}
                 onChange={({ checkIn, checkOut }) => {
                   setSectionCheckIn(checkIn);
                   setSectionCheckOut(checkOut);
@@ -4270,6 +4346,7 @@ export default function LosAngelesLandingPage() {
           </div>
         </div>
       )}
+      <SiteFooter />
     </div>
   );
 }

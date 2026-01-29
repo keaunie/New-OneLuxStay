@@ -4073,6 +4073,25 @@ html {
   font-size: 0.85rem;
 }
 
+.la-section-hero__review-link {
+  color: #6b4f35;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.la-section-hero__review-toggle {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #6b4f35;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .la-section-hero__map img {
   width: 100%;
   height: 200px;
@@ -5479,7 +5498,7 @@ html {
   max-width: 1100px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
   gap: 28px;
   align-items: start;
 }
