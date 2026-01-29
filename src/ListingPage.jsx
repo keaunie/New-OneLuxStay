@@ -61,6 +61,33 @@ const parseHiddenList = (value = "") =>
     .map((v) => v.trim())
     .filter(Boolean);
 
+const getListingId = (listing) => listing?.id || listing?._id || "";
+
+const isChildListing = (listing) => {
+  const type = typeof listing?.type === "string" ? listing.type.toUpperCase() : "";
+  if (type.includes("CHILD")) return true;
+  if (listing?.parentId || listing?.parentListingId) return true;
+  return false;
+};
+
+const getListingGroupKey = (listing) =>
+  listing?.unitTypeId ||
+  listing?.parentId ||
+  listing?.parentListingId ||
+  getListingId(listing);
+
+const groupListingsByParent = (listings = []) => {
+  const groups = new Map();
+  listings.forEach((listing) => {
+    const key = getListingGroupKey(listing);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, { parent: null, children: [] });
+    if (isChildListing(listing)) groups.get(key).children.push(listing);
+    else groups.get(key).parent = listing;
+  });
+  return groups;
+};
+
 const HIDDEN_LISTING_IDS = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_IDS);
 const HIDDEN_LISTING_TITLES = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_TITLES).map((t) =>
   t.toLowerCase(),
@@ -479,14 +506,21 @@ function ListingPage() {
   )}`;
 
   const selectedListing = useMemo(
-    () => listings.find((l) => l.id === activeListingId || l._id === activeListingId),
-    [activeListingId, listings],
+    () => parentListings.find((l) => l.id === activeListingId || l._id === activeListingId),
+    [activeListingId, parentListings],
   );
+
+  const parentListings = useMemo(() => {
+    const groups = groupListingsByParent(listings);
+    return Array.from(groups.values())
+      .map((group) => group.parent || group.children[0])
+      .filter(Boolean);
+  }, [listings]);
 
   const cityOptions = useMemo(() => {
     const map = new Map();
     const forced = ["Hollywood", "Redondo Beach"];
-    listings.forEach((l) => {
+    parentListings.forEach((l) => {
       const city = normalizeCity(l);
       if (!city) return;
       if (!map.has(city)) {
@@ -502,13 +536,13 @@ function ListingPage() {
       if (!map.has(city)) map.set(city, { city, image: "" });
     });
     return [{ city: "All", image: "" }, ...Array.from(map.values())];
-  }, [listings]);
+  }, [parentListings]);
 
   const filteredListings = useMemo(() => {
-    if (cityFilter === "All") return listings;
+    if (cityFilter === "All") return parentListings;
     const match = cityFilter.toLowerCase();
-    return listings.filter((l) => normalizeCity(l).toLowerCase() === match);
-  }, [cityFilter, listings]);
+    return parentListings.filter((l) => normalizeCity(l).toLowerCase() === match);
+  }, [cityFilter, parentListings]);
   const availableCount = filteredListings.length;
 
   const modalAvailability = useMemo(() => {
@@ -518,12 +552,12 @@ function ListingPage() {
 
   useEffect(() => {
     if (!activeListingId && filteredListings[0]) {
-      setActiveListingId(filteredListings[0].id);
+      setActiveListingId(getListingId(filteredListings[0]));
       return;
     }
-    const exists = filteredListings.some((l) => l.id === activeListingId);
+    const exists = filteredListings.some((l) => getListingId(l) === activeListingId);
     if (!exists && filteredListings[0]) {
-      setActiveListingId(filteredListings[0].id);
+      setActiveListingId(getListingId(filteredListings[0]));
     }
   }, [filteredListings, activeListingId]);
 

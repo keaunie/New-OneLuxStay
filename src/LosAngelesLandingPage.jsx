@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
 import reviewsHwh from "./data/reviews-hwh.json";
 import reviewsHollywood from "./data/reviews-hollywood.json";
@@ -1454,6 +1454,9 @@ const formatFullDescription = (listing) => {
 };
 
 export default function LosAngelesLandingPage() {
+  const { listingId: routeListingId } = useParams();
+  const navigate = useNavigate();
+  const isListingRoute = Boolean(routeListingId);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1534,9 +1537,13 @@ export default function LosAngelesLandingPage() {
   const mapsApiRef = useRef(null);
   const listingMarkersRef = useRef([]);
   const listingInfoRef = useRef(null);
+  const geocoderRef = useRef(null);
+  const geocodeCacheRef = useRef(new Map());
+  const geocodeInFlightRef = useRef(new Set());
   const mapLoadedRef = useRef(false);
   const losAngelesListingsRef = useRef([]);
   const [isMapEnabled, setIsMapEnabled] = useState(false);
+  const [mapError, setMapError] = useState("");
 
   const activeAmenityList = useMemo(() => {
     if (!activeListing) return [];
@@ -1749,6 +1756,30 @@ export default function LosAngelesLandingPage() {
   }, []);
 
   useEffect(() => {
+    if (!routeListingId || !listings.length) return;
+    const match = listings.find(
+      (listing) =>
+        String(listing.id || listing._id || listing.unitTypeId || "") === String(routeListingId)
+    );
+    if (match) {
+      const resolved =
+        isChildListing(match) && getListingGroupKey(match)
+          ? listings.find(
+              (entry) =>
+                !isChildListing(entry) && getListingGroupKey(entry) === getListingGroupKey(match)
+            ) || match
+          : match;
+      setActiveListing(resolved);
+      setActiveImageIndex(0);
+    }
+  }, [routeListingId, listings]);
+
+  useEffect(() => {
+    if (!isListingRoute) return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [isListingRoute, routeListingId]);
+
+  useEffect(() => {
     if (!listings.length) return;
     const targetId = "66e1e3875a1f6300d736f28e";
     const match = listings.find((listing) => (listing.id || listing._id) === targetId);
@@ -1761,7 +1792,12 @@ export default function LosAngelesLandingPage() {
 
   useEffect(() => {
     if (!isMapEnabled) return;
-    if (!mapRef.current || mapLoadedRef.current || !mapsApiKey) return;
+    if (!mapsApiKey) {
+      setMapError("Google Maps API key is missing.");
+      return;
+    }
+    if (!mapRef.current || mapLoadedRef.current) return;
+    setMapError("");
     const target = mapRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1772,8 +1808,13 @@ export default function LosAngelesLandingPage() {
           .then((maps) => {
             const map = new maps.Map(target, {
               center: PROPERTY_COORDS,
-              zoom: 15,
+              zoom: 14,
+              minZoom: 3,
+              maxZoom: 21,
               gestureHandling: "greedy",
+              scrollwheel: true,
+              draggable: true,
+              keyboardShortcuts: true,
               zoomControl: true,
               fullscreenControl: false,
               mapTypeControl: false,
@@ -1790,6 +1831,7 @@ export default function LosAngelesLandingPage() {
             const infoWindow = new maps.InfoWindow();
 
             const geocoder = new maps.Geocoder();
+            geocoderRef.current = geocoder;
             geocoder.geocode({ address: PROPERTY_ADDRESS }, (results, status) => {
               if (status === "OK" && results?.[0]?.geometry?.location) {
                 map.setCenter(results[0].geometry.location);
@@ -1826,22 +1868,36 @@ export default function LosAngelesLandingPage() {
             if (losAngelesListingsRef.current.length) {
               syncListingMarkers(losAngelesListingsRef.current);
             }
+
+            maps.event.addListener(map, "zoom_changed", () => {
+              syncListingMarkers(losAngelesListingsRef.current);
+            });
           })
           .catch((err) => {
             console.error(err);
+            mapLoadedRef.current = false;
+            setMapError("Unable to load Google Maps.");
           });
       },
       { threshold: 0.25 }
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, []);
+  }, [isMapEnabled, mapsApiKey]);
 
   const losAngelesListings = useMemo(() => {
     return listings.filter((listing) => {
       return isLosAngelesListing(listing);
     });
   }, [listings, isMapEnabled, mapsApiKey]);
+
+  const losAngelesParentListings = useMemo(() => {
+    if (!losAngelesListings.length) return [];
+    const parentGroups = groupListingsByParent(losAngelesListings);
+    return Object.values(parentGroups)
+      .map((group) => group.parent || group.children?.[0])
+      .filter(Boolean);
+  }, [losAngelesListings]);
 
   const syncListingMarkers = (listingsToUse = losAngelesListingsRef.current) => {
     const maps = mapsApiRef.current;
@@ -1873,10 +1929,107 @@ export default function LosAngelesLandingPage() {
 
     const bounds = new maps.LatLngBounds();
     let hasBounds = false;
-    listingsToUse.forEach((listing) => {
-      const coords = getListingCoords(listing);
+    const geocoder = geocoderRef.current;
+    const parentGroups = groupListingsByParent(listingsToUse);
+    const parentListings = Object.values(parentGroups)
+      .map((group) => group.parent || group.children?.[0])
+      .filter(Boolean);
+    const clusters = new Map();
+    const getClusterStep = () => {
+      const zoom = typeof map.getZoom === "function" ? map.getZoom() : 13;
+      if (zoom <= 10) return 0.25;
+      if (zoom <= 12) return 0.12;
+      if (zoom <= 14) return 0.06;
+      if (zoom <= 16) return 0.03;
+      if (zoom <= 18) return 0.015;
+      return 0.008;
+    };
+    const addToCluster = (coords, listing) => {
+      const groupKey = getBuildingKey(listing);
+      const groupOffsets = {
+        "la-downtown": { lat: 0.0012, lng: 0.0 },
+        "la-hwh": { lat: -0.0012, lng: 0.0 },
+        "la-hollywood": { lat: 0.0, lng: 0.0012 },
+        other: { lat: 0.0, lng: -0.0012 },
+      };
+      const offset = groupOffsets[groupKey] || groupOffsets.other;
+      const adjusted = {
+        lat: coords.lat + offset.lat,
+        lng: coords.lng + offset.lng,
+      };
+      const listingKey = getListingId(listing) || formatAddress(listing) || `${adjusted.lat},${adjusted.lng}`;
+      const key = `${listingKey}`;
+      if (!clusters.has(key)) {
+        clusters.set(key, { coords: adjusted, listings: [] });
+      }
+      clusters.get(key).listings.push(listing);
+    };
+
+    parentListings.forEach((listing) => {
+      let coords = getListingCoords(listing);
+      if (!coords) {
+        const address = formatAddress(listing);
+        const cacheKey = getListingId(listing) || address;
+        if (cacheKey && geocodeCacheRef.current.has(cacheKey)) {
+          coords = geocodeCacheRef.current.get(cacheKey);
+        } else if (geocoder && address && cacheKey && !geocodeInFlightRef.current.has(cacheKey)) {
+          geocodeInFlightRef.current.add(cacheKey);
+          geocoder.geocode({ address }, (results, status) => {
+            geocodeInFlightRef.current.delete(cacheKey);
+            if (status === "OK" && results?.[0]?.geometry?.location) {
+              const location = results[0].geometry.location;
+              geocodeCacheRef.current.set(cacheKey, {
+                lat: location.lat(),
+                lng: location.lng(),
+              });
+              syncListingMarkers(listingsToUse);
+            }
+          });
+        }
+      }
       if (!coords) return;
-      const title = listing.title || listing.nickname || "OneLuxStay";
+      addToCluster(coords, listing);
+    });
+
+    const resolveListingTitle = (listing) =>
+      listing?.title || listing?.nickname || "OneLuxStay";
+
+    const resolveGroupTitle = (listing) => {
+      const key = getBuildingKey(listing);
+      switch (key) {
+        case "la-hwh":
+          return "One Lux Stay HWH Downtown Los Angeles";
+        case "la-downtown":
+          return "One Lux Stay LA Plaza Village";
+        case "la-hollywood":
+          return "One Lux Stay Hollywood View LA Suites";
+        default:
+          return "One Lux Stay Near Dodger Stadium Downtown LA";
+      }
+    };
+
+    const toParentListing = (listing) => {
+      const groupKey = getListingGroupKey(listing);
+      if (!groupKey) return listing;
+      const parent = listingsToUse.find(
+        (entry) => !isChildListing(entry) && getListingGroupKey(entry) === groupKey
+      );
+      return parent || listing;
+    };
+
+    clusters.forEach(({ coords, listings: clusterListings }) => {
+      const parents = clusterListings.map(toParentListing);
+      const uniqueParents = [];
+      const seen = new Set();
+      parents.forEach((entry) => {
+        const id = getListingId(entry);
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        uniqueParents.push(entry);
+      });
+      const primary = uniqueParents[0] || clusterListings[0];
+      const title = resolveGroupTitle(primary);
+      const isCluster = clusterListings.length > 1;
       const backgroundMarker = new maps.Marker({
         map,
         position: coords,
@@ -1890,16 +2043,25 @@ export default function LosAngelesLandingPage() {
         icon: listingLogoIcon,
         zIndex: 11,
       });
-      marker.addListener("click", () => {
+      const clickTarget = marker || backgroundMarker;
+      clickTarget.addListener("click", () => {
+        const items = uniqueParents
+          .map((entry) => {
+            const entryTitle = resolveListingTitle(entry);
+            const entryAddress = formatAddress(entry);
+            return `<li><strong>${escapeHtml(entryTitle)}</strong><br />${escapeHtml(entryAddress)}</li>`;
+          })
+          .join("");
         const content = `
           <div>
-            <strong>${escapeHtml(title)}</strong><br />
-            ${escapeHtml(formatAddress(listing))}
+            <strong>${escapeHtml(title)}</strong>
+            <ul style="margin:8px 0 0 16px;padding:0;">${items}</ul>
           </div>`;
         infoWindow.setContent(content);
-        infoWindow.open(map, marker);
+        infoWindow.open(map, clickTarget);
       });
-      listingMarkersRef.current.push(backgroundMarker, marker);
+      listingMarkersRef.current.push(backgroundMarker);
+      if (marker) listingMarkersRef.current.push(marker);
       bounds.extend(coords);
       hasBounds = true;
     });
@@ -1918,7 +2080,7 @@ export default function LosAngelesLandingPage() {
     syncListingMarkers(losAngelesListings);
   }, [losAngelesListings]);
 
-  const groupedListings = useMemo(() => {
+  const groupedListingsAll = useMemo(() => {
     const groups = BUILDING_GROUPS.reduce((acc, group) => {
       acc[group.key] = { label: group.label, listings: [] };
       return acc;
@@ -1940,12 +2102,34 @@ export default function LosAngelesLandingPage() {
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesListings]);
 
+  const groupedListingsDisplay = useMemo(() => {
+    const groups = BUILDING_GROUPS.reduce((acc, group) => {
+      acc[group.key] = { label: group.label, listings: [] };
+      return acc;
+    }, {});
+    const other = [];
+    losAngelesParentListings.forEach((listing) => {
+      const key = getBuildingKey(listing);
+      if (groups[key]) groups[key].listings.push(listing);
+      else other.push(listing);
+    });
+    const ordered = BUILDING_GROUPS.map((group) => ({
+      key: group.key,
+      label: group.label,
+      listings: groups[group.key].listings,
+    }));
+    if (other.length) {
+      ordered.push({ key: "other", label: "Chinatown", listings: other });
+    }
+    return ordered.filter((group) => group.listings.length);
+  }, [losAngelesParentListings]);
+
   const sectionsByKey = useMemo(() => {
-    return groupedListings.reduce((acc, group) => {
+    return groupedListingsAll.reduce((acc, group) => {
       acc[group.key] = group;
       return acc;
     }, {});
-  }, [groupedListings]);
+  }, [groupedListingsAll]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
   const listingMinNightsFallback = useMemo(() => {
@@ -2256,7 +2440,7 @@ export default function LosAngelesLandingPage() {
   }, [activeSection]);
 
   useEffect(() => {
-    if (!groupedListings.length || !sectionCheckIn || !sectionCheckOut) {
+    if (!groupedListingsAll.length || !sectionCheckIn || !sectionCheckOut) {
       setBuildingPrices({});
       return;
     }
@@ -2309,7 +2493,7 @@ export default function LosAngelesLandingPage() {
         return { total: minTotal };
       };
 
-      const requests = groupedListings
+      const requests = groupedListingsAll
         .map((group) => {
           const listing =
             group.listings.find((entry) => !isChildListing(entry)) || group.listings[0];
@@ -2338,7 +2522,7 @@ export default function LosAngelesLandingPage() {
         if (!res.ok) return;
         const quoteJson = await res.json();
         const resultMap = quoteJson?.results || {};
-        groupedListings.forEach((group) => {
+        groupedListingsAll.forEach((group) => {
           const listing =
             group.listings.find((entry) => !isChildListing(entry)) || group.listings[0];
           const listingId = listing?.id || listing?._id;
@@ -2365,7 +2549,7 @@ export default function LosAngelesLandingPage() {
     return () => {
       active = false;
     };
-  }, [groupedListings, sectionCheckIn, sectionCheckOut]);
+  }, [groupedListingsAll, sectionCheckIn, sectionCheckOut]);
   useEffect(() => {
     if (!sectionQuotes) return;
     setSelectedRatePlans((prev) => {
@@ -2689,25 +2873,31 @@ export default function LosAngelesLandingPage() {
   };
 
   const stats = useMemo(() => {
-    const basePrices = losAngelesListings.map((l) => l.basePrice);
-    const cleaningFees = losAngelesListings.map((l) => l.cleaningFee);
-    const bedrooms = losAngelesListings.map((l) => l.bedrooms);
-    const bathrooms = losAngelesListings.map((l) => l.bathrooms);
-    const sleeps = losAngelesListings.map((l) => l.accommodates);
-    const currencies = new Set(losAngelesListings.map((l) => l.currency).filter(Boolean));
-    const propertyTypes = new Set(losAngelesListings.map((l) => l.propertyType).filter(Boolean));
+    const basePrices = losAngelesParentListings.map((l) => l.basePrice);
+    const cleaningFees = losAngelesParentListings.map((l) => l.cleaningFee);
+    const bedrooms = losAngelesParentListings.map((l) => l.bedrooms);
+    const bathrooms = losAngelesParentListings.map((l) => l.bathrooms);
+    const sleeps = losAngelesParentListings.map((l) => l.accommodates);
+    const currencies = new Set(losAngelesParentListings.map((l) => l.currency).filter(Boolean));
+    const propertyTypes = new Set(
+      losAngelesParentListings
+        .map((l) => l.propertyType)
+        .filter((value) => typeof value === "string" && value.trim())
+    );
+    const propertyTypeLabel =
+      propertyTypes.size === 1 ? [...propertyTypes][0] : propertyTypes.size ? "Multiple" : "--";
 
     return {
-      units: losAngelesListings.length,
+      units: losAngelesParentListings.length,
       nightly: rangeLabel(basePrices),
       cleaning: rangeLabel(cleaningFees),
       bedrooms: rangeLabel(bedrooms),
       bathrooms: rangeLabel(bathrooms),
       sleeps: rangeLabel(sleeps),
       currency: currencies.size === 1 ? [...currencies][0] : "Multiple",
-      propertyCount: propertyTypes.size || 0,
+      propertyTypeLabel,
     };
-  }, [losAngelesListings]);
+  }, [losAngelesParentListings]);
 
   const tourSlides = CITY_TOUR_SLIDES[tourCity] || [];
   const tourCount = tourSlides.length;
@@ -2748,10 +2938,271 @@ export default function LosAngelesLandingPage() {
     };
     document.addEventListener("keydown", handleKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKey);
+    document.body.style.overflow = previousOverflow;
+    document.removeEventListener("keydown", handleKey);
     };
   }, [showCityTour, tourIndex, tourCount]);
+
+  const listingDetail = activeListing ? (
+    <div className="la-unit-modal">
+      <div className="la-unit-modal__header">
+        <button
+          type="button"
+          className="la-unit-modal__back"
+          onClick={() => {
+            setActiveListing(null);
+            setActiveImageIndex(0);
+            if (isListingRoute) {
+              navigate("/los-angeles");
+            }
+          }}
+        >
+          Back to listings
+        </button>
+        <div className="la-unit-modal__contact" aria-label="Reservation contact">
+          <p>For Reservation Contact</p>
+          <strong>OneLuxStay Los Angeles</strong>
+          <a href="tel:+13105550101">+1 (310) 555-0101</a>
+          <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+          <a href="mailto:stay@oneluxstay.com" className="la-unit-modal__contact-cta">
+            Message concierge
+          </a>
+        </div>
+      </div>
+      <div className="la-unit-modal__intro">
+        <div>
+          <h3>{sanitizeText(activeListing.title)}</h3>
+          <div className="la-unit-modal__chips">
+            <span>Exceptional location</span>
+            <span>Fast arrival</span>
+          </div>
+          <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>
+          {(() => {
+            const { rating, count } = getReviewStats(activeListing.reviews);
+            if (!rating && !count) return null;
+            return (
+              <p className="la-unit-modal__rating">
+                Rating: {rating ? `${rating} / 5` : "--"}{count ? ` (${count} reviews)` : ""}
+              </p>
+            );
+          })()}
+        </div>
+      </div>
+      <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
+        <button type="button" className="is-active">Overview</button>
+        <button type="button">Facilities</button>
+        <button type="button">Rooms</button>
+        <button type="button">Guest reviews</button>
+        <button type="button">House rules</button>
+      </div>
+      {(() => {
+        const images = [
+          getImageUrl(activeListing.picture),
+          ...(Array.isArray(activeListing.pictures)
+            ? activeListing.pictures.map((pic) => getImageUrl(pic))
+            : []),
+        ].filter(Boolean);
+        const current = images[activeImageIndex] || images[0];
+        const coords = getListingCoords(activeListing);
+        const mapUrl = coords
+          ? `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=14&size=400x280&maptype=roadmap&markers=color:0x2f261e%7C${coords.lat},${coords.lng}&key=${mapsApiKey}`
+          : "";
+        const amenityListRaw = Array.isArray(activeListing.amenities)
+          ? activeListing.amenities
+          : Array.isArray(activeListing.tags)
+            ? activeListing.tags
+            : [];
+        const amenityList = amenityListRaw
+          .filter((item) => typeof item === "string")
+          .slice(0, 12);
+        const aboutText = formatFullDescription(activeListing);
+        const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
+        return (
+          <>
+            <div className="la-unit-modal__grid">
+              <div className="la-unit-modal__gallery">
+                <div className="la-unit-modal__main">
+                  {current ? (
+                    <img src={current} alt={sanitizeText(activeListing.title)} loading="lazy" />
+                  ) : (
+                    <div className="la-unit-modal__placeholder">Image loading</div>
+                  )}
+                </div>
+                <div className="la-unit-modal__side">
+                  {images.slice(1, 3).map((img, idx) => (
+                    <img key={`side-${idx}`} src={img} alt="" loading="lazy" />
+                  ))}
+                  {!images.length &&
+                    [0, 1].map((idx) => (
+                      <div key={`side-${idx}`} className="la-unit-modal__placeholder">
+                        Image loading
+                      </div>
+                    ))}
+                </div>
+                {images.length > 1 && (
+                  <div className="la-unit-modal__thumbs">
+                    {images.map((img, idx) => (
+                      <button
+                        key={`${img}-${idx}`}
+                        type="button"
+                        className={idx === activeImageIndex ? "is-active" : ""}
+                        onClick={() => setActiveImageIndex(idx)}
+                      >
+                        <img src={img} alt="" loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="la-unit-modal__sidebar">
+                <div className="la-unit-modal__card">
+                  <div className="la-unit-modal__card-head">
+                    <strong>{getReviewLabel(activeListing.reviews)}</strong>
+                    <span>{activeListing.reviews?.length || 0} reviews</span>
+                  </div>
+                  <div className="la-unit-modal__review">
+                    <p>{aboutText}</p>
+                    {aboutText.length > 140 && (
+                      <button type="button" onClick={() => setIsReviewExpanded((prev) => !prev)}>
+                        {isReviewExpanded ? "See less" : "See more"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="la-unit-modal__card la-unit-modal__map">
+                  {mapUrl ? (
+                    <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
+                  ) : (
+                    <div className="la-unit-modal__placeholder">Map loading</div>
+                  )}
+                </div>
+                <div className="la-unit-modal__card la-unit-modal__meta">
+                  <div>
+                    <span>Base price</span>
+                    <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
+                  </div>
+                  <div>
+                    <span>Cleaning fee</span>
+                    <strong>{formatCurrency(activeListing.cleaningFee, activeListing.currency || "USD")}</strong>
+                  </div>
+                  <div>
+                    <span>Guests</span>
+                    <strong>{activeListing.accommodates || "--"}</strong>
+                  </div>
+                  <div>
+                    <span>Bedrooms</span>
+                    <strong>{activeListing.bedrooms || "--"}</strong>
+                  </div>
+                  <div>
+                    <span>Bathrooms</span>
+                    <strong>{activeListing.bathrooms || "--"}</strong>
+                  </div>
+                </div>
+                <div className="la-unit-modal__actions">
+                  <button type="button">Reserve</button>
+                  <button type="button">Virtual tour</button>
+                </div>
+              </div>
+            </div>
+            <div className="la-unit-modal__booking" aria-label="Availability check">
+              <DateRangePicker
+                value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                dayPrices={sectionCalendarDayMap}
+                onChange={({ checkIn, checkOut }) => {
+                  setSectionCheckIn(checkIn);
+                  setSectionCheckOut(checkOut);
+                }}
+                onMonthChange={(nextMonth) => {
+                  setSectionCalendarMonthIndex(0);
+                  fetchSectionCalendarMultiMonth(nextMonth, activeListing);
+                }}
+                onOpenChange={(nextOpen) => {
+                  setIsListingCalendarOpen(nextOpen);
+                  if (nextOpen) {
+                    handleSectionCalendarOpen();
+                  }
+                }}
+                isLoading={sectionCalendarLoading}
+                fallbackPrice={activeListing.basePrice}
+                fallbackCurrency={activeListing.currency}
+                fallbackMinNights={listingMinNightsFallback}
+              />
+              <div>
+                <label htmlFor="la-section-guests">Guests</label>
+                <select
+                  id="la-section-guests"
+                  value={sectionGuests}
+                  onChange={(event) => setSectionGuests(event.target.value)}
+                >
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+              <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
+                {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+              </button>
+            </div>
+            {sectionAvailabilityError && (
+              <div role="alert" className="la-section-hero__notice">
+                {sectionAvailabilityError}
+              </div>
+            )}
+            <div className="la-unit-modal__section">
+              <h4>About this property</h4>
+              <p>
+                A calm base with quick access to the neighborhood's best corners. Expect bright spaces, effortless
+                arrivals, and a stay that keeps everything close - landmarks, transit, and the city's rhythm.
+              </p>
+            </div>
+          </>
+        );
+      })()}
+      <div className="la-unit-modal__section">
+        <h4>Facilities</h4>
+        <div className="la-unit-modal__facilities">
+          {activeListing?.amenities?.length ? (
+            <ul>
+              {activeListing.amenities.slice(0, 12).map((amenity) => (
+                <li key={amenity}>{amenity}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>Contact us for full amenities list.</p>
+          )}
+        </div>
+      </div>
+      <div className="la-unit-modal__section">
+        <h4>Rooms</h4>
+        <div className="la-unit-modal__rooms">
+          <div>
+            <strong>{sanitizeText(activeListing.title)}</strong>
+            <p>
+              Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
+              {activeListing.accommodates || "--"}
+            </p>
+          </div>
+          <div className="la-unit-modal__room-actions">
+            <button type="button">Virtual tour</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  if (isListingRoute) {
+    return (
+      <div className="antwerp-page">
+        {listingDetail ? (
+          <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
+        ) : (
+          <div className="la-listing-page__loading">Loading listing...</div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="antwerp-page">
@@ -2987,10 +3438,19 @@ export default function LosAngelesLandingPage() {
                     amenities metadata.
                   </p>
                 </div>
-                <div className="antwerp-chip-row">
-                  <span>{stats.propertyCount} property types</span>
-                  <span>{stats.units || "--"} listings</span>
-                  <span>Currency: {stats.currency}</span>
+                <div className="la-stats-row">
+                  <div className="la-stat-card">
+                    <span className="la-stat-label">Property types</span>
+                    <strong className="la-stat-value">{stats.propertyTypeLabel}</strong>
+                  </div>
+                  <div className="la-stat-card">
+                    <span className="la-stat-label">Listings</span>
+                    <strong className="la-stat-value">{stats.units || "--"}</strong>
+                  </div>
+                  <div className="la-stat-card">
+                    <span className="la-stat-label">Currency</span>
+                    <strong className="la-stat-value">{stats.currency}</strong>
+                  </div>
                 </div>
               </div>
 
@@ -3007,13 +3467,13 @@ export default function LosAngelesLandingPage() {
                 </div>
               )}
 
-              {!loading && !error && losAngelesListings.length === 0 && (
+              {!loading && !error && losAngelesParentListings.length === 0 && (
                 <div className="antwerp-empty">
                   No Los Angeles listings are available in the current response.
                 </div>
               )}
 
-              {groupedListings.map((group) => {
+              {groupedListingsDisplay.map((group) => {
                 const story = SECTION_STORIES[group.key] || SECTION_STORIES.other;
                 const storyImages = group.listings
                   .map((listing) => getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]))
@@ -3139,10 +3599,46 @@ export default function LosAngelesLandingPage() {
                       className="antwerp-card__ghost"
                       onClick={() => {
                         mapLoadedRef.current = false;
+                        setMapError("");
                         setIsMapEnabled(true);
                       }}
                     >
                       Enable map
+                    </button>
+                  </div>
+                ) : mapError ? (
+                  <div
+                    className="la-units-map"
+                    style={{
+                      width: "100%",
+                      borderRadius: "20px",
+                      border: "1px solid rgba(201, 181, 156, 0.6)",
+                      overflow: "hidden",
+                      background: "rgba(249, 248, 246, 0.8)",
+                      minHeight: "260px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "10px",
+                      textAlign: "center",
+                      padding: "24px",
+                    }}
+                  >
+                    <p className="antwerp-muted" style={{ margin: 0 }}>
+                      {mapError}
+                    </p>
+                    <button
+                      type="button"
+                      className="antwerp-card__ghost"
+                      onClick={() => {
+                        setMapError("");
+                        mapLoadedRef.current = false;
+                        setIsMapEnabled(false);
+                        setTimeout(() => setIsMapEnabled(true), 0);
+                      }}
+                    >
+                      Retry map
                     </button>
                   </div>
                 ) : (
@@ -3192,7 +3688,13 @@ export default function LosAngelesLandingPage() {
                   }
                 })()}</h3>
                 <p className="la-section-modal__subtitle">
-                  {activeSection.listings.length} units ready for your dates.
+                  {(() => {
+                    const parentGroups = groupListingsByParent(activeSection.listings);
+                    const parentCount = Object.values(parentGroups).filter(
+                      (group) => group.parent || group.children?.length
+                    ).length;
+                    return `${parentCount} units ready for your dates.`;
+                  })()}
                 </p>
               </div>
             </div>
@@ -3503,10 +4005,12 @@ export default function LosAngelesLandingPage() {
                   {(() => {
                     const listingsToRender = (() => {
                       if (!activeSection?.listings?.length) return [];
-                      if (sectionAvailabilityActive) return sectionAvailability;
-                      const parentGroups = groupListingsByParent(activeSection.listings);
+                      const sourceList = sectionAvailabilityActive
+                        ? sectionAvailability
+                        : activeSection.listings;
+                      const parentGroups = groupListingsByParent(sourceList);
                       return Object.values(parentGroups)
-                        .map((group) => group.parent)
+                        .map((group) => group.parent || group.children?.[0])
                         .filter(Boolean);
                     })();
                     if (sectionAvailabilityActive && !listingsToRender.length) {
@@ -3518,6 +4022,10 @@ export default function LosAngelesLandingPage() {
                     }
                     return listingsToRender.map((listing) => {
                       const listingId = listing.id || listing._id;
+                      const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
+                      const listingPath = listingPathId
+                        ? `/los-angeles/listing/${encodeURIComponent(listingPathId)}`
+                        : "/los-angeles";
                       const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
@@ -3576,7 +4084,9 @@ export default function LosAngelesLandingPage() {
                                 <p className="la-booking-table__eyebrow">
                                   {listing.propertyType || listing.roomType || "Residence"}
                                 </p>
-                                <h4>{sanitizeText(listing.title)}</h4>
+                                <Link className="la-booking-table__title-link" to={listingPath}>
+                                  {sanitizeText(listing.title)}
+                                </Link>
                                 <p className="la-booking-table__room-meta">
                                   <span className="la-booking-table__meta-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -3912,8 +4422,12 @@ export default function LosAngelesLandingPage() {
         </div>
       )}
 
-      {activeListing && (
-        <div className="antwerp-modal__overlay" role="dialog" aria-modal="true">
+      {activeListing && !isListingRoute && (
+        <div
+          className={`antwerp-modal__overlay${isListingRoute ? " is-page" : ""}`}
+          role={isListingRoute ? undefined : "dialog"}
+          aria-modal={isListingRoute ? undefined : "true"}
+        >
           <div className="la-unit-modal">
             <div className="la-unit-modal__header">
               <button
@@ -3922,6 +4436,9 @@ export default function LosAngelesLandingPage() {
                 onClick={() => {
                   setActiveListing(null);
                   setActiveImageIndex(0);
+                  if (isListingRoute) {
+                    navigate("/los-angeles");
+                  }
                 }}
               >
                 Back to listings

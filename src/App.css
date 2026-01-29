@@ -2692,6 +2692,11 @@ html {
   font-size: clamp(1.4rem, 2.2vw, 2rem);
 }
 
+.la-units-map {
+  pointer-events: auto;
+  touch-action: pan-x pan-y;
+}
+
 @media (min-width: 1024px) {
   .la-units-aside {
     height: calc(100vh - 140px);
@@ -2755,18 +2760,36 @@ html {
   line-height: 1.6;
 }
 
-.antwerp-chip-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.la-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 520px;
 }
 
-.antwerp-chip-row span {
-  border-radius: 999px;
+.la-stat-card {
+  border-radius: 14px;
   border: 1px solid rgba(201, 181, 156, 0.5);
-  padding: 8px 14px;
-  font-size: 0.8rem;
-  background: rgba(255, 255, 255, 0.6);
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 24px rgba(166, 141, 109, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.la-stat-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(110, 95, 79, 0.8);
+}
+
+.la-stat-value {
+  font-size: 1.05rem;
+  color: #2f261e;
+  font-weight: 600;
 }
 
 .antwerp-loading {
@@ -3095,6 +3118,20 @@ html {
   justify-content: center;
   padding: 24px;
   z-index: 50;
+}
+
+.antwerp-modal__overlay.is-page {
+  position: static;
+  inset: auto;
+  background: transparent;
+  display: block;
+  padding: 32px 24px 60px;
+  z-index: auto;
+}
+
+.antwerp-modal__overlay.is-page .la-unit-modal {
+  max-height: none;
+  overflow: visible;
 }
 
 .la-unit-modal {
@@ -4293,6 +4330,27 @@ html {
   font-size: 1rem;
   margin: 0 0 6px;
   color: #2f261e;
+}
+
+.la-booking-table__title-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2f261e;
+  cursor: pointer;
+  text-align: left;
+  margin: 0 0 6px;
+}
+
+.la-booking-table__title-link:hover,
+.la-booking-table__title-link:focus-visible {
+  color: #6f5a4a;
+  text-decoration: underline;
 }
 
 .la-booking-table__address {

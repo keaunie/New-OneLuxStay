@@ -17,6 +17,8 @@ function App() {
         <Route path="/antwerp" element={<AntwerpLandingPage />} />
         <Route path="/los-angeles" element={<LosAngelesLandingPage />} />
         <Route path="/losangeles" element={<LosAngelesLandingPage />} />
+        <Route path="/los-angeles/listing/:listingId" element={<LosAngelesLandingPage />} />
+        <Route path="/losangeles/listing/:listingId" element={<LosAngelesLandingPage />} />
         <Route path="/stay" element={<ListingPage />} />
         <Route path="/listings" element={<ListingPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
