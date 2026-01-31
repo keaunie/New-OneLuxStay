@@ -640,7 +640,7 @@ function LandingPage() {
         <section className="landing-fullbleed landing-stack landing-animate">
           {stays.map((stay, idx) => (
             <div
-              key={`${stay.label}-full`}
+              key={`${stay.label}-full-${idx}`}
               className="landing-city-card"
               style={{
                 backgroundImage: `url(${stay.image})`,

@@ -962,7 +962,7 @@ function ListingPage() {
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {filteredListings.map((listing) => {
+          {filteredListings.map((listing, index) => {
             const status = availability[listing.id] || {};
             const displayTotal = status.hostPayout ?? status.total;
             const displayNightly = status.nightly ?? listing.basePrice;
@@ -979,7 +979,7 @@ function ListingPage() {
                     <img
                       src={listing.picture}
                       alt={listing.title}
-                      loading="lazy"
+                      loading={index < 2 ? "eager" : "lazy"}
                       className="h-48 w-full object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
@@ -1109,7 +1109,7 @@ function ListingPage() {
                       src={modalHero || modalListing.picture}
                       alt={modalListing.title}
                       className="h-56 w-full min-w-0 object-cover sm:h-80"
-                      loading="lazy"
+                      loading="eager"
                     />
                   </div>
                   {Array.isArray(modalListing.pictures) && modalListing.pictures.length > 0 && (
