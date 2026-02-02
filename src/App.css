@@ -3457,40 +3457,42 @@ html {
 
 .la-listing-hero {
   display: grid;
-  gap: 24px;
-  padding: 10px 6px 18px;
+  gap: 16px;
+  padding: 8px 6px 12px;
   border-bottom: 1px solid rgba(201, 181, 156, 0.5);
 }
 
 .la-listing-hero__top {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 18px;
-  align-items: center;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: start;
 }
 
 .la-listing-hero__trust {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: rgba(90, 74, 60, 0.75);
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .la-listing-hero__trust span {
   background: rgba(255, 255, 255, 0.7);
-  padding: 6px 10px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid rgba(201, 181, 156, 0.4);
 }
 
 .la-listing-hero__intro {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(220px, 280px);
-  gap: 20px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+  gap: 14px;
+  align-items: start;
 }
 
 .la-listing-hero__kicker {
@@ -3503,12 +3505,38 @@ html {
 
 .la-listing-hero__cta {
   background: rgba(255, 255, 255, 0.75);
-  padding: 16px;
-  border-radius: 18px;
+  padding: 12px 14px;
+  border-radius: 16px;
   border: 1px solid rgba(201, 181, 156, 0.6);
   display: grid;
-  gap: 12px;
+  gap: 8px;
   text-align: left;
+}
+
+.la-unit-modal__price {
+  display: grid;
+  gap: 8px;
+}
+
+.la-unit-modal__price span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: rgba(90, 74, 60, 0.7);
+}
+
+.la-unit-modal__price strong {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.la-unit-modal__price small {
+  font-size: 0.8rem;
+  color: rgba(90, 74, 60, 0.7);
+}
+
+.la-unit-modal__price .la-listing-hero__reserve {
+  margin-top: 6px;
 }
 
 .la-listing-hero__cta span {
@@ -3519,7 +3547,7 @@ html {
 }
 
 .la-listing-hero__cta strong {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 600;
   display: block;
 }
@@ -3532,7 +3560,7 @@ html {
 .la-listing-hero__reserve {
   border: none;
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   background: #2d3a2d;
   color: #f6f1ea;
   font-weight: 600;
@@ -3546,22 +3574,31 @@ html {
 }
 
 .la-unit-modal__tabs {
-  margin-top: 16px;
+  display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  margin: 16px 0 22px;
+  border-bottom: 1px solid rgba(121, 108, 93, 0.35);
+  padding-bottom: 12px;
 }
 
 .la-unit-modal__tabs button {
   border-radius: 999px;
-  border: 1px solid rgba(201, 181, 156, 0.5);
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(121, 108, 93, 0.45);
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2f261e;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .la-unit-modal__tabs button.is-active {
-  background: #2d3a2d;
-  color: #f6f1ea;
-  border-color: transparent;
+  background: #0f1a12;
+  color: #ffffff;
+  border-color: #0f1a12;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 18px rgba(15, 26, 18, 0.35);
 }
 
 @media (max-width: 900px) {
@@ -3589,6 +3626,40 @@ html {
   padding: 10px 18px;
   font-weight: 600;
   color: #4a3f35;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.la-unit-modal__back:hover {
+  color: #2f261e;
+  border-color: rgba(121, 108, 93, 0.8);
+  background: rgba(255, 255, 255, 0.7);
+  text-decoration: underline;
+}
+
+.la-unit-modal__back span:first-child {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.la-listing-page .la-unit-modal__back {
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(121, 108, 93, 0.55);
+  background: rgba(255, 255, 255, 0.7);
+  justify-content: center;
+  align-self: start;
+  box-shadow: 0 10px 24px rgba(59, 49, 39, 0.15);
+}
+
+.la-listing-page .la-unit-modal__back:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(121, 108, 93, 0.8);
+  text-decoration: none;
 }
 
 .la-unit-modal__contact {
@@ -3600,6 +3671,43 @@ html {
   border: 1px solid rgba(201, 181, 156, 0.6);
   min-width: 240px;
   text-align: center;
+}
+
+.la-listing-page .la-unit-modal__contact {
+  padding: 12px 14px;
+  gap: 6px;
+  min-width: 0;
+  text-align: left;
+}
+
+.la-listing-page .la-unit-modal__contact strong {
+  font-size: 1rem;
+}
+
+.la-listing-page .la-unit-modal__contact a {
+  font-size: 0.9rem;
+}
+
+.la-listing-page .la-unit-modal__contact-cta {
+  margin-top: 4px;
+  padding: 6px 12px;
+  width: fit-content;
+}
+
+.la-listing-page .la-unit-modal__booking {
+  position: relative;
+  overflow: visible;
+}
+
+.la-listing-page .listing-date-dropdown {
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  width: min(920px, 98vw);
+  margin-left: auto;
+  margin-right: auto;
+  transform: none;
+  z-index: 60;
 }
 
 .la-unit-modal__contact strong {
@@ -3725,17 +3833,17 @@ html {
 
 .la-unit-modal__chips {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .la-unit-modal__chips span {
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid rgba(121, 108, 93, 0.5);
   background: rgba(255, 255, 255, 0.45);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
 .la-unit-modal__address {
@@ -3750,24 +3858,30 @@ html {
 
 .la-unit-modal__tabs {
   display: flex;
-  gap: 18px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin: 18px 0 22px;
+  margin: 16px 0 22px;
   border-bottom: 1px solid rgba(121, 108, 93, 0.35);
   padding-bottom: 12px;
 }
 
 .la-unit-modal__tabs button {
-  background: transparent;
-  border: none;
-  font-weight: 600;
-  color: #4a3f35;
-  padding: 6px 4px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(121, 108, 93, 0.45);
+  font-weight: 700;
+  color: #2f261e;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .la-unit-modal__tabs button.is-active {
-  color: #1f1a14;
-  border-bottom: 2px solid #1f1a14;
+  background: #0f1a12;
+  color: #ffffff;
+  border-color: #0f1a12;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 18px rgba(15, 26, 18, 0.35);
 }
 
 .la-unit-modal__grid {
@@ -4088,6 +4202,20 @@ html {
   font-size: 0.85rem;
 }
 
+.la-unit-modal .listing-date-cell {
+  min-height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 181, 156, 0.5);
+  background: rgba(255, 255, 255, 0.9);
+  color: #3b3127;
+  font-size: 0.85rem;
+}
+
 .listing-date-dropdown.has-prices .listing-date-cell {
   min-height: 58px;
   padding: 6px 4px;
@@ -4218,6 +4346,23 @@ html {
   border-color: rgba(201, 181, 156, 0.3);
 }
 
+.la-unit-modal .listing-date-cell.is-between {
+  background: rgba(201, 181, 156, 0.2);
+}
+
+.la-unit-modal .listing-date-cell.is-selected {
+  background: #c9b59c;
+  border-color: #b59c84;
+  color: #2a221c;
+  font-weight: 600;
+}
+
+.la-unit-modal .listing-date-cell.is-disabled {
+  background: rgba(255, 255, 255, 0.5);
+  color: rgba(107, 95, 85, 0.7);
+  border-color: rgba(201, 181, 156, 0.3);
+}
+
 .la-date-footer {
   display: flex;
   justify-content: space-between;
@@ -4265,6 +4410,21 @@ html {
   background: #3b3127;
   color: #f8f1e7;
   font-weight: 600;
+}
+
+.la-listing-page .la-unit-modal__booking {
+  align-items: end;
+}
+
+.la-listing-page .la-unit-modal__booking-cta {
+  min-height: 44px;
+  box-shadow: 0 16px 30px rgba(59, 49, 39, 0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.la-listing-page .la-unit-modal__booking-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 34px rgba(59, 49, 39, 0.26);
 }
 
 .la-unit-modal__section {
@@ -6281,3 +6441,11 @@ html {
   }
 }
 
+.la-listing-page .la-date-picker .listing-date-dropdown {
+  left: 0;
+  right: 0;
+  width: min(980px, 96vw);
+  margin-left: auto;
+  margin-right: auto;
+  transform: none;
+}

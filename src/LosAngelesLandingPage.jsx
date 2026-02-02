@@ -22,7 +22,17 @@ const LANDMARKS = [
   "The Grove",
   "LAX"
 ];
+const FALLBACK_IMAGE =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
 let mapsScriptPromise;
+
+const handleImageError = (event) => {
+  const img = event.currentTarget;
+  if (img.dataset.fallbackApplied) return;
+  img.dataset.fallbackApplied = "true";
+  img.src = FALLBACK_IMAGE;
+  if (!img.alt) img.alt = "Image unavailable";
+};
 
 const loadGoogleMaps = (apiKey) => {
   if (!apiKey) return Promise.reject(new Error("Missing Google Maps API key"));
@@ -491,8 +501,9 @@ const DateRangePicker = ({
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
     if (nextStart && nextEnd) {
-      const minNights =
-        dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null;
+      const minNights = toNumber(
+        dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
+      );
       const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
       const violatesMin =
         typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
@@ -505,7 +516,7 @@ const DateRangePicker = ({
     if (!dayPrices || !startDate) return fallbackMinNights ?? null;
     const iso = toISODate(startDate);
     const info = dayPrices.get(iso);
-    const minNights = info?.restrictions?.minNights ?? fallbackMinNights ?? null;
+    const minNights = toNumber(info?.restrictions?.minNights ?? fallbackMinNights ?? null);
     return typeof minNights === "number" && minNights > 1 ? minNights : null;
   }, [dayPrices, startDate, fallbackMinNights]);
 
@@ -629,8 +640,9 @@ const DateRangePicker = ({
                             : ""
                         : "";
                       const isFallbackPrice = !priceInfo && typeof fallbackPrice === "number";
-                      const minNights =
-                        priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null;
+                      const minNights = toNumber(
+                        priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null
+                      );
                       const showMinNights = typeof minNights === "number" && minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
@@ -926,10 +938,39 @@ const formatDescription = (value) => {
   return "";
 };
 
+const extractImageUrl = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object") {
+    return (
+      value.url ||
+      value.src ||
+      value.href ||
+      value.secure_url ||
+      value.secureUrl ||
+      ""
+    );
+  }
+  return "";
+};
+
 const getImageUrl = (image) => {
-  if (!image) return "";
-  if (typeof image === "string") return image;
-  return image.original || image.large || image.regular || image.thumbnail || "";
+  if (!image) return FALLBACK_IMAGE;
+  const direct = extractImageUrl(image);
+  if (direct) return direct;
+  const variants = [
+    image.original,
+    image.large,
+    image.regular,
+    image.thumbnail,
+    image.medium,
+    image.preview,
+  ];
+  for (const variant of variants) {
+    const url = extractImageUrl(variant);
+    if (url) return url;
+  }
+  return FALLBACK_IMAGE;
 };
 
 const getReviewLabel = (reviews) => {
@@ -1504,6 +1545,7 @@ export default function LosAngelesLandingPage() {
   const reviewCarouselRef = useRef(null);
   const [sectionQuotes, setSectionQuotes] = useState({});
   const [selectedRatePlans, setSelectedRatePlans] = useState({});
+  const [listingTab, setListingTab] = useState("overview");
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const [buildingPrices, setBuildingPrices] = useState({});
   const [calendarPrices, setCalendarPrices] = useState(null);
@@ -2143,6 +2185,13 @@ export default function LosAngelesLandingPage() {
   }, [groupedListingsAll]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
+  const handleListingTabClick = (next) => {
+    setListingTab(next);
+    const el = document.getElementById(`la-${next}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   const listingMinNightsFallback = useMemo(() => {
     if (typeof calendarMinNightsOverride === "number") return calendarMinNightsOverride;
     return getListingMinNightsWithParent(activeListing, losAngelesListings);
@@ -2434,6 +2483,28 @@ export default function LosAngelesLandingPage() {
       .filter(Boolean);
     if (!listingIds.length) return;
     fetchSectionCalendarMultiMonth(listingIds, baseDate);
+  };
+
+  const handleListingCalendarOpen = (open) => {
+    setIsListingCalendarOpen(open);
+    if (!open || !activeListing) return;
+    const baseDate = parseDateValue(sectionCheckIn) || new Date();
+    baseDate.setDate(1);
+    baseDate.setHours(0, 0, 0, 0);
+    setCalendarStartDate(baseDate);
+    setCalendarMonthIndex(0);
+    const listingId = getCalendarListingId(activeListing, losAngelesListings);
+    if (!listingId) return;
+    fetchCalendarMonth(
+      listingId,
+      baseDate,
+      calendarCacheRef,
+      calendarDaysRef,
+      calendarInflightRef,
+      setCalendarLoading,
+      setCalendarError,
+      setCalendarPrices
+    );
   };
 
   useEffect(() => {
@@ -3092,6 +3163,11 @@ export default function LosAngelesLandingPage() {
       });
   }, [isSectionMapOpen, sectionMapTarget, mapsApiKey]);
 
+  const activeListingId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
+  const isListingAvailable = activeListingId
+    ? sectionAvailabilityMap[activeListingId] === true
+    : false;
+
   const listingDetail = activeListing ? (
     <div className="la-unit-modal la-listing-page">
       <section className="la-listing-hero">
@@ -3099,6 +3175,7 @@ export default function LosAngelesLandingPage() {
           <button
             type="button"
             className="la-unit-modal__back"
+            aria-label="Back to listings"
             onClick={() => {
               setActiveListing(null);
               setActiveImageIndex(0);
@@ -3107,22 +3184,8 @@ export default function LosAngelesLandingPage() {
               }
             }}
           >
-            Back to listings
+            <span aria-hidden="true">‹</span>
           </button>
-          <div className="la-listing-hero__trust">
-            <span>Instant confirmation</span>
-            <span>Premium concierge</span>
-            <span>Flexible arrival</span>
-          </div>
-          <div className="la-unit-modal__contact" aria-label="Reservation contact">
-            <p>For Reservation Contact</p>
-            <strong>OneLuxStay Los Angeles</strong>
-            <a href="tel:+13105550101">+1 (310) 555-0101</a>
-            <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-            <a href="mailto:stay@oneluxstay.com" className="la-unit-modal__contact-cta">
-              Message concierge
-            </a>
-          </div>
         </div>
         <div className="la-listing-hero__intro">
           <div>
@@ -3144,26 +3207,44 @@ export default function LosAngelesLandingPage() {
               );
             })()}
           </div>
-          <div className="la-listing-hero__cta">
-            <div>
-              <span>From</span>
-              <strong>
-                {formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}
-              </strong>
-              <small>per night · taxes calculated at checkout</small>
-            </div>
-            <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
-              Reserve your dates
-            </button>
-          </div>
         </div>
       </section>
       <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
-        <button type="button" className="is-active">Overview</button>
-        <button type="button">Facilities</button>
-        <button type="button">Rooms</button>
-        <button type="button">Guest reviews</button>
-        <button type="button">House rules</button>
+        <button
+          type="button"
+          className={listingTab === "overview" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("overview")}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          className={listingTab === "facilities" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("facilities")}
+        >
+          Facilities
+        </button>
+        <button
+          type="button"
+          className={listingTab === "rooms" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("rooms")}
+        >
+          Rooms
+        </button>
+        <button
+          type="button"
+          className={listingTab === "guest-reviews" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("guest-reviews")}
+        >
+          Guest reviews
+        </button>
+        <button
+          type="button"
+          className={listingTab === "house-rules" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("house-rules")}
+        >
+          House rules
+        </button>
       </div>
       {(() => {
         const images = [
@@ -3172,7 +3253,8 @@ export default function LosAngelesLandingPage() {
             ? activeListing.pictures.map((pic) => getImageUrl(pic))
             : []),
         ].filter(Boolean);
-        const current = images[activeImageIndex] || images[0];
+        const mainImage = images[1] || images[0];
+        const sideImages = [images[0], images[2]].filter(Boolean);
         const coords = getListingCoords(activeListing);
         const mapUrl = coords
           ? `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=14&size=400x280&maptype=roadmap&markers=color:0x2f261e%7C${coords.lat},${coords.lng}&key=${mapsApiKey}`
@@ -3213,25 +3295,38 @@ export default function LosAngelesLandingPage() {
           null;
         return (
           <>
-            <div className="la-unit-modal__grid">
+            <div className="la-unit-modal__grid" id="la-overview">
               <div className="la-unit-modal__gallery">
                 <div className="la-unit-modal__main">
-                  {current ? (
-                    <img src={current} alt={sanitizeText(activeListing.title)} loading="eager" />
+                  {mainImage ? (
+                    <img
+                      src={mainImage}
+                      alt={sanitizeText(activeListing.title)}
+                      loading="eager"
+                      onError={handleImageError}
+                    />
                   ) : (
                     <div className="la-unit-modal__placeholder">Image loading</div>
                   )}
                 </div>
                 <div className="la-unit-modal__side">
-                  {images.slice(1, 3).map((img, idx) => (
-                    <img key={`side-${idx}`} src={img} alt="" loading={idx === 0 ? "eager" : "lazy"} />
-                  ))}
-                  {!images.length &&
+                  {sideImages.length ? (
+                    sideImages.map((img, idx) => (
+                      <img
+                        key={`side-${idx}`}
+                        src={img}
+                        alt=""
+                        loading={idx === 0 ? "eager" : "lazy"}
+                        onError={handleImageError}
+                      />
+                    ))
+                  ) : (
                     [0, 1].map((idx) => (
                       <div key={`side-${idx}`} className="la-unit-modal__placeholder">
                         Image loading
                       </div>
-                    ))}
+                    ))
+                  )}
                 </div>
                 {images.length > 1 && (
                   <div className="la-unit-modal__thumbs">
@@ -3242,17 +3337,41 @@ export default function LosAngelesLandingPage() {
                         className={idx === activeImageIndex ? "is-active" : ""}
                         onClick={() => setActiveImageIndex(idx)}
                       >
-                        <img src={img} alt="" loading={idx === 0 ? "eager" : "lazy"} />
+                        <img
+                          src={img}
+                          alt=""
+                          loading={idx === 0 ? "eager" : "lazy"}
+                          onError={handleImageError}
+                        />
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-              <div className="la-unit-modal__sidebar">
-                <div className="la-unit-modal__card">
-                  <div className="la-unit-modal__card-head">
-                    <strong>{getReviewLabel(activeListing.reviews)}</strong>
-                    <span>{activeListing.reviews?.length || 0} reviews</span>
+            <div className="la-unit-modal__sidebar">
+              <div className="la-unit-modal__contact" aria-label="Reservation contact">
+                <p>For Reservation Contact</p>
+                <strong>OneLuxStay Los Angeles</strong>
+                <a href="tel:+13105550101">+1 (310) 555-0101</a>
+                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
+                  Message concierge
+                </a>
+              </div>
+              <div className="la-unit-modal__card la-unit-modal__price">
+                <span>From</span>
+                <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
+                <small>per night · taxes calculated at checkout</small>
+                {isListingAvailable ? (
+                  <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
+                    Reserve your dates
+                  </button>
+                ) : null}
+              </div>
+              <div className="la-unit-modal__card" id="la-guest-reviews">
+                <div className="la-unit-modal__card-head">
+                  <strong>{getReviewLabel(activeListing.reviews)}</strong>
+                  <span>{activeListing.reviews?.length || 0} reviews</span>
                   </div>
                   <div className="la-unit-modal__review">
                     <p>{aboutText}</p>
@@ -3277,28 +3396,6 @@ export default function LosAngelesLandingPage() {
                   ) : (
                     <div className="la-unit-modal__placeholder">Map loading</div>
                   )}
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__meta">
-                  <div>
-                    <span>Base price</span>
-                    <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                  </div>
-                  <div>
-                    <span>Cleaning fee</span>
-                    <strong>{formatCurrency(activeListing.cleaningFee, activeListing.currency || "USD")}</strong>
-                  </div>
-                  <div>
-                    <span>Guests</span>
-                    <strong>{activeListing.accommodates || "--"}</strong>
-                  </div>
-                  <div>
-                    <span>Bedrooms</span>
-                    <strong>{activeListing.bedrooms || "--"}</strong>
-                  </div>
-                  <div>
-                    <span>Bathrooms</span>
-                    <strong>{activeListing.bathrooms || "--"}</strong>
-                  </div>
                 </div>
                 <div className="la-unit-modal__card la-unit-modal__availability">
                   <div className="la-unit-modal__card-head">
@@ -3362,25 +3459,33 @@ export default function LosAngelesLandingPage() {
                 </div>
               </div>
             </div>
-            <div className="la-unit-modal__booking" aria-label="Availability check">
+            <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                dayPrices={sectionCalendarDayMap}
+                dayPrices={calendarDayMap}
                 onChange={({ checkIn, checkOut }) => {
                   setSectionCheckIn(checkIn);
                   setSectionCheckOut(checkOut);
                 }}
                 onMonthChange={(nextMonth) => {
-                  setSectionCalendarMonthIndex(0);
-                  fetchSectionCalendarMultiMonth(nextMonth, activeListing);
+                  const listingId = getCalendarListingId(activeListing, losAngelesListings);
+                  if (!listingId) return;
+                  const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                  setCalendarStartDate(monthStart);
+                  setCalendarMonthIndex(0);
+                  fetchCalendarMonth(
+                    listingId,
+                    monthStart,
+                    calendarCacheRef,
+                    calendarDaysRef,
+                    calendarInflightRef,
+                    setCalendarLoading,
+                    setCalendarError,
+                    setCalendarPrices
+                  );
                 }}
-                onOpenChange={(nextOpen) => {
-                  setIsListingCalendarOpen(nextOpen);
-                  if (nextOpen) {
-                    handleSectionCalendarOpen();
-                  }
-                }}
-                isLoading={sectionCalendarLoading}
+                onOpenChange={handleListingCalendarOpen}
+                isLoading={calendarLoading}
                 fallbackPrice={activeListing.basePrice}
                 fallbackCurrency={activeListing.currency}
                 fallbackMinNights={listingMinNightsFallback}
@@ -3418,7 +3523,7 @@ export default function LosAngelesLandingPage() {
           </>
         );
       })()}
-      <div className="la-unit-modal__section">
+      <div className="la-unit-modal__section" id="la-facilities">
         <h4>Facilities</h4>
         <div className="la-unit-modal__facilities">
           {activeListing?.amenities?.length ? (
@@ -3431,6 +3536,12 @@ export default function LosAngelesLandingPage() {
             <p>Contact us for full amenities list.</p>
           )}
         </div>
+      </div>
+      <div className="la-unit-modal__section" id="la-house-rules">
+        <h4>House rules</h4>
+        <p>
+          House rules are shared at booking and upon request. Contact the concierge for specific policies.
+        </p>
       </div>
     </div>
   ) : null;
@@ -4778,8 +4889,8 @@ export default function LosAngelesLandingPage() {
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Los Angeles</strong>
                 <a href="tel:+13105550101">+1 (310) 555-0101</a>
-                <a href="mailto:stay@oneluxstay.com">stay@oneluxstay.com</a>
-                <a href="mailto:stay@oneluxstay.com" className="la-unit-modal__contact-cta">
+                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
                 </a>
               </div>
@@ -4804,11 +4915,41 @@ export default function LosAngelesLandingPage() {
               </div>
             </div>
             <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
-              <button type="button" className="is-active">Overview</button>
-              <button type="button">Facilities</button>
-              <button type="button">Rooms</button>
-              <button type="button">Guest reviews</button>
-              <button type="button">House rules</button>
+              <button
+                type="button"
+                className={listingTab === "overview" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("overview")}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                className={listingTab === "facilities" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("facilities")}
+              >
+                Facilities
+              </button>
+              <button
+                type="button"
+                className={listingTab === "rooms" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("rooms")}
+              >
+                Rooms
+              </button>
+              <button
+                type="button"
+                className={listingTab === "guest-reviews" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("guest-reviews")}
+              >
+                Guest reviews
+              </button>
+              <button
+                type="button"
+                className={listingTab === "house-rules" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("house-rules")}
+              >
+                House rules
+              </button>
             </div>
             {(() => {
               const images = [
@@ -4868,19 +5009,24 @@ export default function LosAngelesLandingPage() {
                   <div className="la-unit-modal__gallery">
                     <div className="la-unit-modal__main">
                       {current ? (
-                        <img src={current} alt={sanitizeText(activeListing.title)} loading="eager" />
+                        <img
+                          src={current}
+                          alt={sanitizeText(activeListing.title)}
+                          loading="eager"
+                          onError={handleImageError}
+                        />
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
                       )}
                     </div>
                     <div className="la-unit-modal__side">
                       {sideOne ? (
-                        <img src={sideOne} alt="" loading="lazy" />
+                        <img src={sideOne} alt="" loading="lazy" onError={handleImageError} />
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
                       )}
                       {sideTwo ? (
-                        <img src={sideTwo} alt="" loading="lazy" />
+                        <img src={sideTwo} alt="" loading="lazy" onError={handleImageError} />
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
                       )}
@@ -4901,7 +5047,12 @@ export default function LosAngelesLandingPage() {
                             onClick={() => setActiveImageIndex(idx)}
                             aria-label={`View image ${idx + 1}`}
                           >
-                            <img src={src} alt="" loading={idx === 0 ? "eager" : "lazy"} />
+                            <img
+                              src={src}
+                              alt=""
+                              loading={idx === 0 ? "eager" : "lazy"}
+                              onError={handleImageError}
+                            />
                           </button>
                         ))}
                       </div>
@@ -4918,32 +5069,15 @@ export default function LosAngelesLandingPage() {
                     </div>
                     <div className="la-unit-modal__card la-unit-modal__map">
                       {mapUrl ? (
-                        <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
+                        <img
+                          src={mapUrl}
+                          alt="Map showing the unit location"
+                          loading="lazy"
+                          onError={handleImageError}
+                        />
                       ) : (
                         <div className="la-unit-modal__placeholder">Map loading</div>
                       )}
-                    </div>
-                    <div className="la-unit-modal__card la-unit-modal__meta">
-                      <div>
-                        <span>Base price</span>
-                        <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                      </div>
-                      <div>
-                        <span>Cleaning fee</span>
-                        <strong>{formatCurrency(activeListing.cleaningFee, activeListing.currency || "USD")}</strong>
-                      </div>
-                      <div>
-                        <span>Sleeps</span>
-                        <strong>{activeListing.accommodates || "--"}</strong>
-                      </div>
-                      <div>
-                        <span>Bedrooms</span>
-                        <strong>{activeListing.bedrooms || "--"}</strong>
-                      </div>
-                      <div>
-                        <span>Bathrooms</span>
-                        <strong>{activeListing.bathrooms || "--"}</strong>
-                      </div>
                     </div>
                     <div className="la-unit-modal__card la-unit-modal__availability">
                       <div className="la-unit-modal__card-head">
@@ -5325,6 +5459,3 @@ export default function LosAngelesLandingPage() {
     </div>
   );
 }
-
-
-
