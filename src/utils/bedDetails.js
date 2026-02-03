@@ -31,6 +31,19 @@ const BED_PATTERNS = [
   { label: "Crib", match: /\bcrib\b/i },
 ];
 
+const BEDROOM_WORDS = new Map([
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+]);
+
 const formatBedLabel = (value) => {
   if (!value) return "";
   const key = String(value).toUpperCase().replace(/\s+/g, "_");
@@ -103,23 +116,157 @@ const extractTextSources = (listing) => {
   return sources;
 };
 
+const parseBedroomNumber = (text) => {
+  if (!text) return null;
+  const numberMatch = text.match(/\bbedroom\s*(\d+)\b/i);
+  if (numberMatch) return Number(numberMatch[1]);
+  const wordMatch = text.match(/\bbedroom\s*(one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
+  if (wordMatch) return BEDROOM_WORDS.get(wordMatch[1].toLowerCase()) || null;
+  return null;
+};
+
+const findBedTypeInText = (text) => {
+  if (!text) return null;
+  if (KING_OR_QUEEN_REGEX.test(text)) return KING_OR_QUEEN_LABEL;
+  for (const { label, match } of BED_PATTERNS) {
+    if (match.test(text)) return label;
+  }
+  return null;
+};
+
+const findBedCountInText = (text) => {
+  if (!text) return 1;
+  const countMatch = text.match(/(\d+)\s*(?:x\s*)?(?:king|queen|double|full|twin|single|sofa|futon|bunk|daybed|murphy|air mattress|crib)\b/i);
+  if (countMatch) {
+    const count = Number(countMatch[1]);
+    if (Number.isFinite(count) && count > 0) return count;
+  }
+  const leadingMatch = text.match(/^\s*-\s*(\d+)\b/);
+  if (leadingMatch) {
+    const count = Number(leadingMatch[1]);
+    if (Number.isFinite(count) && count > 0) return count;
+  }
+  return 1;
+};
+
+const extractBedroomBedDetails = (sources) => {
+  if (!sources.length) return [];
+  const details = [];
+  const seen = new Set();
+  sources
+    .flatMap((text) => text.split(/\r?\n/))
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const bedroom = parseBedroomNumber(line);
+      if (!bedroom) return;
+      const bedType = findBedTypeInText(line);
+      if (!bedType) return;
+      const count = findBedCountInText(line);
+      const label = `Bedroom ${bedroom}: ${bedType}${count > 1 ? ` x${count}` : ""}`;
+      if (seen.has(label)) return;
+      seen.add(label);
+      details.push(label);
+    });
+  return details;
+};
+
 const addBedsFromText = (map, sources) => {
   if (!sources.length) return;
   const combined = sources.join(" ");
+  const kingOrQueenMatch = combined.match(
+    /(\d+)\s*(?:x\s*)?(?:king|queen)\s*(?:\(|\s*)?(?:or|\/)(?:\)|\s*)\s*(?:queen|king)\b/i
+  );
+  const hasKingOrQueen = Boolean(kingOrQueenMatch || KING_OR_QUEEN_REGEX.test(combined));
+  const combinedWithoutOr = hasKingOrQueen ? combined.replace(KING_OR_QUEEN_REGEX, "") : combined;
+  if (hasKingOrQueen) {
+    const count = kingOrQueenMatch ? Number(kingOrQueenMatch[1]) || 1 : 1;
+    addBed(map, KING_OR_QUEEN_LABEL, count);
+  }
   BED_PATTERNS.forEach(({ label, match }) => {
+    const targetText =
+      label === "King bed" || label === "Queen bed" ? combinedWithoutOr : combined;
     const countPattern = new RegExp(`(\\d+)\\s*(?:x\\s*)?${match.source}`, "i");
-    const countMatch = combined.match(countPattern);
+    const countMatch = targetText.match(countPattern);
     if (countMatch) {
       addBed(map, label, Number(countMatch[1]) || 1);
       return;
     }
-    if (match.test(combined)) {
+    if (match.test(targetText)) {
       addBed(map, label, 1);
     }
   });
 };
 
 const formatBedEntry = (entry) => (entry.count > 1 ? `${entry.label} x${entry.count}` : entry.label);
+
+const LIVING_ROOM_BED_REGEX = /\b(sofa|sleeper|couch|futon|daybed)\b/i;
+const KING_OR_QUEEN_REGEX =
+  /\bking\b\s*(?:\(|\s*)?(?:or|\/)(?:\)|\s*)\s*\bqueen\b|\bqueen\b\s*(?:\(|\s*)?(?:or|\/)(?:\)|\s*)\s*\bking\b/i;
+const KING_OR_QUEEN_LABEL = "King or Queen bed";
+
+const parseBedDetail = (detail) => {
+  const trimmed = String(detail || "").trim();
+  if (!trimmed) return null;
+  const countSuffixMatch = trimmed.match(/^(.*)\s+x(\d+)$/i);
+  if (countSuffixMatch) {
+    const name = countSuffixMatch[1].trim();
+    const count = Number(countSuffixMatch[2]);
+    return { name, count: Number.isFinite(count) ? count : 1 };
+  }
+  const countPrefixMatch = trimmed.match(/^(\d+)\s+(.+)$/);
+  if (countPrefixMatch) {
+    const count = Number(countPrefixMatch[1]);
+    const name = countPrefixMatch[2].trim();
+    return { name, count: Number.isFinite(count) ? count : 1 };
+  }
+  return { name: trimmed, count: 1 };
+};
+
+const normalizeBedName = (name) => {
+  if (!name) return "";
+  const cleaned = String(name).trim();
+  if (!cleaned) return "";
+  if (KING_OR_QUEEN_REGEX.test(cleaned)) return KING_OR_QUEEN_LABEL;
+  if (/^beds?$/i.test(cleaned)) return "Bed";
+  return formatBedLabel(cleaned);
+};
+
+const getRoomLabelForBed = (name) => {
+  if (!name) return "";
+  if (KING_OR_QUEEN_REGEX.test(name)) return "Bedroom 1";
+  return LIVING_ROOM_BED_REGEX.test(name) ? "Living room" : "Bedroom";
+};
+
+export const formatBedDetailText = (detail) => {
+  const parsed = parseBedDetail(detail);
+  if (!parsed) return "";
+  const label = normalizeBedName(parsed.name);
+  if (!label) return "";
+  const availabilityNote = /\bair mattress\b/i.test(label) ? " (Based on availability)" : "";
+  if (parsed.count > 1) return `${parsed.count} ${label}${availabilityNote}`;
+  return `${label}${availabilityNote}`;
+};
+
+export const splitBedDetailLine = (detail) => {
+  const text = String(detail || "").trim();
+  if (!text) return { label: "", detail: "" };
+  const parts = text.split(":");
+  if (parts.length > 1) {
+    return {
+      label: parts[0].trim(),
+      detail: formatBedDetailText(parts.slice(1).join(":").trim()),
+    };
+  }
+  const parsed = parseBedDetail(text);
+  if (parsed && /\bair mattress\b/i.test(parsed.name)) {
+    return { label: "", detail: formatBedDetailText(text) };
+  }
+  return {
+    label: parsed ? getRoomLabelForBed(parsed.name) : "",
+    detail: formatBedDetailText(text),
+  };
+};
 
 const getBedDetails = (listing) => {
   if (!listing) return [];
@@ -154,7 +301,18 @@ const getBedDetails = (listing) => {
     addBed(details, listing.bedType, 1);
   }
 
-  addBedsFromText(details, extractTextSources(listing));
+  const sources = extractTextSources(listing);
+  const bedroomDetails = extractBedroomBedDetails(sources);
+  if (bedroomDetails.length) {
+    const extraDetails = new Map();
+    addBedsFromText(extraDetails, sources);
+    const extraItems = Array.from(extraDetails.values())
+      .map(formatBedEntry)
+      .filter((item) => !bedroomDetails.some((entry) => entry.includes(item.split(" x")[0])));
+    return [...bedroomDetails, ...extraItems];
+  }
+
+  addBedsFromText(details, sources);
 
   const order = new Map(BED_PATTERNS.map((item, index) => [item.label.toLowerCase(), index]));
   const result = Array.from(details.values())

@@ -10,7 +10,7 @@ import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import LoadingScreen from "./components/LoadingScreen";
-import getBedDetails from "./utils/bedDetails";
+import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -66,6 +66,12 @@ const formatCurrency = (value, currency = "USD") =>
       maximumFractionDigits: 2,
     })
     : "--";
+
+const BedIcon = () => (
+  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+    <path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z" />
+  </svg>
+);
 
 const diffNights = (start, end) => {
   if (!start || !end) return 0;
@@ -920,6 +926,18 @@ const sanitizeText = (value = "") => {
     .replace(/\uFFFD/g, "")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     .trim();
+};
+
+const buildWhatsAppLink = (title, checkIn, checkOut) => {
+  const unitName = title ? sanitizeText(title) : "a OneLuxStay stay";
+  const checkInDate = parseDateValue(checkIn);
+  const checkOutDate = parseDateValue(checkOut);
+  const dateLine =
+    checkInDate && checkOutDate
+      ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
+      : "";
+  const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
+  return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
 };
 
 const normalizeCity = (listing) => {
@@ -3714,6 +3732,55 @@ export default function LosAngelesLandingPage() {
                     ))}
                   </div>
                 )}
+                <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
+                  <DateRangePicker
+                    value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                    dayPrices={calendarDayMap}
+                    onChange={({ checkIn, checkOut }) => {
+                      setSectionCheckIn(checkIn);
+                      setSectionCheckOut(checkOut);
+                    }}
+                    onMonthChange={(nextMonth) => {
+                      const listingId = getCalendarListingId(activeListing, losAngelesListings);
+                      if (!listingId) return;
+                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                      setCalendarStartDate(monthStart);
+                      setCalendarMonthIndex(0);
+                      fetchCalendarMonth(
+                        listingId,
+                        monthStart,
+                        calendarCacheRef,
+                        calendarDaysRef,
+                        calendarInflightRef,
+                        setCalendarLoading,
+                        setCalendarError,
+                        setCalendarPrices
+                      );
+                    }}
+                    onOpenChange={handleListingCalendarOpen}
+                    isLoading={calendarLoading}
+                    fallbackPrice={activeListing.basePrice}
+                    fallbackCurrency={activeListing.currency}
+                    fallbackMinNights={listingMinNightsFallback}
+                  />
+                  <div>
+                    <label htmlFor="la-section-guests">Guests</label>
+                    <select
+                      id="la-section-guests"
+                      value={sectionGuests}
+                      onChange={(event) => setSectionGuests(event.target.value)}
+                    >
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                      <option value="5">5</option>
+                    </select>
+                  </div>
+                  <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
+                    {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                  </button>
+                </div>
               </div>
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
@@ -3723,6 +3790,14 @@ export default function LosAngelesLandingPage() {
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
+                </a>
+                <a
+                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                  className="la-unit-modal__contact-cta"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WhatsApp us
                 </a>
               </div>
               <div className="la-unit-modal__card la-unit-modal__price">
@@ -3866,60 +3941,65 @@ export default function LosAngelesLandingPage() {
                 </div>
               </div>
             </div>
-            <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
-              <DateRangePicker
-                value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                dayPrices={calendarDayMap}
-                onChange={({ checkIn, checkOut }) => {
-                  setSectionCheckIn(checkIn);
-                  setSectionCheckOut(checkOut);
-                }}
-                onMonthChange={(nextMonth) => {
-                  const listingId = getCalendarListingId(activeListing, losAngelesListings);
-                  if (!listingId) return;
-                  const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                  setCalendarStartDate(monthStart);
-                  setCalendarMonthIndex(0);
-                  fetchCalendarMonth(
-                    listingId,
-                    monthStart,
-                    calendarCacheRef,
-                    calendarDaysRef,
-                    calendarInflightRef,
-                    setCalendarLoading,
-                    setCalendarError,
-                    setCalendarPrices
-                  );
-                }}
-                onOpenChange={handleListingCalendarOpen}
-                isLoading={calendarLoading}
-                fallbackPrice={activeListing.basePrice}
-                fallbackCurrency={activeListing.currency}
-                fallbackMinNights={listingMinNightsFallback}
-              />
-              <div>
-                <label htmlFor="la-section-guests">Guests</label>
-                <select
-                  id="la-section-guests"
-                  value={sectionGuests}
-                  onChange={(event) => setSectionGuests(event.target.value)}
-                >
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                </select>
-              </div>
-              <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
-                {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
-              </button>
-            </div>
             {sectionAvailabilityError && (
               <div role="alert" className="la-section-hero__notice">
                 {sectionAvailabilityError}
               </div>
             )}
+            <div className="la-unit-modal__section">
+              <div className="la-unit-modal__rooms">
+                <div>
+                  <p>
+                    Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
+                    {activeListing.accommodates || "--"}
+                  </p>
+                  {(() => {
+                    const direct =
+                      (activeListing.bedDetails && activeListing.bedDetails.length)
+                        ? activeListing.bedDetails
+                        : getBedDetails(activeListing);
+                    const bedDetails = (() => {
+                      if (direct.length) return direct;
+                      const groupKey = getListingGroupKey(activeListing);
+                      if (!groupKey || !Array.isArray(listings)) return [];
+                      const fallback = listings.find((entry) => {
+                        if (getListingGroupKey(entry) !== groupKey) return false;
+                        if (entry.bedDetails && entry.bedDetails.length) return true;
+                        return getBedDetails(entry).length > 0;
+                      });
+                      if (!fallback) return [];
+                      return (fallback.bedDetails && fallback.bedDetails.length)
+                        ? fallback.bedDetails
+                        : getBedDetails(fallback);
+                    })();
+                    const bedLines = bedDetails
+                      .map(splitBedDetailLine)
+                      .filter((line) => line.detail);
+                    if (!bedLines.length) return null;
+                    return (
+                      <div className="la-booking-table__bed-details">
+                        {bedLines.map((line, idx) => (
+                          <div
+                            key={`listing-bed-${idx}`}
+                            className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
+                          >
+                            {line.label ? (
+                              <span className="la-booking-table__bed-room">{line.label}</span>
+                            ) : null}
+                            <span className="la-booking-table__bed-desc">
+                              {line.detail}
+                              <span className="la-booking-table__bed-icon">
+                                <BedIcon />
+                              </span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
             <div className="la-unit-modal__section">
               <h4>About this property</h4>
               <p>
@@ -4915,6 +4995,14 @@ export default function LosAngelesLandingPage() {
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
                       </a>
+                      <a
+                        href={buildWhatsAppLink(sectionParent?.title || sectionLabel, sectionCheckIn, sectionCheckOut)}
+                        className="la-unit-modal__contact-cta"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        WhatsApp us
+                      </a>
                     </div>
                     <div className="la-section-hero__review">
                       {(() => {
@@ -5145,11 +5233,14 @@ export default function LosAngelesLandingPage() {
               ) : (
                 <>
                   {(() => {
+                    const sourceList = sectionAvailabilityActive
+                      ? sectionAvailability
+                      : activeSection.listings;
+                    const bedLookupList = activeSection?.listings?.length
+                      ? activeSection.listings
+                      : sourceList;
                     const listingsToRender = (() => {
                       if (!activeSection?.listings?.length) return [];
-                      const sourceList = sectionAvailabilityActive
-                        ? sectionAvailability
-                        : activeSection.listings;
                       const parentGroups = groupListingsByParent(sourceList);
                       return Object.values(parentGroups)
                         .map((group) => group.parent || group.children?.[0])
@@ -5213,6 +5304,27 @@ export default function LosAngelesLandingPage() {
                             : baseNightly;
                       const breakdownId = `la-quote-${listingId}`;
                       const isExpanded = Boolean(expandedQuoteRows[listingId]);
+                      const bedDetails = (() => {
+                        const direct =
+                          (listing.bedDetails && listing.bedDetails.length)
+                            ? listing.bedDetails
+                            : getBedDetails(listing);
+                        if (direct.length) return direct;
+                        const groupKey = getListingGroupKey(listing);
+                        if (!groupKey || !Array.isArray(bedLookupList)) return [];
+                        const fallback = bedLookupList.find((entry) => {
+                          if (getListingGroupKey(entry) !== groupKey) return false;
+                          if (entry.bedDetails && entry.bedDetails.length) return true;
+                          return getBedDetails(entry).length > 0;
+                        });
+                        if (!fallback) return [];
+                        return (fallback.bedDetails && fallback.bedDetails.length)
+                          ? fallback.bedDetails
+                          : getBedDetails(fallback);
+                      })();
+                      const bedLines = bedDetails
+                        .map(splitBedDetailLine)
+                        .filter((line) => line.detail);
                       return (
                         <article key={listingId} className="la-booking-table__row" role="row">
                           <div className="la-booking-table__cell" role="cell">
@@ -5245,6 +5357,26 @@ export default function LosAngelesLandingPage() {
                                 <p className="la-booking-table__summary">
                                   {shortDescription || "Signature OneLuxStay residence in Los Angeles."}
                                 </p>
+                                {bedLines.length > 0 && (
+                                  <div className="la-booking-table__bed-details">
+                                    {bedLines.map((line, idx) => (
+                                      <div
+                                        key={`${listingId}-bed-${idx}`}
+                                        className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
+                                      >
+                                        {line.label ? (
+                                          <span className="la-booking-table__bed-room">{line.label}</span>
+                                        ) : null}
+                                        <span className="la-booking-table__bed-desc">
+                                          {line.detail}
+                                          <span className="la-booking-table__bed-icon">
+                                            <BedIcon />
+                                          </span>
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -5589,6 +5721,14 @@ export default function LosAngelesLandingPage() {
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
+                </a>
+                <a
+                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                  className="la-unit-modal__contact-cta"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WhatsApp us
                 </a>
               </div>
             </div>
@@ -6082,14 +6222,47 @@ export default function LosAngelesLandingPage() {
                     {activeListing.accommodates || "--"}
                   </p>
                   {(() => {
-                    const bedDetails = getBedDetails(activeListing);
-                    if (!bedDetails.length) return null;
+                    const direct =
+                      (activeListing.bedDetails && activeListing.bedDetails.length)
+                        ? activeListing.bedDetails
+                        : getBedDetails(activeListing);
+                    const bedDetails = (() => {
+                      if (direct.length) return direct;
+                      const groupKey = getListingGroupKey(activeListing);
+                      if (!groupKey || !Array.isArray(listings)) return [];
+                      const fallback = listings.find((entry) => {
+                        if (getListingGroupKey(entry) !== groupKey) return false;
+                        if (entry.bedDetails && entry.bedDetails.length) return true;
+                        return getBedDetails(entry).length > 0;
+                      });
+                      if (!fallback) return [];
+                      return (fallback.bedDetails && fallback.bedDetails.length)
+                        ? fallback.bedDetails
+                        : getBedDetails(fallback);
+                    })();
+                    const bedLines = bedDetails
+                      .map(splitBedDetailLine)
+                      .filter((line) => line.detail);
+                    if (!bedLines.length) return null;
                     return (
-                      <ul className="la-unit-modal__bed-list">
-                        {bedDetails.map((item) => (
-                          <li key={item}>{item}</li>
+                      <div className="la-booking-table__bed-details">
+                        {bedLines.map((line, idx) => (
+                          <div
+                            key={`room-bed-${idx}`}
+                            className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
+                          >
+                            {line.label ? (
+                              <span className="la-booking-table__bed-room">{line.label}</span>
+                            ) : null}
+                            <span className="la-booking-table__bed-desc">
+                              {line.detail}
+                              <span className="la-booking-table__bed-icon">
+                                <BedIcon />
+                              </span>
+                            </span>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     );
                   })()}
                 </div>

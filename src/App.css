@@ -1744,6 +1744,53 @@ html {
   color: #3f362f;
 }
 
+.listing-card__bed-details {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.listing-modal__bed-details {
+  margin-top: 10px;
+}
+
+.listing-card__bed-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #3f362f;
+}
+
+.listing-card__bed-row.is-single {
+  grid-template-columns: 1fr;
+}
+
+.listing-card__bed-room {
+  font-weight: 600;
+  color: #4a3f35;
+}
+
+.listing-card__bed-desc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(63, 54, 47, 0.85);
+}
+
+.listing-card__bed-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: #7a6a5c;
+}
+
+.listing-card__bed-more {
+  color: rgba(63, 54, 47, 0.7);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
 .listing-card__status {
   color: #3f362f;
 }
@@ -5588,6 +5635,43 @@ html {
   font-size: 0.85rem;
   color: rgba(74, 63, 53, 0.75);
   margin: 0;
+}
+
+.la-booking-table__bed-details {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.la-booking-table__bed-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: rgba(74, 63, 53, 0.75);
+}
+
+.la-booking-table__bed-row.is-single {
+  grid-template-columns: 1fr;
+}
+
+.la-booking-table__bed-room {
+  font-weight: 600;
+  color: #4a3f35;
+}
+
+.la-booking-table__bed-desc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(74, 63, 53, 0.75);
+}
+
+.la-booking-table__bed-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: #7a6a5c;
 }
 
 .la-booking-table__guests {

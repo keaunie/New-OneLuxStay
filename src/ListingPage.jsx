@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
-import getBedDetails from "./utils/bedDetails";
+import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -14,6 +14,12 @@ const formatCurrency = (value, currency = "USD") =>
       maximumFractionDigits: 2,
     })
     : "--";
+
+const BedIcon = () => (
+  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+    <path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z" />
+  </svg>
+);
 
 const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
 
@@ -514,7 +520,21 @@ function ListingPage() {
   const parentListings = useMemo(() => {
     const groups = groupListingsByParent(listings);
     return Array.from(groups.values())
-      .map((group) => group.parent || group.children[0])
+      .map((group) => {
+        const parent = group.parent || group.children[0];
+        if (!parent) return null;
+        const fallbackChild =
+          group.children.find((child) => Array.isArray(child?.bedDetails) && child.bedDetails.length) ||
+          group.children.find((child) => child?.bedType || child?.publicDescription) ||
+          null;
+        if (!fallbackChild) return parent;
+        return {
+          ...parent,
+          bedDetails: parent.bedDetails || fallbackChild.bedDetails,
+          bedType: parent.bedType || fallbackChild.bedType,
+          publicDescription: parent.publicDescription || fallbackChild.publicDescription,
+        };
+      })
       .filter(Boolean);
   }, [listings]);
 
@@ -969,6 +989,14 @@ function ListingPage() {
               const displayNightly = status.nightly ?? listing.basePrice;
               const canBook = status.status === "ready" && status.available !== false;
               const showInquiry = status.status === "ready" && status.available === false;
+              const bedDetails = (listing.bedDetails && listing.bedDetails.length)
+                ? listing.bedDetails
+                : getBedDetails(listing);
+              const bedItems = bedDetails.slice(0, 4);
+              const bedExtra = bedDetails.length - bedItems.length;
+              const bedLines = bedItems
+                .map(splitBedDetailLine)
+                .filter((line) => line.detail);
 
               return (
                 <article
@@ -1001,6 +1029,29 @@ function ListingPage() {
                       <p className="listing-card__meta text-sm text-slate-300">
                         From {formatCurrency(listing.basePrice, listing.currency)} / night  -  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
                       </p>
+                      {bedLines.length > 0 && (
+                        <div className="listing-card__bed-details">
+                          {bedLines.map((line, idx) => (
+                            <div
+                              key={`${listing.id}-bed-${idx}`}
+                              className={`listing-card__bed-row${line.label ? "" : " is-single"}`}
+                            >
+                              {line.label ? (
+                                <span className="listing-card__bed-room">{line.label}</span>
+                              ) : null}
+                              <span className="listing-card__bed-desc">
+                                {line.detail}
+                                <span className="listing-card__bed-icon">
+                                  <BedIcon />
+                                </span>
+                              </span>
+                            </div>
+                          ))}
+                          {bedExtra > 0 && (
+                            <div className="listing-card__bed-more">+{bedExtra} more</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1153,15 +1204,28 @@ function ListingPage() {
                   </div>
                   {(() => {
                     const bedDetails = getBedDetails(modalListing);
-                    if (!bedDetails.length) return null;
+                    const bedLines = bedDetails
+                      .map(splitBedDetailLine)
+                      .filter((line) => line.detail);
+                    if (!bedLines.length) return null;
                     return (
-                      <div className="mt-3">
-                        <p className="font-semibold text-amber-200">Bed setup</p>
-                        <ul className="mt-2 list-disc pl-4 text-amber-100/80">
-                          {bedDetails.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
+                      <div className="listing-modal__bed-details">
+                        {bedLines.map((line, idx) => (
+                          <div
+                            key={`modal-bed-${idx}`}
+                            className={`listing-card__bed-row${line.label ? "" : " is-single"}`}
+                          >
+                            {line.label ? (
+                              <span className="listing-card__bed-room">{line.label}</span>
+                            ) : null}
+                            <span className="listing-card__bed-desc">
+                              {line.detail}
+                              <span className="listing-card__bed-icon">
+                                <BedIcon />
+                              </span>
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     );
                   })()}

@@ -66,6 +66,73 @@ const BED_PATTERNS = [
     { label: "Crib", match: /\bcrib\b/i },
 ];
 
+const BEDROOM_WORDS = new Map([
+    ["one", 1],
+    ["two", 2],
+    ["three", 3],
+    ["four", 4],
+    ["five", 5],
+    ["six", 6],
+    ["seven", 7],
+    ["eight", 8],
+    ["nine", 9],
+    ["ten", 10],
+]);
+
+const parseBedroomNumber = (text) => {
+    if (!text) return null;
+    const numberMatch = text.match(/\bbedroom\s*(\d+)\b/i);
+    if (numberMatch) return Number(numberMatch[1]);
+    const wordMatch = text.match(/\bbedroom\s*(one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
+    if (wordMatch) return BEDROOM_WORDS.get(wordMatch[1].toLowerCase()) || null;
+    return null;
+};
+
+const findBedTypeInText = (text) => {
+    if (!text) return null;
+    for (const { label, match } of BED_PATTERNS) {
+        if (match.test(text)) return label;
+    }
+    return null;
+};
+
+const findBedCountInText = (text) => {
+    if (!text) return 1;
+    const countMatch = text.match(/(\d+)\s*(?:x\s*)?(?:king|queen|double|full|twin|single|sofa|futon|bunk|daybed|murphy|air mattress|crib)\b/i);
+    if (countMatch) {
+        const count = Number(countMatch[1]);
+        if (Number.isFinite(count) && count > 0) return count;
+    }
+    const leadingMatch = text.match(/^\s*-\s*(\d+)\b/);
+    if (leadingMatch) {
+        const count = Number(leadingMatch[1]);
+        if (Number.isFinite(count) && count > 0) return count;
+    }
+    return 1;
+};
+
+const extractBedroomBedDetails = (sources) => {
+    if (!sources.length) return [];
+    const details = [];
+    const seen = new Set();
+    sources
+        .flatMap((text) => String(text || "").split(/\r?\n/))
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .forEach((line) => {
+            const bedroom = parseBedroomNumber(line);
+            if (!bedroom) return;
+            const bedType = findBedTypeInText(line);
+            if (!bedType) return;
+            const count = findBedCountInText(line);
+            const label = `Bedroom ${bedroom}: ${bedType}${count > 1 ? ` x${count}` : ""}`;
+            if (seen.has(label)) return;
+            seen.add(label);
+            details.push(label);
+        });
+    return details;
+};
+
 const extractBedDetails = (listing) => {
     if (!listing) return [];
     const sources = [];
@@ -88,6 +155,26 @@ const extractBedDetails = (listing) => {
     push(listing.notes);
     if (Array.isArray(listing.amenities)) listing.amenities.forEach(push);
     if (Array.isArray(listing.tags)) listing.tags.forEach(push);
+    const bedroomDetails = extractBedroomBedDetails(sources);
+    if (bedroomDetails.length) {
+        const combined = sources.join(" ");
+        const extraDetails = [];
+        BED_PATTERNS.forEach(({ label, match }) => {
+            const countPattern = new RegExp(`(\\d+)\\s*(?:x\\s*)?${match.source}`, "i");
+            const countMatch = combined.match(countPattern);
+            if (countMatch) {
+                extraDetails.push(`${label} x${Number(countMatch[1]) || 1}`);
+                return;
+            }
+            if (match.test(combined)) {
+                extraDetails.push(label);
+            }
+        });
+        const extras = extraDetails.filter(
+            (item) => !bedroomDetails.some((entry) => entry.includes(item.split(" x")[0]))
+        );
+        return [...bedroomDetails, ...extras];
+    }
     const combined = sources.join(" ");
     if (!combined) return [];
     const details = [];
