@@ -7,6 +7,8 @@ import reviewsDodger from "./data/reviews-dodger.json";
 import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
+import Silk from "./components/Silk";
+import LoadingScreen from "./components/LoadingScreen";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -96,6 +98,21 @@ const toNumber = (value) => {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+};
+
+const formatRuleValue = (value) => {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  if (typeof value === "number") return `${value}`;
+  if (typeof value === "string" && value.trim()) return value;
+  return "—";
+};
+
+const formatQuietHours = (quietHours) => {
+  if (!quietHours || quietHours.set === false) return "Not set";
+  const start = quietHours.start || "--:--";
+  const end = quietHours.end || "--:--";
+  return `${start} - ${end}`;
 };
 
 const firstNumber = (...values) => {
@@ -1654,6 +1671,9 @@ export default function LosAngelesLandingPage() {
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
+  const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
+  const [houseRulesLoading, setHouseRulesLoading] = useState(false);
+  const [houseRulesError, setHouseRulesError] = useState("");
   const [isReviewExpanded, setIsReviewExpanded] = useState(false);
   const [checkoutGuest, setCheckoutGuest] = useState({
     firstName: "",
@@ -1711,7 +1731,8 @@ export default function LosAngelesLandingPage() {
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
-  const autoScrollRef = useRef(null);
+  const autoScrollRef = useRef({ id: null, element: null, direction: 0 });
+  const hoveredThumbsRef = useRef(null);
   const thumbsRef = useRef(null);
   const sectionThumbsRef = useRef(null);
   const [isListingMapOpen, setIsListingMapOpen] = useState(false);
@@ -1811,49 +1832,60 @@ export default function LosAngelesLandingPage() {
   );
 
   const stopAutoScroll = () => {
-    if (autoScrollRef.current) {
-      clearInterval(autoScrollRef.current);
-      autoScrollRef.current = null;
+    if (autoScrollRef.current.id) {
+      cancelAnimationFrame(autoScrollRef.current.id);
+      autoScrollRef.current.id = null;
+      autoScrollRef.current.element = null;
+      autoScrollRef.current.direction = 0;
     }
   };
 
-  const startAutoScroll = (direction) => {
-    if (!thumbsRef.current) return;
-    if (autoScrollRef.current) return;
-    autoScrollRef.current = setInterval(() => {
-      thumbsRef.current.scrollBy({ left: direction * 6, behavior: "auto" });
-    }, 16);
+  const startAutoScroll = (element, direction) => {
+    if (!element) return;
+    const current = autoScrollRef.current;
+    if (current.element === element && current.direction === direction && current.id) return;
+    stopAutoScroll();
+    autoScrollRef.current.element = element;
+    autoScrollRef.current.direction = direction;
+    const step = () => {
+      if (!autoScrollRef.current.element) return;
+      autoScrollRef.current.element.scrollBy({ left: direction * 6, behavior: "auto" });
+      autoScrollRef.current.id = requestAnimationFrame(step);
+    };
+    autoScrollRef.current.id = requestAnimationFrame(step);
   };
 
-  const handleThumbsMove = (event) => {
-    if (!thumbsRef.current) return;
-    const rect = thumbsRef.current.getBoundingClientRect();
+  const handleThumbsMove = (event, targetRef) => {
+    const target = targetRef?.current || event.currentTarget;
+    if (!target) {
+      console.log("[Thumbs] no target for hover scroll");
+      return;
+    }
+    const rect = target.getBoundingClientRect();
     const x = event.clientX - rect.left;
-    const edge = rect.width * 0.2;
+    const edge = rect.width * 0.35;
     if (x < edge) {
-      startAutoScroll(-1);
+      console.log("[Thumbs] hover left edge");
+      startAutoScroll(target, -1);
     } else if (x > rect.width - edge) {
-      startAutoScroll(1);
+      console.log("[Thumbs] hover right edge");
+      startAutoScroll(target, 1);
     } else {
       stopAutoScroll();
     }
   };
 
-  const handleSectionThumbsMove = (event) => {
-    if (!sectionThumbsRef.current) return;
-    const rect = sectionThumbsRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const edge = rect.width * 0.2;
-    if (x > rect.width - edge) {
-      startAutoScroll(1);
-    } else if (x < edge) {
-      startAutoScroll(-1);
-    } else {
+  useEffect(() => {
+    const handleMove = (event) => {
+      if (!hoveredThumbsRef.current) return;
+      handleThumbsMove(event, { current: hoveredThumbsRef.current });
+    };
+    window.addEventListener("mousemove", handleMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
       stopAutoScroll();
-    }
-  };
-
-  useEffect(() => stopAutoScroll, []);
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeListing) {
@@ -2674,6 +2706,34 @@ export default function LosAngelesLandingPage() {
     );
   };
 
+  const openInquiry = (listing) => {
+    if (!listing) return;
+    setInquiryListing(listing);
+    setIsInquiryOpen(true);
+  };
+
+  const fetchHouseRules = async (unitTypeId) => {
+    if (!unitTypeId) return;
+    if (houseRulesByUnit[unitTypeId]) return;
+    try {
+      setHouseRulesLoading(true);
+      setHouseRulesError("");
+      const res = await fetch(
+        `${apiBase}/house-rules?unitTypeId=${encodeURIComponent(unitTypeId)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "House rules request failed.");
+      }
+      setHouseRulesByUnit((prev) => ({ ...prev, [unitTypeId]: data }));
+    } catch (err) {
+      setHouseRulesError(err?.message || "House rules are unavailable.");
+    } finally {
+      setHouseRulesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!activeSection) return;
     const listingId =
@@ -2806,6 +2866,13 @@ export default function LosAngelesLandingPage() {
       active = false;
     };
   }, [groupedListingsAll, sectionCheckIn, sectionCheckOut]);
+
+  useEffect(() => {
+    if (!activeListing) return;
+    const unitTypeId = activeListing.unitTypeId || activeListing.id || activeListing._id;
+    if (!unitTypeId) return;
+    fetchHouseRules(unitTypeId);
+  }, [activeListing]);
   useEffect(() => {
     if (!sectionQuotes) return;
     setSelectedRatePlans((prev) => {
@@ -3346,7 +3413,9 @@ export default function LosAngelesLandingPage() {
     : false;
 
   const listingDetail = activeListing ? (
-    <div className="la-unit-modal la-listing-page">
+    <div className="la-listing-shell">
+      <div className="la-listing-shell__content">
+        <div className="la-unit-modal la-listing-page">
       <section className="la-listing-hero">
         <div className="la-listing-hero__top">
           <button
@@ -3512,7 +3581,36 @@ export default function LosAngelesLandingPage() {
                   )}
                 </div>
                 {thumbImages.length > 1 && (
-                  <div className="la-unit-modal__thumbs">
+                  <div
+                    className="la-unit-modal__thumbs"
+                    role="list"
+                    ref={thumbsRef}
+                    onMouseEnter={(event) => {
+                      hoveredThumbsRef.current = thumbsRef.current;
+                      handleThumbsMove(event, thumbsRef);
+                    }}
+                    onMouseMove={handleThumbsMove}
+                    onMouseLeave={() => {
+                      hoveredThumbsRef.current = null;
+                      stopAutoScroll();
+                    }}
+                  >
+                    <div
+                      className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
+                      onMouseEnter={() => {
+                        console.log("[Thumbs] hover left zone");
+                        startAutoScroll(thumbsRef.current, -1);
+                      }}
+                      onMouseLeave={stopAutoScroll}
+                    />
+                    <div
+                      className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
+                      onMouseEnter={() => {
+                        console.log("[Thumbs] hover right zone");
+                        startAutoScroll(thumbsRef.current, 1);
+                      }}
+                      onMouseLeave={stopAutoScroll}
+                    />
                     {thumbImages.map((img, idx) => (
                       <button
                         key={`${img}-${idx}`}
@@ -3538,7 +3636,7 @@ export default function LosAngelesLandingPage() {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Los Angeles</strong>
-                <a href="tel:+13105550101">+1 (310) 555-0101</a>
+                <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
@@ -3616,7 +3714,9 @@ export default function LosAngelesLandingPage() {
                     </span>
                   </div>
                   <div className="la-unit-modal__availability-details">
-                    {breakdown ? (
+                    {availability === false ? (
+                      <p>Unavailable for the selected dates.</p>
+                    ) : breakdown ? (
                       <>
                         <div>
                           <span>Accommodation</span>
@@ -3669,7 +3769,11 @@ export default function LosAngelesLandingPage() {
                     }
                     if (availability === false) {
                       return (
-                        <button type="button" className="la-unit-modal__action-primary">
+                        <button
+                          type="button"
+                          className="la-unit-modal__action-primary"
+                          onClick={() => openInquiry(activeListing)}
+                        >
                           Inquire
                         </button>
                       );
@@ -3749,13 +3853,10 @@ export default function LosAngelesLandingPage() {
             <h4>Facilities of {sanitizeText(activeListing?.title || "OneLuxStay")}</h4>
             <p>Great facilities. Review score, 9.6</p>
           </div>
-          <a className="la-facilities-cta" href="#la-rooms">
-            See availability
-          </a>
         </div>
         <div className="la-unit-modal__facilities">
           {activeListing?.amenities?.length ? (
-            <>
+            <div className="la-facilities-layout">
               <div className="la-facilities-grid">
                 {groupAmenities(activeListing.amenities).map((group) => (
                   <div key={group.key} className="la-facilities-group">
@@ -3764,14 +3865,17 @@ export default function LosAngelesLandingPage() {
                       <h5>{group.label}</h5>
                     </div>
                     <ul>
-                      {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item) => (
-                        <li key={item}>{item}</li>
+                      {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
+                        <li key={`${group.key}-${idx}-${item}`}>{item}</li>
                       ))}
                     </ul>
                   </div>
                 ))}
               </div>
-              <div className="la-unit-modal__amenities-actions">
+              <div className="la-facilities-more">
+                <a className="la-facilities-cta" href="#la-rooms">
+                  See availability
+                </a>
                 <button
                   type="button"
                   className="la-unit-modal__amenities-toggle"
@@ -3780,7 +3884,7 @@ export default function LosAngelesLandingPage() {
                   {showAllAmenities ? "See less" : "See more"}
                 </button>
               </div>
-            </>
+            </div>
           ) : (
             <p>Contact us for full amenities list.</p>
           )}
@@ -3788,9 +3892,84 @@ export default function LosAngelesLandingPage() {
       </div>
       <div className="la-unit-modal__section" id="la-house-rules">
         <h4>House rules</h4>
-        <p>
-          House rules are shared at booking and upon request. Contact the concierge for specific policies.
-        </p>
+        {(() => {
+          const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
+          const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
+          if (houseRulesLoading && !rules) {
+            return <p>Loading house rules…</p>;
+          }
+          if (houseRulesError && !rules) {
+            return <p>{houseRulesError}</p>;
+          }
+          if (!rules) {
+            return (
+              <p>
+                House rules are shared at booking and upon request. Contact the concierge for specific policies.
+              </p>
+            );
+          }
+          const houseRules = rules.houseRules || rules;
+          const childrenRules = houseRules.childrenRules || {};
+          const petsAllowed = houseRules.petsAllowed;
+          const smokingAllowed = houseRules.smokingAllowed;
+          const quietBetween = houseRules.quietBetween;
+          const eventsAllowed = houseRules.suitableForEvents;
+          const ruleItems = [
+            {
+              label: "Suitable for children",
+              value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
+            },
+            {
+              label: "Suitable for infants",
+              value: formatRuleValue(childrenRules.suitableForInfants ?? houseRules.suitableForInfants),
+            },
+            {
+              label: "Pets allowed",
+              value: formatRuleValue(
+                typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
+              ),
+            },
+            {
+              label: "Pets charged",
+              value: formatRuleValue(
+                typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
+              ),
+            },
+            {
+              label: "Smoking allowed",
+              value: formatRuleValue(
+                typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
+              ),
+            },
+            {
+              label: "Parties allowed",
+              value: formatRuleValue(
+                typeof eventsAllowed === "object" ? eventsAllowed.enabled : eventsAllowed ?? houseRules.partiesAllowed
+              ),
+            },
+            {
+              label: "Quiet hours",
+              value: quietBetween?.enabled
+                ? formatQuietHours({ set: true, start: quietBetween.hours?.start, end: quietBetween.hours?.end })
+                : formatQuietHours(houseRules.quietHours),
+            },
+            { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
+          ];
+          return (
+            <div className="la-house-rules">
+              <ul>
+                {ruleItems.map((item) => (
+                  <li key={item.label}>
+                    <strong>{item.label}</strong>
+                    <span>{item.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+      </div>
+        </div>
       </div>
     </div>
   ) : null;
@@ -3916,11 +4095,14 @@ export default function LosAngelesLandingPage() {
 
   if (isListingRoute) {
     return (
-      <div className="antwerp-page">
+      <div className="antwerp-page has-silk">
+        <div className="antwerp-silk">
+          <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
+        </div>
         {listingDetail ? (
           <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
         ) : (
-          <div className="la-listing-page__loading">Loading listing...</div>
+          <LoadingScreen active />
         )}
         {listingMapModal}
         {zoomModal}
@@ -3929,7 +4111,7 @@ export default function LosAngelesLandingPage() {
   }
 
   return (
-    <div className="antwerp-page">
+    <div className="antwerp-page has-silk">
       {listingMapModal}
       {zoomModal}
       <section className="la-bounce-section" aria-label="Los Angeles highlights">
@@ -4232,10 +4414,21 @@ export default function LosAngelesLandingPage() {
 
               {groupedListingsDisplay.map((group) => {
                 const story = SECTION_STORIES[group.key] || SECTION_STORIES.other;
-                const storyImages = group.listings
-                  .map((listing) => getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]))
-                  .filter(Boolean)
-                  .slice(0, 2);
+                const storyImages = [];
+                const seenStoryImages = new Set();
+                const pushStoryImage = (value) => {
+                  const url = extractImageUrl(value) || getImageUrl(value);
+                  if (!url || url === FALLBACK_IMAGE) return;
+                  const key = getImageKey(url) || url;
+                  if (seenStoryImages.has(key)) return;
+                  seenStoryImages.add(key);
+                  storyImages.push(url);
+                };
+                group.listings.forEach((listing) => {
+                  pushStoryImage(listing.picture);
+                  (listing.pictures || []).forEach(pushStoryImage);
+                });
+                storyImages.splice(2);
                 const groupStats = getGroupStats(group.listings);
                 const buildingPrice = buildingPrices[group.key];
                 const latestPrice = buildingPrice
@@ -4575,9 +4768,32 @@ export default function LosAngelesLandingPage() {
                         className="la-section-hero__thumbs"
                         role="list"
                         ref={sectionThumbsRef}
-                        onMouseMove={handleSectionThumbsMove}
-                        onMouseLeave={stopAutoScroll}
+                        onMouseEnter={(event) => {
+                          hoveredThumbsRef.current = sectionThumbsRef.current;
+                          handleThumbsMove(event, sectionThumbsRef);
+                        }}
+                        onMouseMove={handleThumbsMove}
+                        onMouseLeave={() => {
+                          hoveredThumbsRef.current = null;
+                          stopAutoScroll();
+                        }}
                       >
+                        <div
+                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
+                          onMouseEnter={() => {
+                            console.log("[Thumbs] hover left zone");
+                            startAutoScroll(sectionThumbsRef.current, -1);
+                          }}
+                          onMouseLeave={stopAutoScroll}
+                        />
+                        <div
+                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
+                          onMouseEnter={() => {
+                            console.log("[Thumbs] hover right zone");
+                            startAutoScroll(sectionThumbsRef.current, 1);
+                          }}
+                          onMouseLeave={stopAutoScroll}
+                        />
                         {images.map((src, idx) => (
                           <button
                             key={`${src}-${idx}`}
@@ -5072,10 +5288,7 @@ export default function LosAngelesLandingPage() {
                                 <button
                                   type="button"
                                   className="la-booking-table__reserve la-booking-table__inquire"
-                                  onClick={() => {
-                                    setInquiryListing(listing);
-                                    setIsInquiryOpen(true);
-                                  }}
+                                  onClick={() => openInquiry(listing)}
                                 >
                                   Inquire
                                 </button>
@@ -5274,7 +5487,7 @@ export default function LosAngelesLandingPage() {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Los Angeles</strong>
-                <a href="tel:+13105550101">+1 (310) 555-0101</a>
+                <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
@@ -5439,9 +5652,32 @@ export default function LosAngelesLandingPage() {
                         className="la-unit-modal__thumbs"
                         role="list"
                         ref={thumbsRef}
+                        onMouseEnter={(event) => {
+                          hoveredThumbsRef.current = thumbsRef.current;
+                          handleThumbsMove(event, thumbsRef);
+                        }}
                         onMouseMove={handleThumbsMove}
-                        onMouseLeave={stopAutoScroll}
+                        onMouseLeave={() => {
+                          hoveredThumbsRef.current = null;
+                          stopAutoScroll();
+                        }}
                       >
+                        <div
+                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
+                          onMouseEnter={() => {
+                            console.log("[Thumbs] hover left zone");
+                            startAutoScroll(thumbsRef.current, -1);
+                          }}
+                          onMouseLeave={stopAutoScroll}
+                        />
+                        <div
+                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
+                          onMouseEnter={() => {
+                            console.log("[Thumbs] hover right zone");
+                            startAutoScroll(thumbsRef.current, 1);
+                          }}
+                          onMouseLeave={stopAutoScroll}
+                        />
                         {thumbImages.map((src, idx) => (
                           <button
                             key={`${src}-${idx}`}
@@ -5526,7 +5762,9 @@ export default function LosAngelesLandingPage() {
                         </span>
                       </div>
                       <div className="la-unit-modal__availability-details">
-                        {breakdown ? (
+                        {availability === false ? (
+                          <p>Unavailable for the selected dates.</p>
+                        ) : breakdown ? (
                           <>
                             <div>
                               <span>Accommodation</span>
@@ -5579,7 +5817,11 @@ export default function LosAngelesLandingPage() {
                         }
                         if (availability === false) {
                           return (
-                            <button type="button" className="la-unit-modal__action-primary">
+                            <button
+                              type="button"
+                              className="la-unit-modal__action-primary"
+                              onClick={() => openInquiry(activeListing)}
+                            >
                               Inquire
                             </button>
                           );

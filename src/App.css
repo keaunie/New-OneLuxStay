@@ -38,6 +38,97 @@ html {
   scroll-behavior: smooth;
 }
 
+.app-shell {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.app-shell.is-ready {
+  opacity: 1;
+}
+
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
+  backdrop-filter: none;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.app-loading-overlay.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-loading-card {
+  width: min(420px, 86vw);
+  padding: 28px 26px;
+  border-radius: 22px;
+  border: 1px solid rgba(201, 181, 156, 0.55);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 24px 60px rgba(63, 54, 47, 0.18);
+  text-align: center;
+  color: var(--ink);
+  display: grid;
+  gap: 18px;
+}
+
+.app-loading-lottie {
+  width: 220px;
+  height: 220px;
+  margin: 0 auto;
+}
+
+.app-loading-fallback {
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  padding: 10px 0;
+}
+
+.app-loading-spinner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 6px solid rgba(201, 181, 156, 0.35);
+  border-top-color: rgba(156, 131, 104, 0.9);
+  animation: app-loading-spin 1s linear infinite;
+}
+
+.app-loading-text {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(63, 54, 47, 0.7);
+}
+
+@keyframes app-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell {
+    transition: none;
+  }
+
+  .app-loading-overlay {
+    transition: none;
+  }
+
+  .app-loading-spinner {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1817,10 +1908,27 @@ html {
     radial-gradient(circle at 90% 10%, rgba(78, 91, 74, 0.15), transparent 48%),
     linear-gradient(180deg, #fbf8f4, #f4efe9 55%, #f9f6f2 100%);
   min-height: 100vh;
+  position: relative;
+}
+
+.antwerp-page.has-silk {
+  background: transparent;
+}
+
+.antwerp-silk {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.antwerp-page > :not(.antwerp-silk) {
+  position: relative;
+  z-index: 1;
 }
 
 .la-bounce-section {
-  padding: 72px 0 84px;
+  padding: 10px 0 84px;
   background:
     radial-gradient(circle at 85% 25%, rgba(201, 181, 156, 0.2), transparent 55%),
     radial-gradient(circle at 15% 60%, rgba(78, 91, 74, 0.14), transparent 60%);
@@ -4054,6 +4162,7 @@ html {
   display: flex;
   gap: 10px;
   overflow-x: auto;
+  position: relative;
   padding: 8px;
   border-radius: 14px;
   border: 1px solid rgba(201, 181, 156, 0.5);
@@ -4091,10 +4200,56 @@ html {
   display: block;
 }
 
+.la-thumb-scroll-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 64px;
+  z-index: 5;
+  pointer-events: auto;
+  display: block;
+}
+
+.la-thumb-scroll-zone--left {
+  left: 0;
+  margin-left: -8px;
+  background: transparent;
+}
+
+.la-thumb-scroll-zone--right {
+  right: 0;
+  margin-right: -8px;
+  background: transparent;
+}
+
 .la-unit-modal__sidebar {
   display: grid;
   gap: 16px;
   align-content: start;
+}
+
+.la-listing-shell {
+  position: relative;
+}
+
+.la-listing-silk {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.la-listing-shell__content {
+  position: relative;
+  z-index: 1;
+}
+
+.silk-background,
+.silk-background canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .la-unit-modal__card {
@@ -4604,6 +4759,142 @@ html {
   color: #2e241c;
 }
 
+.la-house-rules ul {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 20px;
+}
+
+.la-house-rules li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(170, 138, 111, 0.25);
+}
+
+.la-house-rules li strong {
+  font-size: 0.95rem;
+  color: #3d2f23;
+}
+
+.la-house-rules li span {
+  font-size: 0.9rem;
+  color: #6a5544;
+}
+
+
+.la-facilities-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.la-facilities-head h4 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.la-facilities-head p {
+  margin: 6px 0 0;
+  color: #6a5a4c;
+  font-size: 0.9rem;
+}
+
+.la-facilities-cta {
+  align-self: center;
+  padding: 8px 16px;
+  border-radius: 10px;
+  background: #0b5fff;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 10px 20px rgba(11, 95, 255, 0.25);
+}
+
+.la-facilities-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 28px;
+}
+
+.la-facilities-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.la-facilities-more {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.la-facilities-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: #1f1a16;
+}
+
+.la-facilities-group__icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 26, 22, 0.06);
+  color: #2d3a2d;
+  font-size: 0.9rem;
+}
+
+.la-facilities-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  color: #3b3127;
+  font-size: 0.92rem;
+}
+
+.la-facilities-group li::before {
+  content: "✓";
+  margin-right: 8px;
+  color: #2d3a2d;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .la-facilities-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .la-facilities-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .la-facilities-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .la-unit-modal__amenities {
   display: flex;
   flex-wrap: wrap;
@@ -4633,6 +4924,18 @@ html {
   margin-top: 14px;
   display: flex;
   justify-content: flex-start;
+}
+
+@media (max-width: 900px) {
+  .la-facilities-more {
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .la-unit-modal__amenities-toggle {
+    margin-top: 6px;
+  }
 }
 
 .la-unit-modal__amenities-toggle {
@@ -4913,6 +5216,7 @@ html {
   display: flex;
   gap: 10px;
   overflow-x: auto;
+  position: relative;
 }
 
 .la-section-hero__thumbs button {
