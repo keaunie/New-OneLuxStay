@@ -13,6 +13,7 @@
       "dependencies": [
         "npm:@eslint/js@^9.39.1",
         "npm:@netlify/blobs@^10.5.0",
+        "npm:@react-three/fiber@^9.5.0",
         "npm:@types/react-dom@^19.2.3",
         "npm:@types/react@^19.2.5",
         "npm:@vitejs/plugin-react@^5.1.1",
@@ -25,6 +26,7 @@
         "npm:eslint@^9.39.1",
         "npm:globals@^16.5.0",
         "npm:gsap@^3.13.0",
+        "npm:jsrepo@^3.2.1",
         "npm:node-fetch@^3.3.2",
         "npm:postcss@^8.5.6",
         "npm:react-dom@^19.2.0",
@@ -32,6 +34,7 @@
         "npm:react@^19.2.0",
         "npm:stripe@^15.12.0",
         "npm:tailwindcss@^3.4.13",
+        "npm:three@0.182",
         "npm:vite@^7.2.4"
       ]
     }

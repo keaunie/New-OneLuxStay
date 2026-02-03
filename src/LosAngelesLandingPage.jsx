@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
 import reviewsHwh from "./data/reviews-hwh.json";
@@ -1948,7 +1949,19 @@ export default function LosAngelesLandingPage() {
     setZoomPan({ x: 0, y: 0 });
   };
 
+  const handleImagePreview = (event, src, nextIndex) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (typeof nextIndex === "number") {
+      setActiveImageIndex(nextIndex);
+    }
+    openZoomImage(src);
+  };
+
   const clampZoom = (value) => Math.min(3, Math.max(1, value));
+  const zoomCanvasRef = useRef(null);
 
   useEffect(() => {
     if (!zoomImageUrl) return;
@@ -1958,6 +1971,21 @@ export default function LosAngelesLandingPage() {
       document.body.style.overflow = previousOverflow;
     };
   }, [zoomImageUrl]);
+
+  useEffect(() => {
+    if (!zoomImageUrl) return;
+    const target = zoomCanvasRef.current;
+    if (!target) return;
+    const handleWheel = (event) => {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? -0.1 : 0.1;
+      setZoomLevel((value) => clampZoom(value + delta));
+    };
+    target.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      target.removeEventListener("wheel", handleWheel);
+    };
+  }, [zoomImageUrl, clampZoom]);
 
   useEffect(() => {
     if (!isPanningRef.current) return;
@@ -2022,22 +2050,32 @@ export default function LosAngelesLandingPage() {
   }, []);
 
   useEffect(() => {
-    if (!routeListingId || !listings.length) return;
+    if (!routeListingId) {
+      setActiveListing(null);
+      setActiveImageIndex(0);
+      return;
+    }
+    if (!listings.length) {
+      setActiveListing(null);
+      return;
+    }
     const match = listings.find(
       (listing) =>
         String(listing.id || listing._id || listing.unitTypeId || "") === String(routeListingId)
     );
-    if (match) {
-      const resolved =
-        isChildListing(match) && getListingGroupKey(match)
-          ? listings.find(
-            (entry) =>
-              !isChildListing(entry) && getListingGroupKey(entry) === getListingGroupKey(match)
-          ) || match
-          : match;
-      setActiveListing(resolved);
-      setActiveImageIndex(0);
+    if (!match) {
+      setActiveListing(null);
+      return;
     }
+    const resolved =
+      isChildListing(match) && getListingGroupKey(match)
+        ? listings.find(
+          (entry) =>
+            !isChildListing(entry) && getListingGroupKey(entry) === getListingGroupKey(match)
+        ) || match
+        : match;
+    setActiveListing(resolved);
+    setActiveImageIndex(0);
   }, [routeListingId, listings]);
 
   useEffect(() => {
@@ -3540,7 +3578,7 @@ export default function LosAngelesLandingPage() {
                     <button
                       type="button"
                       className="la-unit-modal__image-button"
-                      onClick={() => openZoomImage(mainImage)}
+                      onClick={(event) => handleImagePreview(event, mainImage)}
                       aria-label="Open image preview"
                     >
                       <img
@@ -3561,7 +3599,7 @@ export default function LosAngelesLandingPage() {
                         key={`side-${idx}`}
                         type="button"
                         className="la-unit-modal__image-button"
-                        onClick={() => openZoomImage(img)}
+                        onClick={(event) => handleImagePreview(event, img)}
                         aria-label={`Open image preview ${idx + 1}`}
                       >
                         <img
@@ -3616,10 +3654,7 @@ export default function LosAngelesLandingPage() {
                         key={`${img}-${idx}`}
                         type="button"
                         className={idx === activeImageIndex ? "is-active" : ""}
-                        onClick={() => {
-                          setActiveImageIndex(idx);
-                          openZoomImage(img);
-                        }}
+                        onClick={(event) => handleImagePreview(event, img, idx)}
                       >
                         <img
                           src={img}
@@ -3974,7 +4009,9 @@ export default function LosAngelesLandingPage() {
     </div>
   ) : null;
 
-  const zoomModal = zoomImageUrl ? (
+  const zoomPortalTarget = typeof document !== "undefined" ? document.body : null;
+  const zoomModal = zoomImageUrl && zoomPortalTarget
+    ? createPortal(
         <div
           className="la-zoom-modal"
           role="dialog"
@@ -3985,67 +4022,65 @@ export default function LosAngelesLandingPage() {
           }}
         >
           <div className="la-zoom-modal__inner">
-        <button
-          type="button"
-          className="la-zoom-modal__close"
-          onClick={() => setZoomImageUrl("")}
-          aria-label="Close image preview"
-        >
-          Close
-        </button>
-        <div className="la-zoom-modal__controls" aria-label="Zoom controls">
-          <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value - 0.2))}>
-            -
-          </button>
-          <span>{Math.round(zoomLevel * 100)}%</span>
-          <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value + 0.2))}>
-            +
-          </button>
-          <button type="button" onClick={() => setZoomLevel(1)}>
-            Reset
-          </button>
-        </div>
-        <div
-          className={`la-zoom-modal__canvas${zoomLevel > 1 ? " is-zoomed" : ""}`}
-          onPointerDown={(event) => {
-            if (zoomLevel <= 1 || event.button !== 0) return;
-            isPanningRef.current = true;
-            panStartRef.current = { x: event.clientX, y: event.clientY };
-            panOriginRef.current = { x: zoomPan.x, y: zoomPan.y };
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerMove={(event) => {
-            if (!isPanningRef.current) return;
-            const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
-            const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
-            setZoomPan({ x: nextX, y: nextY });
-          }}
-          onPointerUp={(event) => {
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId);
-            }
-            isPanningRef.current = false;
-          }}
-          onPointerLeave={() => {
-            isPanningRef.current = false;
-          }}
-          onWheel={(event) => {
-            event.preventDefault();
-            const delta = event.deltaY > 0 ? -0.1 : 0.1;
-            setZoomLevel((value) => clampZoom(value + delta));
-          }}
-        >
-          <img
-            src={zoomImageUrl}
-            alt="Listing preview"
-            style={{
-              transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  ) : null;
+            <button
+              type="button"
+              className="la-zoom-modal__close"
+              onClick={() => setZoomImageUrl("")}
+              aria-label="Close image preview"
+            >
+              Close
+            </button>
+            <div className="la-zoom-modal__controls" aria-label="Zoom controls">
+              <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value - 0.2))}>
+                -
+              </button>
+              <span>{Math.round(zoomLevel * 100)}%</span>
+              <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value + 0.2))}>
+                +
+              </button>
+              <button type="button" onClick={() => setZoomLevel(1)}>
+                Reset
+              </button>
+            </div>
+            <div
+              ref={zoomCanvasRef}
+              className={`la-zoom-modal__canvas${zoomLevel > 1 ? " is-zoomed" : ""}`}
+              onPointerDown={(event) => {
+                if (zoomLevel <= 1 || event.button !== 0) return;
+                isPanningRef.current = true;
+                panStartRef.current = { x: event.clientX, y: event.clientY };
+                panOriginRef.current = { x: zoomPan.x, y: zoomPan.y };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (!isPanningRef.current) return;
+                const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
+                const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
+                setZoomPan({ x: nextX, y: nextY });
+              }}
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                isPanningRef.current = false;
+              }}
+              onPointerLeave={() => {
+                isPanningRef.current = false;
+              }}
+            >
+              <img
+                src={zoomImageUrl}
+                alt="Listing preview"
+                style={{
+                  transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
+                }}
+              />
+            </div>
+          </div>
+        </div>,
+        zoomPortalTarget
+      )
+    : null;
 
   const listingMapModal = isListingMapOpen ? (
     <div
@@ -5617,7 +5652,7 @@ export default function LosAngelesLandingPage() {
                         <button
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={() => openZoomImage(current)}
+                          onClick={(event) => handleImagePreview(event, current)}
                           aria-label="Open image preview"
                         >
                           <img
@@ -5636,7 +5671,7 @@ export default function LosAngelesLandingPage() {
                         <button
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={() => openZoomImage(sideOne)}
+                          onClick={(event) => handleImagePreview(event, sideOne)}
                           aria-label="Open image preview 1"
                         >
                           <img src={sideOne} alt="" loading="lazy" onError={handleImageError} />
@@ -5648,7 +5683,7 @@ export default function LosAngelesLandingPage() {
                         <button
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={() => openZoomImage(sideTwo)}
+                          onClick={(event) => handleImagePreview(event, sideTwo)}
                           aria-label="Open image preview 2"
                         >
                           <img src={sideTwo} alt="" loading="lazy" onError={handleImageError} />
@@ -5693,10 +5728,7 @@ export default function LosAngelesLandingPage() {
                             key={`${src}-${idx}`}
                             type="button"
                             className={idx === safeIndex ? "is-active" : ""}
-                            onClick={() => {
-                              setActiveImageIndex(idx);
-                              openZoomImage(src);
-                            }}
+                            onClick={(event) => handleImagePreview(event, src, idx)}
                             aria-label={`View image ${idx + 1}`}
                           >
                             <img
