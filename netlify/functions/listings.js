@@ -50,6 +50,61 @@ const getGuestyToken = async () => {
     throw new Error("Guesty token missing or expired. Refresh token first.");
 };
 
+const BED_PATTERNS = [
+    { label: "Master bed", match: /\bmaster bed\b/i },
+    { label: "King bed", match: /\bking(?:-?size)? bed\b/i },
+    { label: "Queen bed", match: /\bqueen(?:-?size)? bed\b/i },
+    { label: "Double bed", match: /\bdouble bed\b|\bfull(?:-?size)? bed\b/i },
+    { label: "Twin bed", match: /\btwin bed\b/i },
+    { label: "Single bed", match: /\bsingle bed\b/i },
+    { label: "Sofa bed", match: /\bsofa bed\b|\bsleeper sofa\b|\bcouch bed\b|\bpull-?out sofa\b/i },
+    { label: "Futon", match: /\bfuton\b/i },
+    { label: "Bunk bed", match: /\bbunk bed\b/i },
+    { label: "Daybed", match: /\bdaybed\b/i },
+    { label: "Murphy bed", match: /\bmurphy bed\b/i },
+    { label: "Air mattress", match: /\bair mattress\b/i },
+    { label: "Crib", match: /\bcrib\b/i },
+];
+
+const extractBedDetails = (listing) => {
+    if (!listing) return [];
+    const sources = [];
+    const push = (value) => {
+        if (typeof value === "string" && value.trim()) sources.push(value);
+    };
+    const description = listing.publicDescription;
+    if (description && typeof description === "object") {
+        push(description.summary);
+        push(description.description);
+        push(description.text);
+        push(description.space);
+        push(description.access);
+        push(description.notes);
+        push(description.neighborhood);
+        push(description.transit);
+        push(description.interactionWithGuests);
+    }
+    push(listing.description);
+    push(listing.notes);
+    if (Array.isArray(listing.amenities)) listing.amenities.forEach(push);
+    if (Array.isArray(listing.tags)) listing.tags.forEach(push);
+    const combined = sources.join(" ");
+    if (!combined) return [];
+    const details = [];
+    BED_PATTERNS.forEach(({ label, match }) => {
+        const countPattern = new RegExp(`(\\d+)\\s*(?:x\\s*)?${match.source}`, "i");
+        const countMatch = combined.match(countPattern);
+        if (countMatch) {
+            details.push(`${label} x${Number(countMatch[1]) || 1}`);
+            return;
+        }
+        if (match.test(combined)) {
+            details.push(label);
+        }
+    });
+    return details;
+};
+
 export async function handler(event) {
     if (event.httpMethod === "OPTIONS") {
         return jsonResponse(200, {});
@@ -83,10 +138,17 @@ export async function handler(event) {
         }
 
         const data = await response.json();
+        const enrichedResults = Array.isArray(data.results)
+            ? data.results.map((listing) => {
+                const bedDetails = extractBedDetails(listing);
+                const bedType = listing.bedType || bedDetails[0] || null;
+                return { ...listing, bedType, bedDetails };
+            })
+            : data.results;
 
         return jsonResponse(
             200,
-            { ...data, tokenSource: tokenSource || "unknown" },
+            { ...data, results: enrichedResults, tokenSource: tokenSource || "unknown" },
             { "X-Guesty-Token-Cache": tokenSource || "unknown" }
         );
     } catch (err) {
