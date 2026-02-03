@@ -4456,11 +4456,21 @@ export default function LosAngelesLandingPage() {
                     </div>
                     {(() => {
                       const openSection = () => {
-                        setActiveSectionKey(group.key);
-                        const listingIds = group.listings
-                          .map((listing) => listing.id || listing._id)
+                        const groupListingIds = group.listings
+                          .map((listing) => getListingId(listing))
                           .filter(Boolean);
-                        const listingId = getPrimaryListingId(group.listings);
+                        const matchedGroup = groupedListingsAll.find((candidate) =>
+                          candidate.listings.some((listing) => groupListingIds.includes(getListingId(listing)))
+                        );
+                        const sectionKey = matchedGroup?.key || group.key;
+                        const sectionListings = matchedGroup?.listings?.length
+                          ? matchedGroup.listings
+                          : group.listings;
+                        setActiveSectionKey(sectionKey);
+                        const listingIds = sectionListings
+                          .map((listing) => getListingId(listing))
+                          .filter(Boolean);
+                        const listingId = getPrimaryListingId(sectionListings);
                         if (listingIds.length) {
                           fetchAvailabilityListings({ listingIds, listingId });
                         }
