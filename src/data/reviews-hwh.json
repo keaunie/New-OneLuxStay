@@ -46,26 +46,6 @@
     ]
   },
   {
-    "name": "B7214OBjw",
-    "rating": 1,
-    "source": "Tripadvisor",
-    "date": "10 months ago",
-    "quote": "Warning: this is not a hotel. It is a multi-tenant building where people sublet their units as hotel rooms. When we arrived, the staff seemed confused.",
-    "details": [
-      "Read more on Tripadvisor"
-    ]
-  },
-  {
-    "name": "emulkeen11",
-    "rating": 1,
-    "source": "Tripadvisor",
-    "date": "3 months ago",
-    "quote": "Nothing of the photos online look like the place you’re staying at. Non refundable. Also not connected to the actual apartment complex, very sketchy situation going on.",
-    "details": [
-      "Read more on Tripadvisor"
-    ]
-  },
-  {
     "name": "Chad Siwik",
     "rating": 5,
     "source": "Google",
@@ -240,20 +220,6 @@
     "response": "Thank you Michael for your kind feedback. Please email us with the room you stayed in so we can check the windows."
   },
   {
-    "name": "Phillip Tran",
-    "rating": 1,
-    "source": "Google",
-    "date": "3 years ago",
-    "quote": "I reserved through Agoda. The building entrance was hard to find. The doorman was rude and unhelpful. Do not book this property.",
-    "details": [
-      "2 reviews · 5 photos",
-      "Trip type: Business",
-      "Rooms: 1",
-      "Service: 1"
-    ],
-    "response": "We are sorry you had this experience. You were booked for a later date and we had not sent check-in details yet."
-  },
-  {
     "name": "mallick quraan",
     "rating": 5,
     "source": "Google",
@@ -268,21 +234,6 @@
       "Location: 5"
     ],
     "response": "Thank you very much for your excellent feedback and for staying with us."
-  },
-  {
-    "name": "Liz Mulkeen",
-    "rating": 1,
-    "source": "Google",
-    "date": "3 months ago",
-    "quote": "Not one of the photos posted look anything like the room.",
-    "details": [
-      "3 reviews",
-      "Trip type: Vacation",
-      "Travel group: Couple",
-      "Rooms: 1",
-      "Service: 1",
-      "Location: 1"
-    ]
   },
   {
     "name": "Emily Cisneros",
