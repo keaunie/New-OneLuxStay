@@ -89,6 +89,12 @@ const extractTextSources = (listing) => {
     push(description.summary);
     push(description.description);
     push(description.text);
+    push(description.space);
+    push(description.access);
+    push(description.notes);
+    push(description.neighborhood);
+    push(description.transit);
+    push(description.interactionWithGuests);
   }
   push(listing?.description);
   push(listing?.notes);
@@ -151,9 +157,15 @@ const getBedDetails = (listing) => {
   addBedsFromText(details, extractTextSources(listing));
 
   const order = new Map(BED_PATTERNS.map((item, index) => [item.label.toLowerCase(), index]));
-  return Array.from(details.values())
+  const result = Array.from(details.values())
     .sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999))
     .map(formatBedEntry);
+  if (result.length) return result;
+  const numericBeds = Number(listing?.beds);
+  if (Number.isFinite(numericBeds) && numericBeds > 0) {
+    return [`Beds x${numericBeds}`];
+  }
+  return result;
 };
 
 export default getBedDetails;
