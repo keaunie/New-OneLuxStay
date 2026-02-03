@@ -7,9 +7,20 @@ const lottieSrc =
 const ensureLottiePlayer = () => {
   if (typeof window === "undefined") return;
   if (window.customElements?.get("lottie-player")) return;
+  if (window.__lottiePlayerLoading) return;
+  if (document.getElementById("lottie-player-script")) return;
+  window.__lottiePlayerLoading = true;
   const script = document.createElement("script");
+  script.id = "lottie-player-script";
   script.src = "https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js";
   script.async = true;
+  script.onload = () => {
+    window.__lottiePlayerLoading = false;
+  };
+  script.onerror = () => {
+    window.__lottiePlayerLoading = false;
+    script.remove();
+  };
   document.head.appendChild(script);
 };
 

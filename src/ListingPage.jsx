@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
+import getBedDetails from "./utils/bedDetails";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -418,10 +419,10 @@ function ListingPage() {
       if (e.key !== "Tab") return;
       const focusable = modalRef.current
         ? Array.from(
-            modalRef.current.querySelectorAll(
-              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-            ),
-          )
+          modalRef.current.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        )
         : [];
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -844,243 +845,243 @@ function ListingPage() {
     <div className="listing-page min-h-screen">
       <div className="listing-backdrop" aria-hidden="true" />
       <div aria-hidden={isModalOpen ? "true" : undefined}>
-      <header className="listing-hero relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
-        <div className="flex flex-col gap-4 md:gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-amber-300">OneLuxStay</p>
-            <h1 className="text-3xl md:text-4xl font-semibold text-white leading-tight">
-              Direct booking portal connected to Guesty
-            </h1>
-            <p className="text-slate-300 mt-2 max-w-2xl">
-              Live inventory, real-time price checks, and fast booking even on slow connections.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="listing-panel listing-search-panel rounded-2xl p-4 shadow-lg backdrop-blur relative">
-            <p className="text-sm font-semibold text-white mb-3">Search dates</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="lg:col-span-2">
-                <DateRangePicker
-                  value={search}
-                  onChange={(val) =>
-                    setSearch((prev) => ({
-                      ...prev,
-                      checkIn: val.checkIn,
-                      checkOut: val.checkOut,
-                    }))
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="listing-adults" className="text-xs text-slate-300">Adults</label>
-                <input
-                  id="listing-adults"
-                  type="number"
-                  min="1"
-                  value={search.adults}
-                  onChange={(e) => handleSearchChange("adults", Number(e.target.value))}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="listing-children" className="text-xs text-slate-300">Children</label>
-                <input
-                  id="listing-children"
-                  type="number"
-                  min="0"
-                  value={search.children}
-                  onChange={(e) => handleSearchChange("children", Number(e.target.value))}
-                  className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-              <p>
-                {nights > 0 ? `${nights} night stay selected` : "Select dates to check availability & rates"}
+        <header className="listing-hero relative z-20 max-w-6xl mx-auto px-6 pt-10 pb-8">
+          <div className="flex flex-col gap-4 md:gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-amber-300">OneLuxStay</p>
+              <h1 className="text-3xl md:text-4xl font-semibold text-white leading-tight">
+                Direct booking portal connected to Guesty
+              </h1>
+              <p className="text-slate-300 mt-2 max-w-2xl">
+                Live inventory, real-time price checks, and fast booking even on slow connections.
               </p>
             </div>
-            {availabilityNotice && (
-              <p role="status" aria-live="polite" className="mt-2 text-xs text-amber-200">
-                {availabilityNotice}
-              </p>
-            )}
           </div>
-        </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto px-6 pb-14">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-white">
-            Available units {availableCount > 0 ? `(${availableCount})` : ""}
-          </h2>
-        </div>
+          <div className="mt-6">
+            <div className="listing-panel listing-search-panel rounded-2xl p-4 shadow-lg backdrop-blur relative">
+              <p className="text-sm font-semibold text-white mb-3">Search dates</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="lg:col-span-2">
+                  <DateRangePicker
+                    value={search}
+                    onChange={(val) =>
+                      setSearch((prev) => ({
+                        ...prev,
+                        checkIn: val.checkIn,
+                        checkOut: val.checkOut,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="listing-adults" className="text-xs text-slate-300">Adults</label>
+                  <input
+                    id="listing-adults"
+                    type="number"
+                    min="1"
+                    value={search.adults}
+                    onChange={(e) => handleSearchChange("adults", Number(e.target.value))}
+                    className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="listing-children" className="text-xs text-slate-300">Children</label>
+                  <input
+                    id="listing-children"
+                    type="number"
+                    min="0"
+                    value={search.children}
+                    onChange={(e) => handleSearchChange("children", Number(e.target.value))}
+                    className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+                <p>
+                  {nights > 0 ? `${nights} night stay selected` : "Select dates to check availability & rates"}
+                </p>
+              </div>
+              {availabilityNotice && (
+                <p role="status" aria-live="polite" className="mt-2 text-xs text-amber-200">
+                  {availabilityNotice}
+                </p>
+              )}
+            </div>
+          </div>
+        </header>
 
-        {cityOptions.length > 1 && (
-          <div className="mb-5 flex flex-wrap gap-3">
-            {cityOptions.map(({ city, image }) => {
-              const active = cityFilter === city;
+        <main className="max-w-6xl mx-auto px-6 pb-14">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-white">
+              Available units {availableCount > 0 ? `(${availableCount})` : ""}
+            </h2>
+          </div>
+
+          {cityOptions.length > 1 && (
+            <div className="mb-5 flex flex-wrap gap-3">
+              {cityOptions.map(({ city, image }) => {
+                const active = cityFilter === city;
+                return (
+                  <button
+                    key={city}
+                    onClick={() => setCityFilter(city)}
+                    className={`listing-filter-btn group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
+                      ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
+                      : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
+                      }`}
+                  >
+                    {image && (
+                      <span className="h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800">
+                        <img src={image} alt={city} className="h-full w-full object-cover" loading="lazy" />
+                      </span>
+                    )}
+                    <span>{city.toUpperCase()}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {loadingListings && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[1, 2].map((item) => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4 animate-pulse">
+                  <div className="h-40 rounded-xl bg-white/10" />
+                  <div className="mt-3 h-4 w-2/3 bg-white/10 rounded" />
+                  <div className="mt-2 h-3 w-1/2 bg-white/5 rounded" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {listingsError && (
+            <div role="alert" className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+              {listingsError}
+            </div>
+          )}
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            {filteredListings.map((listing, index) => {
+              const status = availability[listing.id] || {};
+              const displayTotal = status.hostPayout ?? status.total;
+              const displayNightly = status.nightly ?? listing.basePrice;
+              const canBook = status.status === "ready" && status.available !== false;
+              const showInquiry = status.status === "ready" && status.available === false;
+
               return (
-                <button
-                  key={city}
-                  onClick={() => setCityFilter(city)}
-                  className={`listing-filter-btn group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
-                    ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
-                    : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
-                    }`}
+                <article
+                  key={listing.id}
+                  className="listing-card group rounded-2xl border p-4 shadow-lg transition"
                 >
-                  {image && (
-                    <span className="h-8 w-8 overflow-hidden rounded-full border border-white/15 bg-slate-800">
-                      <img src={image} alt={city} className="h-full w-full object-cover" loading="lazy" />
-                    </span>
+                  <div className="relative overflow-hidden rounded-xl bg-slate-900">
+                    {listing.picture ? (
+                      <img
+                        src={listing.picture}
+                        alt={listing.title}
+                        loading={index < 2 ? "eager" : "lazy"}
+                        className="h-48 w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="h-48 w-full bg-slate-800" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
+                    <div className="listing-card__badge absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
+                      Sleeps {listing.accommodates} {listing.bedrooms} BR  -  {listing.bathrooms} BA
+                    </div>
+
+                  </div>
+                  <div className="mt-3">
+                    <div>
+                      <p className="listing-card__kicker text-xs uppercase tracking-wide text-amber-200">
+                        {listing.location || listing.timezone || "OneLuxStay"}
+                      </p>
+                      <h3 className="listing-card__title text-lg font-semibold text-white leading-tight">{listing.title}</h3>
+                      <p className="listing-card__meta text-sm text-slate-300">
+                        From {formatCurrency(listing.basePrice, listing.currency)} / night  -  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div role="status" aria-live="polite" className="listing-card__status mt-3 flex items-center gap-2 text-sm text-slate-200">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
+                    {status.status === "ready" && status.available !== false && (
+                      <span>
+                        Available  -  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
+                        {displayTotal ? ` -  ${formatCurrency(displayTotal, status.currency)} total` : ""}
+                        {status.hostPayout ? " " : ""}
+                      </span>
+                    )}
+                    {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
+                    {status.status === "loading" && <span>Checking Guesty - </span>}
+                    {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
+                    {status.status === undefined && <span>Click "Check price" to fetch live availability.</span>}
+                  </div>
+
+                  {status.status === "ready" && status.available !== false && status.breakdown && (
+                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-300">
+                      {status.breakdown.accommodation > 0 && (
+                        <span>Stay: {formatCurrency(status.breakdown.accommodation, status.currency)}</span>
+                      )}
+                      {status.breakdown.cleaning > 0 && (
+                        <span>Cleaning: {formatCurrency(status.breakdown.cleaning, status.currency)}</span>
+                      )}
+                      {status.breakdown.taxes > 0 && (
+                        <span>Taxes: {formatCurrency(status.breakdown.taxes, status.currency)}</span>
+                      )}
+                      {status.breakdown.fees > 0 && (
+                        <span>Fees: {formatCurrency(status.breakdown.fees, status.currency)}</span>
+                      )}
+                      {status.breakdown.deposit > 0 && (
+                        <span>Deposit: {formatCurrency(status.breakdown.deposit, status.currency)}</span>
+                      )}
+                    </div>
                   )}
-                  <span>{city.toUpperCase()}</span>
-                </button>
+
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenModal(listing)}
+                      aria-label={`Check price and availability for ${listing.title}`}
+                      className="listing-btn rounded-lg px-3 py-2 text-sm font-semibold border transition"
+                    >
+                      Check price & availability
+                    </button>
+                    {canBook && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveListingId(listing.id);
+                          handleBook();
+                        }}
+                        aria-label={`Book ${listing.title}`}
+                        className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
+                      >
+                        Book this stay
+                      </button>
+                    )}
+                    {showInquiry && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInquiryListing(listing);
+                          setIsInquiryOpen(true);
+                        }}
+                        aria-label={`Inquire about ${listing.title}`}
+                        className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
+                      >
+                        Inquire
+                      </button>
+                    )}
+                  </div>
+                </article>
               );
             })}
           </div>
-        )}
-
-        {loadingListings && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[1, 2].map((item) => (
-              <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4 animate-pulse">
-                <div className="h-40 rounded-xl bg-white/10" />
-                <div className="mt-3 h-4 w-2/3 bg-white/10 rounded" />
-                <div className="mt-2 h-3 w-1/2 bg-white/5 rounded" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {listingsError && (
-          <div role="alert" className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-100">
-            {listingsError}
-          </div>
-        )}
-
-        <div className="grid gap-5 sm:grid-cols-2">
-          {filteredListings.map((listing, index) => {
-            const status = availability[listing.id] || {};
-            const displayTotal = status.hostPayout ?? status.total;
-            const displayNightly = status.nightly ?? listing.basePrice;
-            const canBook = status.status === "ready" && status.available !== false;
-            const showInquiry = status.status === "ready" && status.available === false;
-
-            return (
-              <article
-                key={listing.id}
-                className="listing-card group rounded-2xl border p-4 shadow-lg transition"
-              >
-                <div className="relative overflow-hidden rounded-xl bg-slate-900">
-                  {listing.picture ? (
-                    <img
-                      src={listing.picture}
-                      alt={listing.title}
-                      loading={index < 2 ? "eager" : "lazy"}
-                      className="h-48 w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="h-48 w-full bg-slate-800" />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
-                  <div className="listing-card__badge absolute bottom-3 left-3 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur">
-                    Sleeps {listing.accommodates} {listing.bedrooms} BR  -  {listing.bathrooms} BA
-                  </div>
-
-                </div>
-                <div className="mt-3">
-                  <div>
-                    <p className="listing-card__kicker text-xs uppercase tracking-wide text-amber-200">
-                      {listing.location || listing.timezone || "OneLuxStay"}
-                    </p>
-                    <h3 className="listing-card__title text-lg font-semibold text-white leading-tight">{listing.title}</h3>
-                    <p className="listing-card__meta text-sm text-slate-300">
-                      From {formatCurrency(listing.basePrice, listing.currency)} / night  -  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
-                    </p>
-                  </div>
-                </div>
-
-                <div role="status" aria-live="polite" className="listing-card__status mt-3 flex items-center gap-2 text-sm text-slate-200">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
-                  {status.status === "ready" && status.available !== false && (
-                    <span>
-                      Available  -  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
-                      {displayTotal ? ` -  ${formatCurrency(displayTotal, status.currency)} total` : ""}
-                      {status.hostPayout ? " " : ""}
-                    </span>
-                  )}
-                  {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
-                  {status.status === "loading" && <span>Checking Guesty - </span>}
-                  {status.status === "error" && <span className="text-rose-200">{status.message}</span>}
-                  {status.status === undefined && <span>Click "Check price" to fetch live availability.</span>}
-                </div>
-
-                {status.status === "ready" && status.available !== false && status.breakdown && (
-                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-300">
-                    {status.breakdown.accommodation > 0 && (
-                      <span>Stay: {formatCurrency(status.breakdown.accommodation, status.currency)}</span>
-                    )}
-                    {status.breakdown.cleaning > 0 && (
-                      <span>Cleaning: {formatCurrency(status.breakdown.cleaning, status.currency)}</span>
-                    )}
-                    {status.breakdown.taxes > 0 && (
-                      <span>Taxes: {formatCurrency(status.breakdown.taxes, status.currency)}</span>
-                    )}
-                    {status.breakdown.fees > 0 && (
-                      <span>Fees: {formatCurrency(status.breakdown.fees, status.currency)}</span>
-                    )}
-                    {status.breakdown.deposit > 0 && (
-                      <span>Deposit: {formatCurrency(status.breakdown.deposit, status.currency)}</span>
-                    )}
-                  </div>
-                )}
-
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenModal(listing)}
-                    aria-label={`Check price and availability for ${listing.title}`}
-                    className="listing-btn rounded-lg px-3 py-2 text-sm font-semibold border transition"
-                  >
-                    Check price & availability
-                  </button>
-                  {canBook && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveListingId(listing.id);
-                        handleBook();
-                      }}
-                      aria-label={`Book ${listing.title}`}
-                      className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
-                    >
-                      Book this stay
-                    </button>
-                  )}
-                  {showInquiry && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInquiryListing(listing);
-                        setIsInquiryOpen(true);
-                      }}
-                      aria-label={`Inquire about ${listing.title}`}
-                      className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
-                    >
-                      Inquire
-                    </button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
 
       {isModalOpen && modalListing && (
         <div className="listing-modal-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10 backdrop-blur">
@@ -1150,6 +1151,20 @@ function ListingPage() {
                     <span>Accommodates: {modalListing.accommodates ?? "--"}</span>
                     <span>Property type: {modalListing.propertyType || "--"}</span>
                   </div>
+                  {(() => {
+                    const bedDetails = getBedDetails(modalListing);
+                    if (!bedDetails.length) return null;
+                    return (
+                      <div className="mt-3">
+                        <p className="font-semibold text-amber-200">Bed setup</p>
+                        <ul className="mt-2 list-disc pl-4 text-amber-100/80">
+                          {bedDetails.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                   <div className="text-sm text-amber-100/90">
                     <p className="font-semibold text-amber-200">Dates</p>
                     <p className="mt-1">
@@ -1210,59 +1225,59 @@ function ListingPage() {
                   {modalAvailability?.status === "loading" && <p className="text-amber-100/80">Checking Guesty - </p>}
 
                   {modalAvailability?.status === "ready" && modalAvailability?.available !== false && (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-sm font-semibold text-amber-200">Booking</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                      <input
-                        placeholder="First name"
-                        aria-label="First name"
-                        value={bookingInfo.firstName}
-                        onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                      />
-                      <input
-                        placeholder="Last name"
-                        aria-label="Last name"
-                        value={bookingInfo.lastName}
-                        onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                      />
-                      <input
-                        type="email"
-                        placeholder="Email"
-                        aria-label="Email"
-                        value={bookingInfo.email}
-                        onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                      />
-                      <input
-                        placeholder="Phone"
-                        aria-label="Phone"
-                        value={bookingInfo.phone}
-                        onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
-                        className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                      />
-                      <input
-                        placeholder="Notes / requests"
-                        aria-label="Notes / requests"
-                        value={bookingInfo.notes}
-                        onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
-                        className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
-                      />
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-semibold text-amber-200">Booking</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                        <input
+                          placeholder="First name"
+                          aria-label="First name"
+                          value={bookingInfo.firstName}
+                          onChange={(e) => setBookingInfo((p) => ({ ...p, firstName: e.target.value }))}
+                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                        />
+                        <input
+                          placeholder="Last name"
+                          aria-label="Last name"
+                          value={bookingInfo.lastName}
+                          onChange={(e) => setBookingInfo((p) => ({ ...p, lastName: e.target.value }))}
+                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                        />
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          aria-label="Email"
+                          value={bookingInfo.email}
+                          onChange={(e) => setBookingInfo((p) => ({ ...p, email: e.target.value }))}
+                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                        />
+                        <input
+                          placeholder="Phone"
+                          aria-label="Phone"
+                          value={bookingInfo.phone}
+                          onChange={(e) => setBookingInfo((p) => ({ ...p, phone: e.target.value }))}
+                          className="rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                        />
+                        <input
+                          placeholder="Notes / requests"
+                          aria-label="Notes / requests"
+                          value={bookingInfo.notes}
+                          onChange={(e) => setBookingInfo((p) => ({ ...p, notes: e.target.value }))}
+                          className="sm:col-span-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                        />
+                      </div>
+                      <button
+                        onClick={handleBook}
+                        disabled={bookingState.status === "loading"}
+                        className="listing-btn-primary w-full rounded-lg px-4 py-3 text-sm font-semibold shadow-lg transition disabled:opacity-60"
+                      >
+                        {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
+                      </button>
+                      {bookingState.message && (
+                        <p role="status" aria-live="polite" className="text-xs text-amber-200">
+                          {bookingState.message}
+                        </p>
+                      )}
                     </div>
-                    <button
-                      onClick={handleBook}
-                      disabled={bookingState.status === "loading"}
-                      className="listing-btn-primary w-full rounded-lg px-4 py-3 text-sm font-semibold shadow-lg transition disabled:opacity-60"
-                    >
-                      {bookingState.status === "loading" ? "Sending to Guesty..." : "Book this stay"}
-                    </button>
-                    {bookingState.message && (
-                      <p role="status" aria-live="polite" className="text-xs text-amber-200">
-                        {bookingState.message}
-                      </p>
-                    )}
-                  </div>
                   )}
                 </div>
               </div>

@@ -10,6 +10,7 @@ import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import LoadingScreen from "./components/LoadingScreen";
+import getBedDetails from "./utils/bedDetails";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -1960,8 +1961,47 @@ export default function LosAngelesLandingPage() {
     openZoomImage(src);
   };
 
-  const clampZoom = (value) => Math.min(3, Math.max(1, value));
   const zoomCanvasRef = useRef(null);
+  const zoomImageRef = useRef(null);
+
+  const getCoverZoom = () => {
+    const container = zoomCanvasRef.current;
+    const img = zoomImageRef.current;
+    if (!container || !img) return 1;
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+    if (!containerRect.width || !containerRect.height || !imgRect.width || !imgRect.height) return 1;
+    const baseWidth = imgRect.width / zoomLevel;
+    const baseHeight = imgRect.height / zoomLevel;
+    if (!baseWidth || !baseHeight) return 1;
+    const scaleX = containerRect.width / baseWidth;
+    const scaleY = containerRect.height / baseHeight;
+    return Math.max(scaleX, scaleY, 1);
+  };
+
+  const clampZoom = (value) => {
+    const minZoom = getCoverZoom();
+    return Math.min(5, Math.max(minZoom, value));
+  };
+
+  const clampZoomPan = (pan) => {
+    const container = zoomCanvasRef.current;
+    const img = zoomImageRef.current;
+    if (!container || !img) return pan;
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+    if (!containerRect.width || !containerRect.height || !imgRect.width || !imgRect.height) return pan;
+    const baseWidth = imgRect.width / zoomLevel;
+    const baseHeight = imgRect.height / zoomLevel;
+    const scaledWidth = baseWidth * zoomLevel;
+    const scaledHeight = baseHeight * zoomLevel;
+    const maxX = Math.max(0, (scaledWidth - containerRect.width) / 2);
+    const maxY = Math.max(0, (scaledHeight - containerRect.height) / 2);
+    return {
+      x: Math.min(maxX, Math.max(-maxX, pan.x)),
+      y: Math.min(maxY, Math.max(-maxY, pan.y)),
+    };
+  };
 
   useEffect(() => {
     if (!zoomImageUrl) return;
@@ -1986,6 +2026,14 @@ export default function LosAngelesLandingPage() {
       target.removeEventListener("wheel", handleWheel);
     };
   }, [zoomImageUrl, clampZoom]);
+
+  useEffect(() => {
+    if (!zoomImageUrl) return;
+    setZoomPan((prev) => {
+      const next = clampZoomPan(prev);
+      return next.x === prev.x && next.y === prev.y ? prev : next;
+    });
+  }, [zoomImageUrl, zoomLevel]);
 
   useEffect(() => {
     if (!isPanningRef.current) return;
@@ -4056,7 +4104,7 @@ export default function LosAngelesLandingPage() {
                 if (!isPanningRef.current) return;
                 const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
                 const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
-                setZoomPan({ x: nextX, y: nextY });
+                setZoomPan(clampZoomPan({ x: nextX, y: nextY }));
               }}
               onPointerUp={(event) => {
                 if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -4069,8 +4117,13 @@ export default function LosAngelesLandingPage() {
               }}
             >
               <img
+                ref={zoomImageRef}
                 src={zoomImageUrl}
                 alt="Listing preview"
+                onLoad={() => {
+                  setZoomLevel((value) => clampZoom(value));
+                  setZoomPan((prev) => clampZoomPan(prev));
+                }}
                 style={{
                   transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
                 }}
@@ -6028,6 +6081,17 @@ export default function LosAngelesLandingPage() {
                     Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
                     {activeListing.accommodates || "--"}
                   </p>
+                  {(() => {
+                    const bedDetails = getBedDetails(activeListing);
+                    if (!bedDetails.length) return null;
+                    return (
+                      <ul className="la-unit-modal__bed-list">
+                        {bedDetails.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
                 <div className="la-unit-modal__room-actions">
                   <button type="button">Virtual tour</button>

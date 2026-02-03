@@ -61,7 +61,7 @@ export async function handler(event) {
         const params = new URLSearchParams({
             limit: "170",
             fields:
-                "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms propertyType timezone tags amenities accountId",
+                "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId",
             active: "true",
             listed: "true",
             pmsActive: "true",

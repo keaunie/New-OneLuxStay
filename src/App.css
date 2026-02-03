@@ -4074,6 +4074,19 @@ html {
   color: #3f342a;
 }
 
+.la-unit-modal__bed-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  color: #4a3f35;
+  font-size: 0.9rem;
+}
+
+.la-unit-modal__bed-list li {
+  list-style: disc;
+}
+
 .la-unit-modal__tabs {
   display: flex;
   gap: 12px;
