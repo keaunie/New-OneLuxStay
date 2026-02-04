@@ -989,9 +989,10 @@ function ListingPage() {
               const displayNightly = status.nightly ?? listing.basePrice;
               const canBook = status.status === "ready" && status.available !== false;
               const showInquiry = status.status === "ready" && status.available === false;
-              const bedDetails = (listing.bedDetails && listing.bedDetails.length)
-                ? listing.bedDetails
-                : getBedDetails(listing);
+              const derivedBedDetails = getBedDetails(listing);
+              const bedDetails = derivedBedDetails.length
+                ? derivedBedDetails
+                : (listing.bedDetails || []);
               const bedItems = bedDetails.slice(0, 4);
               const bedExtra = bedDetails.length - bedItems.length;
               const bedLines = bedItems

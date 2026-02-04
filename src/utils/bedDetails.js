@@ -232,6 +232,17 @@ const normalizeBedName = (name) => {
   return formatBedLabel(cleaned);
 };
 
+const normalizeRoomLabel = (value) => {
+  if (!value) return "";
+  const cleaned = String(value).trim();
+  if (!cleaned) return "";
+  const bedroomMatch = cleaned.match(/bedroom\s*(\d+)/i);
+  if (bedroomMatch) return `Bedroom ${bedroomMatch[1]}`;
+  if (/living\s*room/i.test(cleaned)) return "Living room";
+  if (/bedroom/i.test(cleaned)) return "Bedroom";
+  return cleaned;
+};
+
 const getRoomLabelForBed = (name) => {
   if (!name) return "";
   if (KING_OR_QUEEN_REGEX.test(name)) return "Bedroom 1";
@@ -243,7 +254,17 @@ export const formatBedDetailText = (detail) => {
   if (!parsed) return "";
   const label = normalizeBedName(parsed.name);
   if (!label) return "";
-  const availabilityNote = /\bair mattress\b/i.test(label) ? " (Based on availability)" : "";
+  const raw = String(detail || "");
+  const rawLower = raw.toLowerCase();
+  let availabilityNote = "";
+  if (/\bair mattress\b/i.test(label)) {
+    availabilityNote = " (Based on availability)";
+  } else if (/\bcrib\b/i.test(label)) {
+    availabilityNote = " (Based on availability)";
+  }
+  if (availabilityNote && rawLower.includes(availabilityNote.toLowerCase())) {
+    availabilityNote = "";
+  }
   if (parsed.count > 1) return `${parsed.count} ${label}${availabilityNote}`;
   return `${label}${availabilityNote}`;
 };
@@ -258,8 +279,22 @@ export const splitBedDetailLine = (detail) => {
       detail: formatBedDetailText(parts.slice(1).join(":").trim()),
     };
   }
+  const roomPrefixMatch = text.match(/^(Bedroom\s*\d+|Living\s*room)\s*[-–—]?\s*(.+)$/i);
+  if (roomPrefixMatch) {
+    return {
+      label: normalizeRoomLabel(roomPrefixMatch[1]),
+      detail: formatBedDetailText(roomPrefixMatch[2]),
+    };
+  }
+  const roomSuffixMatch = text.match(/^(.+?)\s+in\s+(Bedroom\s*\d+|Living\s*room)\b/i);
+  if (roomSuffixMatch) {
+    return {
+      label: normalizeRoomLabel(roomSuffixMatch[2]),
+      detail: formatBedDetailText(roomSuffixMatch[1]),
+    };
+  }
   const parsed = parseBedDetail(text);
-  if (parsed && /\bair mattress\b/i.test(parsed.name)) {
+  if (parsed && (/\bair mattress\b/i.test(parsed.name) || /\bcrib\b/i.test(parsed.name))) {
     return { label: "", detail: formatBedDetailText(text) };
   }
   return {
@@ -297,10 +332,6 @@ const getBedDetails = (listing) => {
     });
   }
 
-  if (typeof listing?.bedType === "string") {
-    addBed(details, listing.bedType, 1);
-  }
-
   const sources = extractTextSources(listing);
   const bedroomDetails = extractBedroomBedDetails(sources);
   if (bedroomDetails.length) {
@@ -308,11 +339,25 @@ const getBedDetails = (listing) => {
     addBedsFromText(extraDetails, sources);
     const extraItems = Array.from(extraDetails.values())
       .map(formatBedEntry)
-      .filter((item) => !bedroomDetails.some((entry) => entry.includes(item.split(" x")[0])));
+      .filter((item) => {
+        const needle = item.split(" x")[0].toLowerCase();
+        return !bedroomDetails.some((entry) => entry.toLowerCase().includes(needle));
+      });
     return [...bedroomDetails, ...extraItems];
   }
 
   addBedsFromText(details, sources);
+
+  if (typeof listing?.bedType === "string") {
+    const parsed = parseBedDetail(listing.bedType);
+    if (parsed?.name) {
+      const normalized = formatBedLabel(parsed.name);
+      const key = normalized.toLowerCase();
+      if (!details.has(key)) {
+        addBed(details, parsed.name, parsed.count || 1);
+      }
+    }
+  }
 
   const order = new Map(BED_PATTERNS.map((item, index) => [item.label.toLowerCase(), index]));
   const result = Array.from(details.values())

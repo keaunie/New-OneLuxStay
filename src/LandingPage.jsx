@@ -1,7 +1,30 @@
-ï»¿import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useId } from "react";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
+
+const BOOKING_STORAGE_KEY = "laBookingFilters";
+const readPersistedBooking = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(BOOKING_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+const writePersistedBooking = (payload) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (!payload) {
+      window.sessionStorage.removeItem(BOOKING_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore storage failures.
+  }
+};
 
 const parseDate = (value) => {
   if (!value) return null;
@@ -365,6 +388,7 @@ const DateRangePicker = ({ value, onChange }) => {
 
 function LandingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [destination, setDestination] = useState("All");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -374,11 +398,11 @@ function LandingPage() {
   const [activeShowcase, setActiveShowcase] = useState(0);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
   const patienceQuotes = [
-    "We are working on this. â€œGreatest things come to those who wait.â€",
-    "We are working on this. â€œPatience is not the ability to wait, but the ability to keep a good attitude while waiting.â€",
-    "We are working on this. â€œAll things are difficult before they are easy.â€",
-    "We are working on this. â€œThe two most powerful warriors are patience and time.â€",
-    "We are working on this. â€œSlow and steady wins the race.â€",
+    "We are working on this. “Greatest things come to those who wait.”",
+    "We are working on this. “Patience is not the ability to wait, but the ability to keep a good attitude while waiting.”",
+    "We are working on this. “All things are difficult before they are easy.”",
+    "We are working on this. “The two most powerful warriors are patience and time.”",
+    "We are working on this. “Slow and steady wins the race.”",
   ];
   const [cityNoticeIndex, setCityNoticeIndex] = useState(0);
   const [cityNotice, setCityNotice] = useState("");
@@ -399,6 +423,28 @@ function LandingPage() {
     setCityNoticeIndex(next);
     setCityNotice(patienceQuotes[next]);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const destinationParam = params.get("city") || params.get("destination") || "";
+    const checkInParam = params.get("checkIn") || "";
+    const checkOutParam = params.get("checkOut") || "";
+    const guestsParam = params.get("guests") || params.get("adults") || "";
+    const persisted = readPersistedBooking();
+    setDestination(destinationParam || persisted?.destination || "All");
+    setCheckIn(checkInParam || persisted?.checkIn || "");
+    setCheckOut(checkOutParam || persisted?.checkOut || "");
+    setGuests(guestsParam ? Number(guestsParam) || 1 : persisted?.guests || 1);
+  }, [location.search]);
+
+  useEffect(() => {
+    writePersistedBooking({
+      destination,
+      checkIn,
+      checkOut,
+      guests,
+    });
+  }, [destination, checkIn, checkOut, guests]);
 
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll(".landing-animate"));
@@ -710,7 +756,7 @@ function LandingPage() {
               <p className="landing-kicker">Concierge on standby</p>
               <h3 className="landing-display text-3xl md:text-4xl">Tell us your dates. We'll handle the rest.</h3>
               <p className="text-slate-200 max-w-2xl">
-                City skyline, ocean breeze, private workspace, or space for the whole crewâ€”share your stay goals and we'll reply with tailored options.
+                City skyline, ocean breeze, private workspace, or space for the whole crew—share your stay goals and we'll reply with tailored options.
               </p>
             </div>
             <div className="landing-actions mt-4">
