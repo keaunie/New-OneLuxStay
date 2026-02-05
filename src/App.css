@@ -1521,6 +1521,60 @@ html {
 .landing-stack-scroll {
   position: relative;
   padding-bottom: 20px;
+  background: #f2e7da;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.landing-stack-scroll::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: transparent;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1600' height='520' viewBox='0 0 1600 520'><path d='M-60 90 C 220 20, 520 160, 820 90 S 1420 20, 1660 90' stroke='%23c9b59c' stroke-opacity='0.55' stroke-width='2' stroke-linecap='round' fill='none'/><path d='M-80 210 C 260 140, 560 300, 900 210 S 1480 130, 1720 210' stroke='%23bfa891' stroke-opacity='0.45' stroke-width='2' stroke-linecap='round' fill='none'/><path d='M-100 330 C 280 260, 620 420, 980 330 S 1540 250, 1780 330' stroke='%23d6c3aa' stroke-opacity='0.4' stroke-width='2' stroke-linecap='round' fill='none'/><path d='M-120 450 C 300 390, 660 520, 1040 450 S 1600 380, 1840 450' stroke='%23c9b59c' stroke-opacity='0.35' stroke-width='2' stroke-linecap='round' fill='none'/></svg>");
+  background-repeat: repeat-x;
+  background-size: 1600px 520px;
+  background-position: 0 40px;
+  animation: floatingLinesPrimary 36s linear infinite;
+  z-index: 0;
+}
+
+.landing-stack-scroll::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1800' height='620' viewBox='0 0 1800 620'><path d='M-80 140 C 300 60, 640 240, 980 140 S 1600 60, 1900 140' stroke='%239c8368' stroke-opacity='0.22' stroke-width='2' stroke-linecap='round' fill='none'/><path d='M-110 300 C 340 220, 720 420, 1100 300 S 1700 220, 2000 300' stroke='%23b59c84' stroke-opacity='0.2' stroke-width='2' stroke-linecap='round' fill='none'/></svg>");
+  background-repeat: repeat-x;
+  background-size: 1800px 620px;
+  background-position: 0 260px;
+  opacity: 0.65;
+  animation: floatingLinesSecondary 48s linear infinite;
+  z-index: 0;
+}
+
+.landing-stack-scroll__scroller {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes floatingLinesPrimary {
+  0% {
+    background-position: 0 40px;
+  }
+  100% {
+    background-position: -1600px 40px;
+  }
+}
+
+@keyframes floatingLinesSecondary {
+  0% {
+    background-position: 0 260px;
+  }
+  100% {
+    background-position: 1800px 260px;
+  }
 }
 
 .landing-stack-scroll .scroll-stack-card {
