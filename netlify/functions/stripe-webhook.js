@@ -6,6 +6,24 @@ const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 const STRIPE_EVENT_STORE = "stripe-webhook-events";
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "bif",
+  "clp",
+  "djf",
+  "gnf",
+  "jpy",
+  "kmf",
+  "krw",
+  "mga",
+  "pyg",
+  "rwf",
+  "ugx",
+  "vnd",
+  "vuv",
+  "xaf",
+  "xof",
+  "xpf",
+]);
 
 const jsonResponse = (statusCode, body) => ({
   statusCode,
@@ -183,6 +201,53 @@ const buildReservationPayload = (session) => {
   return payload;
 };
 
+const fromStripeAmount = (amount, currency) => {
+  if (!Number.isFinite(amount)) return null;
+  const normalized = (currency || "USD").toLowerCase();
+  if (ZERO_DECIMAL_CURRENCIES.has(normalized)) return amount;
+  return amount / 100;
+};
+
+const createReservationPayment = async (reservationId, session) => {
+  if (!reservationId) return null;
+  const metadata = session?.metadata || {};
+  const metaTotal =
+    Number.isFinite(Number(metadata.bd_total)) ? Number(metadata.bd_total) : null;
+  const metaAmount =
+    Number.isFinite(Number(metadata.amount)) ? Number(metadata.amount) : null;
+  const stripeAmount =
+    Number.isFinite(session?.amount_total)
+      ? fromStripeAmount(session.amount_total, session?.currency)
+      : null;
+  const amount = metaTotal ?? metaAmount ?? stripeAmount;
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const { token } = await getGuestyToken();
+  const response = await fetchWithTimeout(
+    `${OPEN_API_V1}/reservations/${reservationId}/payments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        paymentMethod: { method: "STRIPE" },
+        amount,
+        paidAt: new Date().toISOString(),
+        note: `Paid via Stripe checkout session ${session?.id || ""}`.trim(),
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+};
+
 const createGuestyReservation = async (payload) => {
   const { token } = await getGuestyToken();
   const response = await fetchWithTimeout(`${OPEN_API_V1}/reservations`, {
@@ -297,6 +362,12 @@ export async function handler(event) {
   try {
     const reservation = await createGuestyReservation(payload);
     const reservationId = reservation?._id || reservation?.id || null;
+    let paymentError = null;
+    try {
+      await createReservationPayment(reservationId, session);
+    } catch (err) {
+      paymentError = err.message;
+    }
     await writeStripeEvent(stripeEvent.id, {
       processedAt: Date.now(),
       reservationId,
@@ -314,6 +385,7 @@ export async function handler(event) {
     return jsonResponse(200, {
       received: true,
       reservationId,
+      paymentError,
       noteError,
     });
   } catch (err) {
