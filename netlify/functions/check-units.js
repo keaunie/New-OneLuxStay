@@ -627,6 +627,7 @@ const handleCheckout = async (event) => {
           bd_taxes: breakdown.taxes,
           bd_fees: breakdown.fees,
           bd_discount: breakdown.discountAmount,
+          bd_discount_rate: breakdown.discountRate,
           bd_total: breakdown.total ?? breakdown.subtotal,
         }
       : null;

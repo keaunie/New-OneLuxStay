@@ -157,9 +157,11 @@ const buildReservationPayload = (session) => {
   };
 
   const accommodation = toNumber(metadata.bd_accommodation);
+  const discountAmount = toNumber(metadata.bd_discount);
+  const discountRateRaw = toNumber(metadata.bd_discount_rate);
   const cleaning = toNumber(metadata.bd_cleaning);
-  const taxes = toNumber(metadata.bd_taxes);
   const fees = toNumber(metadata.bd_fees);
+  const currency = (metadata.currency || "").toUpperCase();
   const money = {};
 
   if (accommodation !== null) {
@@ -169,11 +171,9 @@ const buildReservationPayload = (session) => {
   }
 
   if (cleaning !== null) money.fareCleaning = cleaning;
+  if (currency) money.currency = currency;
 
   const invoiceItems = [];
-  if (taxes !== null && taxes > 0) {
-    invoiceItems.push({ title: "Taxes", amount: taxes, normalType: "TAX" });
-  }
   if (fees !== null && fees > 0) {
     invoiceItems.push({ title: "Fees", amount: fees, normalType: "OTHER" });
   }
@@ -200,6 +200,51 @@ const createGuestyReservation = async (payload) => {
   }
 
   return response.json();
+};
+
+const updateReservationNotes = async (reservationId, notes) => {
+  if (!reservationId || !notes) return null;
+  const { token } = await getGuestyToken();
+  const response = await fetchWithTimeout(
+    `${OPEN_API_V1}/reservations-v3/${reservationId}/notes`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ notes: { other: notes } }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+};
+
+const buildWebsiteDiscountNote = (metadata) => {
+  const accommodation = Number(metadata.bd_accommodation);
+  const discountAmount = Number(metadata.bd_discount);
+  const discountRateRaw = Number(metadata.bd_discount_rate);
+  if (!Number.isFinite(discountAmount) || discountAmount <= 0) return null;
+
+  const baseForPercent =
+    Number.isFinite(accommodation) && accommodation + discountAmount > 0
+      ? accommodation + discountAmount
+      : null;
+  const percentFromAmount =
+    baseForPercent && baseForPercent > 0
+      ? Math.round((discountAmount / baseForPercent) * 100)
+      : null;
+  const discountPercent =
+    Number.isFinite(discountRateRaw) && discountRateRaw > 0
+      ? Math.round(discountRateRaw * 100)
+      : percentFromAmount || 10;
+
+  return `Website booking discount (${discountPercent}%) applied via OneLuxStay website.`;
 };
 
 export async function handler(event) {
@@ -251,14 +296,25 @@ export async function handler(event) {
 
   try {
     const reservation = await createGuestyReservation(payload);
+    const reservationId = reservation?._id || reservation?.id || null;
     await writeStripeEvent(stripeEvent.id, {
       processedAt: Date.now(),
-      reservationId: reservation?._id || reservation?.id || null,
+      reservationId,
       listingId: payload.listingId,
     });
+    let noteError = null;
+    const noteText = buildWebsiteDiscountNote(session.metadata || {});
+    if (noteText && reservationId) {
+      try {
+        await updateReservationNotes(reservationId, noteText);
+      } catch (err) {
+        noteError = err.message;
+      }
+    }
     return jsonResponse(200, {
       received: true,
-      reservationId: reservation?._id || reservation?.id || null,
+      reservationId,
+      noteError,
     });
   } catch (err) {
     return jsonResponse(502, { message: "Guesty reservation failed", error: err.message });
