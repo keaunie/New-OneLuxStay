@@ -1,3 +1,4 @@
+import Stripe from "stripe";
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = "guesty-oauth";
@@ -14,6 +15,59 @@ const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   },
   body: JSON.stringify(body),
 });
+
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "bif",
+  "clp",
+  "djf",
+  "gnf",
+  "jpy",
+  "kmf",
+  "krw",
+  "mga",
+  "pyg",
+  "rwf",
+  "ugx",
+  "vnd",
+  "vuv",
+  "xaf",
+  "xof",
+  "xpf",
+]);
+
+const toStripeAmount = (amount, currency) => {
+  const normalized = (currency || "USD").toLowerCase();
+  if (!Number.isFinite(amount)) return null;
+  if (ZERO_DECIMAL_CURRENCIES.has(normalized)) return Math.round(amount);
+  return Math.round(amount * 100);
+};
+
+const getBaseUrl = (event) => {
+  const originHeader = event.headers?.origin;
+  if (originHeader) return originHeader;
+  const referer = event.headers?.referer;
+  if (referer) {
+    try {
+      return new URL(referer).origin;
+    } catch {
+      // ignore
+    }
+  }
+  const proto = event.headers?.["x-forwarded-proto"] || "https";
+  const host = event.headers?.host;
+  if (host) return `${proto}://${host}`;
+  return "https://oneluxstay.com";
+};
+
+let stripeClient;
+const getStripeClient = () => {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("Missing STRIPE_SECRET_KEY");
+  if (!stripeClient) {
+    stripeClient = new Stripe(key, { apiVersion: "2023-10-16" });
+  }
+  return stripeClient;
+};
 
 const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
   const controller = new AbortController();
@@ -469,7 +523,12 @@ const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
 };
 
 const handleQuotesBulk = async (event, token, tokenSource) => {
-  const body = JSON.parse(event.body || "{}");
+  let body = {};
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch {
+    return jsonResponse(400, { message: "Invalid JSON payload" });
+  }
   const { requests = [] } = body || {};
   if (!Array.isArray(requests) || !requests.length) {
     return jsonResponse(400, { message: "Missing quote requests" });
@@ -529,12 +588,85 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   return jsonResponse(200, { results, errors: payload?.errors || [], tokenSource });
 };
 
+const handleCheckout = async (event) => {
+  const body = JSON.parse(event.body || "{}");
+  const {
+    listingId,
+    listingTitle,
+    checkIn,
+    checkOut,
+    guests,
+    amount,
+    currency,
+    guest,
+  } = body || {};
+
+  if (!listingId || !checkIn || !checkOut || !amount) {
+    return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
+  }
+
+  const numericAmount = Number(amount);
+  const unitAmount = toStripeAmount(numericAmount, currency);
+  if (!unitAmount || unitAmount <= 0) {
+    return jsonResponse(400, { message: "Invalid amount" });
+  }
+
+  const stripe = getStripeClient();
+  const baseUrl = getBaseUrl(event);
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    customer_email: guest?.email,
+    client_reference_id: listingId ? String(listingId) : undefined,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: (currency || "USD").toLowerCase(),
+          unit_amount: unitAmount,
+          product_data: {
+            name: listingTitle || "OneLuxStay reservation",
+            description: `Check-in ${checkIn} · Check-out ${checkOut} · Guests ${guests || 1}`,
+          },
+        },
+      },
+    ],
+    success_url: `${baseUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/?checkout=cancelled`,
+    metadata: {
+      listingId: String(listingId),
+      checkIn,
+      checkOut,
+      guests: String(guests || 1),
+      amount: String(numericAmount),
+      currency: (currency || "USD").toLowerCase(),
+      guestName,
+      guestFirstName: guest?.firstName || "",
+      guestLastName: guest?.lastName || "",
+      guestEmail: guest?.email || "",
+      guestPhone: guest?.phone || "",
+    },
+  });
+
+  return jsonResponse(200, { url: session.url, id: session.id });
+};
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return jsonResponse(200, {});
   }
 
   const path = event.path.replace("/.netlify/functions/check-units", "");
+  if (path === "/checkout" && event.httpMethod === "POST") {
+    try {
+      return await handleCheckout(event);
+    } catch (err) {
+      return jsonResponse(500, { message: "Checkout failed", error: err.message });
+    }
+  }
+
   const { token, source } = await getGuestyToken();
 
   if (path === "/listings/availability-bulk" && event.httpMethod === "GET") {

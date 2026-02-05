@@ -5,6 +5,7 @@ import "./App.css";
 import SiteFooter from "./components/SiteFooter";
 import CircularGallery from "./components/CircularGallery";
 import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
+import Silk from "./components/Silk";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -285,46 +286,32 @@ const heroSlides = [
 
 const offers = [
   {
-    kicker: "Starring you, somewhere new",
-    headline: "Save on our seasonal edit",
-    body: "Enjoy up to 20% off select stays in Antwerp, Dubai, and Los Angeles.",
-    cta: "Book now",
-    tone: "dark",
-  },
-  {
-    kicker: "Extend your stay",
-    headline: "Stay longer for less",
-    body: "Up to 25% off for 7+ nights in our signature residences.",
-    cta: "Explore offer",
-    tone: "sand",
-  },
-  {
-    kicker: "Member benefits",
-    headline: "Priority perks, always",
-    body: "Early check-in, late check-out, and concierge credits on repeat stays.",
-    cta: "Join perks",
-    tone: "clay",
-  },
-  {
-    kicker: "Advance booking",
-    headline: "Plan ahead, save more",
-    body: "Unlock special pricing when you reserve 45+ days in advance.",
-    cta: "View details",
-    tone: "sand",
-  },
-  {
-    kicker: "Last-minute escape",
-    headline: "Spontaneous stay deals",
-    body: "Limited-time rates on select homes for arrivals within 7 days.",
+    kicker: "Last-minute 10%",
+    headline: "Spontaneous? Save 10% instantly",
+    body: "Lock in a last‑minute escape and keep 10% back in your pocket.",
     cta: "See last-minute",
     tone: "dark",
   },
   {
-    kicker: "Signature suites",
-    headline: "Upgrade on us",
-    body: "Complimentary room upgrades on eligible midweek bookings.",
-    cta: "Check upgrades",
+    kicker: "Weekly 10%",
+    headline: "Stay a week, save 10%",
+    body: "Stretch your stay to 7 nights and enjoy an effortless 10% off.",
+    cta: "Explore weekly",
+    tone: "sand",
+  },
+  {
+    kicker: "Monthly 20%",
+    headline: "Live in, save 20%",
+    body: "Book 30 nights and unlock a generous 20% monthly savings.",
+    cta: "Explore monthly",
     tone: "clay",
+  },
+  {
+    kicker: "Early 5% (60 days)",
+    headline: "Plan ahead, save 5%",
+    body: "Reserve 60+ days early and secure a smart 5% discount.",
+    cta: "Plan ahead",
+    tone: "sand",
   },
 ];
 
@@ -588,7 +575,19 @@ function LandingPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const swipeHintRef = useRef(null);
   const offersRef = useRef(null);
+  const offersTrackRef = useRef(null);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const isOffersDraggingRef = useRef(false);
+  const offersDragStartXRef = useRef(0);
+  const offersDragStartTranslateRef = useRef(0);
+  const offersDragMovedRef = useRef(false);
+  const offersLastXRef = useRef(0);
+  const offersLastTimeRef = useRef(0);
+  const offersVelocityRef = useRef(0);
+  const offersTrackXRef = useRef(0);
+  const offersBaseWidthRef = useRef(0);
+  const offersTargetXRef = useRef(null);
+  const offersRafRef = useRef(null);
   const patienceQuotes = [
     "We are working on this. ?Greatest things come to those who wait.?",
     "We are working on this. ?Patience is not the ability to wait, but the ability to keep a good attitude while waiting.?",
@@ -598,6 +597,8 @@ function LandingPage() {
   ];
   const [cityNoticeIndex, setCityNoticeIndex] = useState(0);
   const [cityNotice, setCityNotice] = useState("");
+  const loopedOffers = useMemo(() => [...offers, ...offers, ...offers], []);
+
   const galleryItems = useMemo(() => {
     if (!galleryListings.length) return [];
 
@@ -714,6 +715,76 @@ function LandingPage() {
   }, []);
 
   useEffect(() => {
+    const track = offersTrackRef.current;
+    if (!track || typeof ResizeObserver === "undefined") return undefined;
+    const measure = () => {
+      const total = track.scrollWidth;
+      if (!Number.isFinite(total) || total <= 0) return;
+      const base = total / 3;
+      offersBaseWidthRef.current = base;
+      if (!offersTrackXRef.current) {
+        offersTrackXRef.current = -base;
+      }
+      applyOffersTranslate(offersTrackXRef.current);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, []);
+
+  const normalizeOffersX = (value) => {
+    const base = offersBaseWidthRef.current;
+    if (!base) return value;
+    let next = value;
+    while (next <= -2 * base) next += base;
+    while (next >= 0) next -= base;
+    return next;
+  };
+
+  const applyOffersTranslate = (value) => {
+    const next = normalizeOffersX(value);
+    offersTrackXRef.current = next;
+    if (offersTrackRef.current) {
+      offersTrackRef.current.style.transform = `translate3d(${next}px, 0, 0)`;
+    }
+  };
+
+  const startOffersRaf = () => {
+    if (offersRafRef.current) return;
+    offersLastTimeRef.current = performance.now();
+    const tick = (now) => {
+      const dt = now - offersLastTimeRef.current || 16;
+      offersLastTimeRef.current = now;
+      const friction = Math.pow(0.92, dt / 16);
+
+      if (!isOffersDraggingRef.current) {
+        if (offersTargetXRef.current !== null) {
+          const diff = offersTargetXRef.current - offersTrackXRef.current;
+          const step = diff * 0.12;
+          applyOffersTranslate(offersTrackXRef.current + step);
+          if (Math.abs(diff) < 0.5) {
+            offersTargetXRef.current = null;
+          }
+        } else {
+          offersVelocityRef.current *= friction;
+          if (Math.abs(offersVelocityRef.current) < 0.0005) offersVelocityRef.current = 0;
+          if (offersVelocityRef.current) {
+            applyOffersTranslate(offersTrackXRef.current + offersVelocityRef.current * dt);
+          }
+        }
+      }
+
+      if (isOffersDraggingRef.current || offersVelocityRef.current || offersTargetXRef.current !== null) {
+        offersRafRef.current = requestAnimationFrame(tick);
+      } else {
+        offersRafRef.current = null;
+      }
+    };
+    offersRafRef.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
     if (!galleryListings.length) {
       setQuotePricing({});
       setQuoteLoading(false);
@@ -799,6 +870,58 @@ function LandingPage() {
     navigate(selected.href);
   };
 
+  const handleOffersPointerDown = (event) => {
+    const container = offersRef.current;
+    if (!container) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.pointerType === "mouse") event.preventDefault();
+    if (offersRafRef.current) {
+      cancelAnimationFrame(offersRafRef.current);
+      offersRafRef.current = null;
+    }
+    offersTargetXRef.current = null;
+    isOffersDraggingRef.current = true;
+    offersDragMovedRef.current = false;
+    offersDragStartXRef.current = event.clientX;
+    offersDragStartTranslateRef.current = offersTrackXRef.current;
+    offersLastXRef.current = event.clientX;
+    offersLastTimeRef.current = performance.now();
+    offersVelocityRef.current = 0;
+    container.classList.add("is-dragging");
+    container.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleOffersPointerMove = (event) => {
+    if (!isOffersDraggingRef.current) return;
+    const delta = event.clientX - offersDragStartXRef.current;
+    if (Math.abs(delta) > 6) offersDragMovedRef.current = true;
+    applyOffersTranslate(offersDragStartTranslateRef.current + delta);
+    const now = performance.now();
+    const dt = now - offersLastTimeRef.current || 1;
+    const dx = event.clientX - offersLastXRef.current;
+    offersVelocityRef.current = dx / dt;
+    offersLastXRef.current = event.clientX;
+    offersLastTimeRef.current = now;
+  };
+
+  const handleOffersPointerUp = (event) => {
+    const container = offersRef.current;
+    if (container) {
+      container.classList.remove("is-dragging");
+      container.releasePointerCapture?.(event.pointerId);
+    }
+    isOffersDraggingRef.current = false;
+    startOffersRaf();
+  };
+
+  const handleOffersClickCapture = (event) => {
+    if (offersDragMovedRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      offersDragMovedRef.current = false;
+    }
+  };
+
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll(".landing-animate"));
     const observer = new IntersectionObserver(
@@ -836,7 +959,11 @@ function LandingPage() {
   };
 
   return (
-    <div className="landing-page text-white">
+    <div className="landing-page text-white has-silk">
+      <div className="landing-silk" aria-hidden="true">
+        <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
+      </div>
+      <div className="landing-silk-overlay" aria-hidden="true" />
       <header className="landing-hero relative overflow-hidden landing-animate">
         <div
           aria-hidden="true"
@@ -943,6 +1070,8 @@ function LandingPage() {
               font="600 22px 'Work Sans', sans-serif"
               onSelect={handleGallerySelect}
               useFallback={false}
+              wave={0}
+              tiltStrength={0.14}
             />
             <div className="landing-circular-gallery__hint" aria-hidden="true">
               <span className="landing-circular-gallery__hint-label">Swipe to explore</span>
@@ -1012,35 +1141,54 @@ function LandingPage() {
                   Limited-time perks and always-on benefits, curated for your next OneLuxStay.
                 </p>
               </div>
-              <div className="landing-offers-controls">
-                <button
-                  type="button"
-                  className="landing-showcase-btn"
-                  aria-label="Scroll offers left"
-                  onClick={() => offersRef.current?.scrollBy({ left: -420, behavior: "smooth" })}
-                >
-                  {"<"}
-                </button>
-                <button
-                  type="button"
-                  className="landing-showcase-btn"
-                  aria-label="Scroll offers right"
-                  onClick={() => offersRef.current?.scrollBy({ left: 420, behavior: "smooth" })}
-                >
-                  {">"}
-                </button>
-              </div>
             </div>
           </div>
-          <div className="landing-offers-row" ref={offersRef}>
-            {offers.map((offer) => (
-              <article key={offer.headline} className={`landing-offer-card offer-${offer.tone}`}>
-                <p className="landing-offer-kicker">{offer.kicker}</p>
-                <h3 className="landing-offer-title">{offer.headline}</h3>
-                <p className="landing-offer-body">{offer.body}</p>
-                <Link to="/listings" className="landing-offer-cta">{offer.cta}</Link>
-              </article>
-            ))}
+          <div
+            className="landing-offers-row"
+            ref={offersRef}
+            onPointerDown={handleOffersPointerDown}
+            onPointerMove={handleOffersPointerMove}
+            onPointerUp={handleOffersPointerUp}
+            onPointerCancel={handleOffersPointerUp}
+            onPointerLeave={handleOffersPointerUp}
+            onClickCapture={handleOffersClickCapture}
+          >
+            <div className="landing-offers-track" ref={offersTrackRef}>
+              {loopedOffers.map((offer, index) => (
+                <article key={`${offer.headline}-${index}`} className={`landing-offer-card offer-${offer.tone}`}>
+                  <p className="landing-offer-kicker">{offer.kicker}</p>
+                  <h3 className="landing-offer-title">{offer.headline}</h3>
+                  <p className="landing-offer-body">{offer.body}</p>
+                  <Link to="/listings" className="landing-offer-cta">{offer.cta}</Link>
+                </article>
+              ))}
+            </div>
+          </div>
+          <div className="landing-offers-controls landing-offers-controls--center">
+            <button
+              type="button"
+              className="landing-showcase-btn"
+              aria-label="Scroll offers left"
+              onClick={() => {
+                offersTargetXRef.current = (offersTargetXRef.current ?? offersTrackXRef.current) + 420;
+                offersVelocityRef.current = 0;
+                startOffersRaf();
+              }}
+            >
+              {"<"}
+            </button>
+            <button
+              type="button"
+              className="landing-showcase-btn"
+              aria-label="Scroll offers right"
+              onClick={() => {
+                offersTargetXRef.current = (offersTargetXRef.current ?? offersTrackXRef.current) - 420;
+                offersVelocityRef.current = 0;
+                startOffersRaf();
+              }}
+            >
+              {">"}
+            </button>
           </div>
         </section>
 

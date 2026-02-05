@@ -15,6 +15,10 @@ function lerp(p1, p2, t) {
   return p1 + (p2 - p1) * t;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function autoBind(instance) {
   const proto = Object.getPrototypeOf(instance);
   Object.getOwnPropertyNames(proto).forEach((key) => {
@@ -174,6 +178,8 @@ class Media {
     textColor,
     borderRadius = 0,
     font,
+    wave = 1,
+    tiltStrength = 0.12,
   }) {
     this.extra = 0;
     this.geometry = geometry;
@@ -190,6 +196,9 @@ class Media {
     this.textColor = textColor;
     this.borderRadius = borderRadius;
     this.font = font;
+    this.wave = wave;
+    this.tiltStrength = tiltStrength;
+    this.tiltCurrent = 0;
     this.createShader();
     this.createMesh();
     this.createTitle();
@@ -209,11 +218,12 @@ class Media {
         uniform mat4 projectionMatrix;
         uniform float uTime;
         uniform float uSpeed;
+        uniform float uWave;
         varying vec2 vUv;
         void main() {
           vUv = uv;
           vec3 p = position;
-          p.z = (sin(p.x * 4.0 + uTime) * 1.5 + cos(p.y * 2.0 + uTime) * 1.5) * (0.1 + uSpeed * 0.5);
+          p.z = (sin(p.x * 4.0 + uTime) * 1.5 + cos(p.y * 2.0 + uTime) * 1.5) * (0.1 + uSpeed * 0.5) * uWave;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         }
       `,
@@ -256,6 +266,7 @@ class Media {
         uSpeed: { value: 0 },
         uTime: { value: 100 * Math.random() },
         uBorderRadius: { value: this.borderRadius },
+        uWave: { value: this.wave },
       },
       transparent: true,
     });
@@ -316,6 +327,11 @@ class Media {
     this.program.uniforms.uTime.value += 0.04;
     this.program.uniforms.uSpeed.value = this.speed;
 
+    const targetTilt = clamp(this.speed * 0.002, -1, 1) * this.tiltStrength;
+    this.tiltCurrent = lerp(this.tiltCurrent, targetTilt, 0.12);
+    this.plane.rotation.y = this.tiltCurrent;
+    this.plane.rotation.x = -this.tiltCurrent * 0.45;
+
     const planeOffset = this.plane.scale.x / 2;
     const viewportOffset = this.viewport.width / 2;
     this.isBefore = this.plane.position.x + planeOffset < -viewportOffset;
@@ -360,6 +376,8 @@ class App {
       font = "600 22px 'Work Sans', sans-serif",
       onSelect,
       useFallback = true,
+      wave = 1,
+      tiltStrength = 0.12,
     } = {},
   ) {
     if (!container) return;
@@ -372,12 +390,13 @@ class App {
     this.dragged = false;
     this.dragThreshold = 6;
     this.lastPointerX = 0;
+    this.tiltStrength = tiltStrength;
     this.createRenderer();
     this.createCamera();
     this.createScene();
     this.onResize();
     this.createGeometry();
-    this.createMedias(items, bend, textColor, borderRadius, font, useFallback);
+    this.createMedias(items, bend, textColor, borderRadius, font, useFallback, wave, tiltStrength);
     this.update();
     this.addEventListeners();
   }
@@ -406,7 +425,7 @@ class App {
     });
   }
 
-  createMedias(items, bend = 1, textColor, borderRadius, font, useFallback = true) {
+  createMedias(items, bend = 1, textColor, borderRadius, font, useFallback = true, wave = 1, tiltStrength = 0.12) {
     const defaultItems = [
       { image: "https://picsum.photos/seed/1/800/600?grayscale", text: "Bridge" },
       { image: "https://picsum.photos/seed/2/800/600?grayscale", text: "Desk Setup" },
@@ -441,6 +460,8 @@ class App {
         textColor,
         borderRadius,
         font,
+        wave,
+        tiltStrength,
       }),
     );
     if (this.medias.length) {
@@ -584,16 +605,28 @@ export default function CircularGallery({
   font = "600 22px 'Work Sans', sans-serif",
   onSelect,
   useFallback = true,
+  wave = 1,
+  tiltStrength = 0.12,
 }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
-    const app = new App(containerRef.current, { items, bend, textColor, borderRadius, font, onSelect, useFallback });
+    const app = new App(containerRef.current, {
+      items,
+      bend,
+      textColor,
+      borderRadius,
+      font,
+      onSelect,
+      useFallback,
+      wave,
+      tiltStrength,
+    });
     return () => {
       if (app && app.destroy) app.destroy();
     };
-  }, [items, bend, textColor, borderRadius, font, onSelect, useFallback]);
+  }, [items, bend, textColor, borderRadius, font, onSelect, useFallback, wave, tiltStrength]);
 
   return <div className="circular-gallery" ref={containerRef} />;
 }

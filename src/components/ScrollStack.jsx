@@ -205,15 +205,15 @@ const ScrollStack = ({
   const setupLenis = useCallback(() => {
     if (useWindowScroll) {
       const lenis = new Lenis({
-        duration: 0.1,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        duration: 0.8,
+        easing: (t) => 1 - Math.pow(1 - t, 3),
         smoothWheel: true,
-        touchMultiplier: 2,
+        touchMultiplier: 1.6,
         infinite: false,
-        wheelMultiplier: 1,
-        lerp: 0.1,
+        wheelMultiplier: 0.9,
+        lerp: 0.08,
         syncTouch: true,
-        syncTouchLerp: 0.075,
+        syncTouchLerp: 0.08,
       });
 
       lenis.on("scroll", handleScroll);

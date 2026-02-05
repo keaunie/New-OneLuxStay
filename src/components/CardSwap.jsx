@@ -5,6 +5,7 @@ import React, {
   isValidElement,
   useEffect,
   useMemo,
+  useImperativeHandle,
   useRef,
 } from "react";
 import gsap from "gsap";
@@ -39,7 +40,7 @@ const prefersReducedMotion = () =>
   window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const CardSwap = ({
+const CardSwap = forwardRef(({
   width = 500,
   height = 400,
   cardDistance = 60,
@@ -50,7 +51,7 @@ const CardSwap = ({
   skewAmount = 6,
   easing = "elastic",
   children,
-}) => {
+}, ref) => {
   const config =
     easing === "elastic"
       ? {
@@ -80,6 +81,19 @@ const CardSwap = ({
   const tlRef = useRef(null);
   const intervalRef = useRef();
   const container = useRef(null);
+  const swapRef = useRef(null);
+  const pauseRef = useRef(null);
+  const resumeRef = useRef(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      next: () => swapRef.current?.(),
+      pause: () => pauseRef.current?.(),
+      resume: () => resumeRef.current?.(),
+    }),
+    []
+  );
 
   useEffect(() => {
     const total = refs.length;
@@ -89,10 +103,6 @@ const CardSwap = ({
       if (!r?.current) return;
       placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount);
     });
-
-    if (prefersReducedMotion()) {
-      return undefined;
-    }
 
     const swap = () => {
       if (order.current.length < 2) return;
@@ -154,19 +164,29 @@ const CardSwap = ({
       });
     };
 
+    swapRef.current = swap;
+
+    const pause = () => {
+      tlRef.current?.pause();
+      clearInterval(intervalRef.current);
+    };
+    const resume = () => {
+      tlRef.current?.play();
+      clearInterval(intervalRef.current);
+      intervalRef.current = window.setInterval(swap, delay);
+    };
+    pauseRef.current = pause;
+    resumeRef.current = resume;
+
+    if (prefersReducedMotion()) {
+      return undefined;
+    }
+
     swap();
     intervalRef.current = window.setInterval(swap, delay);
 
     if (pauseOnHover && container.current) {
       const node = container.current;
-      const pause = () => {
-        tlRef.current?.pause();
-        clearInterval(intervalRef.current);
-      };
-      const resume = () => {
-        tlRef.current?.play();
-        intervalRef.current = window.setInterval(swap, delay);
-      };
       node.addEventListener("mouseenter", pause);
       node.addEventListener("mouseleave", resume);
       return () => {
@@ -197,6 +217,7 @@ const CardSwap = ({
       {rendered}
     </div>
   );
-};
+});
+CardSwap.displayName = "CardSwap";
 
 export default CardSwap;

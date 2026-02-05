@@ -1742,6 +1742,7 @@ export default function DubaiLandingPage() {
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const heroCarouselRef = useRef(null);
+  const cardSwapRef = useRef(null);
   const reviewCarouselRef = useRef(null);
   const [sectionQuotes, setSectionQuotes] = useState({});
   const [selectedRatePlans, setSelectedRatePlans] = useState({});
@@ -3311,6 +3312,23 @@ export default function DubaiLandingPage() {
     handleSectionCheckout(payload);
   };
 
+  const isCheckoutGuestValid = Boolean(
+    checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim()
+  );
+
+  const handleGuestInputChange = (field) => (event) => {
+    const { value } = event.target;
+    setCheckoutGuest((prev) => ({ ...prev, [field]: value }));
+    if (checkoutGuestError) setCheckoutGuestError("");
+  };
+
+  const handleGuestKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      confirmGuestCheckout();
+    }
+  };
+
   const heroImages = useMemo(
     () => [
       "https://assets.guesty.com/image/upload/v1729698598/production/666b3af27fc6d5653142b0af/k9tkytawqqfeteq1y8rn.jpg",
@@ -4614,54 +4632,67 @@ export default function DubaiLandingPage() {
         </div>
         <div className="antwerp-hero__media">
           <div className="la-hero-card-swap">
-            <CardSwap
-              width="100%"
-              height="100%"
-              cardDistance={64}
-              verticalDistance={70}
-              delay={2000}
-              skewAmount={5}
-              pauseOnHover
-            >
-              {heroCards.length ? (
-                heroCards.map((card, idx) => (
-                  <Card key={`${card.image}-${idx}`} customClass="la-hero-swap-card">
-                    {card.id ? (
-                      <button
-                        type="button"
-                        className="la-hero-swap-link"
-                        onClick={() =>
-                          navigate(buildListingPath(card.id))
-                        }
-                        aria-label={`View ${card.title}`}
-                      >
-                        <img
-                          src={card.image}
-                          alt={card.title}
-                          className="la-hero-swap-img"
-                          loading={idx === 0 ? "eager" : "lazy"}
-                          onError={handleImageError}
-                        />
-                        <span className="la-hero-swap-caption">{card.title}</span>
-                      </button>
-                    ) : (
-                      <>
-                        <img
-                          src={card.image}
-                          alt={card.title}
-                          className="la-hero-swap-img"
-                          loading={idx === 0 ? "eager" : "lazy"}
-                          onError={handleImageError}
-                        />
-                        <span className="la-hero-swap-caption">{card.title}</span>
-                      </>
-                    )}
-                  </Card>
-                ))
-              ) : (
-                <Card className="la-hero-swap-card la-hero-swap-card--empty" />
-              )}
-            </CardSwap>
+            <div className="la-hero-card-swap__frame">
+              <CardSwap
+                ref={cardSwapRef}
+                width="100%"
+                height="100%"
+                cardDistance={64}
+                verticalDistance={70}
+                delay={2000}
+                skewAmount={5}
+                pauseOnHover
+              >
+                {heroCards.length ? (
+                  heroCards.map((card, idx) => (
+                    <Card key={`${card.image}-${idx}`} customClass="la-hero-swap-card">
+                      {card.id ? (
+                        <button
+                          type="button"
+                          className="la-hero-swap-link"
+                          onClick={() =>
+                            navigate(buildListingPath(card.id))
+                          }
+                          aria-label={`View ${card.title}`}
+                        >
+                          <img
+                            src={card.image}
+                            alt={card.title}
+                            className="la-hero-swap-img"
+                            loading={idx === 0 ? "eager" : "lazy"}
+                            onError={handleImageError}
+                          />
+                          <span className="la-hero-swap-caption">{card.title}</span>
+                        </button>
+                      ) : (
+                        <>
+                          <img
+                            src={card.image}
+                            alt={card.title}
+                            className="la-hero-swap-img"
+                            loading={idx === 0 ? "eager" : "lazy"}
+                            onError={handleImageError}
+                          />
+                          <span className="la-hero-swap-caption">{card.title}</span>
+                        </>
+                      )}
+                    </Card>
+                  ))
+                ) : (
+                  <Card className="la-hero-swap-card la-hero-swap-card--empty" />
+                )}
+              </CardSwap>
+            </div>
+            <div className="la-hero-swap-controls">
+              <button
+                type="button"
+                className="la-hero-swap-btn"
+                onClick={() => cardSwapRef.current?.next?.()}
+                aria-label="Show next featured stay"
+              >
+                Next stay
+              </button>
+            </div>
           </div>
         </div>
         <div className="antwerp-hero__carousel" aria-label="Dubai hero images">
@@ -5844,10 +5875,19 @@ export default function DubaiLandingPage() {
         >
           <div className="la-inquiry-modal" role="document">
             <div className="la-inquiry-modal__header">
-              <div>
-                <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
-                <h3>Inquire about {inquiryTitle}</h3>
-                {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
+              <div className="la-inquiry-modal__brand">
+                <img
+                  src={LOGO_URL}
+                  alt="OneLuxStay logo"
+                  loading="lazy"
+                  className="la-inquiry-modal__logo"
+                  onError={handleImageError}
+                />
+                <div>
+                  <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
+                  <h3>Inquire about {inquiryTitle}</h3>
+                  {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
+                </div>
               </div>
               <button
                 type="button"
@@ -5887,10 +5927,19 @@ export default function DubaiLandingPage() {
         >
           <div className="la-inquiry-modal" role="document">
             <div className="la-inquiry-modal__header">
-              <div>
-                <p className="la-inquiry-modal__kicker">Guest details</p>
-                <h3>Tell us who’s booking</h3>
-                <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
+              <div className="la-inquiry-modal__brand">
+                <img
+                  src={LOGO_URL}
+                  alt="OneLuxStay logo"
+                  loading="lazy"
+                  className="la-inquiry-modal__logo"
+                  onError={handleImageError}
+                />
+                <div>
+                  <p className="la-inquiry-modal__kicker">Guest details</p>
+                  <h3>Tell us who’s booking</h3>
+                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -5901,34 +5950,53 @@ export default function DubaiLandingPage() {
               </button>
             </div>
             <div className="la-inquiry-modal__body">
-              <label className="la-inquiry-modal__field">
+              <label
+                className={`la-inquiry-modal__field${
+                  checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : ""
+                }`}
+              >
                 <span>First name</span>
                 <input
                   type="text"
                   value={checkoutGuest.firstName}
-                  onChange={(event) =>
-                    setCheckoutGuest((prev) => ({ ...prev, firstName: event.target.value }))
-                  }
+                  autoComplete="given-name"
+                  required
+                  autoFocus
+                  aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
+                  onKeyDown={handleGuestKeyDown}
+                  onChange={handleGuestInputChange("firstName")}
                 />
               </label>
-              <label className="la-inquiry-modal__field">
+              <label
+                className={`la-inquiry-modal__field${
+                  checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : ""
+                }`}
+              >
                 <span>Last name</span>
                 <input
                   type="text"
                   value={checkoutGuest.lastName}
-                  onChange={(event) =>
-                    setCheckoutGuest((prev) => ({ ...prev, lastName: event.target.value }))
-                  }
+                  autoComplete="family-name"
+                  required
+                  aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
+                  onKeyDown={handleGuestKeyDown}
+                  onChange={handleGuestInputChange("lastName")}
                 />
               </label>
-              <label className="la-inquiry-modal__field">
+              <label
+                className={`la-inquiry-modal__field${
+                  checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : ""
+                }`}
+              >
                 <span>Email</span>
                 <input
                   type="email"
                   value={checkoutGuest.email}
-                  onChange={(event) =>
-                    setCheckoutGuest((prev) => ({ ...prev, email: event.target.value }))
-                  }
+                  autoComplete="email"
+                  required
+                  aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
+                  onKeyDown={handleGuestKeyDown}
+                  onChange={handleGuestInputChange("email")}
                 />
               </label>
               <label className="la-inquiry-modal__field">
@@ -5936,16 +6004,22 @@ export default function DubaiLandingPage() {
                 <input
                   type="tel"
                   value={checkoutGuest.phone}
-                  onChange={(event) =>
-                    setCheckoutGuest((prev) => ({ ...prev, phone: event.target.value }))
-                  }
+                  autoComplete="tel"
+                  onKeyDown={handleGuestKeyDown}
+                  onChange={handleGuestInputChange("phone")}
                 />
               </label>
-              {checkoutGuestError && <p className="la-inquiry-modal__note">{checkoutGuestError}</p>}
+              {checkoutGuestError && (
+                <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                  {checkoutGuestError}
+                </p>
+              )}
               <button
                 type="button"
                 className="la-inquiry-modal__action"
                 onClick={confirmGuestCheckout}
+                disabled={!isCheckoutGuestValid}
+                aria-disabled={!isCheckoutGuestValid}
               >
                 Continue to payment
               </button>
