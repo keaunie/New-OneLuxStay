@@ -78,6 +78,36 @@ const formatCurrency = (value, currency = "USD") => {
   }
 };
 
+const roundCurrency = (value) =>
+  Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
+
+const getTaxRateForListing = (listing = {}) => {
+  const locationText = [
+    listing?.address?.city,
+    listing?.city,
+    listing?.location,
+    listing?.address?.full,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const state = (listing?.address?.state || listing?.address?.stateCode || "").toLowerCase();
+
+  if (locationText.includes("dubai")) return 0;
+  if (locationText.includes("antwerp")) return 0.06;
+  if (locationText.includes("miami")) return 0.145;
+  if (locationText.includes("redondo")) return 0.145;
+  if (locationText.includes("los angeles")) return 0.145;
+  if (state === "ca" || state.includes("california")) return 0.145;
+  return 0;
+};
+
+const computeTaxes = (amount, listing) => {
+  if (!Number.isFinite(amount)) return 0;
+  const rate = getTaxRateForListing(listing);
+  return roundCurrency(amount * rate);
+};
+
 const BedIcon = () => (
   <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
     <path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z" />
@@ -851,9 +881,6 @@ const getQuotePricing = (quoteData, listing, nights) => {
     const cleaningFromQuote =
       quoteMoney?.fareCleaning ??
       null;
-    const taxesFromQuote =
-      quoteMoney?.totalTaxes ??
-      null;
 
     const accommodationBase =
       breakdown?.accommodation ??
@@ -874,9 +901,7 @@ const getQuotePricing = (quoteData, listing, nights) => {
       breakdown?.cleaning ??
       (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0);
     const taxes =
-      taxesFromQuote ??
-      breakdown?.taxes ??
-      0;
+      computeTaxes(accommodation, listing);
     const fees = breakdown?.fees ?? 0;
     const subtotal =
       (typeof accommodation === "number" ? accommodation : 0) +
@@ -2945,10 +2970,9 @@ export default function DubaiLandingPage() {
                 : 0;
           const cleaningAmount =
             typeof money?.fareCleaning === "number" ? money.fareCleaning : 0;
-          const taxAmount =
-            typeof money?.totalTaxes === "number" ? money.totalTaxes : 0;
           const discountedAccommodation =
             accommodationAmount > 0 ? accommodationAmount * (1 - discountRate) : accommodationAmount;
+          const taxAmount = computeTaxes(discountedAccommodation, listing);
           const total = discountedAccommodation + cleaningAmount + taxAmount;
           if (minTotal === null || total < minTotal) {
             minTotal = total;
