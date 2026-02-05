@@ -129,6 +129,11 @@ const buildReservationPayload = (session) => {
   const guests = Number(metadata.guests) || 1;
   const amount = Number(metadata.amount || 0);
 
+  const toNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
   const guestFirstName = metadata.guestFirstName || "";
   const guestLastName = metadata.guestLastName || "";
   const guestName = metadata.guestName || "";
@@ -151,9 +156,29 @@ const buildReservationPayload = (session) => {
     guest,
   };
 
-  if (Number.isFinite(amount) && amount > 0) {
-    payload.money = { fareAccommodation: amount };
+  const accommodation = toNumber(metadata.bd_accommodation);
+  const cleaning = toNumber(metadata.bd_cleaning);
+  const taxes = toNumber(metadata.bd_taxes);
+  const fees = toNumber(metadata.bd_fees);
+  const money = {};
+
+  if (accommodation !== null) {
+    money.fareAccommodation = accommodation;
+  } else if (Number.isFinite(amount) && amount > 0) {
+    money.fareAccommodation = amount;
   }
+
+  if (cleaning !== null) money.fareCleaning = cleaning;
+
+  const invoiceItems = [];
+  if (taxes !== null && taxes > 0) {
+    invoiceItems.push({ title: "Taxes", amount: taxes, normalType: "TAX" });
+  }
+  if (fees !== null && fees > 0) {
+    invoiceItems.push({ title: "Fees", amount: fees, normalType: "OTHER" });
+  }
+  if (invoiceItems.length) money.invoiceItems = invoiceItems;
+  if (Object.keys(money).length) payload.money = money;
 
   return payload;
 };

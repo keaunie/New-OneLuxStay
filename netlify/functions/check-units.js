@@ -598,6 +598,7 @@ const handleCheckout = async (event) => {
     guests,
     amount,
     currency,
+    breakdown,
     guest,
   } = body || {};
 
@@ -605,7 +606,10 @@ const handleCheckout = async (event) => {
     return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
   }
 
-  const numericAmount = Number(amount);
+  const breakdownTotal = breakdown && typeof breakdown === "object"
+    ? Number(breakdown.total ?? breakdown.subtotal)
+    : NaN;
+  const numericAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
   const unitAmount = toStripeAmount(numericAmount, currency);
   if (!unitAmount || unitAmount <= 0) {
     return jsonResponse(400, { message: "Invalid amount" });
@@ -614,6 +618,18 @@ const handleCheckout = async (event) => {
   const stripe = getStripeClient();
   const baseUrl = getBaseUrl(event);
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+
+  const breakdownFields =
+    breakdown && typeof breakdown === "object"
+      ? {
+          bd_accommodation: breakdown.accommodation,
+          bd_cleaning: breakdown.cleaning,
+          bd_taxes: breakdown.taxes,
+          bd_fees: breakdown.fees,
+          bd_discount: breakdown.discountAmount,
+          bd_total: breakdown.total ?? breakdown.subtotal,
+        }
+      : null;
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -642,6 +658,13 @@ const handleCheckout = async (event) => {
       guests: String(guests || 1),
       amount: String(numericAmount),
       currency: (currency || "USD").toLowerCase(),
+      ...(breakdownFields
+        ? Object.fromEntries(
+            Object.entries(breakdownFields)
+              .filter(([, value]) => Number.isFinite(Number(value)))
+              .map(([key, value]) => [key, String(value)]),
+          )
+        : {}),
       guestName,
       guestFirstName: guest?.firstName || "",
       guestLastName: guest?.lastName || "",

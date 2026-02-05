@@ -3253,7 +3253,7 @@ export default function DubaiLandingPage() {
     }
   };
 
-  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency, guest }) => {
+  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency, guest, breakdown }) => {
     if (!listingId) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
@@ -3279,6 +3279,7 @@ export default function DubaiLandingPage() {
           guests: Number(sectionGuests) || 1,
           amount,
           currency,
+          breakdown,
           guest,
         }),
       });
@@ -5826,6 +5827,7 @@ export default function DubaiLandingPage() {
                                         listingTitle: listing.title,
                                         amount: typeof total === "number" ? total : null,
                                         currency: priceCurrency,
+                                        breakdown: selectedPlan?.breakdown || null,
                                       });
                                       setCheckoutGuestError("");
                                       setIsCheckoutGuestOpen(true);
@@ -5836,6 +5838,7 @@ export default function DubaiLandingPage() {
                                       listingTitle: listing.title,
                                       amount: typeof total === "number" ? total : null,
                                       currency: priceCurrency,
+                                      breakdown: selectedPlan?.breakdown || null,
                                       guest: checkoutGuest,
                                     });
                                   }}
