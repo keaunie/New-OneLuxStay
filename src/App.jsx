@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./LandingPage";
 import AntwerpLandingPage from "./AntwerpLandingPage";
 import LosAngelesLandingPage from "./LosAngelesLandingPage";
+import RedondoBeachLandingPage from "./RedondoBeachLandingPage";
+import DubaiLandingPage from "./DubaiLandingPage";
 import ListingPage from "./ListingPage";
 import PrivacyPolicy from "./PrivacyPolicy";
 import TermsConditions from "./TermsConditions";
@@ -50,11 +52,17 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/antwerpen" element={<AntwerpLandingPage />} />
             <Route path="/antwerp" element={<AntwerpLandingPage />} />
+            <Route path="/antwerpen/listing/:listingId" element={<AntwerpLandingPage />} />
+            <Route path="/antwerp/listing/:listingId" element={<AntwerpLandingPage />} />
             <Route path="/los-angeles" element={<LosAngelesLandingPage />} />
             <Route path="/losangeles" element={<LosAngelesLandingPage />} />
             <Route path="/los-angeles/listing/:listingId" element={<LosAngelesLandingPage />} />
             <Route path="/losangeles/listing/:listingId" element={<LosAngelesLandingPage />} />
-            <Route path="/stay" element={<ListingPage />} />
+            <Route path="/redondo-beach" element={<RedondoBeachLandingPage />} />
+            <Route path="/redondo-beach/listing/:listingId" element={<RedondoBeachLandingPage />} />
+            <Route path="/dubai" element={<DubaiLandingPage />} />
+            <Route path="/dubai/listing/:listingId" element={<DubaiLandingPage />} />
+            <Route path="/:citySlug/listing/:listingId" element={<ListingPage />} />
             <Route path="/listings" element={<ListingPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />

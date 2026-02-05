@@ -16,15 +16,15 @@ const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
-const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
-const PROPERTY_COORDS = { lat: 34.0575, lng: -118.2776 };
+const PROPERTY_ADDRESS = "Redondo Beach, CA";
+const PROPERTY_COORDS = { lat: 33.8458, lng: -118.3884 };
 const LANDMARKS = [
-  "Hollywood Sign",
-  "Griffith Observatory",
-  "Rodeo Drive",
-  "Santa Monica Pier",
-  "The Grove",
-  "LAX"
+  "Redondo Beach Pier",
+  "King Harbor",
+  "Riviera Village",
+  "Seaside Lagoon",
+  "The Strand",
+  "Palos Verdes"
 ];
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
@@ -906,8 +906,20 @@ const getQuotePricing = (quoteData, listing, nights) => {
 };
 
 const KNOWN_CITIES = [
+  "redondo beach",
+  "redondo",
+  "south bay",
+  "riviera village",
+  "riviera",
+  "esplanade",
+  "king harbor",
+  "hermosa beach",
+  "manhattan beach",
+  "palos verdes",
+  "torrance beach",
+];
+const EXCLUDED_CITIES = [
   "los angeles",
-  "la",
   "los-angeles",
   "hollywood",
   "west hollywood",
@@ -917,8 +929,11 @@ const KNOWN_CITIES = [
   "la plaza",
   "broadway",
   "union station",
+  "miami",
+  "dubai",
+  "antwerp",
+  "antwerpen",
 ];
-const EXCLUDED_CITIES = ["redondo beach", "miami", "dubai", "antwerp", "antwerpen"];
 
 const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
@@ -940,7 +955,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
   return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
 };
 
-const BOOKING_STORAGE_KEY = "laBookingFilters";
+const BOOKING_STORAGE_KEY = "redondoBeachBookingFilters";
 const readPersistedBooking = () => {
   if (typeof window === "undefined") return null;
   try {
@@ -986,7 +1001,7 @@ const formatAddress = (listing) => {
   const parts = [address.full, address.city, address.country].filter(Boolean);
   if (parts.length) return sanitizeText(parts.join(", "));
   if (typeof listing.location === "string") return sanitizeText(listing.location);
-  return "Los Angeles";
+  return "Redondo Beach";
 };
 
 const getListingAddressQuery = (listing) => {
@@ -1215,7 +1230,7 @@ const getReviewLink = (listing) => {
   if (!listing) return "";
   const key = getBuildingKey(listing);
   if (GOOGLE_REVIEW_LINKS[key]) return GOOGLE_REVIEW_LINKS[key];
-  const title = sanitizeText(listing?.title || "OneLuxStay Los Angeles");
+  const title = sanitizeText(listing?.title || "OneLuxStay Redondo Beach");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}`;
 };
 
@@ -1290,65 +1305,64 @@ const rangeLabel = (values, suffix = "") => {
 };
 
 const SECTION_STORIES = {
-  "la-downtown": {
-    title: "Downtown Los Angeles",
-    tagline: "Skyline energy, rooftop heat, and a city pulse that keeps moving.",
+  "redondo-pier": {
+    title: "Redondo Beach Pier",
+    tagline: "Harbor breezes, boardwalk rhythm, and a sunset that lingers.",
     copy:
-      "Wake to glassy towers, drift through art-lined streets, then land at Union Station just as the lights flicker on. Everything feels close, fast, and possible - perfect for guests who want the city within arm's reach.",
-    landmarks: ["Grand Central Market", "The Broad", "Walt Disney Concert Hall", "Union Station", "Little Tokyo"],
-    transit: ["Metro A & E Lines", "Union Station", "Bus corridors on Broadway"],
+      "Stay steps from the pier where marina walks, fresh seafood, and golden-hour light shape the pace. Everything feels easy, coastal, and unhurried.",
+    landmarks: ["Redondo Beach Pier", "King Harbor", "International Boardwalk", "Seaside Lagoon", "Veterans Park"],
+    transit: ["Beach Cities Transit", "South Bay bike path", "Harbor Dr routes"],
   },
-  "la-hollywood": {
-    title: "Hollywood",
-    tagline: "Neon nights, canyon mornings, and a view that never gets old.",
+  "redondo-riviera": {
+    title: "Riviera Village",
+    tagline: "Boutiques, cafe patios, and beach lanes in every direction.",
     copy:
-      "From the hills to the boulevard, Hollywood keeps the story rolling. Catch the sign at sunrise, sip on Sunset, and glide to Griffith in minutes. It's a destination that feels cinematic the moment you arrive.",
-    landmarks: ["Hollywood Sign", "Walk of Fame", "Griffith Observatory", "Hollywood Bowl", "Sunset Strip"],
-    transit: ["Metro B Line (Red)", "Hollywood/Highland", "Hollywood/Vine"],
+      "Riviera Village blends local boutiques with the calm of tree-lined streets. Walk the Esplanade at sunrise and return to a quiet coastal village at night.",
+    landmarks: ["Riviera Village", "El Retiro Park", "Esplanade", "Torrance Beach"],
+    transit: ["Beach Cities Transit", "Pacific Coast Hwy", "The Strand bike path"],
   },
-  "la-hwh": {
-    title: "Downtown Los Angeles",
-    tagline: "Bold rooftops, late-night glow, and a rhythm that draws you in.",
+  "south-bay": {
+    title: "South Bay",
+    tagline: "Coastal stretches, cliffside views, and long shoreline rides.",
     copy:
-      "HWH brings the energy without the rush - pool decks at dusk, design-forward streets, and a quick hop to the Strip. It's hypnotic, magnetic, and made for guests who want the best of both sides.",
-    landmarks: ["West Hollywood Park", "Sunset Strip", "Melrose Ave", "Roxy Theatre"],
-    transit: ["Rapid 2", "WeHo CityLine", "Sunset Blvd routes"],
+      "Explore the South Bay from Hermosa to Palos Verdes. Ride The Strand, linger on pier towns, and finish each day with oceanfront views.",
+    landmarks: ["Hermosa Beach Pier", "Manhattan Beach", "The Strand", "Palos Verdes"],
+    transit: ["Metro C Line connections", "Ride shares", "Bike-friendly paths"],
   },
   other: {
-    title: "Dodger Stadium",
-    tagline: "Golden light, stadium nights, and a steady city hum.",
+    title: "Redondo Beach",
+    tagline: "Easy coastal mornings and the Pacific at your pace.",
     copy:
-      "Settle into the calm just outside the core, then ride the wave into game nights and skyline views. It's a sweet spot with breathing room - close enough to feel the buzz, far enough to recharge.",
-    landmarks: ["Dodger Stadium", "Elysian Park", "Echo Park Lake"],
-    transit: ["Dodger Stadium Express", "Metro A Line", "Stadium Way routes"],
+      "A relaxed base for beach walks, marina sunsets, and South Bay exploration. Everything you want stays within a few easy minutes.",
+    landmarks: ["Redondo Beach Pier", "King Harbor", "Riviera Village"],
+    transit: ["Beach Cities Transit", "Pacific Coast Hwy", "Ride shares"],
   },
 };
 
 const BUILDING_GROUPS = [
-  { key: "la-hwh", label: "Downtown Los Angeles", match: /\bhwh\b|west hollywood|weho/ },
   {
-    key: "la-downtown",
-    label: "Downtown Los Angeles",
-    match: /downtown|dtla|la plaza|broadway|chinatown|union station/,
+    key: "redondo-pier",
+    label: "Redondo Beach Pier",
+    match: /redondo beach pier|king harbor|pier|harbor|boardwalk/i,
   },
-  { key: "la-hollywood", label: "Hollywood", match: /hollywood/ },
+  {
+    key: "redondo-riviera",
+    label: "Riviera Village",
+    match: /riviera village|riviera|esplanade|torrance beach/i,
+  },
+  { key: "south-bay", label: "South Bay", match: /south bay|hermosa|manhattan|palos verdes/i },
 ];
 
 const STAR_TOTAL = 5;
 const REVIEW_TICKER = [...reviewsHwh, ...reviewsHollywood, ...reviewsDodger];
 const SECTION_REVIEWS = {
-  "la-hwh": reviewsHwh,
-  "la-hollywood": reviewsHollywood,
-  "la-downtown": reviewsDodger,
-  other: reviewsDodger,
+  "redondo-pier": REVIEW_TICKER,
+  "redondo-riviera": REVIEW_TICKER,
+  "south-bay": REVIEW_TICKER,
+  other: REVIEW_TICKER,
 };
-const GOOGLE_REVIEW_LINKS = {
-  "la-hollywood":
-    "https://www.google.com/maps/place/One+Lux+Stay+Hollywood+View+LA+Suites/@34.096727,-118.3144848,908m/data=!3m1!1e3!4m11!3m10!1s0x80c2bf1c3a41cc15:0xbc828ded239ae8a3!5m2!4m1!1i2!8m2!3d34.0967226!4d-118.3119099!9m1!1b1!16s%2Fg%2F11l6btbhs4?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
-  "la-hwh":
-    "https://www.google.com/maps/place/One+Lux+Stay+HWH+Downtown+Los+Angeles/@34.0489709,-118.250392,908m/data=!3m2!1e3!5s0x80c2c64a33a4e947:0x3882004a8f34fba8!4m11!3m10!1s0x80c2c7d2fa15aab3:0x71a2178b49e7af8a!5m2!4m1!1i2!8m2!3d34.0489665!4d-118.2478171!9m1!1b1!16s%2Fg%2F11rsrqx5ls?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
-};
-const HOLLYWOOD_FACILITIES = [
+const GOOGLE_REVIEW_LINKS = {};
+const REDONDO_FACILITIES = [
   "Outdoor swimming pool",
   "Free parking",
   "Free Wi-Fi",
@@ -1457,7 +1471,7 @@ const getListingText = (listing) => {
     .toLowerCase();
 };
 
-const isLosAngelesListing = (listing) => {
+const isRedondoListing = (listing) => {
   const cityText = [listing.city, listing.address?.city, listing.location]
     .filter(Boolean)
     .join(" ")
@@ -1473,14 +1487,7 @@ const isLosAngelesListing = (listing) => {
 
 const getBuildingKey = (listing) => {
   const text = getListingText(listing);
-  const hwh = BUILDING_GROUPS.find((group) => group.key === "la-hwh");
-  if (hwh && hwh.match.test(text)) return hwh.key;
-  const downtown = BUILDING_GROUPS.find((group) => group.key === "la-downtown");
-  if (downtown && downtown.match.test(text) && !/\bhwh\b|west hollywood|weho/.test(text)) {
-    return downtown.key;
-  }
   for (const group of BUILDING_GROUPS) {
-    if (group.key === "la-hwh" || group.key === "la-downtown") continue;
     if (group.match.test(text)) return group.key;
   }
   return "other";
@@ -1489,14 +1496,14 @@ const getBuildingKey = (listing) => {
 const resolveGroupTitle = (listing) => {
   const key = getBuildingKey(listing);
   switch (key) {
-    case "la-hwh":
-      return "One Lux Stay HWH Downtown Los Angeles";
-    case "la-downtown":
-      return "One Lux Stay LA Plaza Village";
-    case "la-hollywood":
-      return "One Lux Stay Hollywood View LA Suites";
+    case "redondo-pier":
+      return "One Lux Stay Redondo Beach Pier";
+    case "redondo-riviera":
+      return "One Lux Stay Riviera Village";
+    case "south-bay":
+      return "One Lux Stay South Bay";
     default:
-      return "One Lux Stay Near Dodger Stadium Downtown LA";
+      return "One Lux Stay Redondo Beach";
   }
 };
 
@@ -1708,7 +1715,7 @@ const CITY_TOUR_SLIDES = {
   ],
 };
 
-const TOUR_CITIES = ["Hollywood", "Chinatown", "Downtown Los Angeles"];
+const TOUR_CITIES = ["Redondo Beach"];
 
 
 const getFirstSentence = (text) => {
@@ -1729,7 +1736,7 @@ const formatFullDescription = (listing) => {
   return fallback.length ? `Details: ${fallback.join(" | ")}` : "No description available.";
 };
 
-export default function LosAngelesLandingPage() {
+export default function RedondoBeachLandingPage() {
   const { listingId: routeListingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1829,7 +1836,7 @@ export default function LosAngelesLandingPage() {
   const sectionCalendarDaysRef = useRef({});
   const [isSectionCalendarOpen, setIsSectionCalendarOpen] = useState(false);
   const sectionCalendarInflightRef = useRef({});
-  const [tourCity, setTourCity] = useState("Hollywood");
+  const [tourCity, setTourCity] = useState("Redondo Beach");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
@@ -2343,7 +2350,7 @@ export default function LosAngelesLandingPage() {
 
   const losAngelesListings = useMemo(() => {
     return listings.filter((listing) => {
-      return isLosAngelesListing(listing);
+      return isRedondoListing(listing);
     });
   }, [listings, isMapEnabled, mapsApiKey]);
 
@@ -2406,9 +2413,9 @@ export default function LosAngelesLandingPage() {
     const addToCluster = (coords, listing) => {
       const groupKey = getBuildingKey(listing);
       const groupOffsets = {
-        "la-downtown": { lat: 0.0012, lng: 0.0 },
-        "la-hwh": { lat: -0.0012, lng: 0.0 },
-        "la-hollywood": { lat: 0.0, lng: 0.0012 },
+        "redondo-pier": { lat: 0.0012, lng: 0.0 },
+        "redondo-riviera": { lat: -0.0012, lng: 0.0 },
+        "south-bay": { lat: 0.0, lng: 0.0012 },
         other: { lat: 0.0, lng: -0.0012 },
       };
       const offset = groupOffsets[groupKey] || groupOffsets.other;
@@ -2542,7 +2549,7 @@ export default function LosAngelesLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Dodger Stadium", listings: other });
+      ordered.push({ key: "other", label: "Redondo Beach", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesListings]);
@@ -2564,7 +2571,7 @@ export default function LosAngelesLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Dodger Stadium", listings: other });
+      ordered.push({ key: "other", label: "Redondo Beach", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesParentListings]);
@@ -3412,7 +3419,7 @@ export default function LosAngelesLandingPage() {
       return heroImages.map((src, idx) => ({
         id: null,
         image: src,
-        title: `Los Angeles stay ${idx + 1}`,
+        title: `Redondo Beach stay ${idx + 1}`,
       }));
     }
     return heroImages.map((src, idx) => {
@@ -3420,7 +3427,7 @@ export default function LosAngelesLandingPage() {
       return {
         id: listing?.id ?? null,
         image: listing?.image || src,
-        title: listing?.title || `Los Angeles stay ${idx + 1}`,
+        title: listing?.title || `Redondo Beach stay ${idx + 1}`,
       };
     });
   }, [heroImages, bounceListings]);
@@ -3428,13 +3435,13 @@ export default function LosAngelesLandingPage() {
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
   const buildListingPath = (listingId) => {
-    if (!listingId) return "/los-angeles";
+    if (!listingId) return "/redondo-beach";
     const params = new URLSearchParams();
     if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
     if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
     if (sectionGuests) params.set("guests", sectionGuests);
     const query = params.toString();
-    return `/los-angeles/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
+    return `/redondo-beach/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
@@ -3491,7 +3498,7 @@ export default function LosAngelesLandingPage() {
     };
   }, [losAngelesParentListings]);
 
-  const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES.Hollywood || [];
+  const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES["Redondo Beach"] || [];
   const tourCount = tourSlides.length;
   const activeTourSlide = tourSlides[tourIndex] || tourSlides[0] || {};
 
@@ -3646,7 +3653,7 @@ export default function LosAngelesLandingPage() {
               setActiveListing(null);
               setActiveImageIndex(0);
               if (isListingRoute) {
-                navigate("/los-angeles");
+                navigate("/redondo-beach");
               }
             }}
           >
@@ -3655,7 +3662,7 @@ export default function LosAngelesLandingPage() {
         </div>
         <div className="la-listing-hero__intro">
           <div>
-            <p className="la-listing-hero__kicker">Los Angeles private stay</p>
+            <p className="la-listing-hero__kicker">Redondo Beach private stay</p>
             <h3>{sanitizeText(activeListing.title)}</h3>
             <div className="la-unit-modal__chips">
               <span>Exceptional location</span>
@@ -3744,7 +3751,7 @@ export default function LosAngelesLandingPage() {
           .filter((item) => typeof item === "string")
           ;
         const aboutText = formatFullDescription(activeListing);
-        const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
+        const isRedondoPierUnit = getBuildingKey(activeListing) === "redondo-pier";
         const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
         const availability = listingId ? sectionAvailabilityMap[listingId] : null;
         const availabilityStatus = sectionAvailabilityActive
@@ -3914,7 +3921,7 @@ export default function LosAngelesLandingPage() {
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
-                <strong>OneLuxStay Los Angeles</strong>
+                <strong>OneLuxStay Redondo Beach</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -4545,7 +4552,7 @@ export default function LosAngelesLandingPage() {
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      {/* <section className="la-bounce-section" aria-label="Los Angeles highlights">
+      {/* <section className="la-bounce-section" aria-label="Redondo Beach highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
             items={bounceListings}
@@ -4561,15 +4568,15 @@ export default function LosAngelesLandingPage() {
           />
           <div className="la-bounce-section__content">
             <span className="la-bounce-section__kicker">Featured stays</span>
-            <h2 className="la-bounce-section__title">Los Angeles moments in motion</h2>
+            <h2 className="la-bounce-section__title">Redondo Beach moments in motion</h2>
             <p className="la-bounce-section__lede">
               A quick visual pulse before you dive into neighborhoods, amenities, and live pricing.
             </p>
             <div className="la-bounce-section__actions">
-              <a className="la-bounce-section__cta" href="#los-angeles-units">
+              <a className="la-bounce-section__cta" href="#redondo-beach-units">
                 Explore units
               </a>
-              <a className="la-bounce-section__ghost" href="#la-city-tour">
+              <a className="la-bounce-section__ghost" href="#redondo-city-tour">
                 Browse tours
               </a>
             </div>
@@ -4578,17 +4585,17 @@ export default function LosAngelesLandingPage() {
       </section> */}
       <header className="antwerp-hero">
         <div className="antwerp-hero__content">
-          <span className="antwerp-kicker">OneLuxStay / Los Angeles, California</span>
-          <h1 className="antwerp-title">Los Angeles collection</h1>
+          <span className="antwerp-kicker">OneLuxStay / Redondo Beach, California</span>
+          <h1 className="antwerp-title">Redondo Beach collection</h1>
           <p className="antwerp-lede">
             A curated landing page built directly from live listing data. Every detail below mirrors what is available
-            right now for Los Angeles units.
+            right now for Redondo Beach units.
           </p>
           <div className="antwerp-hero__actions">
-            <a href="#la-city-tour" className="antwerp-cta">
+            <a href="#redondo-city-tour" className="antwerp-cta">
               Browse tours
             </a>
-            <a href="#los-angeles-units" className="antwerp-ghost">
+            <a href="#redondo-beach-units" className="antwerp-ghost">
               Explore units
             </a>
           </div>
@@ -4692,7 +4699,7 @@ export default function LosAngelesLandingPage() {
             </CardSwap>
           </div>
         </div>
-        <div className="antwerp-hero__carousel" aria-label="Los Angeles hero images">
+        <div className="antwerp-hero__carousel" aria-label="Redondo Beach hero images">
           <div className="antwerp-hero__carousel-track" ref={heroCarouselRef}>
             {heroCards.length ? (
               heroCards.map((card, idx) => (
@@ -4712,7 +4719,7 @@ export default function LosAngelesLandingPage() {
               ))
             ) : (
               <div className="antwerp-hero__carousel-card antwerp-hero__image--empty">
-                Los Angeles imagery loading
+                Redondo Beach imagery loading
               </div>
             )}
           </div>
@@ -4738,7 +4745,7 @@ export default function LosAngelesLandingPage() {
       </header>
 
       <main className="antwerp-main">
-        <section id="la-city-tour" className="la-city-tour" aria-label="USA city tours">
+        <section id="redondo-city-tour" className="la-city-tour" aria-label="Redondo Beach city tours">
           <div
             key={tourCity}
             className="la-city-tour__bg"
@@ -4824,13 +4831,13 @@ export default function LosAngelesLandingPage() {
           </div>
         </section>
 
-        <section className="antwerp-section" id="los-angeles-units">
+        <section className="antwerp-section" id="redondo-beach-units">
           <div className="la-units-layout">
             <div className="la-units-main">
               <div className="antwerp-section__head">
                 <div>
                   <p className="antwerp-kicker">Available now</p>
-                  <h2>Los Angeles buildings</h2>
+                  <h2>Redondo Beach buildings</h2>
                   <p className="antwerp-muted">
                     Every card below is derived from the live Guesty listing response, including pricing, capacity, and
                     amenities metadata.
@@ -4867,7 +4874,7 @@ export default function LosAngelesLandingPage() {
 
               {!loading && !error && losAngelesParentListings.length === 0 && (
                 <div className="antwerp-empty">
-                  No Los Angeles listings are available in the current response.
+                  No Redondo Beach listings are available in the current response.
                 </div>
               )}
 
@@ -4895,14 +4902,14 @@ export default function LosAngelesLandingPage() {
                   : null;
                 const sectionTitle = (() => {
                   switch (group.key) {
-                    case "la-hwh":
-                      return "One Lux Stay HWH Downtown Los Angeles";
-                    case "la-downtown":
-                      return "One Lux Stay LA Plaza Village";
-                    case "la-hollywood":
-                      return "One Lux Stay Hollywood View LA Suites";
+                    case "redondo-pier":
+                      return "One Lux Stay Redondo Beach Pier";
+                    case "redondo-riviera":
+                      return "One Lux Stay Riviera Village";
+                    case "south-bay":
+                      return "One Lux Stay South Bay";
                     default:
-                      return "One Lux Stay Near Dodger Stadium Downtown LA";
+                      return "One Lux Stay Redondo Beach";
                   }
                 })();
                 return (
@@ -5009,7 +5016,7 @@ export default function LosAngelesLandingPage() {
                 <p className="antwerp-kicker">Neighborhood map</p>
                 <h3>Walkable highlights</h3>
                 <p className="antwerp-muted">
-                  See nearby landmarks and public transport around Hollywood Blvd.
+                  See nearby landmarks and public transport around Redondo Beach.
                 </p>
                 {!isMapEnabled ? (
                   <div
@@ -5083,7 +5090,7 @@ export default function LosAngelesLandingPage() {
                 ) : (
                   <div
                     ref={mapRef}
-                    aria-label="Google map showing Hollywood Blvd with nearby landmarks and public transport"
+                    aria-label="Google map showing Redondo Beach with nearby landmarks and public transport"
                     className="la-units-map"
                     style={{
                       width: "100%",
@@ -5116,14 +5123,14 @@ export default function LosAngelesLandingPage() {
                 <p className="la-section-modal__tag">Available now</p>
                 <h3>{(() => {
                   switch (activeSection.key) {
-                    case "la-hwh":
-                      return "One Lux Stay HWH Downtown Los Angeles";
-                    case "la-downtown":
-                      return "One Lux Stay LA Plaza Village";
-                    case "la-hollywood":
-                      return "One Lux Stay Hollywood View LA Suites";
+                    case "redondo-pier":
+                      return "One Lux Stay Redondo Beach Pier";
+                    case "redondo-riviera":
+                      return "One Lux Stay Riviera Village";
+                    case "south-bay":
+                      return "One Lux Stay South Bay";
                     case "other":
-                      return "Near Dodger Stadium";
+                      return "Redondo Beach";
                     default:
                       return `One Lux Stay ${activeSection.label}`;
                   }
@@ -5184,8 +5191,8 @@ export default function LosAngelesLandingPage() {
               });
               const facilityList = [...new Set(amenityPool.filter((item) => typeof item === "string"))].slice(0, 8);
               const facilities =
-                activeSection.key === "la-hollywood"
-                  ? HOLLYWOOD_FACILITIES
+                activeSection.key === "redondo-pier"
+                  ? REDONDO_FACILITIES
                   : facilityList.length
                     ? facilityList
                     : ["Wi-Fi", "Kitchen", "Washer"];
@@ -5282,7 +5289,7 @@ export default function LosAngelesLandingPage() {
                   <aside className="la-section-hero__aside">
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
-                      <strong>OneLuxStay Los Angeles</strong>
+                      <strong>OneLuxStay Redondo Beach</strong>
                       <a href="tel:+12138663589">+1 213 866 3589</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -5549,7 +5556,7 @@ export default function LosAngelesLandingPage() {
                     return listingsToRender.map((listing, index) => {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
-                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/los-angeles";
+                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/redondo-beach";
                       const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
@@ -5993,7 +6000,7 @@ export default function LosAngelesLandingPage() {
                   setActiveListing(null);
                   setActiveImageIndex(0);
                   if (isListingRoute) {
-                    navigate("/los-angeles");
+                    navigate("/redondo-beach");
                   }
                 }}
               >
@@ -6001,7 +6008,7 @@ export default function LosAngelesLandingPage() {
               </button>
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
-                <strong>OneLuxStay Los Angeles</strong>
+                <strong>OneLuxStay Redondo Beach</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -6104,9 +6111,9 @@ export default function LosAngelesLandingPage() {
                 : [];
               const amenityList = [...new Set(amenityListRaw.filter((item) => typeof item === "string"))];
               const aboutText = formatFullDescription(activeListing);
-              const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
-              const popularFacilities = isHollywoodUnit
-                ? HOLLYWOOD_FACILITIES
+              const isRedondoPierUnit = getBuildingKey(activeListing) === "redondo-pier";
+              const popularFacilities = isRedondoPierUnit
+                ? REDONDO_FACILITIES
                 : (activeAmenityList.slice(0, 6).length
                   ? activeAmenityList.slice(0, 6)
                   : ["Wi-Fi", "Kitchen", "Washer"]);

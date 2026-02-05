@@ -2,9 +2,6 @@ import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
-import reviewsHwh from "./data/reviews-hwh.json";
-import reviewsHollywood from "./data/reviews-hollywood.json";
-import reviewsDodger from "./data/reviews-dodger.json";
 import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
@@ -16,15 +13,16 @@ const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
-const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
-const PROPERTY_COORDS = { lat: 34.0575, lng: -118.2776 };
+const AED_SYMBOL = "د. إ.";
+const PROPERTY_ADDRESS = "Dubai, United Arab Emirates";
+const PROPERTY_COORDS = { lat: 25.2048, lng: 55.2708 };
 const LANDMARKS = [
-  "Hollywood Sign",
-  "Griffith Observatory",
-  "Rodeo Drive",
-  "Santa Monica Pier",
-  "The Grove",
-  "LAX"
+  "Burj Khalifa",
+  "Dubai Mall",
+  "Palm Jumeirah",
+  "Dubai Marina",
+  "JBR",
+  "DXB"
 ];
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
@@ -57,15 +55,28 @@ const loadGoogleMaps = (apiKey) => {
   return mapsScriptPromise;
 };
 
-const formatCurrency = (value, currency = "USD") =>
-  typeof value === "number"
-    ? value.toLocaleString("en-US", {
+const formatCurrency = (value, currency = "USD") => {
+  if (typeof value !== "number") return "--";
+  const normalized = (currency || "USD").toUpperCase();
+  try {
+    const formatted = value.toLocaleString("en-US", {
       style: "currency",
-      currency,
+      currency: normalized,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    })
-    : "--";
+    });
+    if (normalized === "AED") {
+      return formatted.replace(/^AED\s?/i, `${AED_SYMBOL} `).replace(/\u00a0/g, " ");
+    }
+    return formatted;
+  } catch {
+    const fallback = value.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return normalized === "AED" ? `${AED_SYMBOL} ${fallback}` : `${normalized} ${fallback}`;
+  }
+};
 
 const BedIcon = () => (
   <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -146,14 +157,20 @@ const buildCalendarMonth = (baseDate) => {
 
 const formatCalendarPrice = (value, currency) => {
   if (typeof value !== "number") return "";
+  const normalized = (currency || "USD").toUpperCase();
   try {
-    return new Intl.NumberFormat("en-US", {
+    const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: currency || "USD",
+      currency: normalized,
       maximumFractionDigits: 0,
     }).format(value);
+    if (normalized === "AED") {
+      return formatted.replace(/^AED\s?/i, `${AED_SYMBOL} `).replace(/\u00a0/g, " ");
+    }
+    return formatted;
   } catch {
-    return `$${Math.round(value)}`;
+    const fallback = Math.round(value).toLocaleString("en-US");
+    return normalized === "AED" ? `${AED_SYMBOL} ${fallback}` : `${normalized} ${fallback}`;
   }
 };
 
@@ -906,19 +923,16 @@ const getQuotePricing = (quoteData, listing, nights) => {
 };
 
 const KNOWN_CITIES = [
-  "los angeles",
-  "la",
-  "los-angeles",
-  "hollywood",
-  "west hollywood",
-  "downtown",
-  "dtla",
-  "chinatown",
-  "la plaza",
-  "broadway",
-  "union station",
+  "dubai",
+  "downtown dubai",
+  "business bay",
+  "dubai marina",
+  "jbr",
+  "jumeirah",
+  "palm jumeirah",
+  "difc",
 ];
-const EXCLUDED_CITIES = ["redondo beach", "miami", "dubai", "antwerp", "antwerpen"];
+const EXCLUDED_CITIES = ["los angeles", "hollywood", "west hollywood", "redondo beach", "miami", "antwerp", "antwerpen"];
 
 const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
@@ -940,7 +954,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
   return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
 };
 
-const BOOKING_STORAGE_KEY = "laBookingFilters";
+const BOOKING_STORAGE_KEY = "dubaiBookingFilters";
 const readPersistedBooking = () => {
   if (typeof window === "undefined") return null;
   try {
@@ -986,7 +1000,7 @@ const formatAddress = (listing) => {
   const parts = [address.full, address.city, address.country].filter(Boolean);
   if (parts.length) return sanitizeText(parts.join(", "));
   if (typeof listing.location === "string") return sanitizeText(listing.location);
-  return "Los Angeles";
+  return "Dubai";
 };
 
 const getListingAddressQuery = (listing) => {
@@ -1215,7 +1229,7 @@ const getReviewLink = (listing) => {
   if (!listing) return "";
   const key = getBuildingKey(listing);
   if (GOOGLE_REVIEW_LINKS[key]) return GOOGLE_REVIEW_LINKS[key];
-  const title = sanitizeText(listing?.title || "OneLuxStay Los Angeles");
+  const title = sanitizeText(listing?.title || "OneLuxStay Dubai");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}`;
 };
 
@@ -1290,75 +1304,102 @@ const rangeLabel = (values, suffix = "") => {
 };
 
 const SECTION_STORIES = {
-  "la-downtown": {
-    title: "Downtown Los Angeles",
-    tagline: "Skyline energy, rooftop heat, and a city pulse that keeps moving.",
+  "dubai-downtown": {
+    title: "Downtown Dubai",
+    tagline: "Skyline icons, late-night glow, and polished city energy.",
     copy:
-      "Wake to glassy towers, drift through art-lined streets, then land at Union Station just as the lights flicker on. Everything feels close, fast, and possible - perfect for guests who want the city within arm's reach.",
-    landmarks: ["Grand Central Market", "The Broad", "Walt Disney Concert Hall", "Union Station", "Little Tokyo"],
-    transit: ["Metro A & E Lines", "Union Station", "Bus corridors on Broadway"],
+      "Wake to Burj Khalifa views, drift through the Dubai Mall, then ease into an evening on the fountains. Everything is bright, walkable, and curated for guests who want the city's heartbeat close.",
+    landmarks: ["Burj Khalifa", "Dubai Mall", "Dubai Fountain", "Souk Al Bahar"],
+    transit: ["Dubai Metro Red Line", "Burj Khalifa/Dubai Mall Station", "Sheikh Zayed Road"],
   },
-  "la-hollywood": {
-    title: "Hollywood",
-    tagline: "Neon nights, canyon mornings, and a view that never gets old.",
+  "dubai-marina": {
+    title: "Dubai Marina",
+    tagline: "Waterfront promenades, yacht views, and lively nights.",
     copy:
-      "From the hills to the boulevard, Hollywood keeps the story rolling. Catch the sign at sunrise, sip on Sunset, and glide to Griffith in minutes. It's a destination that feels cinematic the moment you arrive.",
-    landmarks: ["Hollywood Sign", "Walk of Fame", "Griffith Observatory", "Hollywood Bowl", "Sunset Strip"],
-    transit: ["Metro B Line (Red)", "Hollywood/Highland", "Hollywood/Vine"],
+      "Start with a marina stroll, pivot to JBR beach time, and finish with rooftop dining above the harbor. It's a social, sunlit base with everything close.",
+    landmarks: ["Dubai Marina Walk", "JBR", "Bluewaters Island", "Ain Dubai"],
+    transit: ["Dubai Tram", "DMCC Metro Station", "Marina Promenade"],
   },
-  "la-hwh": {
-    title: "Downtown Los Angeles",
-    tagline: "Bold rooftops, late-night glow, and a rhythm that draws you in.",
+  "dubai-business": {
+    title: "Business Bay",
+    tagline: "Modern towers, canal views, and quick access to Downtown.",
     copy:
-      "HWH brings the energy without the rush - pool decks at dusk, design-forward streets, and a quick hop to the Strip. It's hypnotic, magnetic, and made for guests who want the best of both sides.",
-    landmarks: ["West Hollywood Park", "Sunset Strip", "Melrose Ave", "Roxy Theatre"],
-    transit: ["Rapid 2", "WeHo CityLine", "Sunset Blvd routes"],
+      "Settle into sleek high-rises with easy access to Downtown Dubai and DIFC. Expect fast commutes, polished lobbies, and skyline sunsets.",
+    landmarks: ["Dubai Canal", "DIFC", "Bay Avenue", "City Walk"],
+    transit: ["Business Bay Metro Station", "Canal Walkways", "Sheikh Zayed Road"],
+  },
+  "dubai-palm": {
+    title: "Palm Jumeirah",
+    tagline: "Beachfront calm, resort energy, and sunset views.",
+    copy:
+      "Palm stays bring resort ease: private beach access, spa mornings, and golden hour by the water. It's the quiet, luxurious side of Dubai.",
+    landmarks: ["Atlantis The Palm", "The Pointe", "Palm Boardwalk", "Nakheel Mall"],
+    transit: ["Palm Monorail", "RTA taxis", "Crescent drive"],
   },
   other: {
-    title: "Dodger Stadium",
-    tagline: "Golden light, stadium nights, and a steady city hum.",
+    title: "Dubai",
+    tagline: "A curated base with effortless city access.",
     copy:
-      "Settle into the calm just outside the core, then ride the wave into game nights and skyline views. It's a sweet spot with breathing room - close enough to feel the buzz, far enough to recharge.",
-    landmarks: ["Dodger Stadium", "Elysian Park", "Echo Park Lake"],
-    transit: ["Dodger Stadium Express", "Metro A Line", "Stadium Way routes"],
+      "Wherever you land, you'll be minutes from the skyline, beaches, and signature dining. We'll position you close to the moments that matter most.",
+    landmarks: ["Burj Khalifa", "Dubai Marina", "Palm Jumeirah"],
+    transit: ["Dubai Metro", "RTA taxis", "Sheikh Zayed Road"],
   },
 };
 
 const BUILDING_GROUPS = [
-  { key: "la-hwh", label: "Downtown Los Angeles", match: /\bhwh\b|west hollywood|weho/ },
-  {
-    key: "la-downtown",
-    label: "Downtown Los Angeles",
-    match: /downtown|dtla|la plaza|broadway|chinatown|union station/,
-  },
-  { key: "la-hollywood", label: "Hollywood", match: /hollywood/ },
+  { key: "dubai-downtown", label: "Downtown Dubai", match: /downtown dubai|burj|dubai mall|opera/i },
+  { key: "dubai-marina", label: "Dubai Marina", match: /marina|jbr|jumeirah beach|bluewaters/i },
+  { key: "dubai-business", label: "Business Bay", match: /business bay|difc|bay avenue/i },
+  { key: "dubai-palm", label: "Palm Jumeirah", match: /palm jumeirah|the palm|atlantis/i },
 ];
 
 const STAR_TOTAL = 5;
-const REVIEW_TICKER = [...reviewsHwh, ...reviewsHollywood, ...reviewsDodger];
+const DUBAI_REVIEWS = [
+  {
+    name: "A. K.",
+    rating: 5,
+    source: "Guest",
+    quote: "Skyline views and a flawless check-in. The concierge team was fast and thoughtful.",
+  },
+  {
+    name: "S. M.",
+    rating: 5,
+    source: "Guest",
+    quote: "Loved the Marina location. Walkable, quiet at night, and beautifully styled.",
+  },
+  {
+    name: "R. H.",
+    rating: 4,
+    source: "Guest",
+    quote: "Clean, modern, and exactly as shown. Great base for Downtown and DIFC.",
+  },
+  {
+    name: "L. J.",
+    rating: 5,
+    source: "Guest",
+    quote: "Palm Jumeirah stay was perfect for a relaxing week. Sunset views were unreal.",
+  },
+];
+const REVIEW_TICKER = DUBAI_REVIEWS;
 const SECTION_REVIEWS = {
-  "la-hwh": reviewsHwh,
-  "la-hollywood": reviewsHollywood,
-  "la-downtown": reviewsDodger,
-  other: reviewsDodger,
+  "dubai-downtown": DUBAI_REVIEWS,
+  "dubai-marina": DUBAI_REVIEWS,
+  "dubai-business": DUBAI_REVIEWS,
+  "dubai-palm": DUBAI_REVIEWS,
+  other: DUBAI_REVIEWS,
 };
-const GOOGLE_REVIEW_LINKS = {
-  "la-hollywood":
-    "https://www.google.com/maps/place/One+Lux+Stay+Hollywood+View+LA+Suites/@34.096727,-118.3144848,908m/data=!3m1!1e3!4m11!3m10!1s0x80c2bf1c3a41cc15:0xbc828ded239ae8a3!5m2!4m1!1i2!8m2!3d34.0967226!4d-118.3119099!9m1!1b1!16s%2Fg%2F11l6btbhs4?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
-  "la-hwh":
-    "https://www.google.com/maps/place/One+Lux+Stay+HWH+Downtown+Los+Angeles/@34.0489709,-118.250392,908m/data=!3m2!1e3!5s0x80c2c64a33a4e947:0x3882004a8f34fba8!4m11!3m10!1s0x80c2c7d2fa15aab3:0x71a2178b49e7af8a!5m2!4m1!1i2!8m2!3d34.0489665!4d-118.2478171!9m1!1b1!16s%2Fg%2F11rsrqx5ls?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
-};
+const GOOGLE_REVIEW_LINKS = {};
 const HOLLYWOOD_FACILITIES = [
-  "Outdoor swimming pool",
-  "Free parking",
-  "Free Wi-Fi",
-  "Family rooms",
+  "Rooftop pool",
+  "Valet parking",
+  "High-speed Wi-Fi",
+  "Family suites",
   "Non-smoking rooms",
   "Fitness center",
-  "Terrace",
+  "Balcony or terrace",
   "Laundry",
-  "BBQ facilities",
-  "Tea/Coffee maker in all rooms",
+  "Concierge",
+  "In-room coffee",
 ];
 
 const FACILITY_ICON_MAP = {
@@ -1457,7 +1498,7 @@ const getListingText = (listing) => {
     .toLowerCase();
 };
 
-const isLosAngelesListing = (listing) => {
+const isTargetCityListing = (listing) => {
   const cityText = [listing.city, listing.address?.city, listing.location]
     .filter(Boolean)
     .join(" ")
@@ -1473,30 +1514,48 @@ const isLosAngelesListing = (listing) => {
 
 const getBuildingKey = (listing) => {
   const text = getListingText(listing);
-  const hwh = BUILDING_GROUPS.find((group) => group.key === "la-hwh");
-  if (hwh && hwh.match.test(text)) return hwh.key;
-  const downtown = BUILDING_GROUPS.find((group) => group.key === "la-downtown");
-  if (downtown && downtown.match.test(text) && !/\bhwh\b|west hollywood|weho/.test(text)) {
-    return downtown.key;
-  }
   for (const group of BUILDING_GROUPS) {
-    if (group.key === "la-hwh" || group.key === "la-downtown") continue;
     if (group.match.test(text)) return group.key;
   }
   return "other";
 };
 
+const getBuildingDisplayKey = (listing) => {
+  const key = getBuildingKey(listing);
+  if (key && key !== "other") return key;
+  return getListingGroupKey(listing) || getListingId(listing) || "other";
+};
+
+const pickOnePerBuilding = (listings = []) => {
+  const buckets = new Map();
+  listings.forEach((listing) => {
+    const key = getBuildingDisplayKey(listing);
+    if (!key) return;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(listing);
+  });
+  return [...buckets.values()]
+    .map((group) => {
+      const parents = group.filter(isParentListing);
+      const candidates = parents.length ? parents : group;
+      return getLowestPriceListing(candidates) || candidates[0] || null;
+    })
+    .filter(Boolean);
+};
+
 const resolveGroupTitle = (listing) => {
   const key = getBuildingKey(listing);
   switch (key) {
-    case "la-hwh":
-      return "One Lux Stay HWH Downtown Los Angeles";
-    case "la-downtown":
-      return "One Lux Stay LA Plaza Village";
-    case "la-hollywood":
-      return "One Lux Stay Hollywood View LA Suites";
+    case "dubai-downtown":
+      return "One Lux Stay Downtown Dubai";
+    case "dubai-marina":
+      return "One Lux Stay Dubai Marina";
+    case "dubai-business":
+      return "One Lux Stay Business Bay";
+    case "dubai-palm":
+      return "One Lux Stay Palm Jumeirah";
     default:
-      return "One Lux Stay Near Dodger Stadium Downtown LA";
+      return "One Lux Stay Dubai";
   }
 };
 
@@ -1514,201 +1573,96 @@ const getGroupStats = (listings) => {
 };
 
 const CITY_TOUR_SLIDES = {
-  Hollywood: [
+  "Downtown Dubai": [
     {
-      title: "Hollywood Arrival",
-      subtitle: "A cinematic welcome to the city of light.",
+      title: "Downtown Arrival",
+      subtitle: "Iconic skyline and fountain nights.",
       copy:
-        "Step into a private arrival framed by palm silhouettes and glassy skyline reflections. Your concierge lines up the first night with rooftop views and a late supper on Sunset.",
-      highlights: ["Sunset Boulevard", "Private transfers", "Skyline check-in"],
+        "Arrive with Burj Khalifa views, then glide through Dubai Mall and the fountain promenade for a first-night welcome.",
+      highlights: ["Burj Khalifa", "Dubai Fountain", "Dubai Mall"],
       image:
-        "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        "https://images.unsplash.com/photo-1669463827790-0fa8a233221e?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Golden Hour in the Hills",
-      subtitle: "Runyon trails, Mulholland turns, and the glow of dusk.",
+      title: "Cultural Afternoon",
+      subtitle: "Art, design, and modern heritage.",
       copy:
-        "Climb above the city for warm light, quiet air, and panoramic views. End the afternoon with a private terrace pour and the skyline turning gold.",
-      highlights: ["Runyon Canyon", "Mulholland Drive", "Hilltop terraces"],
+        "Spend the afternoon between DIFC galleries and the Opera District, then settle into a rooftop dinner.",
+      highlights: ["DIFC", "Dubai Opera", "City Walk"],
       image:
-        "https://images.unsplash.com/photo-1711039842546-4b78a455efc7?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        "https://images.unsplash.com/photo-1745750434535-5943ef2fd31a?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Icons After Dark",
-      subtitle: "Marquee lights and the legendary walk.",
+      title: "Skyline Finale",
+      subtitle: "Lights on, city at your pace.",
       copy:
-        "Move from neon marquees to velvet lounges with a curated night plan. Classic Hollywood icons glow brighter when you arrive with a reserved table.",
-      highlights: ["Walk of Fame", "Cinema", "Movie Theaters"],
+        "End the day with skyline views and a private concierge lineup for your next stay.",
+      highlights: ["Skyline views", "Concierge", "Private transfers"],
       image:
-        "https://images.unsplash.com/photo-1579800663822-714e267da4fc?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    },
-    {
-      title: "Finale in Lights",
-      subtitle: "Private screenings and the city at your pace.",
-      copy:
-        "Close the tour with a private screening, late-night city views, and the assurance that your next stay is already curated.",
-      highlights: ["Private screening", "Skyline lounge", "Concierge on call"],
-      image:
-        "https://images.unsplash.com/photo-1520516288949-bbd7f94a6ab0?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        "https://images.unsplash.com/photo-1751604275999-6b57fa0bafef?auto=format&fit=crop&w=2000&q=80",
     },
   ],
-  Chinatown: [
+  "Dubai Marina": [
     {
-      title: "Chinatown Gateway",
-      subtitle: "Lantern light, hidden courtyards, and late tea.",
+      title: "Marina Welcome",
+      subtitle: "Waterfront strolls and harbor glow.",
       copy:
-        "Arrive under glow-lit streets and a calm courtyard welcome. Begin with a curated tasting and a walk through heritage storefronts.",
-      highlights: ["Central Plaza", "Hidden courtyards", "Tea lounge"],
+        "Check in near the promenade, then step out for a marina walk and a late-night bite by the yachts.",
+      highlights: ["Marina Walk", "JBR", "Harbor views"],
       image:
-        "https://images.unsplash.com/photo-1607988138707-241030633096?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        "https://images.unsplash.com/photo-1768069794857-b4690ab163a3?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Night Market Stroll",
-      subtitle: "Street food and neon rhythm.",
+      title: "Beach + Boardwalk",
+      subtitle: "JBR sun, soft sand, easy pace.",
       copy:
-        "Move from open-air stalls to tucked-away speakeasies. The city hums while lanterns guide the night.",
-      highlights: ["Night market", "Street dining", "Lantern walk"],
+        "Spend the day at JBR or Bluewaters Island, then come back for sunset by the water.",
+      highlights: ["JBR Beach", "Bluewaters", "Ain Dubai"],
       image:
-        "https://images.unsplash.com/photo-1667088392300-b0b8f01e5dbd?q=80&w=735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        "https://images.unsplash.com/photo-1741193806057-8e80be79ae18?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Heritage + Art",
-      subtitle: "Temple calm and gallery light.",
+      title: "Nightlife Circuit",
+      subtitle: "Rooftops, lounges, and marina lights.",
       copy:
-        "Spend the afternoon between heritage landmarks and contemporary galleries, then end with rooftop views back toward DTLA.",
-      highlights: ["Heritage temples", "Gallery row", "Rooftop views"],
+        "A curated night plan with rooftop lounges and harbor views to close the day.",
+      highlights: ["Rooftop lounges", "Marina lights", "Concierge"],
       image:
-        "https://images.unsplash.com/photo-1599090724178-0ca4509e1f5c?q=80&w=1164&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    },
-  ],
-  "Downtown Los Angeles": [
-    {
-      title: "LAX Arrival",
-      subtitle: "Modern art, skyline lines, and a downtown pulse.",
-      copy:
-        "Begin with architectural icons and a rooftop welcome. Your concierge curates a gallery walk and a reservation with a view.",
-      highlights: ["Walt Disney Concert Hall", "The Broad", "Rooftop tables"],
-      image:
-        "https://images.unsplash.com/photo-1611860565869-7e40176e3052?q=80&w=735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    },
-    {
-      title: "Market District",
-      subtitle: "Historic stalls and late-night bites.",
-      copy:
-        "Taste your way through Grand Central Market before an easy stroll through the historic core.",
-      highlights: ["Grand Central Market", "Bradbury Building", "Spring Street"],
-      image:
-        "https://images.unsplash.com/photo-1514829887622-b6da559f5568?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    },
-    {
-      title: "Arts + Views",
-      subtitle: "Museums, gardens, and quiet overlooks.",
-      copy:
-        "Reset with a museum afternoon and golden hour above the city.",
-      highlights: ["MOCA", "Grand Park", "Walt Disney Concert Hall"],
-      image:
-        "https://images.unsplash.com/photo-1663310344482-f7f17ab524a9?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+        "https://images.unsplash.com/photo-1643904736472-8b77e93ca3d7?auto=format&fit=crop&w=2000&q=80",
     },
   ],
-  "Los Angeles": [
+  "Palm Jumeirah": [
     {
-      title: "DTLA Arrival",
-      subtitle: "Modern art, skyline lines, and a downtown pulse.",
+      title: "Palm Arrival",
+      subtitle: "Resort calm and ocean air.",
       copy:
-        "Begin with architectural icons and a rooftop welcome. Your concierge curates a gallery walk and a reservation with a view.",
-      highlights: ["Walt Disney Concert Hall", "The Broad", "Rooftop tables"],
+        "Arrive to beachfront calm, then ease into a sunset stroll along the Palm Boardwalk.",
+      highlights: ["Palm Boardwalk", "Atlantis", "The Pointe"],
       image:
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1751473058035-3b7ef98d0367?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "City and Coast",
-      subtitle: "From gallery halls to Pacific light.",
+      title: "Spa + Sea",
+      subtitle: "Slow mornings and water views.",
       copy:
-        "Shift from LA's creative core to the edge of the ocean. Sunset arrives over Santa Monica with the beach in easy reach.",
-      highlights: ["Santa Monica Pier", "Venice Boardwalk", "Abbot Kinney"],
+        "Start with a spa appointment, then spend the afternoon by the water.",
+      highlights: ["Beach clubs", "Spa", "Sunset decks"],
       image:
-        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1748373448914-1d7f882700e2?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Westside Luxe",
-      subtitle: "Elevated retail and design districts.",
+      title: "Private Evening",
+      subtitle: "Quiet luxury and curated dining.",
       copy:
-        "A day of curated shopping, design stops, and a slow lunch on the Westside before evening lights on Sunset.",
-      highlights: ["Rodeo Drive", "The Grove", "Sunset Strip"],
+        "Finish with a private dining reservation and an easy return to your residence.",
+      highlights: ["Private dining", "Concierge", "Evening views"],
       image:
-        "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Arts + Views",
-      subtitle: "Museums, gardens, and quiet overlooks.",
-      copy:
-        "Spend the afternoon at Getty and LACMA, then reset with a Griffith Park golden hour.",
-      highlights: ["Getty Center", "LACMA", "Griffith Park"],
-      image:
-        "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=2000&q=80",
-    },
-  ],
-  "Redondo Beach": [
-    {
-      title: "Pier Welcome",
-      subtitle: "Salt air and harbor calm.",
-      copy:
-        "Arrive to pier views and marina strolls. Sunset lands softly across the Pacific.",
-      highlights: ["Redondo Beach Pier", "King Harbor", "Seaside Lagoon"],
-      image:
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Riviera Village",
-      subtitle: "Boutiques, cafes, and beach lanes.",
-      copy:
-        "Spend the afternoon in Riviera Village with coastal cafes and a slow walk along the Esplanade.",
-      highlights: ["Riviera Village", "El Retiro Park", "Esplanade"],
-      image:
-        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "South Bay Day",
-      subtitle: "Hermosa and Palos Verdes escapes.",
-      copy:
-        "Ride the Strand, then pivot to cliffside views and an early dinner in Palos Verdes.",
-      highlights: ["Hermosa Pier", "The Strand", "Palos Verdes"],
-      image:
-        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
-    },
-  ],
-  "Miami Beach": [
-    {
-      title: "Ocean Drive Arrival",
-      subtitle: "Art Deco lines and Atlantic light.",
-      copy:
-        "Start in South Beach with Art Deco landmarks, then settle into a sunset cocktail on Ocean Drive.",
-      highlights: ["Ocean Drive", "Art Deco District", "Lummus Park"],
-      image:
-        "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Design + Bayside",
-      subtitle: "Boutiques and waterfront strolls.",
-      copy:
-        "Spend the day between Lincoln Road, Design District galleries, and a bayside dinner.",
-      highlights: ["Lincoln Road", "Design District", "Biscayne Bay"],
-      image:
-        "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Beach Day",
-      subtitle: "Soft sand, bright water, unhurried pace.",
-      copy:
-        "A slow day on Bal Harbour and Surfside with a golden hour walk along North Beach.",
-      highlights: ["Bal Harbour", "Surfside", "North Beach"],
-      image:
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1743367418340-53ad1352c77c?auto=format&fit=crop&w=2000&q=80",
     },
   ],
 };
 
-const TOUR_CITIES = ["Hollywood", "Chinatown", "Downtown Los Angeles"];
+const TOUR_CITIES = ["Downtown Dubai", "Dubai Marina", "Palm Jumeirah"];
 
 
 const getFirstSentence = (text) => {
@@ -1729,7 +1683,7 @@ const formatFullDescription = (listing) => {
   return fallback.length ? `Details: ${fallback.join(" | ")}` : "No description available.";
 };
 
-export default function LosAngelesLandingPage() {
+export default function DubaiLandingPage() {
   const { listingId: routeListingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1829,7 +1783,7 @@ export default function LosAngelesLandingPage() {
   const sectionCalendarDaysRef = useRef({});
   const [isSectionCalendarOpen, setIsSectionCalendarOpen] = useState(false);
   const sectionCalendarInflightRef = useRef({});
-  const [tourCity, setTourCity] = useState("Hollywood");
+  const [tourCity, setTourCity] = useState(TOUR_CITIES[0]);
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
@@ -2240,9 +2194,9 @@ export default function LosAngelesLandingPage() {
     const targetId = "66e1e3875a1f6300d736f28e";
     const match = listings.find((listing) => (listing.id || listing._id) === targetId);
     if (match) {
-      console.log("[LA debug] listing match", match);
+      console.log("[Dubai debug] listing match", match);
     } else {
-      console.log("[LA debug] listing not found for id", targetId);
+      console.log("[Dubai debug] listing not found for id", targetId);
     }
   }, [listings]);
 
@@ -2343,7 +2297,7 @@ export default function LosAngelesLandingPage() {
 
   const losAngelesListings = useMemo(() => {
     return listings.filter((listing) => {
-      return isLosAngelesListing(listing);
+      return isTargetCityListing(listing);
     });
   }, [listings, isMapEnabled, mapsApiKey]);
 
@@ -2542,7 +2496,7 @@ export default function LosAngelesLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Dodger Stadium", listings: other });
+      ordered.push({ key: "other", label: "Dubai Core", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesListings]);
@@ -2564,7 +2518,7 @@ export default function LosAngelesLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Dodger Stadium", listings: other });
+      ordered.push({ key: "other", label: "Dubai Core", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesParentListings]);
@@ -3368,21 +3322,24 @@ export default function LosAngelesLandingPage() {
     ],
     []
   );
+  const heroUnits = useMemo(() => {
+    const sourceListings = losAngelesParentListings.length
+      ? losAngelesParentListings
+      : losAngelesListings;
+    return pickOnePerBuilding(sourceListings);
+  }, [losAngelesParentListings, losAngelesListings]);
+
   const bounceListings = useMemo(() => {
-    const featuredIds = [
-      "66e85deca8a40a00145be974",
-      "691b844f8b32740013bc7c2c",
-      "66e3bd82536929001303452f",
-    ];
-    const fallbackImages = heroImages.slice(0, 3);
-    const featuredListings = featuredIds
-      .map((id) =>
-        losAngelesListings.find(
-          (listing) => String(listing.id || listing._id || listing.unitTypeId || "") === id
-        )
-      )
-      .filter(Boolean);
-    return featuredListings.map((listing, index) => {
+    const fallbackImages = heroImages;
+    if (!heroUnits.length) {
+      return heroImages.map((src, idx) => ({
+        id: null,
+        image: src,
+        title: `Dubai unit ${idx + 1}`,
+        price: "",
+      }));
+    }
+    return heroUnits.map((listing, index) => {
       const image =
         listing.picture?.regular ||
         listing.picture?.large ||
@@ -3405,36 +3362,52 @@ export default function LosAngelesLandingPage() {
         price: priceValue ? `From ${formatCurrency(priceValue, listing.currency)}` : "",
       };
     });
-  }, [heroImages, losAngelesListings]);
+  }, [heroImages, heroUnits]);
   const heroCards = useMemo(() => {
-    if (!heroImages.length) return [];
-    if (!bounceListings.length) {
-      return heroImages.map((src, idx) => ({
+    if (!bounceListings.length) return [];
+    const baseCards = bounceListings.map((listing, idx) => ({
+      id: listing?.id ?? null,
+      image: listing?.image || heroImages[idx % heroImages.length],
+      title: listing?.title || `Dubai unit ${idx + 1}`,
+    }));
+    const minCards = 3;
+    const dubaiFallbackImages = [
+      "https://assets.guesty.com/image/upload/v1769008394/production/666b3af27fc6d5653142b0af/r2dvri9pd36zgmdynwb0.jpg",
+      "https://assets.guesty.com/image/upload/v1769007002/production/666b3af27fc6d5653142b0af/bjkevw2xrjo3rdczelqt.jpg",
+      ...heroImages,
+    ];
+    if (baseCards.length >= minCards) return baseCards;
+    const used = new Set(baseCards.map((card) => getImageKey(card.image)));
+    const padded = [...baseCards];
+    for (const src of dubaiFallbackImages) {
+      if (padded.length >= minCards) break;
+      const key = getImageKey(src);
+      if (key && used.has(key)) continue;
+      used.add(key);
+      const nextIndex = padded.length + 1;
+      const fallbackTitle =
+        nextIndex === 2 || nextIndex === 3
+          ? "Grand Signature Residences"
+          : `Dubai unit ${nextIndex}`;
+      padded.push({
         id: null,
         image: src,
-        title: `Los Angeles stay ${idx + 1}`,
-      }));
+        title: fallbackTitle,
+      });
     }
-    return heroImages.map((src, idx) => {
-      const listing = bounceListings[idx % bounceListings.length];
-      return {
-        id: listing?.id ?? null,
-        image: listing?.image || src,
-        title: listing?.title || `Los Angeles stay ${idx + 1}`,
-      };
-    });
+    return padded;
   }, [heroImages, bounceListings]);
   const inquiryTitle = inquiryListing?.title ? sanitizeText(inquiryListing.title) : "this unit";
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
   const buildListingPath = (listingId) => {
-    if (!listingId) return "/los-angeles";
+    if (!listingId) return "/dubai";
     const params = new URLSearchParams();
     if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
     if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
     if (sectionGuests) params.set("guests", sectionGuests);
     const query = params.toString();
-    return `/los-angeles/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
+    return `/dubai/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
@@ -3491,7 +3464,7 @@ export default function LosAngelesLandingPage() {
     };
   }, [losAngelesParentListings]);
 
-  const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES.Hollywood || [];
+  const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES[TOUR_CITIES[0]] || [];
   const tourCount = tourSlides.length;
   const activeTourSlide = tourSlides[tourIndex] || tourSlides[0] || {};
 
@@ -3646,7 +3619,7 @@ export default function LosAngelesLandingPage() {
               setActiveListing(null);
               setActiveImageIndex(0);
               if (isListingRoute) {
-                navigate("/los-angeles");
+                navigate("/dubai");
               }
             }}
           >
@@ -3655,7 +3628,7 @@ export default function LosAngelesLandingPage() {
         </div>
         <div className="la-listing-hero__intro">
           <div>
-            <p className="la-listing-hero__kicker">Los Angeles private stay</p>
+            <p className="la-listing-hero__kicker">Dubai private stay</p>
             <h3>{sanitizeText(activeListing.title)}</h3>
             <div className="la-unit-modal__chips">
               <span>Exceptional location</span>
@@ -3744,7 +3717,6 @@ export default function LosAngelesLandingPage() {
           .filter((item) => typeof item === "string")
           ;
         const aboutText = formatFullDescription(activeListing);
-        const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
         const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
         const availability = listingId ? sectionAvailabilityMap[listingId] : null;
         const availabilityStatus = sectionAvailabilityActive
@@ -3914,7 +3886,7 @@ export default function LosAngelesLandingPage() {
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
-                <strong>OneLuxStay Los Angeles</strong>
+                <strong>OneLuxStay Dubai</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -4524,7 +4496,7 @@ export default function LosAngelesLandingPage() {
 
   if (isListingRoute) {
     return (
-      <div className="antwerp-page has-silk">
+      <div className="antwerp-page has-silk dubai-page">
         <div className="antwerp-silk">
           <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
         </div>
@@ -4541,11 +4513,11 @@ export default function LosAngelesLandingPage() {
   }
 
   return (
-    <div className="antwerp-page has-silk">
+    <div className="antwerp-page has-silk dubai-page">
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      {/* <section className="la-bounce-section" aria-label="Los Angeles highlights">
+      {/* <section className="la-bounce-section" aria-label="Dubai highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
             items={bounceListings}
@@ -4561,12 +4533,12 @@ export default function LosAngelesLandingPage() {
           />
           <div className="la-bounce-section__content">
             <span className="la-bounce-section__kicker">Featured stays</span>
-            <h2 className="la-bounce-section__title">Los Angeles moments in motion</h2>
+            <h2 className="la-bounce-section__title">Dubai moments in motion</h2>
             <p className="la-bounce-section__lede">
               A quick visual pulse before you dive into neighborhoods, amenities, and live pricing.
             </p>
             <div className="la-bounce-section__actions">
-              <a className="la-bounce-section__cta" href="#los-angeles-units">
+              <a className="la-bounce-section__cta" href="#dubai-units">
                 Explore units
               </a>
               <a className="la-bounce-section__ghost" href="#la-city-tour">
@@ -4578,17 +4550,17 @@ export default function LosAngelesLandingPage() {
       </section> */}
       <header className="antwerp-hero">
         <div className="antwerp-hero__content">
-          <span className="antwerp-kicker">OneLuxStay / Los Angeles, California</span>
-          <h1 className="antwerp-title">Los Angeles collection</h1>
+          <span className="antwerp-kicker">OneLuxStay / Dubai, United Arab Emirates</span>
+          <h1 className="antwerp-title">Dubai collection</h1>
           <p className="antwerp-lede">
             A curated landing page built directly from live listing data. Every detail below mirrors what is available
-            right now for Los Angeles units.
+            right now for Dubai units.
           </p>
           <div className="antwerp-hero__actions">
             <a href="#la-city-tour" className="antwerp-cta">
               Browse tours
             </a>
-            <a href="#los-angeles-units" className="antwerp-ghost">
+            <a href="#dubai-units" className="antwerp-ghost">
               Explore units
             </a>
           </div>
@@ -4692,7 +4664,7 @@ export default function LosAngelesLandingPage() {
             </CardSwap>
           </div>
         </div>
-        <div className="antwerp-hero__carousel" aria-label="Los Angeles hero images">
+        <div className="antwerp-hero__carousel" aria-label="Dubai hero images">
           <div className="antwerp-hero__carousel-track" ref={heroCarouselRef}>
             {heroCards.length ? (
               heroCards.map((card, idx) => (
@@ -4712,7 +4684,7 @@ export default function LosAngelesLandingPage() {
               ))
             ) : (
               <div className="antwerp-hero__carousel-card antwerp-hero__image--empty">
-                Los Angeles imagery loading
+                Dubai imagery loading
               </div>
             )}
           </div>
@@ -4751,7 +4723,7 @@ export default function LosAngelesLandingPage() {
             <div className="la-city-tour__head">
               <div>
                 <p className="antwerp-kicker">Tours</p>
-                <h2>USA city tours</h2>
+                <h2>Dubai city tours</h2>
                 <p className="antwerp-muted">
                   Choose a city and enter a cinematic tour crafted for each destination.
                 </p>
@@ -4824,13 +4796,13 @@ export default function LosAngelesLandingPage() {
           </div>
         </section>
 
-        <section className="antwerp-section" id="los-angeles-units">
+        <section className="antwerp-section" id="dubai-units">
           <div className="la-units-layout">
             <div className="la-units-main">
               <div className="antwerp-section__head">
                 <div>
                   <p className="antwerp-kicker">Available now</p>
-                  <h2>Los Angeles buildings</h2>
+                  <h2>Dubai buildings</h2>
                   <p className="antwerp-muted">
                     Every card below is derived from the live Guesty listing response, including pricing, capacity, and
                     amenities metadata.
@@ -4867,7 +4839,7 @@ export default function LosAngelesLandingPage() {
 
               {!loading && !error && losAngelesParentListings.length === 0 && (
                 <div className="antwerp-empty">
-                  No Los Angeles listings are available in the current response.
+                  No Dubai listings are available in the current response.
                 </div>
               )}
 
@@ -4895,14 +4867,16 @@ export default function LosAngelesLandingPage() {
                   : null;
                 const sectionTitle = (() => {
                   switch (group.key) {
-                    case "la-hwh":
-                      return "One Lux Stay HWH Downtown Los Angeles";
-                    case "la-downtown":
-                      return "One Lux Stay LA Plaza Village";
-                    case "la-hollywood":
-                      return "One Lux Stay Hollywood View LA Suites";
+                    case "dubai-downtown":
+                      return "One Lux Stay Downtown Dubai";
+                    case "dubai-marina":
+                      return "One Lux Stay Dubai Marina";
+                    case "dubai-business":
+                      return "One Lux Stay Business Bay";
+                    case "dubai-palm":
+                      return "One Lux Stay Palm Jumeirah";
                     default:
-                      return "One Lux Stay Near Dodger Stadium Downtown LA";
+                      return "One Lux Stay Dubai";
                   }
                 })();
                 return (
@@ -5009,7 +4983,7 @@ export default function LosAngelesLandingPage() {
                 <p className="antwerp-kicker">Neighborhood map</p>
                 <h3>Walkable highlights</h3>
                 <p className="antwerp-muted">
-                  See nearby landmarks and public transport around Hollywood Blvd.
+                  See nearby landmarks and public transport around Dubai neighborhoods.
                 </p>
                 {!isMapEnabled ? (
                   <div
@@ -5083,7 +5057,7 @@ export default function LosAngelesLandingPage() {
                 ) : (
                   <div
                     ref={mapRef}
-                    aria-label="Google map showing Hollywood Blvd with nearby landmarks and public transport"
+                    aria-label="Google map showing Dubai with nearby landmarks and public transport"
                     className="la-units-map"
                     style={{
                       width: "100%",
@@ -5116,14 +5090,16 @@ export default function LosAngelesLandingPage() {
                 <p className="la-section-modal__tag">Available now</p>
                 <h3>{(() => {
                   switch (activeSection.key) {
-                    case "la-hwh":
-                      return "One Lux Stay HWH Downtown Los Angeles";
-                    case "la-downtown":
-                      return "One Lux Stay LA Plaza Village";
-                    case "la-hollywood":
-                      return "One Lux Stay Hollywood View LA Suites";
+                    case "dubai-downtown":
+                      return "One Lux Stay Downtown Dubai";
+                    case "dubai-marina":
+                      return "One Lux Stay Dubai Marina";
+                    case "dubai-business":
+                      return "One Lux Stay Business Bay";
+                    case "dubai-palm":
+                      return "One Lux Stay Palm Jumeirah";
                     case "other":
-                      return "Near Dodger Stadium";
+                      return "Dubai Core";
                     default:
                       return `One Lux Stay ${activeSection.label}`;
                   }
@@ -5282,7 +5258,7 @@ export default function LosAngelesLandingPage() {
                   <aside className="la-section-hero__aside">
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
-                      <strong>OneLuxStay Los Angeles</strong>
+                      <strong>OneLuxStay Dubai</strong>
                       <a href="tel:+12138663589">+1 213 866 3589</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -5549,7 +5525,7 @@ export default function LosAngelesLandingPage() {
                     return listingsToRender.map((listing, index) => {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
-                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/los-angeles";
+                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/dubai";
                       const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
@@ -5993,7 +5969,7 @@ export default function LosAngelesLandingPage() {
                   setActiveListing(null);
                   setActiveImageIndex(0);
                   if (isListingRoute) {
-                    navigate("/los-angeles");
+                    navigate("/dubai");
                   }
                 }}
               >
@@ -6001,7 +5977,7 @@ export default function LosAngelesLandingPage() {
               </button>
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
-                <strong>OneLuxStay Los Angeles</strong>
+                <strong>OneLuxStay Dubai</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -6104,8 +6080,8 @@ export default function LosAngelesLandingPage() {
                 : [];
               const amenityList = [...new Set(amenityListRaw.filter((item) => typeof item === "string"))];
               const aboutText = formatFullDescription(activeListing);
-              const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
-              const popularFacilities = isHollywoodUnit
+              const isFeaturedUnit = getBuildingKey(activeListing) === BUILDING_GROUPS[0]?.key;
+              const popularFacilities = isFeaturedUnit
                 ? HOLLYWOOD_FACILITIES
                 : (activeAmenityList.slice(0, 6).length
                   ? activeAmenityList.slice(0, 6)

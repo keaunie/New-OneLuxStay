@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
+import { useParams } from "react-router-dom";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import "./App.css";
 
@@ -22,6 +23,21 @@ const BedIcon = () => (
 );
 
 const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+
+const cityFromSlug = (slug) => {
+  if (!slug) return "";
+  const lower = slug.toLowerCase();
+  if (lower === "los-angeles" || lower === "losangeles") return "Los Angeles";
+  if (lower === "hollywood") return "Hollywood";
+  if (lower === "antwerp" || lower === "antwerpen") return "Antwerp";
+  if (lower === "miami-beach") return "Miami Beach";
+  if (lower === "redondo-beach") return "Redondo Beach";
+  if (lower === "dubai") return "Dubai";
+  return lower
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
 
 const normalizeCity = (listing) => {
   const titleLower = typeof listing.title === "string" ? listing.title.toLowerCase() : "";
@@ -355,6 +371,7 @@ const DateRangePicker = ({ value, onChange }) => {
 };
 
 function ListingPage() {
+  const { listingId: routeListingId, citySlug } = useParams();
   const [listings, setListings] = useState([]);
   const [quote, setQuotes] = useState([]);
   const [loadingListings, setLoadingListings] = useState(true);
@@ -376,11 +393,13 @@ function ListingPage() {
   const [modalHero, setModalHero] = useState(null);
   const [paramsHydrated, setParamsHydrated] = useState(false);
   const [availabilityNotice, setAvailabilityNotice] = useState("");
+  const [listingParamId, setListingParamId] = useState("");
   const modalTitleId = useId();
   const modalDescId = useId();
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
   const lastFocusRef = useRef(null);
+  const listingParamHandledRef = useRef(false);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
   useEffect(() => {
@@ -390,14 +409,17 @@ function ListingPage() {
     const checkInParam = qs.get("checkIn") || "";
     const checkOutParam = qs.get("checkOut") || "";
     const guestsParam = qs.get("guests") || qs.get("adults") || "";
+    const listingParam = qs.get("listingId") || qs.get("listing") || routeListingId || "";
+    const routeCity = cityFromSlug(citySlug);
 
-    if (cityParam) setCityFilter(cityParam);
+    if (cityParam || routeCity) setCityFilter(cityParam || routeCity);
     setSearch((prev) => ({
       ...prev,
       checkIn: checkInParam || prev.checkIn,
       checkOut: checkOutParam || prev.checkOut,
       adults: guestsParam ? Number(guestsParam) || prev.adults : prev.adults,
     }));
+    if (listingParam) setListingParamId(listingParam);
     setParamsHydrated(true);
     if (window.location.hash === "#listings") {
       const anchor = document.querySelector("#listings");
@@ -512,11 +534,6 @@ function ListingPage() {
     inquiryBody
   )}`;
 
-  const selectedListing = useMemo(
-    () => parentListings.find((l) => l.id === activeListingId || l._id === activeListingId),
-    [activeListingId, parentListings],
-  );
-
   const parentListings = useMemo(() => {
     const groups = groupListingsByParent(listings);
     return Array.from(groups.values())
@@ -537,6 +554,11 @@ function ListingPage() {
       })
       .filter(Boolean);
   }, [listings]);
+
+  const selectedListing = useMemo(
+    () => parentListings.find((l) => l.id === activeListingId || l._id === activeListingId),
+    [activeListingId, parentListings],
+  );
 
   const cityOptions = useMemo(() => {
     const map = new Map();
@@ -795,6 +817,18 @@ function ListingPage() {
     setActiveListingId(listing.id);
     checkAvailability(listing);
   };
+
+  useEffect(() => {
+    if (!listingParamId || !listings.length || listingParamHandledRef.current) return;
+    const match = listings.find((listing) => {
+      const ids = [listing.id, listing._id, listing.unitTypeId].filter(Boolean).map(String);
+      return ids.includes(String(listingParamId));
+    });
+    if (match) {
+      listingParamHandledRef.current = true;
+      handleOpenModal(match);
+    }
+  }, [listingParamId, listings, handleOpenModal]);
 
   const handleBook = async () => {
     if (!activeListingId) {

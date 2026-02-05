@@ -28,6 +28,7 @@
         "npm:gsap@^3.13.0",
         "npm:jsrepo@^3.2.1",
         "npm:node-fetch@^3.3.2",
+        "npm:ogl@^1.0.11",
         "npm:postcss@^8.5.6",
         "npm:react-dom@^19.2.0",
         "npm:react-router-dom@^7.11.0",

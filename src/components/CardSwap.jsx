@@ -83,7 +83,12 @@ const CardSwap = ({
 
   useEffect(() => {
     const total = refs.length;
-    refs.forEach((r, i) => placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount));
+    order.current = Array.from({ length: total }, (_, i) => i);
+    if (!total) return undefined;
+    refs.forEach((r, i) => {
+      if (!r?.current) return;
+      placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount);
+    });
 
     if (prefersReducedMotion()) {
       return undefined;
@@ -93,7 +98,8 @@ const CardSwap = ({
       if (order.current.length < 2) return;
 
       const [front, ...rest] = order.current;
-      const elFront = refs[front].current;
+      const elFront = refs[front]?.current;
+      if (!elFront) return;
       const tl = gsap.timeline();
       tlRef.current = tl;
 
@@ -105,7 +111,8 @@ const CardSwap = ({
 
       tl.addLabel("promote", `-=${config.durDrop * config.promoteOverlap}`);
       rest.forEach((idx, i) => {
-        const el = refs[idx].current;
+        const el = refs[idx]?.current;
+        if (!el) return;
         const slot = makeSlot(i, cardDistance, verticalDistance, refs.length);
         tl.set(el, { zIndex: slot.zIndex }, "promote");
         tl.to(

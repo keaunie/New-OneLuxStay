@@ -1,7 +1,167 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+ï»¿import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useId } from "react";
+import lottie from "lottie-web";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
+import CircularGallery from "./components/CircularGallery";
+import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
+
+const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
+const apiBase = rawApiBase.replace(/\/index\/?$/, "");
+
+const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+
+const citySlugFromName = (value) => {
+  if (!value) return "";
+  const lower = value.toLowerCase();
+  if (lower.includes("los angeles") || lower.includes("hollywood")) return "los-angeles";
+  if (lower.includes("antwerp") || lower.includes("antwerpen")) return "antwerp";
+  if (lower.includes("miami beach")) return "miami-beach";
+  if (lower.includes("redondo beach")) return "redondo-beach";
+  if (lower.includes("dubai")) return "dubai";
+  return lower.replace(/,/g, "").trim().replace(/\s+/g, "-");
+};
+
+const normalizeListingCity = (listing) => {
+  const titleLower = typeof listing?.title === "string" ? listing.title.toLowerCase() : "";
+  if (titleLower.includes("hollywood")) return "Hollywood";
+
+  const primary = listing?.city || listing?.address?.city;
+  if (primary) return primary.trim();
+
+  const tagCity =
+    Array.isArray(listing?.tags) &&
+    listing.tags.find((t) => typeof t === "string" && KNOWN_CITIES.includes(t.toLowerCase()));
+  if (tagCity) return tagCity.trim();
+
+  if (titleLower) {
+    const match = KNOWN_CITIES.find((c) => titleLower.includes(c));
+    if (match) {
+      return match
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+  }
+
+  return "";
+};
+
+const getListingId = (listing) => listing?.id || listing?._id || listing?.unitTypeId || "";
+
+const isChildListing = (listing) => {
+  if (!listing) return false;
+  const type = typeof listing.type === "string" ? listing.type.toUpperCase() : "";
+  if (type.includes("CHILD")) return true;
+  if (listing?.parentId || listing?.parentListingId) return true;
+  const listingId = listing?.id || listing?._id || null;
+  if (listing?.unitTypeId && listingId && String(listing.unitTypeId) !== String(listingId)) return true;
+  return false;
+};
+
+const getListingImage = (listing) => {
+  const direct = listing?.picture;
+  if (typeof direct === "string") return direct;
+  if (direct?.regular) return direct.regular;
+  if (direct?.large) return direct.large;
+  if (direct?.thumbnail) return direct.thumbnail;
+  const firstPicture = listing?.pictures?.[0];
+  if (typeof firstPicture === "string") return firstPicture;
+  return firstPicture?.original || firstPicture?.thumbnail || "";
+};
+
+const truncateLabel = (value, max = 36) => {
+  if (typeof value !== "string") return "";
+  return value.length > max ? `${value.slice(0, max - 1)}â€¦` : value;
+};
+
+const formatCurrency = (value, currency = "USD") => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  try {
+    return value.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
+  } catch {
+    return `$${Math.round(value)}`;
+  }
+};
+
+const getQuoteNightly = (quoteData, listing, nights) => {
+  if (!quoteData || !listing) return null;
+  const plansRaw = Array.isArray(quoteData?.rates?.ratePlans)
+    ? quoteData.rates.ratePlans
+    : quoteData?.rates?.ratePlans
+      ? [quoteData.rates.ratePlans]
+      : [];
+  const plan = plansRaw[0] || {};
+  const quoteMoney =
+    plan?.money?.money ||
+    plan?.money ||
+    quoteData?.money?.money ||
+    quoteData?.money ||
+    {};
+  const quoteDays = plan?.days || [];
+  const quoteCurrency =
+    quoteMoney?.currency || quoteDays[0]?.currency || listing.currency || "USD";
+  const quotedNights = Array.isArray(quoteDays) && quoteDays.length > 0 ? quoteDays.length : nights;
+  const daySum = Array.isArray(quoteDays)
+    ? quoteDays.reduce((sum, day) => {
+      const dayPrice =
+        (typeof day?.manualPrice === "number" ? day.manualPrice : null) ??
+        (typeof day?.price === "number" ? day.price : null) ??
+        (typeof day?.basePrice === "number" ? day.basePrice : null);
+      return typeof dayPrice === "number" ? sum + dayPrice : sum;
+    }, 0)
+    : null;
+  const quoteTotalRaw =
+    quoteMoney?.subTotalPrice ??
+    quoteMoney?.totalPrice ??
+    quoteMoney?.total ??
+    quoteData?.total ??
+    quoteData?.price?.total ??
+    quoteData?.price?.totalAmount ??
+    quoteData?.price?.totalPrice ??
+    (typeof quoteData?.price?.total === "object" ? quoteData.price.total.amount : null) ??
+    (typeof quoteData?.amount === "number" ? quoteData.amount : null) ??
+    (typeof daySum === "number" && quotedNights ? daySum + (listing.cleaningFee || 0) : null);
+  const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
+  const nightly =
+    (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
+    (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
+    (quoteDays[0]?.manualPrice ?? quoteDays[0]?.price ?? quoteDays[0]?.basePrice);
+  if (!Number.isFinite(nightly)) return null;
+  return { nightly, currency: quoteCurrency };
+};
+
+const getListingCurrency = (listing) =>
+  listing?.currency ||
+  listing?.prices?.currency ||
+  listing?.prices?.basePrice?.currency ||
+  listing?.prices?.nightly?.currency ||
+  "USD";
+
+const normalizeListingCountry = (listing) => {
+  const raw = listing?.address?.country || listing?.country || "";
+  if (typeof raw !== "string") return "";
+  return raw.trim();
+};
+
+const formatGalleryLabel = (listing, quotePricing, isLoading) => {
+  const title = truncateLabel(listing?.title || "OneLuxStay", 36) || "OneLuxStay";
+  const country = normalizeListingCountry(listing);
+  const fallback = normalizeListingCity(listing);
+  const subline = country || fallback;
+  const nightly = quotePricing?.nightly ?? null;
+  const currency = quotePricing?.currency || getListingCurrency(listing);
+  const priceLabel = nightly
+    ? `${formatCurrency(nightly, currency)} / night`
+    : isLoading
+      ? "Loading..."
+      : "Price on request";
+  return [title, subline, priceLabel].filter(Boolean).join("\n");
+};
 
 const BOOKING_STORAGE_KEY = "laBookingFilters";
 const readPersistedBooking = () => {
@@ -33,8 +193,44 @@ const parseDate = (value) => {
   return new Date(y, m - 1, d);
 };
 
+const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const diffNights = (start, end) => {
+  const startDate = parseDate(start);
+  const endDate = parseDate(end);
+  if (!startDate || !endDate) return 0;
+  const ms = endDate - startDate;
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+};
+
 const toISODate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const resolveQuoteRange = (checkIn, checkOut) => {
+  const parsedIn = parseDate(checkIn);
+  const parsedOut = parseDate(checkOut);
+  if (parsedIn && parsedOut) {
+    if (parsedOut <= parsedIn) {
+      return { checkIn: toISODate(parsedIn), checkOut: toISODate(addDays(parsedIn, 1)) };
+    }
+    return { checkIn: toISODate(parsedIn), checkOut: toISODate(parsedOut) };
+  }
+  if (parsedIn) {
+    return { checkIn: toISODate(parsedIn), checkOut: toISODate(addDays(parsedIn, 1)) };
+  }
+  if (parsedOut) {
+    return { checkIn: toISODate(addDays(parsedOut, -1)), checkOut: toISODate(parsedOut) };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = addDays(today, 1);
+  return { checkIn: toISODate(today), checkOut: toISODate(tomorrow) };
+};
 
 const stays = [
   {
@@ -85,12 +281,6 @@ const heroSlides = [
   "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1800&auto=format&fit=crop&ixlib=rb-4.1.0",
   "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
   "https://assets.guesty.com/image/upload/v1760535614/production/666b3af27fc6d5653142b0af/t7p3cc6hqez89wsmj1gt.jpg",
-];
-
-const cityShowcaseTones = [
-  "linear-gradient(180deg, rgba(249, 248, 246, 0.95), rgba(239, 233, 227, 0.92))",
-  "linear-gradient(180deg, rgba(239, 233, 227, 0.9), rgba(249, 248, 246, 0.9))",
-  "linear-gradient(180deg, rgba(217, 207, 199, 0.45), rgba(249, 248, 246, 0.92))",
 ];
 
 const offers = [
@@ -393,23 +583,58 @@ function LandingPage() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(1);
-  const showcaseRef = useRef(null);
+  const [galleryListings, setGalleryListings] = useState([]);
+  const [quotePricing, setQuotePricing] = useState({});
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const swipeHintRef = useRef(null);
   const offersRef = useRef(null);
-  const [activeShowcase, setActiveShowcase] = useState(0);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
   const patienceQuotes = [
-    "We are working on this. “Greatest things come to those who wait.”",
-    "We are working on this. “Patience is not the ability to wait, but the ability to keep a good attitude while waiting.”",
-    "We are working on this. “All things are difficult before they are easy.”",
-    "We are working on this. “The two most powerful warriors are patience and time.”",
-    "We are working on this. “Slow and steady wins the race.”",
+    "We are working on this. ?Greatest things come to those who wait.?",
+    "We are working on this. ?Patience is not the ability to wait, but the ability to keep a good attitude while waiting.?",
+    "We are working on this. ?All things are difficult before they are easy.?",
+    "We are working on this. ?The two most powerful warriors are patience and time.?",
+    "We are working on this. ?Slow and steady wins the race.?",
   ];
   const [cityNoticeIndex, setCityNoticeIndex] = useState(0);
   const [cityNotice, setCityNotice] = useState("");
+  const galleryItems = useMemo(() => {
+    if (!galleryListings.length) return [];
+
+    return galleryListings
+      .map((listing) => {
+        const listingId = getListingId(listing);
+        if (!listingId) return null;
+        const city = normalizeListingCity(listing);
+        const cityParam = city ? city.split(",")[0].trim() : "";
+        const params = new URLSearchParams();
+        params.set("listingId", listingId);
+        if (cityParam) params.set("city", cityParam);
+        if (checkIn) params.set("checkIn", checkIn);
+        if (checkOut) params.set("checkOut", checkOut);
+        if (guests) {
+          params.set("guests", String(guests));
+          params.set("adults", String(guests));
+        }
+        const query = params.toString();
+        const citySlug = citySlugFromName(cityParam || city);
+        const basePath = citySlug ? `/${citySlug}/listing/${encodeURIComponent(listingId)}` : "/listings";
+        const hash = citySlug ? "" : "#listings";
+        const href = `${basePath}${query ? `?${query}` : ""}${hash}`;
+
+        return {
+          image: getListingImage(listing),
+          text: formatGalleryLabel(listing, quotePricing[listingId], quoteLoading),
+          href,
+        };
+      })
+      .filter((item) => item?.image && item?.href);
+  }, [galleryListings, checkIn, checkOut, guests, quotePricing, quoteLoading]);
 
   const cityRoutes = {
     Antwerp: "/antwerp",
     "Los Angeles": "/losangeles",
+    Dubai: "/dubai",
   };
 
   const handleCityClick = (city) => {
@@ -447,6 +672,134 @@ function LandingPage() {
   }, [destination, checkIn, checkOut, guests]);
 
   useEffect(() => {
+    let active = true;
+    const loadGalleryListings = async () => {
+      try {
+        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Unable to load listings.");
+        const json = await res.json();
+        const results = Array.isArray(json?.results) ? json.results : [];
+        const parentResults = results.filter((listing) => !isChildListing(listing));
+        const seen = new Set();
+        const seenCities = new Set();
+        const primary = [];
+        const secondary = [];
+        parentResults.forEach((listing) => {
+          const id = getListingId(listing);
+          const image = getListingImage(listing);
+          if (!id || !image) return;
+          if (seen.has(id)) return;
+          seen.add(id);
+          const cityKey = normalizeListingCity(listing).toLowerCase();
+          if (cityKey && !seenCities.has(cityKey)) {
+            seenCities.add(cityKey);
+            primary.push(listing);
+          } else {
+            secondary.push(listing);
+          }
+        });
+        if (active) {
+          const curated = primary.concat(secondary).slice(0, 12);
+          setGalleryListings(curated);
+        }
+      } catch (err) {
+        if (active) setGalleryListings([]);
+      }
+    };
+
+    loadGalleryListings();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!galleryListings.length) {
+      setQuotePricing({});
+      setQuoteLoading(false);
+      return;
+    }
+    const { checkIn: quoteCheckIn, checkOut: quoteCheckOut } = resolveQuoteRange(checkIn, checkOut);
+    const nights = diffNights(quoteCheckIn, quoteCheckOut);
+    if (!nights) {
+      setQuotePricing({});
+      setQuoteLoading(false);
+      return;
+    }
+    let active = true;
+    setQuoteLoading(true);
+    const loadQuotes = async () => {
+      try {
+        const requests = galleryListings
+          .map((listing) => {
+            const listingId = getListingId(listing);
+            if (!listingId) return null;
+            return {
+              listingId,
+              checkInDateLocalized: quoteCheckIn,
+              checkOutDateLocalized: quoteCheckOut,
+              guestsCount: Number(guests) || 1,
+            };
+          })
+          .filter(Boolean);
+        if (!requests.length) {
+          if (active) {
+            setQuotePricing({});
+            setQuoteLoading(false);
+          }
+          return;
+        }
+        const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requests }),
+        });
+        if (!res.ok) throw new Error("Quote pricing failed.");
+        const data = await res.json();
+        const results = data?.results || {};
+        const listingMap = new Map(
+          galleryListings.map((listing) => [getListingId(listing), listing]),
+        );
+        const pricingMap = {};
+        requests.forEach((req) => {
+          const listing = listingMap.get(req.listingId);
+          const quoteData = results?.[req.listingId];
+          const pricing = listing ? getQuoteNightly(quoteData, listing, nights) : null;
+          if (pricing) pricingMap[req.listingId] = pricing;
+        });
+        if (active) setQuotePricing(pricingMap);
+      } catch {
+        if (active) setQuotePricing({});
+      } finally {
+        if (active) setQuoteLoading(false);
+      }
+    };
+    loadQuotes();
+    return () => {
+      active = false;
+      setQuoteLoading(false);
+    };
+  }, [galleryListings, checkIn, checkOut, guests]);
+
+  useEffect(() => {
+    if (!swipeHintRef.current) return undefined;
+    const animation = lottie.loadAnimation({
+      container: swipeHintRef.current,
+      renderer: "svg",
+      loop: true,
+      autoplay: true,
+      path: "https://lottie.host/249ec6fa-70aa-46c3-8dd8-aa25c38dff74/qlsaZ2kzyg.json",
+    });
+    return () => animation.destroy();
+  }, []);
+
+  const handleGallerySelect = (index) => {
+    const selected = galleryItems[index];
+    if (!selected?.href) return;
+    navigate(selected.href);
+  };
+
+  useEffect(() => {
     const targets = Array.from(document.querySelectorAll(".landing-animate"));
     const observer = new IntersectionObserver(
       (entries) => {
@@ -460,56 +813,6 @@ function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const el = showcaseRef.current;
-    if (!el) return;
-    const handleScroll = () => {
-      const half = el.scrollWidth / 2;
-      if (el.scrollLeft >= half) {
-        el.scrollLeft -= half;
-      } else if (el.scrollLeft <= 0) {
-        el.scrollLeft += half;
-      }
-    };
-    el.addEventListener("scroll", handleScroll);
-    return () => el.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  useEffect(() => {
-    const el = showcaseRef.current;
-    if (!el) return;
-    const cards = () => Array.from(el.querySelectorAll(".landing-showcase-card"));
-    let raf = 0;
-
-    const updateActive = () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const list = cards();
-        if (list.length === 0) return;
-        const viewportCenter = el.scrollLeft + el.clientWidth / 2;
-        let closestIdx = 0;
-        let closestDistance = Infinity;
-        list.forEach((card, idx) => {
-          const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-          const distance = Math.abs(viewportCenter - cardCenter);
-          if (distance < closestDistance) {
-            closestDistance = distance;
-            closestIdx = idx;
-          }
-        });
-        setActiveShowcase(closestIdx);
-      });
-    };
-
-    updateActive();
-    el.addEventListener("scroll", updateActive, { passive: true });
-    window.addEventListener("resize", updateActive);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      el.removeEventListener("scroll", updateActive);
-      window.removeEventListener("resize", updateActive);
-    };
-  }, []);
 
   const handleHeroSubmit = (e) => {
     e.preventDefault();
@@ -523,7 +826,13 @@ function LandingPage() {
       params.set("adults", String(guests));
     }
     const query = params.toString();
-    navigate(`/stay${query ? `?${query}` : ""}#listings`);
+    const targetRoute = (() => {
+      if (cityParam === "Los Angeles") return "/losangeles";
+      if (cityParam === "Antwerp") return "/antwerp";
+      return "/listings";
+    })();
+    const hash = targetRoute === "/listings" ? "#listings" : "";
+    navigate(`${targetRoute}${query ? `?${query}` : ""}${hash}`);
   };
 
   return (
@@ -575,7 +884,7 @@ function LandingPage() {
           </button>
 
           <div className="landing-chip-row">
-            {["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach", "Miami Beach"].map((city) => (
+            {["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami Beach"].map((city) => (
               <button
                 key={city}
                 type="button"
@@ -596,7 +905,7 @@ function LandingPage() {
             <div className="landing-form-field">
               <label htmlFor="landing-destination">Destination</label>
               <select id="landing-destination" value={destination} onChange={(e) => setDestination(e.target.value)}>
-                {["All", "Hollywood", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami Beach"].map((c) => (
+                {["All", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami Beach"].map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -625,7 +934,22 @@ function LandingPage() {
 
       <main>
         <section id="collection" className="landing-showcase-section py-16 md:py-20 landing-animate">
-          <div className="landing-showcase-inner px-6 md:px-10">
+          <div className="landing-circular-gallery" aria-label="Featured city stays">
+            <CircularGallery
+              items={galleryItems}
+              bend={0}
+              borderRadius={0.08}
+              textColor="#5f4e45"
+              font="600 22px 'Work Sans', sans-serif"
+              onSelect={handleGallerySelect}
+              useFallback={false}
+            />
+            <div className="landing-circular-gallery__hint" aria-hidden="true">
+              <span className="landing-circular-gallery__hint-label">Swipe to explore</span>
+              <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
+            </div>
+          </div>
+          <div className="landing-showcase-inner px-6 md:px-10 mt-10">
             <div className="landing-section-head flex items-center justify-between gap-6 flex-col md:flex-row">
               <div className="max-w-2xl">
                 <p className="landing-kicker">Signature stays</p>
@@ -636,74 +960,44 @@ function LandingPage() {
                   A world of refined penthouses and skyline suites, each curated to match the rhythm of its city.
                 </p>
               </div>
-              <Link to="/stay" className="landing-link">Book your dates</Link>
-            </div>
-          </div>
-          <div className="landing-showcase landing-showcase--carousel mt-10" aria-label="Featured city stays">
-            <div className="landing-showcase-scroll" ref={showcaseRef} aria-live="off">
-              <div className="landing-showcase-track">
-                {stays.concat(stays).map((stay, idx) => (
-                  <div
-                    key={`${stay.headline}-${idx}`}
-                    className={`landing-showcase-card ${idx === activeShowcase ? "is-center" : ""}`}
-                    data-index={idx}
-                    style={{ background: cityShowcaseTones[idx % cityShowcaseTones.length] }}
-                  >
-                    <div className="landing-showcase-image" style={{ backgroundImage: `url(${stay.image})` }} aria-hidden="true" />
-                    <div className="landing-showcase-meta">
-                      <p className="landing-showcase-kicker">{stay.label}</p>
-                      <h3 className="landing-showcase-title">{stay.headline}</h3>
-                      <p className="landing-showcase-copy">{stay.copy}</p>
-                      <div className="landing-showcase-actions">
-                        <Link to="/stay" className="landing-cta-secondary">View availability</Link>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="landing-showcase-controls">
-              <button
-                type="button"
-                className="landing-showcase-btn"
-                aria-label="Scroll left"
-                onClick={() => showcaseRef.current?.scrollBy({ left: -360, behavior: "smooth" })}
-              >
-                {"<"}
-              </button>
-              <button
-                type="button"
-                className="landing-showcase-btn"
-                aria-label="Scroll right"
-                onClick={() => showcaseRef.current?.scrollBy({ left: 360, behavior: "smooth" })}
-              >
-                {">"}
-              </button>
+              <Link to="/listings" className="landing-link">Book your dates</Link>
             </div>
           </div>
         </section>
 
-        <section className="landing-fullbleed landing-stack landing-animate">
-          {stays.map((stay, idx) => (
-            <div
-              key={`${stay.label}-full-${idx}`}
-              className="landing-city-card"
-              style={{
-                backgroundImage: `url(${stay.image})`,
-                zIndex: idx + 1,
-              }}
-            >
-              <div className="landing-city-inner">
-                <div className="landing-pill">{stay.label}</div>
-                <h3 className="landing-display text-3xl md:text-4xl mt-4">{stay.headline}</h3>
-                <p className="text-lg text-slate-100/90 mt-3 max-w-2xl">{stay.copy}</p>
-                <div className="landing-actions mt-6">
-                  <Link to="/stay" className="landing-cta-primary">See live availability</Link>
-                  <Link to="/stay" className="landing-cta-secondary">View all {stay.label} stays</Link>
+        <section className="landing-fullbleed landing-stack-scroll">
+          <ScrollStack
+            className="landing-stack-scroll__scroller"
+            innerClassName="landing-stack-scroll__inner"
+            useWindowScroll
+            itemDistance={200}
+            itemStackDistance={30}
+            stackPosition="20%"
+            baseScale={0.85}
+            rotationAmount={0}
+            blurAmount={0}
+          >
+            {stays.map((stay, idx) => (
+              <ScrollStackItem
+                key={`${stay.label}-full-${idx}`}
+                itemClassName="landing-city-card"
+                style={{
+                  backgroundImage: `url(${stay.image})`,
+                  zIndex: idx + 1,
+                }}
+              >
+                <div className="landing-city-inner">
+                  <div className="landing-pill">{stay.label}</div>
+                  <h3 className="landing-display text-3xl md:text-4xl mt-4">{stay.headline}</h3>
+                  <p className="text-lg text-slate-100/90 mt-3 max-w-2xl">{stay.copy}</p>
+                  <div className="landing-actions mt-6">
+                    <Link to="/listings" className="landing-cta-primary">See live availability</Link>
+                    <Link to="/listings" className="landing-cta-secondary">View all {stay.label} stays</Link>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              </ScrollStackItem>
+            ))}
+          </ScrollStack>
         </section>
 
         <section id="experience" className="landing-offers-section landing-animate">
@@ -744,7 +1038,7 @@ function LandingPage() {
                 <p className="landing-offer-kicker">{offer.kicker}</p>
                 <h3 className="landing-offer-title">{offer.headline}</h3>
                 <p className="landing-offer-body">{offer.body}</p>
-                <Link to="/stay" className="landing-offer-cta">{offer.cta}</Link>
+                <Link to="/listings" className="landing-offer-cta">{offer.cta}</Link>
               </article>
             ))}
           </div>
@@ -756,12 +1050,12 @@ function LandingPage() {
               <p className="landing-kicker">Concierge on standby</p>
               <h3 className="landing-display text-3xl md:text-4xl">Tell us your dates. We'll handle the rest.</h3>
               <p className="text-slate-200 max-w-2xl">
-                City skyline, ocean breeze, private workspace, or space for the whole crew—share your stay goals and we'll reply with tailored options.
+                City skyline, ocean breeze, private workspace, or space for the whole crew?share your stay goals and we'll reply with tailored options.
               </p>
             </div>
             <div className="landing-actions mt-4">
               <Link
-                to="/stay"
+                to="/listings"
                 className="landing-cta-primary"
               >
                 See live availability
@@ -782,3 +1076,4 @@ function LandingPage() {
 }
 
 export default LandingPage;
+

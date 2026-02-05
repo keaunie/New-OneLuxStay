@@ -39,7 +39,7 @@ const BounceCards = ({
   className = "",
   containerWidth = 520,
   containerHeight = 360,
-  imageSize = 230,
+  imageSize = 300,
   enableHover = true,
   onCardClick,
 }) => {
@@ -67,7 +67,7 @@ const BounceCards = ({
         const isActive = activeIndex === index;
         const hasHover = activeIndex !== null;
         const offset = index - (activeIndex ?? 0);
-        const spread = hasHover ? Math.sign(offset) * 220 : 0;
+        const spread = hasHover ? Math.sign(offset) * 350 : 0;
         const zIndex = isActive ? 5 : 1;
         return (
           <div
