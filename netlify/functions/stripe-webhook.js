@@ -208,6 +208,33 @@ const fromStripeAmount = (amount, currency) => {
   return amount / 100;
 };
 
+const postReservationPayment = async (reservationId, paymentMethod, amount, note) => {
+  const { token } = await getGuestyToken();
+  const response = await fetchWithTimeout(
+    `${OPEN_API_V1}/reservations/${reservationId}/payments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        paymentMethod,
+        amount,
+        paidAt: new Date().toISOString(),
+        note,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+};
+
 const createReservationPayment = async (reservationId, session) => {
   if (!reservationId) return null;
   const metadata = session?.metadata || {};
@@ -222,30 +249,16 @@ const createReservationPayment = async (reservationId, session) => {
   const amount = metaTotal ?? metaAmount ?? stripeAmount;
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
-  const { token } = await getGuestyToken();
-  const response = await fetchWithTimeout(
-    `${OPEN_API_V1}/reservations/${reservationId}/payments`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        paymentMethod: { method: "STRIPE" },
-        amount,
-        paidAt: new Date().toISOString(),
-        note: `Paid via Stripe checkout session ${session?.id || ""}`.trim(),
-      }),
-    }
-  );
+  const note = `Paid via Stripe checkout session ${session?.id || ""}`.trim();
+  const preferredMethod = (process.env.GUESTY_PAYMENT_METHOD || "OTHER").toUpperCase();
+  const paymentMethod = { method: preferredMethod };
 
-  if (!response.ok) {
-    throw new Error(await response.text());
+  try {
+    return await postReservationPayment(reservationId, paymentMethod, amount, note);
+  } catch (err) {
+    if (preferredMethod === "OTHER") throw err;
+    return await postReservationPayment(reservationId, { method: "OTHER" }, amount, note);
   }
-
-  return response.json();
 };
 
 const createGuestyReservation = async (payload) => {
