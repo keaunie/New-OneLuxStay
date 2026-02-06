@@ -4804,6 +4804,35 @@ html {
   accent-color: #c6a47f;
 }
 
+.la-inquiry-modal__step {
+  display: grid;
+  gap: 14px;
+}
+
+.la-inquiry-modal__summary {
+  display: grid;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(201, 181, 156, 0.4);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.la-inquiry-modal__summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: rgba(63, 51, 38, 0.8);
+}
+
+.la-inquiry-modal__summary strong {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(63, 51, 38, 0.6);
+}
+
 .ack-page {
   min-height: 100vh;
   padding: 60px 20px;
@@ -4934,6 +4963,120 @@ html {
   color: #7a5d3a;
   text-decoration: none;
   font-weight: 600;
+}
+
+.rb-stepper {
+  width: 100%;
+}
+
+.rb-stepper__panel {
+  width: 100%;
+  border-radius: 24px;
+}
+
+.rb-stepper__steps {
+  display: flex;
+  align-items: center;
+  padding: 18px 0 6px;
+}
+
+.rb-stepper__indicator {
+  position: relative;
+  cursor: pointer;
+}
+
+.rb-stepper__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.rb-stepper__dot-inner {
+  height: 12px;
+  width: 12px;
+  border-radius: 999px;
+  background: #3f3326;
+}
+
+.rb-stepper__number {
+  font-size: 14px;
+}
+
+.rb-stepper__check {
+  height: 16px;
+  width: 16px;
+}
+
+.rb-stepper__connector {
+  position: relative;
+  margin: 0 10px;
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(198, 164, 127, 0.35);
+  overflow: hidden;
+}
+
+.rb-stepper__connector-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+}
+
+.rb-stepper__content {
+  padding: 8px 0 0;
+  min-height: 160px;
+}
+
+.rb-stepper__step {
+  padding: 0;
+}
+
+.rb-stepper__footer {
+  padding-top: 10px;
+}
+
+.rb-stepper__actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rb-stepper__actions.is-between {
+  justify-content: space-between;
+}
+
+.rb-stepper__actions.is-end {
+  justify-content: flex-end;
+}
+
+.rb-stepper__back {
+  background: none;
+  border: none;
+  color: rgba(63, 51, 38, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rb-stepper__next {
+  border-radius: 999px;
+  border: 1px solid rgba(198, 164, 127, 0.7);
+  background: #c6a47f;
+  color: #2b2117;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rb-stepper__next:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .la-inquiry-modal__action.is-whatsapp {

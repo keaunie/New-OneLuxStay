@@ -4,6 +4,10 @@ import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
+const checkoutBase = (import.meta.env.VITE_API_BASE || "/.netlify/functions").replace(
+  /\/index\/?$/,
+  ""
+);
 
 
 const formatCurrency = (value, currency = "USD") =>
@@ -864,7 +868,7 @@ function ListingPage() {
     setBookingState({ status: "loading", message: "" });
 
     try {
-      const res = await fetch(`${apiBase}/api/checkout`, {
+      const res = await fetch(`${checkoutBase}/check-units/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -875,6 +879,7 @@ function ListingPage() {
           guests: guestsTotal,
           amount,
           currency,
+          breakdown: avail.breakdown || null,
           guest: bookingInfo,
         }),
       });

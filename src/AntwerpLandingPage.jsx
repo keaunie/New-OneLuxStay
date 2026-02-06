@@ -7,6 +7,7 @@ import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import LoadingScreen from "./components/LoadingScreen";
+import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
@@ -1905,6 +1906,7 @@ export default function AntwerpLandingPage() {
   });
   const [checkoutGuestError, setCheckoutGuestError] = useState("");
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
@@ -3489,6 +3491,7 @@ export default function AntwerpLandingPage() {
       consentAcceptedAt: new Date().toISOString(),
     };
     setCheckoutConsentAccepted(false);
+    setCheckoutStep(1);
     setPendingCheckout(null);
     handleSectionCheckout(payload);
   };
@@ -6146,90 +6149,131 @@ export default function AntwerpLandingPage() {
               </button>
             </div>
             <div className="la-inquiry-modal__body">
-              <label
-                className={`la-inquiry-modal__field${
-                  checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : ""
-                }`}
+              <Stepper
+                initialStep={1}
+                onStepChange={(step) => setCheckoutStep(step)}
+                onFinalStepCompleted={confirmGuestCheckout}
+                disableStepIndicators
+                nextButtonText="Next"
+                finalButtonText="Continue to payment"
+                nextButtonProps={{
+                  disabled:
+                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
+                    (checkoutStep === 2 && !checkoutConsentAccepted),
+                }}
               >
-                <span>First name</span>
-                <input
-                  type="text"
-                  value={checkoutGuest.firstName}
-                  autoComplete="given-name"
-                  required
-                  autoFocus
-                  aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
-                  onKeyDown={handleGuestKeyDown}
-                  onChange={handleGuestInputChange("firstName")}
-                />
-              </label>
-              <label
-                className={`la-inquiry-modal__field${
-                  checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : ""
-                }`}
-              >
-                <span>Last name</span>
-                <input
-                  type="text"
-                  value={checkoutGuest.lastName}
-                  autoComplete="family-name"
-                  required
-                  aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
-                  onKeyDown={handleGuestKeyDown}
-                  onChange={handleGuestInputChange("lastName")}
-                />
-              </label>
-              <label
-                className={`la-inquiry-modal__field${
-                  checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : ""
-                }`}
-              >
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={checkoutGuest.email}
-                  autoComplete="email"
-                  required
-                  aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
-                  onKeyDown={handleGuestKeyDown}
-                  onChange={handleGuestInputChange("email")}
-                />
-              </label>
-              <label className="la-inquiry-modal__field">
-                <span>Phone (optional)</span>
-                <input
-                  type="tel"
-                  value={checkoutGuest.phone}
-                  autoComplete="tel"
-                  onKeyDown={handleGuestKeyDown}
-                  onChange={handleGuestInputChange("phone")}
-                />
-              </label>
-              {checkoutGuestError && (
-                <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
-                  {checkoutGuestError}
-                </p>
-              )}
-              <button
-                type="button"
-                className="la-inquiry-modal__action"
-                onClick={confirmGuestCheckout}
-                disabled={!canContinueToPayment}
-                aria-disabled={!canContinueToPayment}
-              >
-                Continue to payment
-              </button>
-              <label className="la-inquiry-modal__consent">
-                <input
-                  type="checkbox"
-                  checked={checkoutConsentAccepted}
-                  onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
-                />
-                <span>
-                  By continuing to payment, you authorize OneLuxStay to charge the total amount
-                  shown for your reservation. A receipt will be emailed to you.
-                </span>
-              </label>
+                <Step>
+                  <div className="la-inquiry-modal__step">
+                    <label
+                      className={
+                        "la-inquiry-modal__field" +
+                        (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
+                      }
+                    >
+                      <span>First name</span>
+                      <input
+                        type="text"
+                        value={checkoutGuest.firstName}
+                        autoComplete="given-name"
+                        required
+                        autoFocus
+                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("firstName")}
+                      />
+                    </label>
+                    <label
+                      className={
+                        "la-inquiry-modal__field" +
+                        (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
+                      }
+                    >
+                      <span>Last name</span>
+                      <input
+                        type="text"
+                        value={checkoutGuest.lastName}
+                        autoComplete="family-name"
+                        required
+                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("lastName")}
+                      />
+                    </label>
+                    <label
+                      className={
+                        "la-inquiry-modal__field" +
+                        (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
+                      }
+                    >
+                      <span>Email</span>
+                      <input
+                        type="email"
+                        value={checkoutGuest.email}
+                        autoComplete="email"
+                        required
+                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("email")}
+                      />
+                    </label>
+                    <label className="la-inquiry-modal__field">
+                      <span>Phone (optional)</span>
+                      <input
+                        type="tel"
+                        value={checkoutGuest.phone}
+                        autoComplete="tel"
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("phone")}
+                      />
+                    </label>
+                    {checkoutGuestError && (
+                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                        {checkoutGuestError}
+                      </p>
+                    )}
+                  </div>
+                </Step>
+                <Step>
+                  <div className="la-inquiry-modal__step">
+                    <label className="la-inquiry-modal__consent">
+                      <input
+                        type="checkbox"
+                        checked={checkoutConsentAccepted}
+                        onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                      />
+                      <span>
+                        By continuing to payment, you authorize OneLuxStay to charge the total amount
+                        shown for your reservation. A receipt will be emailed to you.
+                      </span>
+                    </label>
+                  </div>
+                </Step>
+                <Step>
+                  <div className="la-inquiry-modal__step">
+                    <p className="la-inquiry-modal__fineprint">
+                      Review your details and continue to payment.
+                    </p>
+                    <div className="la-inquiry-modal__summary">
+                      <div>
+                        <strong>Name</strong>
+                        <span>
+                          {checkoutGuest.firstName} {checkoutGuest.lastName}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>Email</strong>
+                        <span>{checkoutGuest.email}</span>
+                      </div>
+                      {checkoutGuest.phone && (
+                        <div>
+                          <strong>Phone</strong>
+                          <span>{checkoutGuest.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Step>
+              </Stepper>
             </div>
           </div>
         </div>
@@ -6575,9 +6619,36 @@ export default function AntwerpLandingPage() {
                         {(() => {
                           const availability = listingId ? sectionAvailabilityMap[listingId] : null;
                           if (availability === true) {
+                            const isReserving = sectionReserveLoadingId === listingId;
                             return (
-                              <button type="button" className="la-unit-modal__action-primary">
-                                Reserve
+                              <button
+                                type="button"
+                                className="la-unit-modal__action-primary"
+                                disabled={sectionAvailabilityLoading || isReserving}
+                                onClick={() => {
+                                  if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
+                                    setPendingCheckout({
+                                      listingId,
+                                      listingTitle: activeListing.title,
+                                      amount: typeof totalPrice === "number" ? totalPrice : null,
+                                      currency: priceCurrency,
+                                      breakdown: breakdown || null,
+                                    });
+                                    setCheckoutGuestError("");
+                                    setIsCheckoutGuestOpen(true);
+                                    return;
+                                  }
+                                  handleSectionCheckout({
+                                    listingId,
+                                    listingTitle: activeListing.title,
+                                    amount: typeof totalPrice === "number" ? totalPrice : null,
+                                    currency: priceCurrency,
+                                    breakdown: breakdown || null,
+                                    guest: checkoutGuest,
+                                  });
+                                }}
+                              >
+                                {isReserving ? "Redirecting..." : "Reserve"}
                               </button>
                             );
                           }
