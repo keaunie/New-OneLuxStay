@@ -288,27 +288,135 @@ const createGuestyReservation = async (payload) => {
   return response.json();
 };
 
-const updateReservationNotes = async (reservationId, notes) => {
-  if (!reservationId || !notes) return null;
+const guestyRequest = async (path, method, body) => {
   const { token } = await getGuestyToken();
-  const response = await fetchWithTimeout(
-    `${OPEN_API_V1}/reservations-v3/${reservationId}/notes`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ notes: { other: notes } }),
-    }
-  );
+  const response = await fetchWithTimeout(`${OPEN_API_V1}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
 
   if (!response.ok) {
     throw new Error(await response.text());
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: true };
+  }
+};
+
+const updateReservationNotes = async (reservationId, notes) => {
+  if (!reservationId || !notes) return null;
+  const candidates = [
+    { path: `/reservations-v3/${reservationId}/notes`, method: "PUT", body: { notes: { other: notes } } },
+    { path: `/reservations/${reservationId}/notes`, method: "PUT", body: { notes: { other: notes } } },
+    { path: `/reservations/${reservationId}`, method: "PATCH", body: { notes: { other: notes } } },
+    { path: `/reservations/${reservationId}`, method: "PATCH", body: { notes } },
+  ];
+
+  const errors = [];
+  for (const candidate of candidates) {
+    try {
+      return await guestyRequest(candidate.path, candidate.method, candidate.body);
+    } catch (err) {
+      errors.push(`${candidate.method} ${candidate.path}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to write reservation notes. ${errors.join(" | ")}`);
+};
+
+const extractGuestId = (reservation) => {
+  return (
+    reservation?.guest?._id ||
+    reservation?.guest?.id ||
+    reservation?.guestId ||
+    reservation?.guest_id ||
+    reservation?.guests?.[0]?._id ||
+    reservation?.guests?.[0]?.id ||
+    null
+  );
+};
+
+const updateGuestNotes = async (guestId, notes) => {
+  if (!guestId || !notes) return null;
+  const candidates = [
+    { path: `/guests/${guestId}`, method: "PATCH", body: { notes } },
+    { path: `/guests/${guestId}`, method: "PUT", body: { notes } },
+    { path: `/guests/${guestId}/notes`, method: "PUT", body: { notes } },
+  ];
+
+  const errors = [];
+  for (const candidate of candidates) {
+    try {
+      return await guestyRequest(candidate.path, candidate.method, candidate.body);
+    } catch (err) {
+      errors.push(`${candidate.method} ${candidate.path}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to write guest notes. ${errors.join(" | ")}`);
+};
+
+const sendReceiptEmail = async ({ to, reservationId, metadata, session }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from || !to) return { skipped: true };
+
+  const total =
+    Number.isFinite(Number(metadata?.bd_total))
+      ? Number(metadata.bd_total)
+      : Number.isFinite(session?.amount_total)
+        ? fromStripeAmount(session.amount_total, session?.currency)
+        : null;
+  const currency = (metadata?.currency || session?.currency || "USD").toUpperCase();
+  const formattedTotal =
+    Number.isFinite(total) ? `${currency} ${total.toFixed(2)}` : "Paid";
+
+  const checkIn = metadata?.checkIn || "";
+  const checkOut = metadata?.checkOut || "";
+  const fullName =
+    [metadata?.guestFirstName, metadata?.guestLastName].filter(Boolean).join(" ").trim() ||
+    metadata?.guestName ||
+    "Guest";
+
+  const response = await fetchWithTimeout("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to,
+      subject: `OneLuxStay receipt${reservationId ? ` - ${reservationId}` : ""}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #2d251f;">
+          <h2>Payment receipt</h2>
+          <p>Hi ${fullName}, your payment was received successfully.</p>
+          ${reservationId ? `<p><strong>Reservation ID:</strong> ${reservationId}</p>` : ""}
+          ${checkIn ? `<p><strong>Check-in:</strong> ${checkIn}</p>` : ""}
+          ${checkOut ? `<p><strong>Check-out:</strong> ${checkOut}</p>` : ""}
+          <p><strong>Total paid:</strong> ${formattedTotal}</p>
+          <p>If you need support, reply to this email.</p>
+        </div>
+      `,
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.message || "Unable to send receipt email.");
+  }
+  return payload;
 };
 
 const buildReservationNotes = (metadata) => {
@@ -394,6 +502,8 @@ export async function handler(event) {
   try {
     const reservation = await createGuestyReservation(payload);
     const reservationId = reservation?._id || reservation?.id || null;
+    const guestId = extractGuestId(reservation);
+    const noteText = buildReservationNotes(session.metadata || {});
     let paymentError = null;
     try {
       await createReservationPayment(reservationId, session);
@@ -406,7 +516,6 @@ export async function handler(event) {
       });
     }
     let noteError = null;
-    const noteText = buildReservationNotes(session.metadata || {});
     if (noteText && reservationId) {
       try {
         await updateReservationNotes(reservationId, noteText);
@@ -414,19 +523,43 @@ export async function handler(event) {
         noteError = err.message;
       }
     }
+    let guestNoteError = null;
+    if (noteText && guestId) {
+      try {
+        await updateGuestNotes(guestId, noteText);
+      } catch (err) {
+        guestNoteError = err.message;
+      }
+    }
+    let emailError = null;
+    try {
+      await sendReceiptEmail({
+        to: session?.metadata?.guestEmail || session?.customer_email || "",
+        reservationId,
+        metadata: session?.metadata || {},
+        session,
+      });
+    } catch (err) {
+      emailError = err.message;
+    }
     await writeStripeEvent(stripeEvent.id, {
       processedAt: Date.now(),
       reservationId,
+      guestId,
       listingId: payload.listingId,
       sessionId: session?.id || null,
       paymentError,
       noteError,
+      guestNoteError,
+      emailError,
     });
     return jsonResponse(200, {
       received: true,
       reservationId,
       paymentError,
       noteError,
+      guestNoteError,
+      emailError,
     });
   } catch (err) {
     return jsonResponse(502, { message: "Guesty reservation failed", error: err.message });
