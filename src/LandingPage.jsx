@@ -574,6 +574,7 @@ function LandingPage() {
   const [quotePricing, setQuotePricing] = useState({});
   const [quoteLoading, setQuoteLoading] = useState(false);
   const swipeHintRef = useRef(null);
+  const offersSwipeRef = useRef(null);
   const offersRef = useRef(null);
   const offersTrackRef = useRef(null);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
@@ -853,15 +854,24 @@ function LandingPage() {
   }, [galleryListings, checkIn, checkOut, guests]);
 
   useEffect(() => {
-    if (!swipeHintRef.current) return undefined;
-    const animation = lottie.loadAnimation({
-      container: swipeHintRef.current,
-      renderer: "svg",
-      loop: true,
-      autoplay: true,
-      path: "https://lottie.host/249ec6fa-70aa-46c3-8dd8-aa25c38dff74/qlsaZ2kzyg.json",
-    });
-    return () => animation.destroy();
+    const animations = [];
+    const loadSwipeHint = (container) => {
+      if (!container) return;
+      animations.push(
+        lottie.loadAnimation({
+          container,
+          renderer: "svg",
+          loop: true,
+          autoplay: true,
+          path: "https://lottie.host/249ec6fa-70aa-46c3-8dd8-aa25c38dff74/qlsaZ2kzyg.json",
+        }),
+      );
+    };
+    loadSwipeHint(swipeHintRef.current);
+    loadSwipeHint(offersSwipeRef.current);
+    return () => {
+      animations.forEach((animation) => animation.destroy());
+    };
   }, []);
 
   const handleGallerySelect = (index) => {
@@ -1165,55 +1175,41 @@ function LandingPage() {
             </div>
           </div>
           <div className="landing-offers-controls landing-offers-controls--center">
-            <button
-              type="button"
-              className="landing-showcase-btn"
-              aria-label="Scroll offers left"
-              onClick={() => {
-                offersTargetXRef.current = (offersTargetXRef.current ?? offersTrackXRef.current) + 420;
-                offersVelocityRef.current = 0;
-                startOffersRaf();
-              }}
-            >
-              {"<"}
-            </button>
-            <button
-              type="button"
-              className="landing-showcase-btn"
-              aria-label="Scroll offers right"
-              onClick={() => {
-                offersTargetXRef.current = (offersTargetXRef.current ?? offersTrackXRef.current) - 420;
-                offersVelocityRef.current = 0;
-                startOffersRaf();
-              }}
-            >
-              {">"}
-            </button>
+            <div className="landing-offers-swipe" aria-hidden="true">
+              <span className="landing-offers-swipe__label">Swipe to explore</span>
+              <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />
+            </div>
           </div>
         </section>
 
-        <section id="contact" className="max-w-6xl mx-auto px-6 md:px-10 py-16 md:py-20">
-          <div className="landing-cta">
-            <div className="space-y-3">
-              <p className="landing-kicker">Concierge on standby</p>
-              <h3 className="landing-display text-3xl md:text-4xl">Tell us your dates. We'll handle the rest.</h3>
-              <p className="text-slate-200 max-w-2xl">
-                City skyline, ocean breeze, private workspace, or space for the whole crew?share your stay goals and we'll reply with tailored options.
-              </p>
-            </div>
-            <div className="landing-actions mt-4">
-              <Link
-                to="/listings"
+        <section id="contact" className="w-full py-16 md:py-20">
+          <div className="max-w-6xl mx-auto px-6 md:px-10">
+            <div className="landing-cta">
+              <div className="space-y-3">
+                <p className="landing-kicker">Concierge on standby</p>
+                <h3 className="landing-display text-3xl md:text-4xl">Tell us your dates. We'll handle the rest.</h3>
+                <p className="text-slate-200 max-w-2xl">
+                  City skyline, ocean breeze, private workspace, or space for the whole crew?share your stay goals and we'll reply with tailored options.
+                </p>
+              </div>
+              <div className="landing-actions mt-4">
+              <button
+                type="button"
                 className="landing-cta-primary"
+                onClick={() => {
+                  const target = document.getElementById("collection");
+                  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
               >
                 See live availability
-              </Link>
-              <a
-                href="mailto:reservation@oneluxstay.com"
-                className="landing-cta-secondary"
-              >
-                Email concierge
-              </a>
+              </button>
+                <a
+                  href="mailto:reservation@oneluxstay.com"
+                  className="landing-cta-secondary"
+                >
+                  Email concierge
+                </a>
+              </div>
             </div>
           </div>
         </section>

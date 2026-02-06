@@ -146,7 +146,7 @@ const formatRuleValue = (value) => {
   if (value === false) return "No";
   if (typeof value === "number") return `${value}`;
   if (typeof value === "string" && value.trim()) return value;
-  return "—";
+  return "\u2014";
 };
 
 const formatQuietHours = (quietHours) => {
@@ -3705,7 +3705,7 @@ export default function LosAngelesLandingPage() {
               }
             }}
           >
-            <span aria-hidden="true">‹</span>
+            <span aria-hidden="true">{"\u2039"}</span>
           </button>
         </div>
         <div className="la-listing-hero__intro">
@@ -3987,7 +3987,7 @@ export default function LosAngelesLandingPage() {
               <div className="la-unit-modal__card la-unit-modal__price">
                 <span>From</span>
                 <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                <small>per night · taxes calculated at checkout</small>
+                <small>per night {"\u00b7"} taxes calculated at checkout</small>
                 {isListingAvailable ? (
                   <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
                     Reserve your dates
@@ -4122,9 +4122,27 @@ export default function LosAngelesLandingPage() {
                     {(() => {
                       const availability = listingId ? sectionAvailabilityMap[listingId] : null;
                       if (availability === true) {
+                        const isReserving = sectionReserveLoadingId === listingId;
                         return (
-                          <button type="button" className="la-unit-modal__action-primary">
-                            Reserve
+                          <button
+                            type="button"
+                            className="la-unit-modal__action-primary"
+                            disabled={sectionAvailabilityLoading || isReserving}
+                            onClick={() => {
+                              setPendingCheckout({
+                                listingId,
+                                listingTitle: activeListing.title,
+                                amount: typeof totalPrice === "number" ? totalPrice : null,
+                                currency: priceCurrency,
+                                breakdown: breakdown || null,
+                              });
+                              setCheckoutStep(1);
+                              setCheckoutConsentAccepted(false);
+                              setCheckoutGuestError("");
+                              setIsCheckoutGuestOpen(true);
+                            }}
+                          >
+                            {isReserving ? "Redirecting..." : "Reserve"}
                           </button>
                         );
                       }
@@ -4227,7 +4245,7 @@ export default function LosAngelesLandingPage() {
                 {groupAmenities(activeListing.amenities).map((group) => (
                   <div key={group.key} className="la-facilities-group">
                     <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">✓</span>
+                      <span className="la-facilities-group__icon">{"\u2713"}</span>
                       <h5>{group.label}</h5>
                     </div>
                     <ul>
@@ -4262,7 +4280,7 @@ export default function LosAngelesLandingPage() {
           const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
           const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
           if (houseRulesLoading && !rules) {
-            return <p>Loading house rules…</p>;
+            return <p>Loading house rules{"\u2026"}</p>;
           }
           if (houseRulesError && !rules) {
             return <p>{houseRulesError}</p>;
@@ -4602,6 +4620,171 @@ export default function LosAngelesLandingPage() {
       )
     : null;
 
+  const checkoutGuestModal = isCheckoutGuestOpen ? (
+    <div
+      className="antwerp-modal__overlay la-checkout-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Guest details for checkout"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
+      }}
+    >
+      <div className="la-inquiry-modal" role="document">
+        <div className="la-inquiry-modal__header">
+          <div className="la-inquiry-modal__brand">
+            <img
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              className="la-inquiry-modal__logo"
+              onError={handleImageError}
+            />
+            <div>
+              <p className="la-inquiry-modal__kicker">Guest details</p>
+              <h3>Tell us who's booking</h3>
+              <p className="la-inquiry-modal__meta">We'll use this to create the reservation after payment.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="la-inquiry-modal__close"
+            onClick={() => setIsCheckoutGuestOpen(false)}
+          >
+            Close
+          </button>
+        </div>
+        <div className="la-inquiry-modal__body">
+          <Stepper
+            initialStep={1}
+            onStepChange={(step) => setCheckoutStep(step)}
+            onFinalStepCompleted={confirmGuestCheckout}
+            disableStepIndicators
+            nextButtonText="Next"
+            finalButtonText="Continue to payment"
+            nextButtonProps={{
+              disabled:
+                (checkoutStep === 1 && !isCheckoutGuestValid) ||
+                (checkoutStep === 2 && !checkoutConsentAccepted),
+            }}
+          >
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>First name</span>
+                  <input
+                    type="text"
+                    value={checkoutGuest.firstName}
+                    autoComplete="given-name"
+                    required
+                    autoFocus
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("firstName")}
+                  />
+                </label>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Last name</span>
+                  <input
+                    type="text"
+                    value={checkoutGuest.lastName}
+                    autoComplete="family-name"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("lastName")}
+                  />
+                </label>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={checkoutGuest.email}
+                    autoComplete="email"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("email")}
+                  />
+                </label>
+                <label className="la-inquiry-modal__field">
+                  <span>Phone (optional)</span>
+                  <input
+                    type="tel"
+                    value={checkoutGuest.phone}
+                    autoComplete="tel"
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("phone")}
+                  />
+                </label>
+                {checkoutGuestError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutGuestError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label className="la-inquiry-modal__consent">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConsentAccepted}
+                    onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                  />
+                  <span>
+                    By continuing to payment, you authorize OneLuxStay to charge the total amount
+                    shown for your reservation. A receipt will be emailed to you.
+                  </span>
+                </label>
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <p className="la-inquiry-modal__fineprint">
+                  Review your details and continue to payment.
+                </p>
+                <div className="la-inquiry-modal__summary">
+                  <div>
+                    <strong>Name</strong>
+                    <span>
+                      {checkoutGuest.firstName} {checkoutGuest.lastName}
+                    </span>
+                  </div>
+                  <div>
+                    <strong>Email</strong>
+                    <span>{checkoutGuest.email}</span>
+                  </div>
+                  {checkoutGuest.phone && (
+                    <div>
+                      <strong>Phone</strong>
+                      <span>{checkoutGuest.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Step>
+          </Stepper>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (isListingRoute) {
     return (
       <div className="antwerp-page has-silk">
@@ -4613,6 +4796,7 @@ export default function LosAngelesLandingPage() {
         ) : (
           <LoadingScreen active lottieSrc={CITY_LOADING_LOTTIE_SRC} />
         )}
+        {checkoutGuestModal}
         {listingMapModal}
         {zoomModal}
         {tourModal}
@@ -4695,7 +4879,7 @@ export default function LosAngelesLandingPage() {
                   </div>
                   <p>"{review.quote}"</p>
                   <span className="la-review-ticker__meta">
-                    {review.name} · {review.source}
+                    {review.name} {"\u00b7"} {review.source}
                   </span>
                 </article>
               ))}
@@ -4707,7 +4891,7 @@ export default function LosAngelesLandingPage() {
                 onClick={() => scrollReviewCarousel(-1)}
                 aria-label="Previous review"
               >
-                ←
+                â†
               </button>
               <button
                 type="button"
@@ -4715,7 +4899,7 @@ export default function LosAngelesLandingPage() {
                 onClick={() => scrollReviewCarousel(1)}
                 aria-label="Next review"
               >
-                →
+                â†’
               </button>
             </div>
           </div>
@@ -5780,7 +5964,7 @@ export default function LosAngelesLandingPage() {
                               ) : isUnavailable ? (
                                 <>
                                   <strong>Inquire for exact pricing</strong>
-                                  <span>We’ll confirm rates & availability.</span>
+                                  <span>We'll confirm rates & availability.</span>
                                 </>
                               ) : (
                                 <>
@@ -5906,26 +6090,17 @@ export default function LosAngelesLandingPage() {
                                   className="la-booking-table__reserve"
                                   disabled={isLoadingRates || isReserving}
                                   onClick={() => {
-                                    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
-                                      setPendingCheckout({
-                                        listingId: checkoutListingId,
-                                        listingTitle: listing.title,
-                                        amount: typeof total === "number" ? total : null,
-                                        currency: priceCurrency,
-                                        breakdown: selectedPlan?.breakdown || null,
-                                      });
-                                      setCheckoutGuestError("");
-                                      setIsCheckoutGuestOpen(true);
-                                      return;
-                                    }
-                                    handleSectionCheckout({
+                                    setPendingCheckout({
                                       listingId: checkoutListingId,
                                       listingTitle: listing.title,
                                       amount: typeof total === "number" ? total : null,
                                       currency: priceCurrency,
                                       breakdown: selectedPlan?.breakdown || null,
-                                      guest: checkoutGuest,
                                     });
+                                    setCheckoutStep(1);
+                                    setCheckoutConsentAccepted(false);
+                                    setCheckoutGuestError("");
+                                    setIsCheckoutGuestOpen(true);
                                   }}
                                 >
                                   {isReserving ? "Redirecting..." : "Reserve"}
@@ -6003,170 +6178,7 @@ export default function LosAngelesLandingPage() {
         </div>
       )}
 
-      {isCheckoutGuestOpen && (
-        <div
-          className="antwerp-modal__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Guest details for checkout"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us who’s booking</h3>
-                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsCheckoutGuestOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <Stepper
-                initialStep={1}
-                onStepChange={(step) => setCheckoutStep(step)}
-                onFinalStepCompleted={confirmGuestCheckout}
-                disableStepIndicators
-                nextButtonText="Next"
-                finalButtonText="Continue to payment"
-                nextButtonProps={{
-                  disabled:
-                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 && !checkoutConsentAccepted),
-                }}
-              >
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>First name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.firstName}
-                        autoComplete="given-name"
-                        required
-                        autoFocus
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("firstName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Last name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.lastName}
-                        autoComplete="family-name"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("lastName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Email</span>
-                      <input
-                        type="email"
-                        value={checkoutGuest.email}
-                        autoComplete="email"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("email")}
-                      />
-                    </label>
-                    <label className="la-inquiry-modal__field">
-                      <span>Phone (optional)</span>
-                      <input
-                        type="tel"
-                        value={checkoutGuest.phone}
-                        autoComplete="tel"
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("phone")}
-                      />
-                    </label>
-                    {checkoutGuestError && (
-                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
-                        {checkoutGuestError}
-                      </p>
-                    )}
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label className="la-inquiry-modal__consent">
-                      <input
-                        type="checkbox"
-                        checked={checkoutConsentAccepted}
-                        onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
-                      />
-                      <span>
-                        By continuing to payment, you authorize OneLuxStay to charge the total amount
-                        shown for your reservation. A receipt will be emailed to you.
-                      </span>
-                    </label>
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <p className="la-inquiry-modal__fineprint">
-                      Review your details and continue to payment.
-                    </p>
-                    <div className="la-inquiry-modal__summary">
-                      <div>
-                        <strong>Name</strong>
-                        <span>
-                          {checkoutGuest.firstName} {checkoutGuest.lastName}
-                        </span>
-                      </div>
-                      <div>
-                        <strong>Email</strong>
-                        <span>{checkoutGuest.email}</span>
-                      </div>
-                      {checkoutGuest.phone && (
-                        <div>
-                          <strong>Phone</strong>
-                          <span>{checkoutGuest.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Step>
-              </Stepper>
-            </div>
-          </div>
-        </div>
-      )}
+      {checkoutGuestModal}
 
       {activeListing && !isListingRoute && (
         <div
@@ -6515,26 +6527,17 @@ export default function LosAngelesLandingPage() {
                                 className="la-unit-modal__action-primary"
                                 disabled={sectionAvailabilityLoading || isReserving}
                                 onClick={() => {
-                                  if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
-                                    setPendingCheckout({
-                                      listingId,
-                                      listingTitle: activeListing.title,
-                                      amount: typeof totalPrice === "number" ? totalPrice : null,
-                                      currency: priceCurrency,
-                                      breakdown: breakdown || null,
-                                    });
-                                    setCheckoutGuestError("");
-                                    setIsCheckoutGuestOpen(true);
-                                    return;
-                                  }
-                                  handleSectionCheckout({
+                                  setPendingCheckout({
                                     listingId,
                                     listingTitle: activeListing.title,
                                     amount: typeof totalPrice === "number" ? totalPrice : null,
                                     currency: priceCurrency,
                                     breakdown: breakdown || null,
-                                    guest: checkoutGuest,
                                   });
+                                  setCheckoutStep(1);
+                                  setCheckoutConsentAccepted(false);
+                                  setCheckoutGuestError("");
+                                  setIsCheckoutGuestOpen(true);
                                 }}
                               >
                                 {isReserving ? "Redirecting..." : "Reserve"}
@@ -6613,7 +6616,7 @@ export default function LosAngelesLandingPage() {
                       disabled={calendarMonthIndex <= 0}
                       aria-label="Previous month"
                     >
-                      ←
+                      â†
                     </button>
                     <span className="la-price-calendar__label">
                       {calendarCurrentMonth.toLocaleDateString(undefined, {
@@ -6632,7 +6635,7 @@ export default function LosAngelesLandingPage() {
                       disabled={calendarMonthIndex >= (calendarPrices?.months || 24) - 1}
                       aria-label="Next month"
                     >
-                      →
+                      â†’
                     </button>
                   </div>
                 </div>
@@ -6775,3 +6778,5 @@ export default function LosAngelesLandingPage() {
     </div>
   );
 }
+
+

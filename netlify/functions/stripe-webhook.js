@@ -222,7 +222,6 @@ const postReservationPayment = async (reservationId, paymentMethod, amount, note
       body: JSON.stringify({
         paymentMethod,
         amount,
-        paidAt: new Date().toISOString(),
         note,
       }),
     }
@@ -250,15 +249,24 @@ const createReservationPayment = async (reservationId, session) => {
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
   const note = `Paid via Stripe checkout session ${session?.id || ""}`.trim();
-  const preferredMethod = (process.env.GUESTY_PAYMENT_METHOD || "OTHER").toUpperCase();
-  const paymentMethod = { method: preferredMethod };
+  const preferredMethod = (process.env.GUESTY_PAYMENT_METHOD || "").trim().toUpperCase();
+  const methods = [
+    ...(preferredMethod ? [preferredMethod] : []),
+    "OTHER",
+    "BANK_TRANSFER",
+    "CASH",
+  ].filter((value, index, array) => array.indexOf(value) === index);
 
-  try {
-    return await postReservationPayment(reservationId, paymentMethod, amount, note);
-  } catch (err) {
-    if (preferredMethod === "OTHER") throw err;
-    return await postReservationPayment(reservationId, { method: "OTHER" }, amount, note);
+  const errors = [];
+  for (const method of methods) {
+    try {
+      return await postReservationPayment(reservationId, { method }, amount, note);
+    } catch (err) {
+      errors.push(`${method}: ${err.message}`);
+    }
   }
+
+  throw new Error(`Failed to record payment in Guesty. ${errors.join(" | ")}`);
 };
 
 const createGuestyReservation = async (payload) => {
@@ -391,12 +399,12 @@ export async function handler(event) {
       await createReservationPayment(reservationId, session);
     } catch (err) {
       paymentError = err.message;
+      console.error("[stripe-webhook] Payment record failed", {
+        reservationId,
+        sessionId: session?.id,
+        error: paymentError,
+      });
     }
-    await writeStripeEvent(stripeEvent.id, {
-      processedAt: Date.now(),
-      reservationId,
-      listingId: payload.listingId,
-    });
     let noteError = null;
     const noteText = buildReservationNotes(session.metadata || {});
     if (noteText && reservationId) {
@@ -406,6 +414,14 @@ export async function handler(event) {
         noteError = err.message;
       }
     }
+    await writeStripeEvent(stripeEvent.id, {
+      processedAt: Date.now(),
+      reservationId,
+      listingId: payload.listingId,
+      sessionId: session?.id || null,
+      paymentError,
+      noteError,
+    });
     return jsonResponse(200, {
       received: true,
       reservationId,

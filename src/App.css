@@ -329,7 +329,7 @@ html {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 100vw;
+  width: 100%;
   transform: translateX(-50%);
   background: linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
   z-index: 0;
@@ -1383,6 +1383,42 @@ html {
   width: 100%;
   justify-content: center;
   padding: 0 6vw 22px;
+}
+
+.landing-offers-swipe {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(201, 181, 156, 0.35);
+  box-shadow: 0 14px 28px rgba(63, 54, 47, 0.12);
+  color: #6f5f51;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.landing-offers-swipe__label {
+  line-height: 1;
+}
+
+.landing-offers-swipe__lottie {
+  width: 54px;
+  height: 28px;
+}
+
+.landing-offers-swipe__lottie svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-offers-swipe__lottie {
+    display: none;
+  }
 }
 
 @media (max-width: 900px) {
@@ -4328,6 +4364,10 @@ html {
   position: fixed;
   inset: 0;
   z-index: 70;
+}
+
+.la-checkout-overlay {
+  z-index: 120 !important;
 }
 
 .antwerp-modal__overlay.is-page {
@@ -8018,6 +8058,15 @@ html {
   gap: 8px;
   color: var(--ink-soft);
   font-size: 0.95rem;
+}
+
+.policy-footer-col a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.policy-footer-col a:hover {
+  color: #6f5a4a;
 }
 
 .policy-footer-bottom {

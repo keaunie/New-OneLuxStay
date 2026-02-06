@@ -34,11 +34,11 @@ function SiteFooter() {
         <div className="policy-footer-col">
           <h3>Cities</h3>
           <ul>
-            <li>Antwerp</li>
-            <li>Dubai</li>
-            <li>Los Angeles</li>
-            <li>Miami</li>
-            <li>Redondo Beach</li>
+            <li><Link to="/antwerp">Antwerp</Link></li>
+            <li><Link to="/dubai">Dubai</Link></li>
+            <li><Link to="/los-angeles">Los Angeles</Link></li>
+            <li><Link to="/listings?city=Miami%20Beach">Miami</Link></li>
+            <li><Link to="/redondo-beach">Redondo Beach</Link></li>
           </ul>
         </div>
         <div className="policy-footer-col">
