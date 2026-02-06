@@ -9,6 +9,7 @@ import ListingPage from "./ListingPage";
 import PrivacyPolicy from "./PrivacyPolicy";
 import TermsConditions from "./TermsConditions";
 import CaliforniaPrivacyPolicy from "./CaliforniaPrivacyPolicy";
+import AcknowledgementPage from "./AcknowledgementPage";
 import LoadingScreen from "./components/LoadingScreen";
 import "./App.css";
 
@@ -69,6 +70,7 @@ function App() {
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/california-privacy-policy" element={<CaliforniaPrivacyPolicy />} />
             <Route path="/california-privacy" element={<CaliforniaPrivacyPolicy />} />
+            <Route path="/acknowledge" element={<AcknowledgementPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

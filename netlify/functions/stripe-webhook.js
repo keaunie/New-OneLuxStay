@@ -303,26 +303,37 @@ const updateReservationNotes = async (reservationId, notes) => {
   return response.json();
 };
 
-const buildWebsiteDiscountNote = (metadata) => {
+const buildReservationNotes = (metadata) => {
+  const notes = [];
   const accommodation = Number(metadata.bd_accommodation);
   const discountAmount = Number(metadata.bd_discount);
   const discountRateRaw = Number(metadata.bd_discount_rate);
-  if (!Number.isFinite(discountAmount) || discountAmount <= 0) return null;
+  if (Number.isFinite(discountAmount) && discountAmount > 0) {
+    const baseForPercent =
+      Number.isFinite(accommodation) && accommodation + discountAmount > 0
+        ? accommodation + discountAmount
+        : null;
+    const percentFromAmount =
+      baseForPercent && baseForPercent > 0
+        ? Math.round((discountAmount / baseForPercent) * 100)
+        : null;
+    const discountPercent =
+      Number.isFinite(discountRateRaw) && discountRateRaw > 0
+        ? Math.round(discountRateRaw * 100)
+        : percentFromAmount || 10;
+    notes.push(
+      `Website booking discount (${discountPercent}%) applied via OneLuxStay website.`
+    );
+  }
 
-  const baseForPercent =
-    Number.isFinite(accommodation) && accommodation + discountAmount > 0
-      ? accommodation + discountAmount
-      : null;
-  const percentFromAmount =
-    baseForPercent && baseForPercent > 0
-      ? Math.round((discountAmount / baseForPercent) * 100)
-      : null;
-  const discountPercent =
-    Number.isFinite(discountRateRaw) && discountRateRaw > 0
-      ? Math.round(discountRateRaw * 100)
-      : percentFromAmount || 10;
+  if (metadata.consent_text) {
+    const consentAt = metadata.consent_at
+      ? ` Accepted at ${metadata.consent_at}.`
+      : "";
+    notes.push(`Consent: ${metadata.consent_text}.${consentAt}`.replace(/\.\./g, "."));
+  }
 
-  return `Website booking discount (${discountPercent}%) applied via OneLuxStay website.`;
+  return notes.length ? notes.join(" ") : null;
 };
 
 export async function handler(event) {
@@ -387,7 +398,7 @@ export async function handler(event) {
       listingId: payload.listingId,
     });
     let noteError = null;
-    const noteText = buildWebsiteDiscountNote(session.metadata || {});
+    const noteText = buildReservationNotes(session.metadata || {});
     if (noteText && reservationId) {
       try {
         await updateReservationNotes(reservationId, noteText);

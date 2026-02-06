@@ -16,6 +16,8 @@ const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
+const CITY_LOADING_LOTTIE_SRC =
+  "https://lottie.host/a5d4ff5c-b190-4293-8e82-9605dd09d4fb/W3GHTi7kL3.json";
 const PROPERTY_ADDRESS = "Redondo Beach, CA";
 const PROPERTY_COORDS = { lat: 33.8458, lng: -118.3884 };
 const LANDMARKS = [
@@ -1816,6 +1818,7 @@ export default function RedondoBeachLandingPage() {
     phone: "",
   });
   const [checkoutGuestError, setCheckoutGuestError] = useState("");
+  const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
@@ -3385,7 +3388,15 @@ export default function RedondoBeachLandingPage() {
     }
     setCheckoutGuestError("");
     setIsCheckoutGuestOpen(false);
-    const payload = { ...pendingCheckout, guest: checkoutGuest };
+    const consentText =
+      "By continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt will be emailed to you";
+    const payload = {
+      ...pendingCheckout,
+      guest: checkoutGuest,
+      consentText,
+      consentAcceptedAt: new Date().toISOString(),
+    };
+    setCheckoutConsentAccepted(false);
     setPendingCheckout(null);
     handleSectionCheckout(payload);
   };
@@ -3393,6 +3404,7 @@ export default function RedondoBeachLandingPage() {
   const isCheckoutGuestValid = Boolean(
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim()
   );
+  const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
 
   const handleGuestInputChange = (field) => (event) => {
     const { value } = event.target;
@@ -4033,31 +4045,7 @@ export default function RedondoBeachLandingPage() {
                   );
                 })()}
                 </div>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button"
-                  aria-label="View larger map"
-                  onClick={() => {
-                    setListingMapTarget({
-                      coords: getListingCoords(activeListing),
-                      address: getListingAddressQuery(activeListing),
-                      label: activeListing.title || "OneLuxStay",
-                    });
-                    setIsListingMapOpen(true);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setListingMapTarget({
-                        coords: getListingCoords(activeListing),
-                        address: getListingAddressQuery(activeListing),
-                        label: activeListing.title || "OneLuxStay",
-                      });
-                      setIsListingMapOpen(true);
-                    }
-                  }}
-                >
+                <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
                   {mapEmbedUrl ? (
                     <iframe
                       title="Unit location map"
@@ -4071,7 +4059,21 @@ export default function RedondoBeachLandingPage() {
                   ) : (
                     <div className="la-unit-modal__placeholder">Map loading</div>
                   )}
-                  <span className="la-unit-modal__map-cta">View larger map</span>
+                  <button
+                    type="button"
+                    className="la-unit-modal__map-overlay"
+                    aria-label="View larger map"
+                    onClick={() => {
+                      setListingMapTarget({
+                        coords: getListingCoords(activeListing),
+                        address: getListingAddressQuery(activeListing),
+                        label: activeListing.title || "OneLuxStay",
+                      });
+                      setIsListingMapOpen(true);
+                    }}
+                  >
+                    <span className="la-unit-modal__map-cta">View larger map</span>
+                  </button>
                 </div>
                 <div className="la-unit-modal__card la-unit-modal__availability">
                   <div className="la-unit-modal__card-head">
@@ -4346,6 +4348,7 @@ export default function RedondoBeachLandingPage() {
   ) : null;
 
   const zoomPortalTarget = typeof document !== "undefined" ? document.body : null;
+  const mapPortalTarget = typeof document !== "undefined" ? document.body : null;
   const zoomModal = zoomImageUrl && zoomPortalTarget
     ? createPortal(
         <div
@@ -4526,51 +4529,85 @@ export default function RedondoBeachLandingPage() {
         )
       : null;
 
-  const listingMapModal = isListingMapOpen ? (
-    <div
-      className="la-map-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Interactive map"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) setIsListingMapOpen(false);
-      }}
-    >
-      <div className="la-map-modal__inner">
-        <button
-          type="button"
-          className="la-map-modal__close"
-          onClick={() => setIsListingMapOpen(false)}
-          aria-label="Close map"
+  const listingMapModal = isListingMapOpen && mapPortalTarget
+    ? createPortal(
+        <div
+          className="la-map-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Interactive map"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsListingMapOpen(false);
+          }}
         >
-          Close
-        </button>
-        {(() => {
-          const coords = listingMapTarget?.coords || getListingCoords(activeListing);
-          const address = listingMapTarget?.address || getListingAddressQuery(activeListing);
-          const mapEmbedUrl = coords
-            ? `https://www.google.com/maps?q=${encodeURIComponent(
-              `${coords.lat},${coords.lng}`
-            )}&z=15&output=embed`
-            : address
-              ? `https://www.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`
-              : "";
-          return mapEmbedUrl ? (
-            <iframe
-              title="Interactive Google Map"
+          <div className="la-map-modal__inner">
+            <button
+              type="button"
+              className="la-map-modal__close"
+              onClick={() => setIsListingMapOpen(false)}
+              aria-label="Close map"
+            >
+              Close
+            </button>
+            {(() => {
+              const coords = listingMapTarget?.coords || getListingCoords(activeListing);
+              const address = listingMapTarget?.address || getListingAddressQuery(activeListing);
+              const mapEmbedUrl = coords
+                ? `https://www.google.com/maps?q=${encodeURIComponent(
+                  `${coords.lat},${coords.lng}`
+                )}&z=15&output=embed`
+                : address
+                  ? `https://www.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`
+                  : "";
+              return mapEmbedUrl ? (
+                <iframe
+                  title="Interactive Google Map"
+                  className="la-map-modal__canvas"
+                  src={mapEmbedUrl}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="la-unit-modal__placeholder">Map loading</div>
+              );
+            })()}
+          </div>
+        </div>,
+        mapPortalTarget
+      )
+    : null;
+
+  const sectionMapModal = isSectionMapOpen && mapPortalTarget
+    ? createPortal(
+        <div
+          className="la-map-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Interactive map"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsSectionMapOpen(false);
+          }}
+        >
+          <div className="la-map-modal__inner">
+            <button
+              type="button"
+              className="la-map-modal__close"
+              onClick={() => setIsSectionMapOpen(false)}
+              aria-label="Close map"
+            >
+              Close
+            </button>
+            <div
+              ref={sectionMapRef}
               className="la-map-modal__canvas"
-              src={mapEmbedUrl}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
+              aria-label="Interactive Google Map"
             />
-          ) : (
-            <div className="la-unit-modal__placeholder">Map loading</div>
-          );
-        })()}
-      </div>
-    </div>
-  ) : null;
+          </div>
+        </div>,
+        mapPortalTarget
+      )
+    : null;
 
   if (isListingRoute) {
     return (
@@ -4581,7 +4618,7 @@ export default function RedondoBeachLandingPage() {
         {listingDetail ? (
           <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
         ) : (
-          <LoadingScreen active />
+          <LoadingScreen active lottieSrc={CITY_LOADING_LOTTIE_SRC} />
         )}
         {listingMapModal}
         {zoomModal}
@@ -6076,11 +6113,22 @@ export default function RedondoBeachLandingPage() {
                 type="button"
                 className="la-inquiry-modal__action"
                 onClick={confirmGuestCheckout}
-                disabled={!isCheckoutGuestValid}
-                aria-disabled={!isCheckoutGuestValid}
+                disabled={!canContinueToPayment}
+                aria-disabled={!canContinueToPayment}
               >
                 Continue to payment
               </button>
+              <label className="la-inquiry-modal__consent">
+                <input
+                  type="checkbox"
+                  checked={checkoutConsentAccepted}
+                  onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                />
+                <span>
+                  By continuing to payment, you authorize OneLuxStay to charge the total amount
+                  shown for your reservation. A receipt will be emailed to you.
+                </span>
+              </label>
             </div>
           </div>
         </div>
@@ -6337,31 +6385,7 @@ export default function RedondoBeachLandingPage() {
                         Guests talk about the view, the stillness between city moments, and how easy it is to settle in.
                       </p>
                     </div>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button"
-                      aria-label="View larger map"
-                      onClick={() => {
-                        setListingMapTarget({
-                          coords: getListingCoords(activeListing),
-                          address: getListingAddressQuery(activeListing),
-                          label: activeListing.title || "OneLuxStay",
-                        });
-                        setIsListingMapOpen(true);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setListingMapTarget({
-                            coords: getListingCoords(activeListing),
-                            address: getListingAddressQuery(activeListing),
-                            label: activeListing.title || "OneLuxStay",
-                          });
-                          setIsListingMapOpen(true);
-                        }
-                      }}
-                    >
+                    <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
                       {mapEmbedUrl ? (
                         <iframe
                           title="Unit location map"
@@ -6380,7 +6404,21 @@ export default function RedondoBeachLandingPage() {
                       ) : (
                         <div className="la-unit-modal__placeholder">Map loading</div>
                       )}
-                      <span className="la-unit-modal__map-cta">View larger map</span>
+                      <button
+                        type="button"
+                        className="la-unit-modal__map-overlay"
+                        aria-label="View larger map"
+                        onClick={() => {
+                          setListingMapTarget({
+                            coords: getListingCoords(activeListing),
+                            address: getListingAddressQuery(activeListing),
+                            label: activeListing.title || "OneLuxStay",
+                          });
+                          setIsListingMapOpen(true);
+                        }}
+                      >
+                        <span className="la-unit-modal__map-cta">View larger map</span>
+                      </button>
                     </div>
                     <div className="la-unit-modal__card la-unit-modal__availability">
                       <div className="la-unit-modal__card-head">
@@ -6671,33 +6709,7 @@ export default function RedondoBeachLandingPage() {
         </div>
       )}
 
-      {isSectionMapOpen && (
-        <div
-          className="la-map-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Interactive map"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsSectionMapOpen(false);
-          }}
-        >
-          <div className="la-map-modal__inner">
-            <button
-              type="button"
-              className="la-map-modal__close"
-              onClick={() => setIsSectionMapOpen(false)}
-              aria-label="Close map"
-            >
-              Close
-            </button>
-            <div
-              ref={sectionMapRef}
-              className="la-map-modal__canvas"
-              aria-label="Interactive Google Map"
-            />
-          </div>
-        </div>
-      )}
+      {sectionMapModal}
       <SiteFooter />
     </div>
   );

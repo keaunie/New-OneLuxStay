@@ -600,6 +600,8 @@ const handleCheckout = async (event) => {
     currency,
     breakdown,
     guest,
+    consentText,
+    consentAcceptedAt,
   } = body || {};
 
   if (!listingId || !checkIn || !checkOut || !amount) {
@@ -659,6 +661,8 @@ const handleCheckout = async (event) => {
       guests: String(guests || 1),
       amount: String(numericAmount),
       currency: (currency || "USD").toLowerCase(),
+      ...(consentText ? { consent_text: String(consentText) } : {}),
+      ...(consentAcceptedAt ? { consent_at: String(consentAcceptedAt) } : {}),
       ...(breakdownFields
         ? Object.fromEntries(
             Object.entries(breakdownFields)
