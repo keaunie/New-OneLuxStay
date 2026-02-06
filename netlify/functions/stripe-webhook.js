@@ -124,6 +124,26 @@ const getStripeClient = () => {
   return stripeClient;
 };
 
+const getSessionReceiptDetails = async (session) => {
+  if (!session?.id) return { receiptUrl: null, paymentIntentId: null, chargeId: null };
+  const stripe = getStripeClient();
+  try {
+    const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+      expand: ["payment_intent.latest_charge"],
+    });
+    const paymentIntent = fullSession?.payment_intent;
+    const paymentIntentId =
+      typeof paymentIntent === "string" ? paymentIntent : paymentIntent?.id || null;
+    const latestCharge =
+      typeof paymentIntent === "object" ? paymentIntent?.latest_charge : null;
+    const chargeId = latestCharge?.id || null;
+    const receiptUrl = latestCharge?.receipt_url || null;
+    return { receiptUrl, paymentIntentId, chargeId };
+  } catch {
+    return { receiptUrl: null, paymentIntentId: null, chargeId: null };
+  }
+};
+
 const getStripeEventStore = async () => getBlobStore(STRIPE_EVENT_STORE);
 
 const readStripeEvent = async (eventId) => {
@@ -366,7 +386,7 @@ const updateGuestNotes = async (guestId, notes) => {
   throw new Error(`Unable to write guest notes. ${errors.join(" | ")}`);
 };
 
-const sendReceiptEmail = async ({ to, reservationId, metadata, session }) => {
+const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = {} }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
   if (!apiKey || !from || !to) return { skipped: true };
@@ -383,10 +403,13 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session }) => {
 
   const checkIn = metadata?.checkIn || "";
   const checkOut = metadata?.checkOut || "";
+  const consentAt = metadata?.consent_at || "";
+  const consentText = metadata?.consent_text || "";
   const fullName =
     [metadata?.guestFirstName, metadata?.guestLastName].filter(Boolean).join(" ").trim() ||
     metadata?.guestName ||
     "Guest";
+  const bcc = process.env.RESEND_RECEIPT_BCC || "";
 
   const response = await fetchWithTimeout("https://api.resend.com/emails", {
     method: "POST",
@@ -397,6 +420,7 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session }) => {
     body: JSON.stringify({
       from,
       to,
+      ...(bcc ? { bcc } : {}),
       subject: `OneLuxStay receipt${reservationId ? ` - ${reservationId}` : ""}`,
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #2d251f;">
@@ -406,6 +430,10 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session }) => {
           ${checkIn ? `<p><strong>Check-in:</strong> ${checkIn}</p>` : ""}
           ${checkOut ? `<p><strong>Check-out:</strong> ${checkOut}</p>` : ""}
           <p><strong>Total paid:</strong> ${formattedTotal}</p>
+          ${consentText ? `<p><strong>Consent:</strong> ${consentText}</p>` : ""}
+          ${consentAt ? `<p><strong>Consent accepted at:</strong> ${consentAt}</p>` : ""}
+          ${proof?.sessionId ? `<p><strong>Consent proof session:</strong> ${proof.sessionId}</p>` : ""}
+          ${proof?.receiptUrl ? `<p><strong>Stripe receipt:</strong> <a href="${proof.receiptUrl}" target="_blank" rel="noreferrer">View receipt</a></p>` : ""}
           <p>If you need support, reply to this email.</p>
         </div>
       `,
@@ -419,7 +447,7 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session }) => {
   return payload;
 };
 
-const buildReservationNotes = (metadata) => {
+const buildReservationNotes = (metadata, proof = {}) => {
   const notes = [];
   const accommodation = Number(metadata.bd_accommodation);
   const discountAmount = Number(metadata.bd_discount);
@@ -447,6 +475,15 @@ const buildReservationNotes = (metadata) => {
       ? ` Accepted at ${metadata.consent_at}.`
       : "";
     notes.push(`Consent: ${metadata.consent_text}.${consentAt}`.replace(/\.\./g, "."));
+  }
+  if (proof?.sessionId) {
+    notes.push(`Consent proof session: ${proof.sessionId}.`);
+  }
+  if (proof?.paymentIntentId) {
+    notes.push(`Stripe payment intent: ${proof.paymentIntentId}.`);
+  }
+  if (proof?.receiptUrl) {
+    notes.push(`Stripe receipt: ${proof.receiptUrl}`);
   }
 
   return notes.length ? notes.join(" ") : null;
@@ -503,7 +540,12 @@ export async function handler(event) {
     const reservation = await createGuestyReservation(payload);
     const reservationId = reservation?._id || reservation?.id || null;
     const guestId = extractGuestId(reservation);
-    const noteText = buildReservationNotes(session.metadata || {});
+    const proof = await getSessionReceiptDetails(session);
+    const noteText = buildReservationNotes(session.metadata || {}, {
+      sessionId: session?.id || null,
+      paymentIntentId: proof?.paymentIntentId || null,
+      receiptUrl: proof?.receiptUrl || null,
+    });
     let paymentError = null;
     try {
       await createReservationPayment(reservationId, session);
@@ -538,6 +580,10 @@ export async function handler(event) {
         reservationId,
         metadata: session?.metadata || {},
         session,
+        proof: {
+          sessionId: session?.id || null,
+          receiptUrl: proof?.receiptUrl || null,
+        },
       });
     } catch (err) {
       emailError = err.message;
@@ -548,6 +594,8 @@ export async function handler(event) {
       guestId,
       listingId: payload.listingId,
       sessionId: session?.id || null,
+      paymentIntentId: proof?.paymentIntentId || null,
+      receiptUrl: proof?.receiptUrl || null,
       paymentError,
       noteError,
       guestNoteError,
