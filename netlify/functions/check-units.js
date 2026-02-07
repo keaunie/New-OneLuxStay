@@ -3,6 +3,7 @@ const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
+const CONSENT_STORE_NAME = "consent-proofs";
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -79,17 +80,25 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
   }
 };
 
-const getBlobStore = async () => {
+const getBlobStore = async (storeName = TOKEN_STORE_NAME) => {
   try {
     const { getStore } = await import("@netlify/blobs");
     const siteID = process.env.NETLIFY_SITE_ID;
     const apiToken = process.env.NETLIFY_API_TOKEN;
     return siteID && apiToken
-      ? getStore(TOKEN_STORE_NAME, { siteID, token: apiToken })
-      : getStore(TOKEN_STORE_NAME);
+      ? getStore(storeName, { siteID, token: apiToken })
+      : getStore(storeName);
   } catch {
     return null;
   }
+};
+
+const writeConsentProof = async (sessionId, payload) => {
+  if (!sessionId || !payload) return false;
+  const store = await getBlobStore(CONSENT_STORE_NAME);
+  if (!store) return false;
+  await store.setJSON(sessionId, payload);
+  return true;
 };
 
 const requestGuestyToken = async () => {
@@ -602,6 +611,8 @@ const handleCheckout = async (event) => {
     guest,
     consentText,
     consentAcceptedAt,
+    consentSignerName,
+    consentSignatureDataUrl,
   } = body || {};
 
   if (!listingId || !checkIn || !checkOut || !amount) {
@@ -647,7 +658,7 @@ const handleCheckout = async (event) => {
           unit_amount: unitAmount,
           product_data: {
             name: listingTitle || "OneLuxStay reservation",
-            description: `Check-in ${checkIn} · Check-out ${checkOut} · Guests ${guests || 1}`,
+            description: `Check-in ${checkIn} - Check-out ${checkOut} - Guests ${guests || 1}`,
           },
         },
       },
@@ -663,6 +674,8 @@ const handleCheckout = async (event) => {
       currency: (currency || "USD").toLowerCase(),
       ...(consentText ? { consent_text: String(consentText) } : {}),
       ...(consentAcceptedAt ? { consent_at: String(consentAcceptedAt) } : {}),
+      ...(consentSignerName ? { consent_signer_name: String(consentSignerName).slice(0, 200) } : {}),
+      ...(consentSignatureDataUrl ? { consent_signature: "true" } : {}),
       ...(breakdownFields
         ? Object.fromEntries(
             Object.entries(breakdownFields)
@@ -676,6 +689,25 @@ const handleCheckout = async (event) => {
       guestEmail: guest?.email || "",
       guestPhone: guest?.phone || "",
     },
+  });
+
+  await writeConsentProof(session.id, {
+    createdAt: new Date().toISOString(),
+    sessionId: session.id,
+    listingId: String(listingId),
+    listingTitle: listingTitle || "",
+    checkIn,
+    checkOut,
+    guests: Number(guests) || 1,
+    amount: numericAmount,
+    currency: (currency || "USD").toUpperCase(),
+    consentText: consentText || "",
+    consentAcceptedAt: consentAcceptedAt || "",
+    consentSignerName: consentSignerName || "",
+    consentSignatureDataUrl: consentSignatureDataUrl || "",
+    guestName,
+    guestEmail: guest?.email || "",
+    guestPhone: guest?.phone || "",
   });
 
   return jsonResponse(200, { url: session.url, id: session.id });
@@ -720,3 +752,4 @@ export async function handler(event) {
 
   return jsonResponse(404, { message: "Not Found" });
 }
+

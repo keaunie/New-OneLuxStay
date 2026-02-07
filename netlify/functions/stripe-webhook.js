@@ -1,11 +1,15 @@
 import Stripe from "stripe";
 import { getStore } from "@netlify/blobs";
+import crypto from "crypto";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 const STRIPE_EVENT_STORE = "stripe-webhook-events";
+const CONSENT_STORE_NAME = "consent-proofs";
+const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
   "clp",
@@ -157,6 +161,123 @@ const writeStripeEvent = async (eventId, payload) => {
   if (!store) return false;
   await store.setJSON(eventId, payload);
   return true;
+};
+
+const getConsentStore = async () => getBlobStore(CONSENT_STORE_NAME);
+const getConsentPdfStore = async () => getBlobStore(CONSENT_PDF_STORE_NAME);
+
+const readConsentProof = async (sessionId) => {
+  if (!sessionId) return null;
+  const store = await getConsentStore();
+  if (!store) return null;
+  return store.get(sessionId, { type: "json" });
+};
+
+const writeConsentPdf = async (token, pdfBytes, metadata = {}) => {
+  if (!token || !pdfBytes) return false;
+  const store = await getConsentPdfStore();
+  if (!store) return false;
+  await store.set(token, Buffer.from(pdfBytes), { metadata });
+  return true;
+};
+
+const toProofBaseUrl = () => {
+  return process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || "";
+};
+
+const toDataUrlBytes = (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== "string") return null;
+  const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+  if (!match) return null;
+  return { mime: match[1], bytes: Buffer.from(match[2], "base64") };
+};
+
+const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const color = rgb(0.2, 0.16, 0.12);
+  let y = 760;
+
+  const drawLine = (label, value, bold = false) => {
+    const safeValue = value || "-";
+    page.drawText(`${label}: ${safeValue}`, {
+      x: 52,
+      y,
+      size: 11,
+      font: bold ? fontBold : font,
+      color,
+    });
+    y -= 20;
+  };
+
+  page.drawText("OneLuxStay Consent Proof", {
+    x: 52,
+    y,
+    size: 20,
+    font: fontBold,
+    color,
+  });
+  y -= 30;
+  drawLine("Generated at", new Date().toISOString());
+  drawLine("Reservation ID", reservationId || "-");
+  drawLine("Guest", [metadata?.guestFirstName, metadata?.guestLastName].filter(Boolean).join(" ") || metadata?.guestName || "-");
+  drawLine("Guest email", metadata?.guestEmail || "-");
+  drawLine("Check-in", metadata?.checkIn || "-");
+  drawLine("Check-out", metadata?.checkOut || "-");
+  drawLine("Consent accepted at", metadata?.consent_at || consent?.consentAcceptedAt || "-");
+  drawLine("Signed by", consent?.consentSignerName || metadata?.consent_signer_name || "-", true);
+  drawLine("Stripe session", consent?.sessionId || "-");
+  drawLine("Stripe payment intent", consent?.paymentIntentId || "-");
+  drawLine("Stripe receipt", consent?.receiptUrl || "-");
+  y -= 6;
+  page.drawText("Consent text:", { x: 52, y, size: 11, font: fontBold, color });
+  y -= 18;
+
+  const consentText = metadata?.consent_text || consent?.consentText || "-";
+  const words = consentText.split(/\s+/);
+  let line = "";
+  const maxWidth = 500;
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    const w = font.widthOfTextAtSize(next, 10);
+    if (w > maxWidth) {
+      page.drawText(line, { x: 52, y, size: 10, font, color });
+      y -= 14;
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) {
+    page.drawText(line, { x: 52, y, size: 10, font, color });
+    y -= 22;
+  }
+
+  page.drawText("Guest signature:", { x: 52, y, size: 11, font: fontBold, color });
+  y -= 12;
+
+  const sig = toDataUrlBytes(consent?.consentSignatureDataUrl);
+  if (sig && y > 110) {
+    try {
+      const embedded = sig.mime.includes("png")
+        ? await pdfDoc.embedPng(sig.bytes)
+        : await pdfDoc.embedJpg(sig.bytes);
+      const dims = embedded.scale(0.35);
+      page.drawRectangle({ x: 52, y: y - 82, width: 250, height: 84, borderColor: rgb(0.75, 0.7, 0.62), borderWidth: 1 });
+      page.drawImage(embedded, { x: 58, y: y - 76, width: Math.min(238, dims.width), height: Math.min(72, dims.height) });
+      y -= 94;
+    } catch {
+      page.drawText("Signature image unavailable", { x: 52, y, size: 10, font, color });
+      y -= 16;
+    }
+  } else {
+    page.drawText("No signature image captured", { x: 52, y, size: 10, font, color });
+    y -= 16;
+  }
+
+  return pdfDoc.save();
 };
 
 const buildReservationPayload = (session) => {
@@ -410,19 +531,17 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
     metadata?.guestName ||
     "Guest";
   const bcc = process.env.RESEND_RECEIPT_BCC || "";
+  const attachments = [];
+  if (proof?.pdfBytes?.length) {
+    attachments.push({
+      filename: `consent-proof-${reservationId || session?.id || "record"}.pdf`,
+      content: Buffer.from(proof.pdfBytes).toString("base64"),
+      type: "application/pdf",
+    });
+  }
 
-  const response = await fetchWithTimeout("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      ...(bcc ? { bcc } : {}),
-      subject: `OneLuxStay receipt${reservationId ? ` - ${reservationId}` : ""}`,
-      html: `
+  const subject = `OneLuxStay receipt${reservationId ? ` - ${reservationId}` : ""}`;
+  const html = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #2d251f;">
           <h2>Payment receipt</h2>
           <p>Hi ${fullName}, your payment was received successfully.</p>
@@ -433,16 +552,55 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
           ${consentText ? `<p><strong>Consent:</strong> ${consentText}</p>` : ""}
           ${consentAt ? `<p><strong>Consent accepted at:</strong> ${consentAt}</p>` : ""}
           ${proof?.sessionId ? `<p><strong>Consent proof session:</strong> ${proof.sessionId}</p>` : ""}
+          ${proof?.proofUrl ? `<p><strong>Consent proof PDF:</strong> <a href="${proof.proofUrl}" target="_blank" rel="noreferrer">Download PDF</a></p>` : ""}
           ${proof?.receiptUrl ? `<p><strong>Stripe receipt:</strong> <a href="${proof.receiptUrl}" target="_blank" rel="noreferrer">View receipt</a></p>` : ""}
           <p>If you need support, reply to this email.</p>
         </div>
-      `,
-    }),
-  });
+      `;
 
-  const payload = await response.json();
+  const send = async (recipient) =>
+    fetchWithTimeout("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: recipient,
+        ...(bcc ? { bcc } : {}),
+        ...(attachments.length ? { attachments } : {}),
+        subject,
+        html,
+      }),
+    });
+
+  let response = await send(to);
+
+  let payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.message || "Unable to send receipt email.");
+    const fallbackTo = process.env.RESEND_FALLBACK_TO || "";
+    if (fallbackTo) {
+      const fallbackHtml = `${html}<p><strong>Original intended recipient:</strong> ${to}</p>`;
+      response = await fetchWithTimeout("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: fallbackTo,
+          ...(attachments.length ? { attachments } : {}),
+          subject: `[Fallback] ${subject}`,
+          html: fallbackHtml,
+        }),
+      });
+      payload = await response.json();
+    }
+    if (!response.ok) {
+      throw new Error(payload.message || "Unable to send receipt email.");
+    }
   }
   return payload;
 };
@@ -476,6 +634,9 @@ const buildReservationNotes = (metadata, proof = {}) => {
       : "";
     notes.push(`Consent: ${metadata.consent_text}.${consentAt}`.replace(/\.\./g, "."));
   }
+  if (metadata.consent_signer_name) {
+    notes.push(`Signed by: ${metadata.consent_signer_name}.`);
+  }
   if (proof?.sessionId) {
     notes.push(`Consent proof session: ${proof.sessionId}.`);
   }
@@ -484,6 +645,9 @@ const buildReservationNotes = (metadata, proof = {}) => {
   }
   if (proof?.receiptUrl) {
     notes.push(`Stripe receipt: ${proof.receiptUrl}`);
+  }
+  if (proof?.proofUrl) {
+    notes.push(`Consent proof PDF: ${proof.proofUrl}`);
   }
 
   return notes.length ? notes.join(" ") : null;
@@ -541,10 +705,39 @@ export async function handler(event) {
     const reservationId = reservation?._id || reservation?.id || null;
     const guestId = extractGuestId(reservation);
     const proof = await getSessionReceiptDetails(session);
+    const consentPayload = await readConsentProof(session?.id || "");
+    let consentPdfError = null;
+    let consentPdfToken = null;
+    let consentPdfUrl = null;
+    let consentPdfBytes = null;
+    try {
+      consentPdfBytes = await buildConsentPdf({
+        reservationId,
+        metadata: session?.metadata || {},
+        consent: {
+          ...(consentPayload || {}),
+          sessionId: session?.id || null,
+          paymentIntentId: proof?.paymentIntentId || null,
+          receiptUrl: proof?.receiptUrl || null,
+        },
+      });
+      consentPdfToken = crypto.randomUUID().replace(/-/g, "");
+      await writeConsentPdf(consentPdfToken, consentPdfBytes, {
+        reservationId: reservationId || "",
+        sessionId: session?.id || "",
+      });
+      const proofBaseUrl = toProofBaseUrl();
+      if (proofBaseUrl) {
+        consentPdfUrl = `${proofBaseUrl}/.netlify/functions/consent-proof?token=${encodeURIComponent(consentPdfToken)}`;
+      }
+    } catch (err) {
+      consentPdfError = err.message;
+    }
     const noteText = buildReservationNotes(session.metadata || {}, {
       sessionId: session?.id || null,
       paymentIntentId: proof?.paymentIntentId || null,
       receiptUrl: proof?.receiptUrl || null,
+      proofUrl: consentPdfUrl,
     });
     let paymentError = null;
     try {
@@ -582,7 +775,9 @@ export async function handler(event) {
         session,
         proof: {
           sessionId: session?.id || null,
+          proofUrl: consentPdfUrl,
           receiptUrl: proof?.receiptUrl || null,
+          pdfBytes: consentPdfBytes,
         },
       });
     } catch (err) {
@@ -596,6 +791,8 @@ export async function handler(event) {
       sessionId: session?.id || null,
       paymentIntentId: proof?.paymentIntentId || null,
       receiptUrl: proof?.receiptUrl || null,
+      consentPdfUrl,
+      consentPdfError,
       paymentError,
       noteError,
       guestNoteError,
@@ -608,6 +805,8 @@ export async function handler(event) {
       noteError,
       guestNoteError,
       emailError,
+      consentPdfUrl,
+      consentPdfError,
     });
   } catch (err) {
     return jsonResponse(502, { message: "Guesty reservation failed", error: err.message });

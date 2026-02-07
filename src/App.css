@@ -4873,6 +4873,40 @@ html {
   color: rgba(63, 51, 38, 0.6);
 }
 
+.la-inquiry-modal__signature {
+  display: grid;
+  gap: 8px;
+}
+
+.la-inquiry-modal__signature span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(63, 51, 38, 0.62);
+}
+
+.la-inquiry-modal__signature-pad {
+  width: 100%;
+  height: 150px;
+  border: 1px solid rgba(201, 181, 156, 0.5);
+  border-radius: 12px;
+  background: #fffefc;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.la-inquiry-modal__signature-clear {
+  justify-self: start;
+  border: 1px solid rgba(201, 181, 156, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #6f5f51;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
 .ack-page {
   min-height: 100vh;
   padding: 60px 20px;
