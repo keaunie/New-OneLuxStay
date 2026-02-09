@@ -3279,8 +3279,23 @@ export default function AntwerpLandingPage() {
         : [];
       const availableIds = new Set(availabilityResults.map((item) => item.id).filter(Boolean));
       const availabilityMap = {};
-      items.forEach((id) => {
-        availabilityMap[id] = availableIds.has(id);
+      const isListingAvailable = (listing) => {
+        if (!listing) return false;
+        const listingId = getListingId(listing);
+        const unitTypeId = listing?.unitTypeId;
+        return (
+          (listingId && availableIds.has(listingId)) ||
+          (unitTypeId && availableIds.has(unitTypeId))
+        );
+      };
+      listingPool.forEach((listing) => {
+        const listingId = getListingId(listing);
+        if (listingId) {
+          availabilityMap[listingId] = isListingAvailable(listing);
+        }
+        if (listing?.unitTypeId && availabilityMap[listing.unitTypeId] === undefined) {
+          availabilityMap[listing.unitTypeId] = availableIds.has(listing.unitTypeId);
+        }
       });
 
       const bulkRes = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
@@ -3308,15 +3323,15 @@ export default function AntwerpLandingPage() {
       const parentAvailabilityMap = {};
       const availableParents = Object.values(parentGroups)
         .map((group) => {
-          const childIds = group.children.map((item) => getListingId(item)).filter(Boolean);
-          const hasAvailableChild = childIds.length
-            ? childIds.some((id) => availabilityMap[id] === true)
-            : false;
-          parentAvailabilityMap[group.parentId] = hasAvailableChild;
+          const hasAvailableChild = group.children.some((child) => isListingAvailable(child));
           const displayListing = group.parent || null;
+          const hasAvailableParent = displayListing ? isListingAvailable(displayListing) : false;
+          const hasAvailable = hasAvailableChild || hasAvailableParent;
+          parentAvailabilityMap[group.parentId] = hasAvailable;
           if (displayListing) {
             const displayId = getListingId(displayListing);
-            if (displayId) parentAvailabilityMap[displayId] = hasAvailableChild;
+            if (displayId) parentAvailabilityMap[displayId] = hasAvailable;
+            if (displayListing.unitTypeId) parentAvailabilityMap[displayListing.unitTypeId] = hasAvailable;
           }
           return displayListing;
         })
