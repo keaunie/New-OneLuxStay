@@ -37,7 +37,7 @@ function SiteFooter() {
             <li><Link to="/antwerp">Antwerp</Link></li>
             <li><Link to="/dubai">Dubai</Link></li>
             <li><Link to="/los-angeles">Los Angeles</Link></li>
-            <li><Link to="/listings?city=Miami%20Beach">Miami</Link></li>
+            <li><Link to="/miami">Miami</Link></li>
             <li><Link to="/redondo-beach">Redondo Beach</Link></li>
           </ul>
         </div>

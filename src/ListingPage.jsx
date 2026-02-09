@@ -26,7 +26,16 @@ const BedIcon = () => (
   </svg>
 );
 
-const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+const KNOWN_CITIES = [
+  "hollywood",
+  "los angeles",
+  "antwerp",
+  "antwerpen",
+  "dubai",
+  "redondo beach",
+  "miami",
+  "miami beach",
+];
 
 const cityFromSlug = (slug) => {
   if (!slug) return "";
@@ -34,7 +43,7 @@ const cityFromSlug = (slug) => {
   if (lower === "los-angeles" || lower === "losangeles") return "Los Angeles";
   if (lower === "hollywood") return "Hollywood";
   if (lower === "antwerp" || lower === "antwerpen") return "Antwerp";
-  if (lower === "miami-beach") return "Miami Beach";
+  if (lower === "miami" || lower === "miami-beach") return "Miami";
   if (lower === "redondo-beach") return "Redondo Beach";
   if (lower === "dubai") return "Dubai";
   return lower
@@ -48,16 +57,25 @@ const normalizeCity = (listing) => {
   if (titleLower.includes("hollywood")) return "Hollywood";
 
   const primary = listing.city || listing.address?.city;
-  if (primary) return primary.trim();
+  if (primary) {
+    const trimmed = primary.trim();
+    if (trimmed.toLowerCase() === "miami beach") return "Miami";
+    return trimmed;
+  }
 
   const tagCity =
     Array.isArray(listing.tags) &&
     listing.tags.find((t) => typeof t === "string" && KNOWN_CITIES.includes(t.toLowerCase()));
-  if (tagCity) return tagCity.trim();
+  if (tagCity) {
+    const trimmed = tagCity.trim();
+    if (trimmed.toLowerCase() === "miami beach") return "Miami";
+    return trimmed;
+  }
 
   if (titleLower) {
     const match = KNOWN_CITIES.find((c) => titleLower.includes(c));
     if (match) {
+      if (match === "miami beach") return "Miami";
       return match
         .split(" ")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

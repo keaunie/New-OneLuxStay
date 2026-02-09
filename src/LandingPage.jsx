@@ -10,14 +10,23 @@ import Silk from "./components/Silk";
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 
-const KNOWN_CITIES = ["hollywood", "los angeles", "antwerp", "antwerpen", "dubai", "redondo beach", "miami beach"];
+const KNOWN_CITIES = [
+  "hollywood",
+  "los angeles",
+  "antwerp",
+  "antwerpen",
+  "dubai",
+  "redondo beach",
+  "miami",
+  "miami beach",
+];
 
 const citySlugFromName = (value) => {
   if (!value) return "";
   const lower = value.toLowerCase();
   if (lower.includes("los angeles") || lower.includes("hollywood")) return "los-angeles";
   if (lower.includes("antwerp") || lower.includes("antwerpen")) return "antwerp";
-  if (lower.includes("miami beach")) return "miami-beach";
+  if (lower.includes("miami")) return "miami";
   if (lower.includes("redondo beach")) return "redondo-beach";
   if (lower.includes("dubai")) return "dubai";
   return lower.replace(/,/g, "").trim().replace(/\s+/g, "-");
@@ -28,16 +37,25 @@ const normalizeListingCity = (listing) => {
   if (titleLower.includes("hollywood")) return "Hollywood";
 
   const primary = listing?.city || listing?.address?.city;
-  if (primary) return primary.trim();
+  if (primary) {
+    const trimmed = primary.trim();
+    if (trimmed.toLowerCase() === "miami beach") return "Miami";
+    return trimmed;
+  }
 
   const tagCity =
     Array.isArray(listing?.tags) &&
     listing.tags.find((t) => typeof t === "string" && KNOWN_CITIES.includes(t.toLowerCase()));
-  if (tagCity) return tagCity.trim();
+  if (tagCity) {
+    const trimmed = tagCity.trim();
+    if (trimmed.toLowerCase() === "miami beach") return "Miami";
+    return trimmed;
+  }
 
   if (titleLower) {
     const match = KNOWN_CITIES.find((c) => titleLower.includes(c));
     if (match) {
+      if (match === "miami beach") return "Miami";
       return match
         .split(" ")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -636,6 +654,8 @@ function LandingPage() {
   const cityRoutes = {
     Antwerp: "/antwerp",
     "Los Angeles": "/losangeles",
+    Miami: "/miami",
+    "Redondo Beach": "/redondo-beach",
     Dubai: "/dubai",
   };
 
@@ -962,6 +982,8 @@ function LandingPage() {
     const targetRoute = (() => {
       if (cityParam === "Los Angeles") return "/losangeles";
       if (cityParam === "Antwerp") return "/antwerp";
+      if (cityParam === "Miami" || cityParam === "Miami Beach") return "/miami";
+      if (cityParam === "Redondo Beach") return "/redondo-beach";
       return "/listings";
     })();
     const hash = targetRoute === "/listings" ? "#listings" : "";
@@ -1021,7 +1043,7 @@ function LandingPage() {
           </button>
 
           <div className="landing-chip-row">
-            {["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami Beach"].map((city) => (
+            {["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami"].map((city) => (
               <button
                 key={city}
                 type="button"
@@ -1042,7 +1064,7 @@ function LandingPage() {
             <div className="landing-form-field">
               <label htmlFor="landing-destination">Destination</label>
               <select id="landing-destination" value={destination} onChange={(e) => setDestination(e.target.value)}>
-                {["All", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami Beach"].map((c) => (
+                {["All", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami"].map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

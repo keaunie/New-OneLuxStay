@@ -1,0 +1,80 @@
+[
+  {
+    "name": "A Rivera",
+    "rating": 5,
+    "source": "Guest",
+    "date": "2 weeks ago",
+    "quote": "Bright, airy, and steps from the beach. The concierge team made check-in effortless and stayed responsive throughout.",
+    "details": [
+      "Trip type: Vacation",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Morgan Lee",
+    "rating": 5,
+    "source": "Guest",
+    "date": "1 month ago",
+    "quote": "We loved the beachwalk mornings and the quiet vibe. The space felt curated without being fussy.",
+    "details": [
+      "Trip type: Couple",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Jordan Patel",
+    "rating": 4,
+    "source": "Guest",
+    "date": "1 month ago",
+    "quote": "Great amenities and a comfortable layout. The team handled everything quickly when we asked for an extra beach setup.",
+    "details": [
+      "Trip type: Family",
+      "Rooms: 4",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Taylor Brooks",
+    "rating": 5,
+    "source": "Guest",
+    "date": "6 weeks ago",
+    "quote": "Perfect for a work and unwind week. Reliable Wi-Fi, easy check-in, and a calm neighborhood feel.",
+    "details": [
+      "Trip type: Business",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 4"
+    ]
+  },
+  {
+    "name": "Casey Nguyen",
+    "rating": 5,
+    "source": "Guest",
+    "date": "2 months ago",
+    "quote": "Loved the sunsets and the short walk to cafes. The space was spotless and exactly as pictured.",
+    "details": [
+      "Trip type: Vacation",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Sam Carter",
+    "rating": 4,
+    "source": "Guest",
+    "date": "3 months ago",
+    "quote": "Easy arrival and a smooth stay. The listing matched the photos and the area felt safe and walkable.",
+    "details": [
+      "Trip type: Friends",
+      "Rooms: 4",
+      "Service: 4",
+      "Location: 5"
+    ]
+  }
+]

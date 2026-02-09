@@ -5,6 +5,7 @@ import AntwerpLandingPage from "./AntwerpLandingPage";
 import LosAngelesLandingPage from "./LosAngelesLandingPage";
 import RedondoBeachLandingPage from "./RedondoBeachLandingPage";
 import DubaiLandingPage from "./DubaiLandingPage";
+import MiamiBeachLandingPage from "./MiamiBeachLandingPage";
 import ListingPage from "./ListingPage";
 import PrivacyPolicy from "./PrivacyPolicy";
 import TermsConditions from "./TermsConditions";
@@ -59,6 +60,10 @@ function App() {
             <Route path="/losangeles" element={<LosAngelesLandingPage />} />
             <Route path="/los-angeles/listing/:listingId" element={<LosAngelesLandingPage />} />
             <Route path="/losangeles/listing/:listingId" element={<LosAngelesLandingPage />} />
+            <Route path="/miami-beach" element={<MiamiBeachLandingPage />} />
+            <Route path="/miami" element={<MiamiBeachLandingPage />} />
+            <Route path="/miami-beach/listing/:listingId" element={<MiamiBeachLandingPage />} />
+            <Route path="/miami/listing/:listingId" element={<MiamiBeachLandingPage />} />
             <Route path="/redondo-beach" element={<RedondoBeachLandingPage />} />
             <Route path="/redondo-beach/listing/:listingId" element={<RedondoBeachLandingPage />} />
             <Route path="/dubai" element={<DubaiLandingPage />} />

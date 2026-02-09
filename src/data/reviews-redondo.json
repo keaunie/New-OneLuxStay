@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Jamie L",
+    "rating": 5,
+    "source": "Guest",
+    "date": "3 weeks ago",
+    "quote": "Steps from the pier and a calm, coastal vibe. The check-in was smooth and the space felt spotless.",
+    "details": [
+      "Trip type: Vacation",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Riley Chen",
+    "rating": 5,
+    "source": "Guest",
+    "date": "1 month ago",
+    "quote": "Loved the morning walks along the Strand. Quiet at night, great amenities, and responsive host team.",
+    "details": [
+      "Trip type: Couple",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Ava Ramirez",
+    "rating": 4,
+    "source": "Guest",
+    "date": "1 month ago",
+    "quote": "Comfortable stay near the harbor. The balcony view was a highlight and parking was easy.",
+    "details": [
+      "Trip type: Family",
+      "Rooms: 4",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Noah Patel",
+    "rating": 5,
+    "source": "Guest",
+    "date": "6 weeks ago",
+    "quote": "Great layout, reliable Wi-Fi, and a peaceful neighborhood feel. Would definitely return.",
+    "details": [
+      "Trip type: Business",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 4"
+    ]
+  },
+  {
+    "name": "Priya Shah",
+    "rating": 5,
+    "source": "Guest",
+    "date": "2 months ago",
+    "quote": "Sunset views, easy beach access, and a curated interior. Everything felt intentional and elevated.",
+    "details": [
+      "Trip type: Vacation",
+      "Rooms: 5",
+      "Service: 5",
+      "Location: 5"
+    ]
+  },
+  {
+    "name": "Ethan Brooks",
+    "rating": 4,
+    "source": "Guest",
+    "date": "3 months ago",
+    "quote": "Smooth arrival and clear instructions. The place matched the photos and the area felt safe and walkable.",
+    "details": [
+      "Trip type: Friends",
+      "Rooms: 4",
+      "Service: 4",
+      "Location: 5"
+    ]
+  }
+]

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
-import reviewsRedondo from "./data/reviews-redondo.json";
+import reviewsMiami from "./data/reviews-miami.json";
 import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
@@ -17,15 +17,15 @@ const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const CITY_LOADING_LOTTIE_SRC =
   "https://lottie.host/a5d4ff5c-b190-4293-8e82-9605dd09d4fb/W3GHTi7kL3.json";
-const PROPERTY_ADDRESS = "Redondo Beach, CA";
-const PROPERTY_COORDS = { lat: 33.8458, lng: -118.3884 };
+const PROPERTY_ADDRESS = "Brickell, Miami, FL";
+const PROPERTY_COORDS = { lat: 25.7617, lng: -80.1918 };
 const LANDMARKS = [
-  "Redondo Beach Pier",
-  "King Harbor",
-  "Riviera Village",
-  "Seaside Lagoon",
-  "The Strand",
-  "Palos Verdes"
+  "Brickell City Centre",
+  "Bayfront Park",
+  "Bayside Marketplace",
+  "Wynwood Walls",
+  "Design District",
+  "Kaseya Center",
 ];
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
@@ -87,7 +87,6 @@ const getTaxRateForListing = (listing = {}) => {
   if (locationText.includes("antwerp")) return 0.06;
   if (locationText.includes("miami")) return 0.145;
   if (locationText.includes("redondo")) return 0.145;
-  if (locationText.includes("los angeles")) return 0.145;
   if (state === "ca" || state.includes("california")) return 0.145;
   return 0;
 };
@@ -144,7 +143,7 @@ const formatRuleValue = (value) => {
   if (value === false) return "No";
   if (typeof value === "number") return `${value}`;
   if (typeof value === "string" && value.trim()) return value;
-  return "—";
+  return "\u2014";
 };
 
 const formatQuietHours = (quietHours) => {
@@ -932,34 +931,19 @@ const getQuotePricing = (quoteData, listing, nights) => {
 };
 
 const KNOWN_CITIES = [
-  "redondo beach",
-  "redondo",
-  "south bay",
-  "riviera village",
-  "riviera",
-  "esplanade",
-  "king harbor",
-  "hermosa beach",
-  "manhattan beach",
-  "palos verdes",
-  "torrance beach",
-];
-const EXCLUDED_CITIES = [
-  "los angeles",
-  "los-angeles",
-  "hollywood",
-  "west hollywood",
-  "downtown",
-  "dtla",
-  "chinatown",
-  "la plaza",
-  "broadway",
-  "union station",
   "miami",
-  "dubai",
-  "antwerp",
-  "antwerpen",
+  "downtown",
+  "brickell",
+  "wynwood",
+  "design district",
+  "edgewater",
+  "midtown",
+  "coconut grove",
+  "little havana",
+  "bayside",
+  "miami beach",
 ];
+const EXCLUDED_CITIES = ["los angeles", "redondo beach", "dubai", "antwerp", "antwerpen"];
 
 const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
@@ -981,7 +965,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
   return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
 };
 
-const BOOKING_STORAGE_KEY = "redondoBeachBookingFilters";
+const BOOKING_STORAGE_KEY = "miamiBookingFilters";
 const readPersistedBooking = () => {
   if (typeof window === "undefined") return null;
   try {
@@ -1027,7 +1011,7 @@ const formatAddress = (listing) => {
   const parts = [address.full, address.city, address.country].filter(Boolean);
   if (parts.length) return sanitizeText(parts.join(", "));
   if (typeof listing.location === "string") return sanitizeText(listing.location);
-  return "Redondo Beach";
+  return "Miami";
 };
 
 const getListingAddressQuery = (listing) => {
@@ -1256,7 +1240,7 @@ const getReviewLink = (listing) => {
   if (!listing) return "";
   const key = getBuildingKey(listing);
   if (GOOGLE_REVIEW_LINKS[key]) return GOOGLE_REVIEW_LINKS[key];
-  const title = sanitizeText(listing?.title || "OneLuxStay Redondo Beach");
+  const title = sanitizeText(listing?.title || "OneLuxStay Miami");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}`;
 };
 
@@ -1331,72 +1315,68 @@ const rangeLabel = (values, suffix = "") => {
 };
 
 const SECTION_STORIES = {
-  "redondo-pier": {
-    title: "Redondo Beach Pier",
-    tagline: "Harbor breezes, boardwalk rhythm, and a sunset that lingers.",
+  "miami-south-beach": {
+    title: "Brickell",
+    tagline: "Skyline living, bayfront walks, and a downtown pulse.",
     copy:
-      "Stay steps from the pier where marina walks, fresh seafood, and golden-hour light shape the pace. Everything feels easy, coastal, and unhurried.",
-    landmarks: ["Redondo Beach Pier", "King Harbor", "International Boardwalk", "Seaside Lagoon", "Veterans Park"],
-    transit: ["Beach Cities Transit", "South Bay bike path", "Harbor Dr routes"],
+      "Wake to glass towers and a city energy that stays refined. Brickell blends waterfront views with rooftop dining and walkable business hubs.",
+    landmarks: ["Brickell City Centre", "Mary Brickell Village", "Bayfront Park", "Biscayne Bay"],
+    transit: ["Metromover", "Metrorail", "Brickell Ave routes"],
   },
-  "redondo-riviera": {
-    title: "Riviera Village",
-    tagline: "Boutiques, cafe patios, and beach lanes in every direction.",
+  "miami-mid-beach": {
+    title: "Wynwood",
+    tagline: "Art walls, late coffee, and a creative city core.",
     copy:
-      "Riviera Village blends local boutiques with the calm of tree-lined streets. Walk the Esplanade at sunrise and return to a quiet coastal village at night.",
-    landmarks: ["Riviera Village", "El Retiro Park", "Esplanade", "Torrance Beach"],
-    transit: ["Beach Cities Transit", "Pacific Coast Hwy", "The Strand bike path"],
+      "Wynwood is alive with galleries, boutique cafes, and design-forward streets. It is a neighborhood that feels bold, colorful, and curated.",
+    landmarks: ["Wynwood Walls", "NW 2nd Ave", "The Shops at Midtown", "Design District"],
+    transit: ["Metrobus", "Ride shares", "Biking routes"],
   },
-  "south-bay": {
-    title: "South Bay",
-    tagline: "Coastal stretches, cliffside views, and long shoreline rides.",
+  "miami-north-beach": {
+    title: "Design District",
+    tagline: "Boutiques, modern galleries, and curated streets.",
     copy:
-      "Explore the South Bay from Hermosa to Palos Verdes. Ride The Strand, linger on pier towns, and finish each day with oceanfront views.",
-    landmarks: ["Hermosa Beach Pier", "Manhattan Beach", "The Strand", "Palos Verdes"],
-    transit: ["Metro C Line connections", "Ride shares", "Bike-friendly paths"],
+      "Spend the day between iconic brands, gallery stops, and a polished, walkable city scene just north of downtown.",
+    landmarks: ["Design District", "Institute of Contemporary Art", "Biscayne Blvd", "Edgewater"],
+    transit: ["Metrobus", "Biscayne Blvd routes", "Ride shares"],
   },
   other: {
-    title: "Redondo Beach",
-    tagline: "Easy coastal mornings and the Pacific at your pace.",
+    title: "Miami",
+    tagline: "City energy with a relaxed waterfront rhythm.",
     copy:
-      "A relaxed base for beach walks, marina sunsets, and South Bay exploration. Everything you want stays within a few easy minutes.",
-    landmarks: ["Redondo Beach Pier", "King Harbor", "Riviera Village"],
-    transit: ["Beach Cities Transit", "Pacific Coast Hwy", "Ride shares"],
+      "From downtown views to design districts, Miami keeps everything within reach. It is a stay built for pace, polish, and easy access.",
+    landmarks: ["Bayfront Park", "Bayside Marketplace", "Kaseya Center"],
+    transit: ["Metromover", "Metrobus", "Ride shares"],
   },
 };
 
 const BUILDING_GROUPS = [
-  {
-    key: "redondo-pier",
-    label: "Redondo Beach Pier",
-    match: /redondo beach pier|king harbor|pier|harbor|boardwalk/i,
-  },
-  {
-    key: "redondo-riviera",
-    label: "Riviera Village",
-    match: /riviera village|riviera|esplanade|torrance beach/i,
-  },
-  { key: "south-bay", label: "South Bay", match: /south bay|hermosa|manhattan|palos verdes/i },
+  { key: "miami-south-beach", label: "Brickell", match: /brickell|downtown|bayfront|biscayne/ },
+  { key: "miami-mid-beach", label: "Wynwood", match: /wynwood|midtown|arts district|design district/ },
+  { key: "miami-north-beach", label: "Design District", match: /design district|edgewater|biscayne blvd|ica/ },
 ];
 
 const STAR_TOTAL = 5;
-const REVIEW_TICKER = [...reviewsRedondo];
+const REVIEW_TICKER = [...reviewsMiami];
 const SECTION_REVIEWS = {
-  "redondo-pier": reviewsRedondo,
-  "redondo-riviera": reviewsRedondo,
-  "south-bay": reviewsRedondo,
-  other: reviewsRedondo,
+  "miami-south-beach": reviewsMiami,
+  "miami-mid-beach": reviewsMiami,
+  "miami-north-beach": reviewsMiami,
+  other: reviewsMiami,
 };
-const GOOGLE_REVIEW_LINKS = {};
-const REDONDO_FACILITIES = [
-  "Beachfront access",
+const GOOGLE_REVIEW_LINKS = {
+  "miami-south-beach": "",
+  "miami-mid-beach": "",
+  "miami-north-beach": "",
+};
+const MIAMI_FACILITIES = [
+  "Rooftop lounge",
   "Outdoor pool",
-  "Free parking",
+  "Fitness studio",
   "Free Wi-Fi",
   "Air conditioning",
-  "Family rooms",
+  "Workspace",
   "Non-smoking rooms",
-  "Private balcony",
+  "Elevator access",
   "Washer / dryer",
   "Coffee maker",
 ];
@@ -1497,7 +1477,7 @@ const getListingText = (listing) => {
     .toLowerCase();
 };
 
-const isRedondoListing = (listing) => {
+const isMiamiListing = (listing) => {
   const cityText = [listing.city, listing.address?.city, listing.location]
     .filter(Boolean)
     .join(" ")
@@ -1522,14 +1502,14 @@ const getBuildingKey = (listing) => {
 const resolveGroupTitle = (listing) => {
   const key = getBuildingKey(listing);
   switch (key) {
-    case "redondo-pier":
-      return "One Lux Stay Redondo Beach Pier";
-    case "redondo-riviera":
-      return "One Lux Stay Riviera Village";
-    case "south-bay":
-      return "One Lux Stay South Bay";
+    case "miami-south-beach":
+      return "One Lux Stay Brickell Collection";
+    case "miami-mid-beach":
+      return "One Lux Stay Wynwood Collection";
+    case "miami-north-beach":
+      return "One Lux Stay Design District Collection";
     default:
-      return "One Lux Stay Redondo Beach";
+      return "One Lux Stay Miami";
   }
 };
 
@@ -1547,78 +1527,96 @@ const getGroupStats = (listings) => {
 };
 
 const CITY_TOUR_SLIDES = {
-  "Redondo Beach": [
+  Brickell: [
     {
-      title: "Pier Welcome",
-      subtitle: "Salt air and harbor calm.",
+      title: "Brickell Arrival",
+      subtitle: "Skyline lines and bayfront light.",
       copy:
-        "Arrive to pier views and marina strolls. Sunset lands softly across the Pacific.",
-      highlights: ["Redondo Beach Pier", "King Harbor", "Seaside Lagoon"],
+        "Start with a concierge-ready arrival and a skyline view. Brickell sets the tone with modern towers, waterfront walks, and a refined pace.",
+      highlights: ["Brickell City Centre", "Bayfront Park", "Rooftop tables"],
       image:
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Harbor Glow",
-      subtitle: "Boardwalk rhythm and oceanfront light.",
+      title: "Midday Reset",
+      subtitle: "Cafes, galleries, and a calm city flow.",
       copy:
-        "Spend the afternoon along the International Boardwalk, then linger for a calm, coastal evening.",
-      highlights: ["International Boardwalk", "Veterans Park", "Marina views"],
-      image:
-        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Golden Hour",
-      subtitle: "The Strand at sunset.",
-      copy:
-        "Bike the Strand, grab a late dinner, and return as the shoreline glows.",
-      highlights: ["The Strand", "Oceanfront dining", "Sunset rides"],
-      image:
-        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
-    },
-  ],
-  "Riviera Village": [
-    {
-      title: "Village Mornings",
-      subtitle: "Cafe patios and boutique strolls.",
-      copy:
-        "Start in Riviera Village for coastal cafés, local shops, and a slow walk toward the Esplanade.",
-      highlights: ["Riviera Village", "Boutiques", "Esplanade"],
+        "Pause for an easy lunch, a short gallery stop, and a quiet return to the bay.",
+      highlights: ["Mary Brickell Village", "Metromover", "Biscayne Bay"],
       image:
         "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
     },
     {
-      title: "Torrance Beach",
-      subtitle: "Quiet sands and open water.",
+      title: "After Dark",
+      subtitle: "Rooftop glow and late reservations.",
       copy:
-        "A calm afternoon at Torrance Beach with easy access back to your stay.",
-      highlights: ["Torrance Beach", "Cliffside views", "Coastal paths"],
-      image:
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
-    },
-  ],
-  "South Bay": [
-    {
-      title: "Strand Ride",
-      subtitle: "Hermosa to Manhattan Beach.",
-      copy:
-        "Cruise The Strand with stops at pier towns, local cafés, and oceanfront views.",
-      highlights: ["Hermosa Pier", "Manhattan Beach", "The Strand"],
+        "Let the concierge set the night with a reserved table and an easy ride back.",
+      highlights: ["Rooftop lounges", "Private transfers", "Downtown skyline"],
       image:
         "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
     },
+  ],
+  Wynwood: [
     {
-      title: "Palos Verdes Drive",
-      subtitle: "Cliffside turns and panoramic stops.",
+      title: "Wynwood Morning",
+      subtitle: "Art walls and neighborhood energy.",
       copy:
-        "End the day with a scenic drive and a quiet dinner overlooking the Pacific.",
-      highlights: ["Palos Verdes", "Cliffside overlooks", "Sunset views"],
+        "Start with a curated stroll through galleries and murals before a slow cafe stop.",
+      highlights: ["Wynwood Walls", "NW 2nd Ave", "Local cafes"],
+      image:
+        "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Design Run",
+      subtitle: "Boutiques, studios, and curated stops.",
+      copy:
+        "Spend the afternoon between design shops and a relaxed lunch in the arts district.",
+      highlights: ["Design District", "Midtown", "Gallery visits"],
       image:
         "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Evening Flow",
+      subtitle: "Dinner and a soft city glow.",
+      copy:
+        "Close the day with a quiet dinner and a smooth return to your stay.",
+      highlights: ["Local dining", "Concierge on call", "Ride share"],
+      image:
+        "https://images.unsplash.com/photo-1611860565869-7e40176e3052?q=80&w=735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    },
+  ],
+  "Design District": [
+    {
+      title: "Design District Arrival",
+      subtitle: "Curated streets and modern galleries.",
+      copy:
+        "Begin with iconic boutiques and a gallery walk before a relaxed lunch.",
+      highlights: ["Design District", "ICA Miami", "Biscayne Blvd"],
+      image:
+        "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Edgewater Views",
+      subtitle: "Bayfront calm and open light.",
+      copy:
+        "Reset with a waterfront walk and a quiet afternoon back at your residence.",
+      highlights: ["Edgewater", "Bayfront Park", "Waterfront views"],
+      image:
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+    },
+    {
+      title: "Nightfall",
+      subtitle: "A polished finish to the day.",
+      copy:
+        "Close with a reservation set by the concierge and an easy ride home.",
+      highlights: ["Fine dining", "Concierge service", "City glow"],
+      image:
+        "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
   ],
 };
 
-const TOUR_CITIES = ["Redondo Beach", "Riviera Village", "South Bay"];
+const TOUR_CITIES = ["Brickell", "Wynwood", "Design District"];
 
 
 const getFirstSentence = (text) => {
@@ -1639,7 +1637,7 @@ const formatFullDescription = (listing) => {
   return fallback.length ? `Details: ${fallback.join(" | ")}` : "No description available.";
 };
 
-export default function RedondoBeachLandingPage() {
+export default function MiamiBeachLandingPage() {
   const { listingId: routeListingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1695,6 +1693,8 @@ export default function RedondoBeachLandingPage() {
   });
   const [checkoutGuestError, setCheckoutGuestError] = useState("");
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
+  const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
+  const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
@@ -1742,7 +1742,7 @@ export default function RedondoBeachLandingPage() {
   const sectionCalendarDaysRef = useRef({});
   const [isSectionCalendarOpen, setIsSectionCalendarOpen] = useState(false);
   const sectionCalendarInflightRef = useRef({});
-  const [tourCity, setTourCity] = useState("Redondo Beach");
+  const [tourCity, setTourCity] = useState("Brickell");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
@@ -1757,6 +1757,8 @@ export default function RedondoBeachLandingPage() {
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const panOriginRef = useRef({ x: 0, y: 0 });
+  const checkoutSignatureCanvasRef = useRef(null);
+  const isSigningRef = useRef(false);
   const listingMapRef = useRef(null);
   const listingMapInstanceRef = useRef(null);
   const listingMapMarkerRef = useRef(null);
@@ -1775,7 +1777,7 @@ export default function RedondoBeachLandingPage() {
   const geocodeCacheRef = useRef(new Map());
   const geocodeInFlightRef = useRef(new Set());
   const mapLoadedRef = useRef(false);
-  const redondoBeachListingsRef = useRef([]);
+  const miamiBeachListingsRef = useRef([]);
   const [isMapEnabled, setIsMapEnabled] = useState(false);
   const [mapError, setMapError] = useState("");
 
@@ -1812,7 +1814,7 @@ export default function RedondoBeachLandingPage() {
 
   useEffect(() => {
     if (!activeListing || !isListingCalendarOpen) return;
-    const listingId = getCalendarListingId(activeListing, redondoBeachListings);
+    const listingId = getCalendarListingId(activeListing, miamiBeachListings);
     if (!listingId) return;
     const monthBase = new Date(calendarStartDate);
     monthBase.setMonth(monthBase.getMonth() + calendarMonthIndex);
@@ -1873,17 +1875,14 @@ export default function RedondoBeachLandingPage() {
   const handleThumbsMove = (event, targetRef) => {
     const target = targetRef?.current || event.currentTarget;
     if (!target) {
-      console.log("[Thumbs] no target for hover scroll");
       return;
     }
     const rect = target.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const edge = rect.width * 0.35;
     if (x < edge) {
-      console.log("[Thumbs] hover left edge");
       startAutoScroll(target, -1);
     } else if (x > rect.width - edge) {
-      console.log("[Thumbs] hover right edge");
       startAutoScroll(target, 1);
     } else {
       stopAutoScroll();
@@ -2090,6 +2089,17 @@ export default function RedondoBeachLandingPage() {
   }, [isCheckoutGuestOpen]);
 
   useEffect(() => {
+    if (!isCheckoutGuestOpen) return;
+    requestAnimationFrame(() => {
+      const canvas = checkoutSignatureCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      setCheckoutConsentSignatureDataUrl("");
+    });
+  }, [isCheckoutGuestOpen]);
+
+  useEffect(() => {
     let active = true;
     const load = async () => {
       try {
@@ -2153,9 +2163,9 @@ export default function RedondoBeachLandingPage() {
     const targetId = "66e1e3875a1f6300d736f28e";
     const match = listings.find((listing) => (listing.id || listing._id) === targetId);
     if (match) {
-      console.log("[Redondo debug] listing match", match);
+      console.log("[Miami debug] listing match", match);
     } else {
-      console.log("[Redondo debug] listing not found for id", targetId);
+      console.log("[Miami debug] listing not found for id", targetId);
     }
   }, [listings]);
 
@@ -2234,12 +2244,12 @@ export default function RedondoBeachLandingPage() {
               );
             });
 
-            if (redondoBeachListingsRef.current.length) {
-              syncListingMarkers(redondoBeachListingsRef.current);
+            if (miamiBeachListingsRef.current.length) {
+              syncListingMarkers(miamiBeachListingsRef.current);
             }
 
             maps.event.addListener(map, "zoom_changed", () => {
-              syncListingMarkers(redondoBeachListingsRef.current, { fitBounds: false });
+              syncListingMarkers(miamiBeachListingsRef.current, { fitBounds: false });
             });
           })
           .catch((err) => {
@@ -2254,22 +2264,22 @@ export default function RedondoBeachLandingPage() {
     return () => observer.disconnect();
   }, [isMapEnabled, mapsApiKey]);
 
-  const redondoBeachListings = useMemo(() => {
+  const miamiBeachListings = useMemo(() => {
     return listings.filter((listing) => {
-      return isRedondoListing(listing);
+      return isMiamiListing(listing);
     });
   }, [listings, isMapEnabled, mapsApiKey]);
 
-  const redondoBeachParentListings = useMemo(() => {
-    if (!redondoBeachListings.length) return [];
-    const parentGroups = groupListingsByParent(redondoBeachListings);
+  const miamiBeachParentListings = useMemo(() => {
+    if (!miamiBeachListings.length) return [];
+    const parentGroups = groupListingsByParent(miamiBeachListings);
     return Object.values(parentGroups)
       .map((group) => group.parent || group.children?.[0])
       .filter(Boolean);
-  }, [redondoBeachListings]);
+  }, [miamiBeachListings]);
 
   const syncListingMarkers = (
-    listingsToUse = redondoBeachListingsRef.current,
+    listingsToUse = miamiBeachListingsRef.current,
     { fitBounds = true } = {}
   ) => {
     const maps = mapsApiRef.current;
@@ -2319,9 +2329,9 @@ export default function RedondoBeachLandingPage() {
     const addToCluster = (coords, listing) => {
       const groupKey = getBuildingKey(listing);
       const groupOffsets = {
-        "redondo-pier": { lat: 0.0012, lng: 0.0 },
-        "redondo-riviera": { lat: -0.0012, lng: 0.0 },
-        "south-bay": { lat: 0.0, lng: 0.0012 },
+        "miami-south-beach": { lat: 0.0012, lng: 0.0 },
+        "miami-mid-beach": { lat: -0.0012, lng: 0.0 },
+        "miami-north-beach": { lat: 0.0, lng: 0.0012 },
         other: { lat: 0.0, lng: -0.0012 },
       };
       const offset = groupOffsets[groupKey] || groupOffsets.other;
@@ -2434,9 +2444,9 @@ export default function RedondoBeachLandingPage() {
   };
 
   useEffect(() => {
-    redondoBeachListingsRef.current = redondoBeachListings;
-    syncListingMarkers(redondoBeachListings);
-  }, [redondoBeachListings]);
+    miamiBeachListingsRef.current = miamiBeachListings;
+    syncListingMarkers(miamiBeachListings);
+  }, [miamiBeachListings]);
 
   const groupedListingsAll = useMemo(() => {
     const groups = BUILDING_GROUPS.reduce((acc, group) => {
@@ -2444,7 +2454,7 @@ export default function RedondoBeachLandingPage() {
       return acc;
     }, {});
     const other = [];
-    redondoBeachListings.forEach((listing) => {
+    miamiBeachListings.forEach((listing) => {
       const key = getBuildingKey(listing);
       if (groups[key]) groups[key].listings.push(listing);
       else other.push(listing);
@@ -2455,10 +2465,10 @@ export default function RedondoBeachLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Redondo Beach", listings: other });
+      ordered.push({ key: "other", label: "Miami", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
-  }, [redondoBeachListings]);
+  }, [miamiBeachListings]);
 
   const groupedListingsDisplay = useMemo(() => {
     const groups = BUILDING_GROUPS.reduce((acc, group) => {
@@ -2466,7 +2476,7 @@ export default function RedondoBeachLandingPage() {
       return acc;
     }, {});
     const other = [];
-    redondoBeachParentListings.forEach((listing) => {
+    miamiBeachParentListings.forEach((listing) => {
       const key = getBuildingKey(listing);
       if (groups[key]) groups[key].listings.push(listing);
       else other.push(listing);
@@ -2477,10 +2487,10 @@ export default function RedondoBeachLandingPage() {
       listings: groups[group.key].listings,
     }));
     if (other.length) {
-      ordered.push({ key: "other", label: "Redondo Beach", listings: other });
+      ordered.push({ key: "other", label: "Miami", listings: other });
     }
     return ordered.filter((group) => group.listings.length);
-  }, [redondoBeachParentListings]);
+  }, [miamiBeachParentListings]);
 
   const sectionsByKey = useMemo(() => {
     return groupedListingsAll.reduce((acc, group) => {
@@ -2499,8 +2509,8 @@ export default function RedondoBeachLandingPage() {
   };
   const listingMinNightsFallback = useMemo(() => {
     if (typeof calendarMinNightsOverride === "number") return calendarMinNightsOverride;
-    return getListingMinNightsWithParent(activeListing, redondoBeachListings);
-  }, [calendarMinNightsOverride, activeListing, redondoBeachListings]);
+    return getListingMinNightsWithParent(activeListing, miamiBeachListings);
+  }, [calendarMinNightsOverride, activeListing, miamiBeachListings]);
   const sectionMinNightsFallback = useMemo(() => {
     if (!activeSection?.listings?.length) return null;
     const values = activeSection.listings
@@ -2798,7 +2808,7 @@ export default function RedondoBeachLandingPage() {
     baseDate.setHours(0, 0, 0, 0);
     setCalendarStartDate(baseDate);
     setCalendarMonthIndex(0);
-    const listingId = getCalendarListingId(activeListing, redondoBeachListings);
+    const listingId = getCalendarListingId(activeListing, miamiBeachListings);
     if (!listingId) return;
     fetchCalendarMonth(
       listingId,
@@ -3016,7 +3026,7 @@ export default function RedondoBeachLandingPage() {
         if (!activeListing) return [];
         const groupKey = getListingGroupKey(activeListing);
         if (!groupKey) return [activeListing];
-        return redondoBeachListings.filter((listing) => getListingGroupKey(listing) === groupKey);
+        return miamiBeachListings.filter((listing) => getListingGroupKey(listing) === groupKey);
       })();
       const childIds = listingPool
         .filter((listing) => isChildListing(listing))
@@ -3210,7 +3220,16 @@ export default function RedondoBeachLandingPage() {
     }
   };
 
-  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency, guest, breakdown }) => {
+  const handleSectionCheckout = async ({
+    listingId,
+    listingTitle,
+    amount,
+    currency,
+    guest,
+    breakdown,
+    consentSignerName,
+    consentSignatureDataUrl,
+  }) => {
     if (!listingId) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
@@ -3238,6 +3257,8 @@ export default function RedondoBeachLandingPage() {
           currency,
           breakdown,
           guest,
+          consentSignerName,
+          consentSignatureDataUrl,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -3259,6 +3280,14 @@ export default function RedondoBeachLandingPage() {
       setCheckoutGuestError("Add guest name and email to continue.");
       return;
     }
+    if (!checkoutConsentSignerName.trim()) {
+      setCheckoutGuestError("Please add the signer full name.");
+      return;
+    }
+    if (!checkoutConsentSignatureDataUrl) {
+      setCheckoutGuestError("Please provide a signature.");
+      return;
+    }
     if (!pendingCheckout) {
       setIsCheckoutGuestOpen(false);
       return;
@@ -3266,14 +3295,18 @@ export default function RedondoBeachLandingPage() {
     setCheckoutGuestError("");
     setIsCheckoutGuestOpen(false);
     const consentText =
-      "By continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt will be emailed to you";
+      "By signing and continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt and consent proof PDF will be emailed to you";
     const payload = {
       ...pendingCheckout,
       guest: checkoutGuest,
       consentText,
       consentAcceptedAt: new Date().toISOString(),
+      consentSignerName: checkoutConsentSignerName.trim(),
+      consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
     };
     setCheckoutConsentAccepted(false);
+    setCheckoutConsentSignerName("");
+    setCheckoutConsentSignatureDataUrl("");
     setCheckoutStep(1);
     setPendingCheckout(null);
     handleSectionCheckout(payload);
@@ -3283,6 +3316,64 @@ export default function RedondoBeachLandingPage() {
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim()
   );
   const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
+
+  const getSignaturePoint = (event) => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const source = event.touches?.[0] || event;
+    if (!source) return null;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    return {
+      x: (source.clientX - rect.left) * scaleX,
+      y: (source.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startSignatureDraw = (event) => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getSignaturePoint(event);
+    if (!point) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#3f3326";
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    isSigningRef.current = true;
+    event.preventDefault();
+  };
+
+  const drawSignature = (event) => {
+    if (!isSigningRef.current) return;
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getSignaturePoint(event);
+    if (!point) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    setCheckoutConsentSignatureDataUrl(canvas.toDataURL("image/png"));
+    event.preventDefault();
+  };
+
+  const endSignatureDraw = () => {
+    if (!isSigningRef.current) return;
+    isSigningRef.current = false;
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    setCheckoutConsentSignatureDataUrl(canvas.toDataURL("image/png"));
+  };
+
+  const clearSignature = () => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setCheckoutConsentSignatureDataUrl("");
+  };
 
   const handleGuestInputChange = (field) => (event) => {
     const { value } = event.target;
@@ -3317,7 +3408,7 @@ export default function RedondoBeachLandingPage() {
     const fallbackImages = heroImages.slice(0, 3);
     const featuredListings = featuredIds
       .map((id) =>
-        redondoBeachListings.find(
+        miamiBeachListings.find(
           (listing) => String(listing.id || listing._id || listing.unitTypeId || "") === id
         )
       )
@@ -3345,14 +3436,14 @@ export default function RedondoBeachLandingPage() {
         price: priceValue ? `From ${formatCurrency(priceValue, listing.currency)}` : "",
       };
     });
-  }, [heroImages, redondoBeachListings]);
+  }, [heroImages, miamiBeachListings]);
   const heroCards = useMemo(() => {
     if (!heroImages.length) return [];
     if (!bounceListings.length) {
       return heroImages.map((src, idx) => ({
         id: null,
         image: src,
-        title: `Redondo Beach stay ${idx + 1}`,
+        title: `Miami stay ${idx + 1}`,
       }));
     }
     return heroImages.map((src, idx) => {
@@ -3360,7 +3451,7 @@ export default function RedondoBeachLandingPage() {
       return {
         id: listing?.id ?? null,
         image: listing?.image || src,
-        title: listing?.title || `Redondo Beach stay ${idx + 1}`,
+        title: listing?.title || `Miami stay ${idx + 1}`,
       };
     });
   }, [heroImages, bounceListings]);
@@ -3368,13 +3459,13 @@ export default function RedondoBeachLandingPage() {
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
   const buildListingPath = (listingId) => {
-    if (!listingId) return "/redondo-beach";
+    if (!listingId) return "/los-angeles";
     const params = new URLSearchParams();
     if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
     if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
     if (sectionGuests) params.set("guests", sectionGuests);
     const query = params.toString();
-    return `/redondo-beach/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
+    return `/los-angeles/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
@@ -3405,14 +3496,14 @@ export default function RedondoBeachLandingPage() {
   };
 
   const stats = useMemo(() => {
-    const basePrices = redondoBeachParentListings.map((l) => l.basePrice);
-    const cleaningFees = redondoBeachParentListings.map((l) => l.cleaningFee);
-    const bedrooms = redondoBeachParentListings.map((l) => l.bedrooms);
-    const bathrooms = redondoBeachParentListings.map((l) => l.bathrooms);
-    const sleeps = redondoBeachParentListings.map((l) => l.accommodates);
-    const currencies = new Set(redondoBeachParentListings.map((l) => l.currency).filter(Boolean));
+    const basePrices = miamiBeachParentListings.map((l) => l.basePrice);
+    const cleaningFees = miamiBeachParentListings.map((l) => l.cleaningFee);
+    const bedrooms = miamiBeachParentListings.map((l) => l.bedrooms);
+    const bathrooms = miamiBeachParentListings.map((l) => l.bathrooms);
+    const sleeps = miamiBeachParentListings.map((l) => l.accommodates);
+    const currencies = new Set(miamiBeachParentListings.map((l) => l.currency).filter(Boolean));
     const propertyTypes = new Set(
-      redondoBeachParentListings
+      miamiBeachParentListings
         .map((l) => l.propertyType)
         .filter((value) => typeof value === "string" && value.trim())
     );
@@ -3420,7 +3511,7 @@ export default function RedondoBeachLandingPage() {
       propertyTypes.size === 1 ? [...propertyTypes][0] : propertyTypes.size ? "Multiple" : "--";
 
     return {
-      units: redondoBeachParentListings.length,
+      units: miamiBeachParentListings.length,
       nightly: rangeLabel(basePrices),
       cleaning: rangeLabel(cleaningFees),
       bedrooms: rangeLabel(bedrooms),
@@ -3429,9 +3520,9 @@ export default function RedondoBeachLandingPage() {
       currency: currencies.size === 1 ? [...currencies][0] : "Multiple",
       propertyTypeLabel,
     };
-  }, [redondoBeachParentListings]);
+  }, [miamiBeachParentListings]);
 
-  const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES["Redondo Beach"] || [];
+  const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES.Brickell || [];
   const tourCount = tourSlides.length;
   const activeTourSlide = tourSlides[tourIndex] || tourSlides[0] || {};
 
@@ -3586,16 +3677,16 @@ export default function RedondoBeachLandingPage() {
               setActiveListing(null);
               setActiveImageIndex(0);
               if (isListingRoute) {
-                navigate("/redondo-beach");
+                navigate("/los-angeles");
               }
             }}
           >
-            <span aria-hidden="true">‹</span>
+            <span aria-hidden="true">{"\u2039"}</span>
           </button>
         </div>
         <div className="la-listing-hero__intro">
           <div>
-            <p className="la-listing-hero__kicker">Redondo Beach private stay</p>
+            <p className="la-listing-hero__kicker">Miami private stay</p>
             <h3>{sanitizeText(activeListing.title)}</h3>
             <div className="la-unit-modal__chips">
               <span>Exceptional location</span>
@@ -3684,7 +3775,7 @@ export default function RedondoBeachLandingPage() {
           .filter((item) => typeof item === "string")
           ;
         const aboutText = formatFullDescription(activeListing);
-        const isRedondoPierUnit = getBuildingKey(activeListing) === "redondo-pier";
+        const isBrickellUnit = getBuildingKey(activeListing) === "miami-south-beach";
         const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
         const availability = listingId ? sectionAvailabilityMap[listingId] : null;
         const availabilityStatus = sectionAvailabilityActive
@@ -3810,7 +3901,7 @@ export default function RedondoBeachLandingPage() {
                       setSectionCheckOut(checkOut);
                     }}
                     onMonthChange={(nextMonth) => {
-                      const listingId = getCalendarListingId(activeListing, redondoBeachListings);
+                      const listingId = getCalendarListingId(activeListing, miamiBeachListings);
                       if (!listingId) return;
                       const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
                       setCalendarStartDate(monthStart);
@@ -3854,7 +3945,7 @@ export default function RedondoBeachLandingPage() {
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
-                <strong>OneLuxStay Redondo Beach</strong>
+                <strong>OneLuxStay Miami</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -3872,7 +3963,7 @@ export default function RedondoBeachLandingPage() {
               <div className="la-unit-modal__card la-unit-modal__price">
                 <span>From</span>
                 <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                <small>per night · taxes calculated at checkout</small>
+                <small>per night {"\u00b7"} taxes calculated at checkout</small>
                 {isListingAvailable ? (
                   <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
                     Reserve your dates
@@ -4007,9 +4098,29 @@ export default function RedondoBeachLandingPage() {
                     {(() => {
                       const availability = listingId ? sectionAvailabilityMap[listingId] : null;
                       if (availability === true) {
+                        const isReserving = sectionReserveLoadingId === listingId;
                         return (
-                          <button type="button" className="la-unit-modal__action-primary">
-                            Reserve
+                          <button
+                            type="button"
+                            className="la-unit-modal__action-primary"
+                            disabled={sectionAvailabilityLoading || isReserving}
+                            onClick={() => {
+                              setPendingCheckout({
+                                listingId,
+                                listingTitle: activeListing.title,
+                                amount: typeof totalPrice === "number" ? totalPrice : null,
+                                currency: priceCurrency,
+                                breakdown: breakdown || null,
+                              });
+                              setCheckoutStep(1);
+                              setCheckoutConsentAccepted(false);
+                              setCheckoutConsentSignerName("");
+                              setCheckoutConsentSignatureDataUrl("");
+                              setCheckoutGuestError("");
+                              setIsCheckoutGuestOpen(true);
+                            }}
+                          >
+                            {isReserving ? "Redirecting..." : "Reserve"}
                           </button>
                         );
                       }
@@ -4112,7 +4223,7 @@ export default function RedondoBeachLandingPage() {
                 {groupAmenities(activeListing.amenities).map((group) => (
                   <div key={group.key} className="la-facilities-group">
                     <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">✓</span>
+                      <span className="la-facilities-group__icon">{"\u2713"}</span>
                       <h5>{group.label}</h5>
                     </div>
                     <ul>
@@ -4147,7 +4258,7 @@ export default function RedondoBeachLandingPage() {
           const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
           const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
           if (houseRulesLoading && !rules) {
-            return <p>Loading house rules…</p>;
+            return <p>Loading house rules{"\u2026"}</p>;
           }
           if (houseRulesError && !rules) {
             return <p>{houseRulesError}</p>;
@@ -4487,6 +4598,212 @@ export default function RedondoBeachLandingPage() {
       )
     : null;
 
+  const checkoutGuestModal = isCheckoutGuestOpen ? (
+    <div
+      className="antwerp-modal__overlay la-checkout-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Guest details for checkout"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
+      }}
+    >
+      <div className="la-inquiry-modal" role="document">
+        <div className="la-inquiry-modal__header">
+          <div className="la-inquiry-modal__brand">
+            <img
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              className="la-inquiry-modal__logo"
+              onError={handleImageError}
+            />
+            <div>
+              <p className="la-inquiry-modal__kicker">Guest details</p>
+              <h3>Tell us who's booking</h3>
+              <p className="la-inquiry-modal__meta">We'll use this to create the reservation after payment.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="la-inquiry-modal__close"
+            onClick={() => setIsCheckoutGuestOpen(false)}
+          >
+            Close
+          </button>
+        </div>
+        <div className="la-inquiry-modal__body">
+          <Stepper
+            initialStep={1}
+            onStepChange={(step) => setCheckoutStep(step)}
+            onFinalStepCompleted={confirmGuestCheckout}
+            disableStepIndicators
+            nextButtonText="Next"
+            finalButtonText="Continue to payment"
+            nextButtonProps={{
+              disabled:
+                (checkoutStep === 1 && !isCheckoutGuestValid) ||
+                (checkoutStep === 2 &&
+                  (!checkoutConsentAccepted ||
+                    !checkoutConsentSignerName.trim() ||
+                    !checkoutConsentSignatureDataUrl)),
+            }}
+          >
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>First name</span>
+                  <input
+                    type="text"
+                    value={checkoutGuest.firstName}
+                    autoComplete="given-name"
+                    required
+                    autoFocus
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("firstName")}
+                  />
+                </label>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Last name</span>
+                  <input
+                    type="text"
+                    value={checkoutGuest.lastName}
+                    autoComplete="family-name"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("lastName")}
+                  />
+                </label>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={checkoutGuest.email}
+                    autoComplete="email"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("email")}
+                  />
+                </label>
+                <label className="la-inquiry-modal__field">
+                  <span>Phone (optional)</span>
+                  <input
+                    type="tel"
+                    value={checkoutGuest.phone}
+                    autoComplete="tel"
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("phone")}
+                  />
+                </label>
+                {checkoutGuestError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutGuestError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label className="la-inquiry-modal__consent">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConsentAccepted}
+                    onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                  />
+                  <span>
+                    By signing and continuing to payment, you authorize OneLuxStay to charge the
+                    total amount shown for your reservation. A receipt and consent proof PDF will
+                    be emailed to you.
+                  </span>
+                </label>
+                <label className="la-inquiry-modal__field">
+                  <span>Signer full name</span>
+                  <input
+                    type="text"
+                    value={checkoutConsentSignerName}
+                    autoComplete="name"
+                    placeholder="Type full legal name"
+                    onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
+                  />
+                </label>
+                <div className="la-inquiry-modal__signature">
+                  <span>Signature</span>
+                  <canvas
+                    ref={checkoutSignatureCanvasRef}
+                    width={560}
+                    height={150}
+                    className="la-inquiry-modal__signature-pad"
+                    onMouseDown={startSignatureDraw}
+                    onMouseMove={drawSignature}
+                    onMouseUp={endSignatureDraw}
+                    onMouseLeave={endSignatureDraw}
+                    onTouchStart={startSignatureDraw}
+                    onTouchMove={drawSignature}
+                    onTouchEnd={endSignatureDraw}
+                  />
+                  <button
+                    type="button"
+                    className="la-inquiry-modal__signature-clear"
+                    onClick={clearSignature}
+                  >
+                    Clear signature
+                  </button>
+                </div>
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <p className="la-inquiry-modal__fineprint">
+                  Review your details and continue to payment.
+                </p>
+                <div className="la-inquiry-modal__summary">
+                  <div>
+                    <strong>Name</strong>
+                    <span>
+                      {checkoutGuest.firstName} {checkoutGuest.lastName}
+                    </span>
+                  </div>
+                  <div>
+                    <strong>Email</strong>
+                    <span>{checkoutGuest.email}</span>
+                  </div>
+                  <div>
+                    <strong>Signed by</strong>
+                    <span>{checkoutConsentSignerName || "--"}</span>
+                  </div>
+                  {checkoutGuest.phone && (
+                    <div>
+                      <strong>Phone</strong>
+                      <span>{checkoutGuest.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Step>
+          </Stepper>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (isListingRoute) {
     return (
       <div className="antwerp-page has-silk">
@@ -4498,6 +4815,7 @@ export default function RedondoBeachLandingPage() {
         ) : (
           <LoadingScreen active lottieSrc={CITY_LOADING_LOTTIE_SRC} />
         )}
+        {checkoutGuestModal}
         {listingMapModal}
         {zoomModal}
         {tourModal}
@@ -4510,7 +4828,7 @@ export default function RedondoBeachLandingPage() {
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      {/* <section className="la-bounce-section" aria-label="Redondo Beach highlights">
+      {/* <section className="la-bounce-section" aria-label="Miami highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
             items={bounceListings}
@@ -4526,15 +4844,15 @@ export default function RedondoBeachLandingPage() {
           />
           <div className="la-bounce-section__content">
             <span className="la-bounce-section__kicker">Featured stays</span>
-            <h2 className="la-bounce-section__title">Redondo Beach moments in motion</h2>
+            <h2 className="la-bounce-section__title">Miami moments in motion</h2>
             <p className="la-bounce-section__lede">
               A quick visual pulse before you dive into neighborhoods, amenities, and live pricing.
             </p>
             <div className="la-bounce-section__actions">
-              <a className="la-bounce-section__cta" href="#redondo-beach-units">
+              <a className="la-bounce-section__cta" href="#los-angeles-units">
                 Explore units
               </a>
-              <a className="la-bounce-section__ghost" href="#redondo-city-tour">
+              <a className="la-bounce-section__ghost" href="#la-city-tour">
                 Browse tours
               </a>
             </div>
@@ -4543,17 +4861,17 @@ export default function RedondoBeachLandingPage() {
       </section> */}
       <header className="antwerp-hero">
         <div className="antwerp-hero__content">
-          <span className="antwerp-kicker">OneLuxStay / Redondo Beach, California</span>
-          <h1 className="antwerp-title">Redondo Beach collection</h1>
+          <span className="antwerp-kicker">OneLuxStay / Miami, Florida</span>
+          <h1 className="antwerp-title">Miami collection</h1>
           <p className="antwerp-lede">
             A curated landing page built directly from live listing data. Every detail below mirrors what is available
-            right now for Redondo Beach units.
+            right now for Miami units.
           </p>
           <div className="antwerp-hero__actions">
-            <a href="#redondo-city-tour" className="antwerp-cta">
+            <a href="#la-city-tour" className="antwerp-cta">
               Browse tours
             </a>
-            <a href="#redondo-beach-units" className="antwerp-ghost">
+            <a href="#los-angeles-units" className="antwerp-ghost">
               Explore units
             </a>
           </div>
@@ -4580,7 +4898,7 @@ export default function RedondoBeachLandingPage() {
                   </div>
                   <p>"{review.quote}"</p>
                   <span className="la-review-ticker__meta">
-                    {review.name} · {review.source}
+                    {review.name} {"\u00b7"} {review.source}
                   </span>
                 </article>
               ))}
@@ -4592,7 +4910,7 @@ export default function RedondoBeachLandingPage() {
                 onClick={() => scrollReviewCarousel(-1)}
                 aria-label="Previous review"
               >
-                ←
+                â†
               </button>
               <button
                 type="button"
@@ -4600,7 +4918,7 @@ export default function RedondoBeachLandingPage() {
                 onClick={() => scrollReviewCarousel(1)}
                 aria-label="Next review"
               >
-                →
+                â†’
               </button>
             </div>
           </div>
@@ -4670,7 +4988,7 @@ export default function RedondoBeachLandingPage() {
             </div>
           </div>
         </div>
-        <div className="antwerp-hero__carousel" aria-label="Redondo Beach hero images">
+        <div className="antwerp-hero__carousel" aria-label="Miami hero images">
           <div className="antwerp-hero__carousel-track" ref={heroCarouselRef}>
             {heroCards.length ? (
               heroCards.map((card, idx) => (
@@ -4690,7 +5008,7 @@ export default function RedondoBeachLandingPage() {
               ))
             ) : (
               <div className="antwerp-hero__carousel-card antwerp-hero__image--empty">
-                Redondo Beach imagery loading
+                Miami imagery loading
               </div>
             )}
           </div>
@@ -4716,7 +5034,7 @@ export default function RedondoBeachLandingPage() {
       </header>
 
       <main className="antwerp-main">
-        <section id="redondo-city-tour" className="la-city-tour" aria-label="Redondo Beach city tours">
+        <section id="la-city-tour" className="la-city-tour" aria-label="USA city tours">
           <div
             key={tourCity}
             className="la-city-tour__bg"
@@ -4802,13 +5120,13 @@ export default function RedondoBeachLandingPage() {
           </div>
         </section>
 
-        <section className="antwerp-section" id="redondo-beach-units">
+        <section className="antwerp-section" id="los-angeles-units">
           <div className="la-units-layout">
             <div className="la-units-main">
               <div className="antwerp-section__head">
                 <div>
                   <p className="antwerp-kicker">Available now</p>
-                  <h2>Redondo Beach buildings</h2>
+                  <h2>Miami buildings</h2>
                   <p className="antwerp-muted">
                     Every card below is derived from the live Guesty listing response, including pricing, capacity, and
                     amenities metadata.
@@ -4843,9 +5161,9 @@ export default function RedondoBeachLandingPage() {
                 </div>
               )}
 
-              {!loading && !error && redondoBeachParentListings.length === 0 && (
+              {!loading && !error && miamiBeachParentListings.length === 0 && (
                 <div className="antwerp-empty">
-                  No Redondo Beach listings are available in the current response.
+                  No Miami listings are available in the current response.
                 </div>
               )}
 
@@ -4873,14 +5191,14 @@ export default function RedondoBeachLandingPage() {
                   : null;
                 const sectionTitle = (() => {
                   switch (group.key) {
-                    case "redondo-pier":
-                      return "One Lux Stay Redondo Beach Pier";
-                    case "redondo-riviera":
-                      return "One Lux Stay Riviera Village";
-                    case "south-bay":
-                      return "One Lux Stay South Bay";
+                    case "miami-south-beach":
+                      return "One Lux Stay Brickell Collection";
+                    case "miami-mid-beach":
+                      return "One Lux Stay Wynwood Collection";
+                    case "miami-north-beach":
+                      return "One Lux Stay Design District Collection";
                     default:
-                      return "One Lux Stay Redondo Beach";
+                      return "One Lux Stay Miami";
                   }
                 })();
                 return (
@@ -4987,7 +5305,7 @@ export default function RedondoBeachLandingPage() {
                 <p className="antwerp-kicker">Neighborhood map</p>
                 <h3>Walkable highlights</h3>
                 <p className="antwerp-muted">
-                  See nearby landmarks and public transport around Redondo Beach.
+                  See nearby landmarks and public transport around Brickell.
                 </p>
                 {!isMapEnabled ? (
                   <div
@@ -5061,7 +5379,7 @@ export default function RedondoBeachLandingPage() {
                 ) : (
                   <div
                     ref={mapRef}
-                    aria-label="Google map showing Redondo Beach with nearby landmarks and public transport"
+                    aria-label="Google map showing Miami with nearby landmarks and public transport"
                     className="la-units-map"
                     style={{
                       width: "100%",
@@ -5094,14 +5412,14 @@ export default function RedondoBeachLandingPage() {
                 <p className="la-section-modal__tag">Available now</p>
                 <h3>{(() => {
                   switch (activeSection.key) {
-                    case "redondo-pier":
-                      return "One Lux Stay Redondo Beach Pier";
-                    case "redondo-riviera":
-                      return "One Lux Stay Riviera Village";
-                    case "south-bay":
-                      return "One Lux Stay South Bay";
+                    case "miami-south-beach":
+                      return "One Lux Stay Brickell Collection";
+                    case "miami-mid-beach":
+                      return "One Lux Stay Wynwood Collection";
+                    case "miami-north-beach":
+                      return "One Lux Stay Design District Collection";
                     case "other":
-                      return "Redondo Beach";
+                      return "One Lux Stay Miami";
                     default:
                       return `One Lux Stay ${activeSection.label}`;
                   }
@@ -5162,8 +5480,8 @@ export default function RedondoBeachLandingPage() {
               });
               const facilityList = [...new Set(amenityPool.filter((item) => typeof item === "string"))].slice(0, 8);
               const facilities =
-                activeSection.key === "redondo-pier"
-                  ? REDONDO_FACILITIES
+                activeSection.key === "miami-south-beach"
+                  ? MIAMI_FACILITIES
                   : facilityList.length
                     ? facilityList
                     : ["Wi-Fi", "Kitchen", "Washer"];
@@ -5260,7 +5578,7 @@ export default function RedondoBeachLandingPage() {
                   <aside className="la-section-hero__aside">
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
-                      <strong>OneLuxStay Redondo Beach</strong>
+                      <strong>OneLuxStay Miami</strong>
                       <a href="tel:+12138663589">+1 213 866 3589</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -5369,10 +5687,10 @@ export default function RedondoBeachLandingPage() {
               const listingPool = activeSection?.listings?.length
                 ? activeSection.listings
                 : activeListing
-                  ? redondoBeachListings.filter(
+                  ? miamiBeachListings.filter(
                     (listing) => getListingGroupKey(listing) === getListingGroupKey(activeListing)
                   ).length
-                    ? redondoBeachListings.filter(
+                    ? miamiBeachListings.filter(
                       (listing) => getListingGroupKey(listing) === getListingGroupKey(activeListing)
                     )
                     : [activeListing]
@@ -5527,7 +5845,7 @@ export default function RedondoBeachLandingPage() {
                     return listingsToRender.map((listing, index) => {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
-                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/redondo-beach";
+                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/los-angeles";
                       const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
@@ -5665,7 +5983,7 @@ export default function RedondoBeachLandingPage() {
                               ) : isUnavailable ? (
                                 <>
                                   <strong>Inquire for exact pricing</strong>
-                                  <span>We’ll confirm rates & availability.</span>
+                                  <span>We'll confirm rates & availability.</span>
                                 </>
                               ) : (
                                 <>
@@ -5791,26 +6109,19 @@ export default function RedondoBeachLandingPage() {
                                   className="la-booking-table__reserve"
                                   disabled={isLoadingRates || isReserving}
                                   onClick={() => {
-                                    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
-                                      setPendingCheckout({
-                                        listingId: checkoutListingId,
-                                        listingTitle: listing.title,
-                                        amount: typeof total === "number" ? total : null,
-                                        currency: priceCurrency,
-                                        breakdown: selectedPlan?.breakdown || null,
-                                      });
-                                      setCheckoutGuestError("");
-                                      setIsCheckoutGuestOpen(true);
-                                      return;
-                                    }
-                                    handleSectionCheckout({
+                                    setPendingCheckout({
                                       listingId: checkoutListingId,
                                       listingTitle: listing.title,
                                       amount: typeof total === "number" ? total : null,
                                       currency: priceCurrency,
                                       breakdown: selectedPlan?.breakdown || null,
-                                      guest: checkoutGuest,
                                     });
+                                    setCheckoutStep(1);
+                                    setCheckoutConsentAccepted(false);
+                                    setCheckoutConsentSignerName("");
+                                    setCheckoutConsentSignatureDataUrl("");
+                                    setCheckoutGuestError("");
+                                    setIsCheckoutGuestOpen(true);
                                   }}
                                 >
                                   {isReserving ? "Redirecting..." : "Reserve"}
@@ -5888,170 +6199,7 @@ export default function RedondoBeachLandingPage() {
         </div>
       )}
 
-      {isCheckoutGuestOpen && (
-        <div
-          className="antwerp-modal__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Guest details for checkout"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us who’s booking</h3>
-                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsCheckoutGuestOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <Stepper
-                initialStep={1}
-                onStepChange={(step) => setCheckoutStep(step)}
-                onFinalStepCompleted={confirmGuestCheckout}
-                disableStepIndicators
-                nextButtonText="Next"
-                finalButtonText="Continue to payment"
-                nextButtonProps={{
-                  disabled:
-                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 && !checkoutConsentAccepted),
-                }}
-              >
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>First name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.firstName}
-                        autoComplete="given-name"
-                        required
-                        autoFocus
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("firstName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Last name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.lastName}
-                        autoComplete="family-name"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("lastName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Email</span>
-                      <input
-                        type="email"
-                        value={checkoutGuest.email}
-                        autoComplete="email"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("email")}
-                      />
-                    </label>
-                    <label className="la-inquiry-modal__field">
-                      <span>Phone (optional)</span>
-                      <input
-                        type="tel"
-                        value={checkoutGuest.phone}
-                        autoComplete="tel"
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("phone")}
-                      />
-                    </label>
-                    {checkoutGuestError && (
-                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
-                        {checkoutGuestError}
-                      </p>
-                    )}
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label className="la-inquiry-modal__consent">
-                      <input
-                        type="checkbox"
-                        checked={checkoutConsentAccepted}
-                        onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
-                      />
-                      <span>
-                        By continuing to payment, you authorize OneLuxStay to charge the total amount
-                        shown for your reservation. A receipt will be emailed to you.
-                      </span>
-                    </label>
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <p className="la-inquiry-modal__fineprint">
-                      Review your details and continue to payment.
-                    </p>
-                    <div className="la-inquiry-modal__summary">
-                      <div>
-                        <strong>Name</strong>
-                        <span>
-                          {checkoutGuest.firstName} {checkoutGuest.lastName}
-                        </span>
-                      </div>
-                      <div>
-                        <strong>Email</strong>
-                        <span>{checkoutGuest.email}</span>
-                      </div>
-                      {checkoutGuest.phone && (
-                        <div>
-                          <strong>Phone</strong>
-                          <span>{checkoutGuest.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Step>
-              </Stepper>
-            </div>
-          </div>
-        </div>
-      )}
+      {checkoutGuestModal}
 
       {activeListing && !isListingRoute && (
         <div
@@ -6068,7 +6216,7 @@ export default function RedondoBeachLandingPage() {
                   setActiveListing(null);
                   setActiveImageIndex(0);
                   if (isListingRoute) {
-                    navigate("/redondo-beach");
+                    navigate("/los-angeles");
                   }
                 }}
               >
@@ -6076,7 +6224,7 @@ export default function RedondoBeachLandingPage() {
               </button>
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
-                <strong>OneLuxStay Redondo Beach</strong>
+                <strong>OneLuxStay Miami</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
@@ -6179,9 +6327,9 @@ export default function RedondoBeachLandingPage() {
                 : [];
               const amenityList = [...new Set(amenityListRaw.filter((item) => typeof item === "string"))];
               const aboutText = formatFullDescription(activeListing);
-              const isRedondoPierUnit = getBuildingKey(activeListing) === "redondo-pier";
-              const popularFacilities = isRedondoPierUnit
-                ? REDONDO_FACILITIES
+              const isBrickellUnit = getBuildingKey(activeListing) === "miami-south-beach";
+              const popularFacilities = isBrickellUnit
+                ? MIAMI_FACILITIES
                 : (activeAmenityList.slice(0, 6).length
                   ? activeAmenityList.slice(0, 6)
                   : ["Wi-Fi", "Kitchen", "Washer"]);
@@ -6400,26 +6548,19 @@ export default function RedondoBeachLandingPage() {
                                 className="la-unit-modal__action-primary"
                                 disabled={sectionAvailabilityLoading || isReserving}
                                 onClick={() => {
-                                  if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
-                                    setPendingCheckout({
-                                      listingId,
-                                      listingTitle: activeListing.title,
-                                      amount: typeof totalPrice === "number" ? totalPrice : null,
-                                      currency: priceCurrency,
-                                      breakdown: breakdown || null,
-                                    });
-                                    setCheckoutGuestError("");
-                                    setIsCheckoutGuestOpen(true);
-                                    return;
-                                  }
-                                  handleSectionCheckout({
+                                  setPendingCheckout({
                                     listingId,
                                     listingTitle: activeListing.title,
                                     amount: typeof totalPrice === "number" ? totalPrice : null,
                                     currency: priceCurrency,
                                     breakdown: breakdown || null,
-                                    guest: checkoutGuest,
                                   });
+                                  setCheckoutStep(1);
+                                  setCheckoutConsentAccepted(false);
+                                  setCheckoutConsentSignerName("");
+                                  setCheckoutConsentSignatureDataUrl("");
+                                  setCheckoutGuestError("");
+                                  setIsCheckoutGuestOpen(true);
                                 }}
                               >
                                 {isReserving ? "Redirecting..." : "Reserve"}
@@ -6498,7 +6639,7 @@ export default function RedondoBeachLandingPage() {
                       disabled={calendarMonthIndex <= 0}
                       aria-label="Previous month"
                     >
-                      ←
+                      â†
                     </button>
                     <span className="la-price-calendar__label">
                       {calendarCurrentMonth.toLocaleDateString(undefined, {
@@ -6517,7 +6658,7 @@ export default function RedondoBeachLandingPage() {
                       disabled={calendarMonthIndex >= (calendarPrices?.months || 24) - 1}
                       aria-label="Next month"
                     >
-                      →
+                      â†’
                     </button>
                   </div>
                 </div>
@@ -6660,3 +6801,7 @@ export default function RedondoBeachLandingPage() {
     </div>
   );
 }
+
+
+
+
