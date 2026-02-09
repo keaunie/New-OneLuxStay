@@ -945,6 +945,7 @@ const KNOWN_CITIES = [
   "la plaza",
   "broadway",
   "union station",
+  "hwh",
 ];
 const EXCLUDED_CITIES = ["redondo beach", "miami", "dubai", "antwerp", "antwerpen"];
 
@@ -1472,6 +1473,7 @@ const getListingText = (listing) => {
   const desc = formatDescription(listing.publicDescription);
   return [
     listing.title,
+    listing.nickname,
     listing.propertyType,
     listing.roomType,
     listing.address?.full,
@@ -5546,7 +5548,10 @@ export default function LosAngelesLandingPage() {
                 })()}</h3>
                 <p className="la-section-modal__subtitle">
                   {(() => {
-                    const parentGroups = groupListingsByParent(activeSection.listings);
+                    const sourceList = sectionAvailabilityActive
+                      ? sectionAvailability
+                      : activeSection.listings;
+                    const parentGroups = groupListingsByParent(sourceList);
                     const parentCount = Object.values(parentGroups).filter(
                       (group) => group.parent || group.children?.length
                     ).length;

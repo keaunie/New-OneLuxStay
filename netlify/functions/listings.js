@@ -192,6 +192,66 @@ const extractBedDetails = (listing) => {
     return details;
 };
 
+const LISTING_FIELDS =
+    "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId";
+
+const normalizeListing = (listing) => {
+    if (!listing) return null;
+    const bedDetails = extractBedDetails(listing);
+    const bedType = listing.bedType || bedDetails[0] || null;
+    return { ...listing, bedType, bedDetails };
+};
+
+const getListingId = (listing) =>
+    listing?._id || listing?.id || listing?.unitTypeId || null;
+
+const parseIdList = (value) =>
+    String(value || "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+
+const fetchListingsByIds = async (ids, token) => {
+    if (!ids.length) return [];
+    const uniqueIds = [...new Set(ids)];
+    const queryParams = new URLSearchParams({
+        ids: uniqueIds.join(","),
+        fields: LISTING_FIELDS,
+    });
+
+    const tryFetch = async (url) => {
+        const res = await fetch(url, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/json",
+            },
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (Array.isArray(data?.results)) return data.results;
+        if (Array.isArray(data?.data)) return data.data;
+        if (data?.data) return [data.data];
+        if (data?.result) return [data.result];
+        return Array.isArray(data) ? data : [data];
+    };
+
+    const byIdsUrl = `${GUESTY_LISTINGS_URL}?${queryParams.toString()}`;
+    const byIdsResults = await tryFetch(byIdsUrl);
+    if (Array.isArray(byIdsResults) && byIdsResults.length) {
+        return byIdsResults;
+    }
+
+    const fallbackResults = [];
+    for (const id of uniqueIds) {
+        const byIdUrl = `${GUESTY_LISTINGS_URL}/${encodeURIComponent(id)}?fields=${encodeURIComponent(LISTING_FIELDS)}`;
+        const single = await tryFetch(byIdUrl);
+        if (Array.isArray(single) && single.length) {
+            fallbackResults.push(...single);
+        }
+    }
+    return fallbackResults;
+};
+
 export async function handler(event) {
     if (event.httpMethod === "OPTIONS") {
         return jsonResponse(200, {});
@@ -200,12 +260,18 @@ export async function handler(event) {
     try {
         const { token, source: tokenSource } = await getGuestyToken();
 
+        const forceIdsEnv = parseIdList(
+            process.env.GUESTY_EXTRA_LISTING_IDS || process.env.FORCE_LISTING_IDS
+        );
+        const forceIdsQuery = parseIdList(event.queryStringParameters?.includeIds || event.queryStringParameters?.forceIds);
+        const forcedIds = [...new Set([...forceIdsEnv, ...forceIdsQuery])];
+
         const params = new URLSearchParams({
             limit: "200",
-            fields:
-                "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId",
-            
+            fields: LISTING_FIELDS,
             listed: "true",
+            pmsActive: "true",
+            active: "true",
             ...(event.queryStringParameters || {}),
         });
 
@@ -224,13 +290,27 @@ export async function handler(event) {
         }
 
         const data = await response.json();
-        const enrichedResults = Array.isArray(data.results)
-            ? data.results.map((listing) => {
-                const bedDetails = extractBedDetails(listing);
-                const bedType = listing.bedType || bedDetails[0] || null;
-                return { ...listing, bedType, bedDetails };
-            })
-            : data.results;
+        const baseResults = Array.isArray(data.results) ? data.results : [];
+        const enrichedResults = baseResults
+            .map((listing) => normalizeListing(listing))
+            .filter(Boolean);
+
+        if (forcedIds.length) {
+            const existingIds = new Set(enrichedResults.map(getListingId).filter(Boolean));
+            const missingIds = forcedIds.filter((id) => !existingIds.has(id));
+            if (missingIds.length) {
+                const forcedListings = await fetchListingsByIds(missingIds, token);
+                forcedListings
+                    .map((listing) => normalizeListing(listing))
+                    .filter(Boolean)
+                    .forEach((listing) => {
+                        const listingId = getListingId(listing);
+                        if (!listingId || existingIds.has(listingId)) return;
+                        existingIds.add(listingId);
+                        enrichedResults.push(listing);
+                    });
+            }
+        }
 
         return jsonResponse(
             200,
