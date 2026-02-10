@@ -92,20 +92,31 @@ const parseBedroomNumber = (text) => {
 
 const findBedTypeInText = (text) => {
     if (!text) return null;
+    const normalized = String(text || "")
+        .replace(/[–—-]/g, " ")
+        .replace(/\bbeds\b/gi, "bed")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!normalized) return null;
     for (const { label, match } of BED_PATTERNS) {
-        if (match.test(text)) return label;
+        if (match.test(normalized)) return label;
     }
     return null;
 };
 
 const findBedCountInText = (text) => {
     if (!text) return 1;
-    const countMatch = text.match(/(\d+)\s*(?:x\s*)?(?:king|queen|double|full|twin|single|sofa|futon|bunk|daybed|murphy|air mattress|crib)\b/i);
+    const normalized = String(text || "")
+        .replace(/[–—-]/g, " ")
+        .replace(/\bbeds\b/gi, "bed")
+        .replace(/\s+/g, " ")
+        .trim();
+    const countMatch = normalized.match(/(\d+)\s*(?:x\s*)?(?:king|queen|double|full|twin|single|sofa|futon|bunk|daybed|murphy|air mattress|crib)\b/i);
     if (countMatch) {
         const count = Number(countMatch[1]);
         if (Number.isFinite(count) && count > 0) return count;
     }
-    const leadingMatch = text.match(/^\s*-\s*(\d+)\b/);
+    const leadingMatch = normalized.match(/^\s*-\s*(\d+)\b/);
     if (leadingMatch) {
         const count = Number(leadingMatch[1]);
         if (Number.isFinite(count) && count > 0) return count;

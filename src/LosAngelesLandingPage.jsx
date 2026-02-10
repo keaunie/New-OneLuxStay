@@ -1268,10 +1268,18 @@ const getListingReviews = (listing) => {
 
 const getReviewLink = (listing) => {
   if (!listing) return "";
+  const title = sanitizeText(listing?.title || "");
+  const listingText = getListingText(listing) || title.toLowerCase();
+  if (/dodger|stadium/i.test(listingText)) {
+    return NEAR_DODGER_REVIEW_LINK;
+  }
+  if (/(?:l\.?\s*a\.?\s*)?plaza\s+village|\bla\s*plaza\b/i.test(listingText)) {
+    return LA_PLAZA_REVIEW_LINK;
+  }
   const key = getBuildingKey(listing);
   if (GOOGLE_REVIEW_LINKS[key]) return GOOGLE_REVIEW_LINKS[key];
-  const title = sanitizeText(listing?.title || "OneLuxStay Los Angeles");
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}`;
+  const fallbackTitle = title || "OneLuxStay Los Angeles";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fallbackTitle)}`;
 };
 
 const parseCoords = (latValue, lngValue) => {
@@ -1397,11 +1405,16 @@ const SECTION_REVIEWS = {
   "la-downtown": reviewsDodger,
   other: reviewsDodger,
 };
+const LA_PLAZA_REVIEW_LINK =
+  "https://www.google.com/travel/search?q=one%20lux%20stay%20la%20plaza%20village&qs=CAAgACgAMihDaG9Jc3FHeTlkZkkwN3JxQVJvTkwyY3ZNVEZ6TjNKbVgyWXdOeEFCOA1IAA&ts=CAEaPgoeEhwKDS9nLzExczdyZl9mMDc6C0xvcyBBbmdlbGVzEhwSFAoHCOoPEAIYFhIHCOoPEAIYFxgBMgQIABAAKgcKBToDUEhQ&ap=KigKEgkAH9u3HgdBQBG_B5T5ho9dwBISCeugdTubB0FAEb8HFE9Ij13AMAC6AQdyZXZpZXdz";
+const NEAR_DODGER_REVIEW_LINK =
+  "https://www.google.com/travel/search?q=one%20lux%20stay%20la%20plaza%20village&qs=CAAgASgAMidDaGtJd09EVDlkV0wwNnc3R2cwdlp5OHhNWFJtYUhRek9HeHdFQUU4DUgA&ts=CAEaPgoeEhwKDS9nLzExczdyZl9mMDc6C0xvcyBBbmdlbGVzEhwSFAoHCOoPEAIYFhIHCOoPEAIYFxgBMgQIABAAKgcKBToDUEhQ&ap=KigKEgl3OX2DmANBQBEtJ_wB7pFdwBISCUhUSrdgC0FAES0n_FkDjl3AMAC6AQdyZXZpZXdz";
 const GOOGLE_REVIEW_LINKS = {
   "la-hollywood":
     "https://www.google.com/maps/place/One+Lux+Stay+Hollywood+View+LA+Suites/@34.096727,-118.3144848,908m/data=!3m1!1e3!4m11!3m10!1s0x80c2bf1c3a41cc15:0xbc828ded239ae8a3!5m2!4m1!1i2!8m2!3d34.0967226!4d-118.3119099!9m1!1b1!16s%2Fg%2F11l6btbhs4?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
   "la-hwh":
     "https://www.google.com/maps/place/One+Lux+Stay+HWH+Downtown+Los+Angeles/@34.0489709,-118.250392,908m/data=!3m2!1e3!5s0x80c2c64a33a4e947:0x3882004a8f34fba8!4m11!3m10!1s0x80c2c7d2fa15aab3:0x71a2178b49e7af8a!5m2!4m1!1i2!8m2!3d34.0489665!4d-118.2478171!9m1!1b1!16s%2Fg%2F11rsrqx5ls?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
+  "la-downtown": "",
 };
 const HOLLYWOOD_FACILITIES = [
   "Outdoor swimming pool",
@@ -5803,7 +5816,9 @@ export default function LosAngelesLandingPage() {
                         const displayText = shouldTruncate && !isReviewExpanded
                           ? `${reviewText.slice(0, limit).trim()}...`
                           : reviewText;
-                        const reviewsLink = GOOGLE_REVIEW_LINKS[activeSection.key];
+                        const reviewsLink = sectionParent
+                          ? getReviewLink(sectionParent)
+                          : GOOGLE_REVIEW_LINKS[activeSection.key];
                         return (
                           <>
                             <div>

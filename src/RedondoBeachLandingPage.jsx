@@ -1399,7 +1399,11 @@ const SECTION_REVIEWS = {
   "south-bay": reviewsRedondo,
   other: reviewsRedondo,
 };
-const GOOGLE_REVIEW_LINKS = {};
+const GOOGLE_REVIEW_LINKS = {
+  "redondo-pier": "",
+  "redondo-riviera": "",
+  "south-bay": "",
+};
 const REDONDO_FACILITIES = [
   "Beachfront access",
   "Outdoor pool",

@@ -127,21 +127,32 @@ const parseBedroomNumber = (text) => {
 
 const findBedTypeInText = (text) => {
   if (!text) return null;
-  if (KING_OR_QUEEN_REGEX.test(text)) return KING_OR_QUEEN_LABEL;
+  const normalized = String(text || "")
+    .replace(/[–—-]/g, " ")
+    .replace(/\bbeds\b/gi, "bed")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return null;
+  if (KING_OR_QUEEN_REGEX.test(normalized)) return KING_OR_QUEEN_LABEL;
   for (const { label, match } of BED_PATTERNS) {
-    if (match.test(text)) return label;
+    if (match.test(normalized)) return label;
   }
   return null;
 };
 
 const findBedCountInText = (text) => {
   if (!text) return 1;
-  const countMatch = text.match(/(\d+)\s*(?:x\s*)?(?:king|queen|double|full|twin|single|sofa|futon|bunk|daybed|murphy|air mattress|crib)\b/i);
+  const normalized = String(text || "")
+    .replace(/[–—-]/g, " ")
+    .replace(/\bbeds\b/gi, "bed")
+    .replace(/\s+/g, " ")
+    .trim();
+  const countMatch = normalized.match(/(\d+)\s*(?:x\s*)?(?:king|queen|double|full|twin|single|sofa|futon|bunk|daybed|murphy|air mattress|crib)\b/i);
   if (countMatch) {
     const count = Number(countMatch[1]);
     if (Number.isFinite(count) && count > 0) return count;
   }
-  const leadingMatch = text.match(/^\s*-\s*(\d+)\b/);
+  const leadingMatch = normalized.match(/^\s*-\s*(\d+)\b/);
   if (leadingMatch) {
     const count = Number(leadingMatch[1]);
     if (Number.isFinite(count) && count > 0) return count;
@@ -291,7 +302,7 @@ export const splitBedDetailLine = (detail) => {
       detail: formatBedDetailText(parts.slice(1).join(":").trim()),
     };
   }
-  const roomPrefixMatch = text.match(/^(Bedroom\s*\d+|Living\s*room|Maid'?s room)\s*[-��]?\s*(.+)$/i);
+  const roomPrefixMatch = text.match(/^(Bedroom\s*\d+|Living\s*room|Maid'?s room)\s*[-]?\s*(.+)$/i);
   if (roomPrefixMatch) {
     return {
       label: normalizeRoomLabel(roomPrefixMatch[1]),

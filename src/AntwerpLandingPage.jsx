@@ -1460,7 +1460,13 @@ const SECTION_REVIEWS = {
   "antwerp-near-central": ANTWERP_REVIEWS,
   other: ANTWERP_REVIEWS,
 };
-const GOOGLE_REVIEW_LINKS = {};
+const GOOGLE_REVIEW_LINKS = {
+  "antwerp-diamond": "",
+  "antwerp-near-central": "",
+  "antwerp-central": "",
+  "antwerp-fashion": "",
+  "antwerp-city-centre": "",
+};
 const HOLLYWOOD_FACILITIES = [
   "City-center locations",
   "High-speed Wi-Fi",
@@ -3947,352 +3953,54 @@ export default function AntwerpLandingPage() {
           null;
         return (
           <>
-            <div className="la-unit-modal__grid" id="la-overview">
-              <div className="la-unit-modal__gallery">
-                <div className="la-unit-modal__main">
-                  {mainImage ? (
-                    <button
-                      type="button"
-                      className="la-unit-modal__image-button"
-                      onClick={(event) => handleImagePreview(event, mainImage)}
-                      aria-label="Open image preview"
-                    >
-                      <img
-                        src={mainImage}
-                        alt={sanitizeText(activeListing.title)}
-                        loading="eager"
-                        onError={handleImageError}
-                      />
-                    </button>
-                  ) : (
-                    <div className="la-unit-modal__placeholder">Image loading</div>
-                  )}
-                </div>
-                <div className="la-unit-modal__side">
-                  {sideImages.length ? (
-                    sideImages.map((entry) => (
-                      <button
-                        key={`side-${entry.idx}`}
-                        type="button"
-                        className="la-unit-modal__image-button"
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                        aria-label="Select image"
-                      >
-                        <img
-                          src={entry.src}
-                          alt=""
-                          loading="lazy"
-                          onError={handleImageError}
-                        />
-                      </button>
-                    ))
-                  ) : (
-                    [0, 1].map((idx) => (
-                      <div key={`side-${idx}`} className="la-unit-modal__placeholder">
-                        Image loading
-                      </div>
-                    ))
-                  )}
-                </div>
-                {thumbImages.length > 1 && (
-                  <div
-                    className="la-unit-modal__thumbs"
-                    role="list"
-                    ref={thumbsRef}
-                    onMouseEnter={(event) => {
-                      hoveredThumbsRef.current = thumbsRef.current;
-                      handleThumbsMove(event, thumbsRef);
-                    }}
-                    onMouseMove={handleThumbsMove}
-                    onMouseLeave={() => {
-                      hoveredThumbsRef.current = null;
-                      stopAutoScroll();
-                    }}
-                  >
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover left zone");
-                        startAutoScroll(thumbsRef.current, -1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover right zone");
-                        startAutoScroll(thumbsRef.current, 1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    {thumbImages.map((entry, idx) => (
-                      <button
-                        key={`${entry.src}-${entry.idx}`}
-                        type="button"
-                        className={entry.idx === safeIndex ? "is-active" : ""}
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                      >
-                        <img
-                          src={entry.src}
-                          alt=""
-                          loading={idx === 0 ? "eager" : "lazy"}
-                          onError={handleImageError}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
-                  <DateRangePicker
-                    value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                    dayPrices={calendarDayMap}
-                    onChange={({ checkIn, checkOut }) => {
-                      setSectionCheckIn(checkIn);
-                      setSectionCheckOut(checkOut);
-                    }}
-                    onMonthChange={(nextMonth) => {
-                      const listingId = getCalendarListingId(activeListing, losAngelesListings);
-                      if (!listingId) return;
-                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                      setCalendarStartDate(monthStart);
-                      setCalendarMonthIndex(0);
-                      fetchCalendarMonth(
-                        listingId,
-                        monthStart,
-                        calendarCacheRef,
-                        calendarDaysRef,
-                        calendarInflightRef,
-                        setCalendarLoading,
-                        setCalendarError,
-                        setCalendarPrices
-                      );
-                    }}
-                    onOpenChange={handleListingCalendarOpen}
-                    isLoading={calendarLoading}
-                    fallbackPrice={activeListing.basePrice}
-                    fallbackCurrency={activeListing.currency}
-                    fallbackMinNights={listingMinNightsFallback}
-                  />
-                  <div>
-                    <label htmlFor="la-section-guests">Guests</label>
-                    <select
-                      id="la-section-guests"
-                      value={sectionGuests}
-                      onChange={(event) => setSectionGuests(event.target.value)}
-                    >
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                      <option value="3">3</option>
-                      <option value="4">4</option>
-                      <option value="5">5</option>
-                    </select>
-                  </div>
-                  <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
-                    {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
-                  </button>
-                </div>
-              </div>
-            <div className="la-unit-modal__sidebar">
-              <div className="la-unit-modal__contact" aria-label="Reservation contact">
-                <p>For Reservation Contact</p>
-                <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+12138663589">+1 213 866 3589</a>
-                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
-                  Message concierge
-                </a>
-                <a
-                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
-                  className="la-unit-modal__contact-cta"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp us
-                </a>
-              </div>
-              <div className="la-unit-modal__card la-unit-modal__price">
-                <span>From</span>
-                <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                <small>per night Â· taxes calculated at checkout</small>
-                {isListingAvailable ? (
-                  <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
-                    Reserve your dates
-                  </button>
-                ) : null}
-              </div>
-              <div className="la-unit-modal__card" id="la-guest-reviews">
-                {(() => {
-                  const listingReviews = getListingReviews(activeListing);
-                  const quote =
-                    listingReviews.find((review) => review?.quote && review.quote.trim())?.quote ||
-                    "No review details yet.";
-                  const shouldTruncate = quote.length > 160;
-                  const displayQuote = shouldTruncate && !isReviewExpanded
-                    ? `${quote.slice(0, 160).trim()}...`
-                    : quote;
-                  const reviewLink = getReviewLink(activeListing);
-                  return (
-                    <>
-                <div className="la-unit-modal__card-head">
-                  <strong>{getReviewLabel(getListingReviews(activeListing))}</strong>
-                  {(() => {
-                    const { count } = getReviewStats(getListingReviews(activeListing));
-                    const label = count ? `${count} reviews` : "No reviews";
-                    return reviewLink ? (
-                      <a
-                        href={reviewLink}
-                        className="la-unit-modal__review-link"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {label}
-                      </a>
-                    ) : (
-                      <span>{label}</span>
-                    );
-                  })()}
-                  </div>
-                <div className="la-unit-modal__review">
-                  <p>{displayQuote}</p>
-                  {shouldTruncate && (
-                    <button type="button" onClick={() => setIsReviewExpanded((prev) => !prev)}>
-                      {isReviewExpanded ? "See less" : "See more"}
-                    </button>
-                  )}
-                </div>
-                    </>
-                  );
-                })()}
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
-                  {mapEmbedUrl ? (
-                    <iframe
-                      title="Unit location map"
-                      src={mapEmbedUrl}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      allowFullScreen
-                    />
-                  ) : mapUrl ? (
-                    <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
-                  ) : (
-                    <div className="la-unit-modal__placeholder">Map loading</div>
-                  )}
-                  <button
-                    type="button"
-                    className="la-unit-modal__map-overlay"
-                    aria-label="View larger map"
-                    onClick={() => {
-                      setListingMapTarget({
-                        coords: getListingCoords(activeListing),
-                        address: getListingAddressQuery(activeListing),
-                        label: activeListing.title || "OneLuxStay",
-                      });
-                      setIsListingMapOpen(true);
-                    }}
-                  >
-                    <span className="la-unit-modal__map-cta">View larger map</span>
-                  </button>
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__availability">
-                  <div className="la-unit-modal__card-head">
-                    <strong>Availability</strong>
-                    <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                      {availabilityStatus}
-                    </span>
-                  </div>
-                  <div className="la-unit-modal__availability-details">
-                    {availability === false ? (
-                      <p>Unavailable for the selected dates.</p>
-                    ) : breakdown ? (
-                      <>
-                        <div>
-                          <span>Accommodation</span>
-                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                        </div>
-                        {breakdown.discountAmount > 0 && (
-                          <div>
-                            <span>
-                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                            </span>
-                            <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                          </div>
-                        )}
-                        <div>
-                          <span>Cleaning</span>
-                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                        </div>
-                        <div>
-                          <span>Taxes</span>
-                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                        </div>
-                        <div>
-                          <span>Fees</span>
-                          <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
-                        </div>
-                        <div className="la-unit-modal__total">
-                          <span>Total</span>
-                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                        </div>
-                      </>
-                    ) : totalPrice ? (
-                      <div className="la-unit-modal__total">
-                        <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                        <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
-                      </div>
-                    ) : (
-                      <p>Check availability to view pricing breakdown.</p>
-                    )}
-                  </div>
-                  <div className="la-unit-modal__actions">
-                    {(() => {
-                      const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                      if (availability === true) {
-                        return (
-                          <button type="button" className="la-unit-modal__action-primary">
-                            Reserve
-                          </button>
-                        );
-                      }
-                      if (availability === false) {
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__action-primary"
-                            onClick={() => openInquiry(activeListing)}
-                          >
-                            Inquire
-                          </button>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-            {sectionAvailabilityError && (
-              <div role="alert" className="la-section-hero__notice">
-                {sectionAvailabilityError}
-              </div>
-            )}
-            <div className="la-unit-modal__section">
-              <div className="la-unit-modal__rooms">
-                <div>
-                  <p>
-                    Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
-                    {activeListing.accommodates || "--"}
-                  </p>
-                  {(() => {
-                    const direct = getBedDetails(activeListing);
-                    const bedDetails = (() => {
-                      if (direct.length) return direct;
-                      if (activeListing.bedDetails && activeListing.bedDetails.length) {
-                        return activeListing.bedDetails;
-                      }
-                      const groupKey = getListingGroupKey(activeListing);
-                      if (!groupKey || !Array.isArray(listings)) return [];
-                      const fallback = listings.find((entry) => {
+            <div className="la-unit&¢J¨İÚ¼˜Z|İ(˜Œ Ñµ*ôãQù?}>½RÆËğ©Î‘äA_ˆ‰}FB:¬Øó}Ïµñ1ô(:Ñò¿¼²Ï³¤êfF„Œ™tQFm;Uƒó>­(äûg)H~'
+ä¬£÷à2şFNŒv*`¦î˜ps{k9t®”Ã9Å:¡ğ¡k–57ï´j’Ô+äáD÷Úit2%ûÚÂs(`—3Ù«ì´M×İCÿÉ0´ÿËx  ›$ÊÃ"]Ë©ö]j@ì©RóĞ°FºÅãÕWÛ¡Œj8uÊ,ÕÔSØ­üFZ”Š ›’h)oò jÛ=Ğ"ğÇz€u=Œ¸lÑFƒÒ§¹Ö8ÜÛÃv±<á6Zn«ØköïÀ¢9oV¯#q^UàF«%	‰¾¶úôŠñ³«i|¸€.’8ø@§607	8ıg©˜™•Û×W:zcë“ÕÉ.[Z>H:Ä:gF±¼éI¸{À´	Ö­Mb ºÂ$- †MáD™wáæ·Ğbn„ïùìòˆ†Şäx”’Ù¸y1ÆJ(XNt"‘‘£¬6:S'$&—:«	w÷µì5«FFcYŠÅªvp³Æ<N1n"ÏD	gşÛøQ¬u5©lAßdCõ“ùâı»ÄP;é\Şf´‰>±	Şà¹„·ÈxA¿L%r}¢ı!Å61}×«`{í—«‚µŸğÌ—PÕ|óÌÃkHÅş‹‹æ¼Ç
+DørÓì~ÕsNÍp¢õhƒÍìÈÂR;‘Ø½qÆ­n­íjï¾ñ=â3á)Š3å`ÍÃÁğlâšíàåõ¹é(•MÚ"K*5q[X	ƒ“Šƒ¹‹C·NDS!D= (EM±@U^"%gÃ§)E"­sT§S$OoC“WÁqUåI¦;Q1th…¹Ñ9ÿ`ßôG¸H©/`ÎĞIRÍ.Ğ°hŒÀÍ
+¯«pCèXâQğa“Éˆ[œ8s‡ù——±øñìäê¬¼P*#>_aÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸrÊ/½áF&–Õvı4¸"’Ïo¡`ÇC“‹k;yš]wÎ3§¨Ğóà(BòŒ-*íınf#TÈø°¡oÇa“Di›w[0Û¢ÚÎß¦À×ƒò,2ë¬xê}fT%úßÀG€’lhqC%‹Ş:Ç“Fi—ws2+®úäY@Õş\TÈû±¤TØúÑäEXœÑJå½_ŒÁ+…úFM”¯yâM|®	ä5[¼Ù‰Ö4÷º1§DÑ›çXPÒâíMl¯iãuJ<¿‰‚5½!Æ$–Úvß6Ã·Š²?¯âL©Iõµ=¼ˆ.3çªPşà@Iµ¾M„®åU\üÈ	°4£»É™·T°û ÁU„üP:ãKL¹©”õx=j"~Í¯âaLE©œ÷H1³§¨Ñòå-\ìÈk²y­ïybMq®$åÙ^ÔÆû–vZ4ß¹Á”‡zmBmn/fãUKı»˜/PààAB…-Fî•e] Ï¢Ì3¨¨ğğ#"ÈÏ°¡¢ÄÏ› XÃÓ‹ê8’mn;d›XXÓÒëíxnem_oÃc‹H9³•ª|ÿ0
+ <Ã‹Š8?“ƒj:œH+²û¬éUtü8	6c·I³µ«¼ùˆ1}¦Ô'úĞâEL©Lõ¨?ó*ü	R4ì¹h—sr).÷ä2[®ØåÑ\äÊ[¾Ù…ÖõJ=¾„.åZ\ŞÊÅ¿œƒK	¹5–¿t‚;™#VÈô°:£ŸËA¹„–uY<×Šò</Šâ=O¢,Ïë¢xÎ¥hŞrÅ/ŸãBI¶%¶İ¶Í·­°í¡mÇm“lkk{{]ZÌİªÌÿ« ø `@€f Tøa`GA‘‡fUgÿS èp Àw€2¬èqp&!ÖÆ÷–3vª4ÿ»˜Pàa@ED™gWQğç!PÄà™BUş#È°q $ÁÛ†ÚİvÎ6§¶Ñ·å°]¢ÌÍ«¬øëxfUaÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸrÊ/½áF&–Õvı4¸"’Ïo¡`ÇC“‹k;yš]wÎ3§¨Ğóà(BòŒ-*íınf#TÈø°¡oÇa“Di›w[0Û¢ÚÎß¦À×ƒò,2ë¬xê}fT%úßÀG€’lhqC%‹Ş:Ç“Fi—ws2+®úäY@Õş\TÈû±¤TØúÑäEXœÑJå½_ŒÁ+…úFM”¯yâM|®	ä5[¼Ù‰Ö4÷º1§DÑ›çXPÒâíMl¯iãuJ<¿‰‚5½!Æ$–Úvß6Ã·Š²?¯âL©Iõµ=¼ˆ.3çªPşà@Iµ¾M„®åU\üÈ	°4£»É™·T°û ÁU„üP:ãKL¹©”õx=j"~Í¯âaLE©œ÷H1³§¨Ñòå-\ìÈk²y­ïybMq®$åÙ^ÔÆû–vZ4ß¹Á”‡zmBmn/fãUKı»˜/PààAB…-Fî•e] Ï¢Ì3¨¨ğğ#"ÈÏ°¡¢ÄÏ› XÃÓ‹ê8’mn;d›XXÓÒëíxnem_oÃc‹H9³•ª|ÿ0
+ <Ã‹Š8?“ƒj:œH+²û¬éUtü8	6c·I³µ«¼ùˆ1}¦Ô'úĞâEL©Lõ¨?ó*ü	R4ì¹h—sr).÷ä2[®ØåÑ\äÊ[¾Ù…ÖõJ=¾„.åZ\ŞÊÅ¿œƒK	¹5–¿t‚;™#VÈô°:£ŸËA¹„–uY<×Šò</Šâ=O¢,Ïë¢xÎ¥hŞrÅ/ŸãBI¶%¶İ¶Í·­°í¡mÇm“lkk{{]ZÌİªÌÿ« ø `@€f Tøa`GA‘‡fUgÿS èp Àw€2¬èqp&!ÖÆ÷–3vª4ÿ»˜Pàa@ED™gWQğç!PÄà™BUş#È°q $ÁÛ†ÚİvÎ6§¶Ñ·å°]¢ÌÍ«¬øëxfUaÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸrÊ/½áF&–Õvı4¸"’Ïo¡`ÇC“‹k;yš]wÎ3§¨Ğóà(BòŒ-*íınf#TÈø°¡oÇa“Di›w[0Û¢ÚÎß¦À×ƒò,2ë¬xê}fT%úßÀG€’lhqC%‹Ş:Ç“Fi—ws2+®úäY@Õş\TÈû±¤TØúÑäEXœÑJå½_ŒÁ+…úFM”¯yâM|®	ä5[¼Ù‰Ö4÷º1§DÑ›çXPÒâíMl¯iãuJ<¿‰‚5½!Æ$–Úvß6Ã·Š²?¯âL©Iõµ=¼ˆ.3çªPşà@Iµ¾M„®åU\üÈ	°4£»É™·T°û ÁU„üP:ãKL¹©”õx=j"~Í¯âaLE©œ÷H1³§¨Ñòå-\ìÈk²y­ïybMq®$åÙ^ÔÆû–vZ4ß¹Á”‡zmBmn/fãUKı»˜/PààAB…-Fî•e] Ï¢Ì3¨¨ğğ#"ÈÏ°¡¢ÄÏ› XÃÓ‹ê8’mn;d›XXÓÒëíxnem_oÃc‹H9³•ª|ÿ0
+ <Ã‹Š8?“ƒj:œH+²û¬éUtü8	6c·I³µ«¼ùˆ1}¦Ô'úĞâEL©Lõ¨?ó*ü	R4ì¹h—sr).÷ä2[®ØåÑ\äÊ[¾Ù…ÖõJ=¾„.åZ\ŞÊÅ¿œƒK	¹5–¿t‚;™#VÈô°:£ŸËA¹„–uY<×Šò</Šâ=O¢,Ïë¢xÎ¥hŞrÅ/ŸãBI¶%¶İ¶Í·­°í¡mÇm“lkk{{]ZÌİªÌÿ« ø `@€f Tøa`GA‘‡fUgÿS èp Àw€2¬èqp&!ÖÆ÷–3vª4ÿ»˜Pàa@ED™gWQğç!PÄà™BUş#È°q $ÁÛ†ÚİvÎ6§¶Ñ·å°]¢ÌÍ«¬øëxfUaÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸP¿\ØÁı2Tÿ¶ß™Dç¡Õ	¨-»¢Oãm+¼Â•ò†L'”åCO‰ßO2Z$­—Ö2Ö©ü3Vì5T´ÕàìªÈ¤²å›fIVÉEha2³q¢&ì­f j
+~yş°^¢øú(óUR_×Šp?`²í‘fevM4=»ÄÖuË6¹–…v6b¾¤$Ø9å¯NáØ? 24äÊ„5>ÂoÛF>Ğ¿³­IÛÔ¶É!¦»‚v ‚?E—)W„ç¤'ØÑµAø®¦r¦ÕÿÕvËòß`bCÚ,›ÁOÅÉíLF€ã4œy;a­,+ênÛ#ğÜ`¡0>‰¯@ÔGøÕ”¤•eÖÂ“)ñ3µÑ(i3Î¨zxŒ„­Á>¾SAû7Ês€T)t‹µŠ+PÇÄÀù—ÌV!‘àB‰s…gŠ9:ÌT„º5—®øp)6[°Ô©åØzm/ÒW†;8”Ôc¥\5Œ†o5àïnL%…Ö
+3koÍg¡[Ù÷“˜QM¥ªïÄÚ°ªõÓ1¬½÷–c"»-~SLÀiäâÜÙ%BiQXkZöY£-İ¹ŞUÂ6xD$Ò­¢¦L÷«'tmİo+NÁˆøv†9 •H3¸^‰:ÎœÊ˜ú5^@Ò&çÈã)Ëi> İdÌšÅ±(Ÿ%}z Õ[¢Z^Z‘‘\8Ú±Š¿tã È¸÷örÈ/ĞìéK7‘g9ğ©­Öğç9l×äÚ ÷Ia¹Qx«†Õ[×ú-Üéóuq_ùÃËTüƒQ:èÑ´…Ã«)Ë£^íIê!=çÙK¸Ÿ¶ÅÈÄ˜Óç½^1?¡¸Ä¸×Ä.¹,kbi4tî:1-ˆhcy	(/«¥x2‹q}ÄuY{	?½
+ıo(—Ç8RPUN£´”ó~ÚD–ÕfÍU-m$âıb7b´8>œ“H êŠêl8î))ç4ÅF´¼Ï¾+ì÷—†·†È€?ÁûàÌŞ<ARtlLÎ~bò1Pv#µ0>¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸrÊ/½áF&–Õvı4¸"’Ïo¡`ÇC“‹k;yš]wÎ3§¨Ğóà(BòŒ-*íınf#TÈø°¡oÇa“Di›w[0Û¢ÚÎß¦À×ƒò,2ë¬xê}fT%úßÀG€’lhqC%‹Ş:Ç“Fi—ws2+®úäY@Õş\TÈû±¤TØúÑäEXœÑJå½_ŒÁ+…úFM”¯yâM|®	ä5[¼Ù‰Ö4÷º1§DÑ›çXPÒâíMl¯iãuJ<¿‰‚5½!Æ$–Úvß6Ã·Š²?¯âL©Iõµ=¼ˆ.3çªPşà@Iµ¾M„®åU\üÈ	°4£»É™·T°û ÁU„üP:ãKL¹©”õx=j"~Í¯âaLE©œ÷H1³§¨Ñòå-\ìÈk²y­ïybMq®$åÙ^ÔÆû–vZ4ß¹Á”‡zmBmn/fãUKı»˜/PààAB…-Fî•e] Ï¢Ì3¨¨ğğ#"ÈÏ°¡¢ÄÏ› XÃÓ‹ê8’mn;d›XXÓÒëíxnem_oÃc‹H9³•ª|ÿ0
+ <Ã‹Š8?“ƒj:œH+²û¬éUtü8	6c·I³µ«¼ùˆ1}¦Ô'úĞâEL©Lõ¨?ó*ü	R4ì¹h—sr).÷ä2[®ØåÑ\äÊ[¾Ù…ÖõJ=¾„.åZ\ŞÊÅ¿œƒK	¹5–¿t‚;™#VÈô°:£ŸËA¹„–uY<×Šò</Šâ=O¢,Ïë¢xÎ¥hŞrÅ/ŸãBI¶%¶İ¶Í·­°í¡mÇm“lkk{{]ZÌİªÌÿ« ø `@€f Tøa`GA‘‡fUgÿS èp Àw€2¬èqp&!ÖÆ÷–3vª4ÿ»˜Pàa@ED™gWQğç!PÄà™BUş#È°q $ÁÛ†ÚİvÎ6§¶Ñ·å°]¢ÌÍ«¬øëxfUaÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸrÊ/½áF&–Õvı4¸"’Ïo¡`ÇC“‹k;yš]wÎ3§¨Ğóà(BòŒ-*íınf#TÈø°¡oÇa“Di›w[0Û¢ÚÎß¦À×ƒò,2ë¬xê}fT%úßÀG€’lhqC%‹Ş:Ç“Fi—ws2+®úäY@Õş\TÈû±¤TØúÑäEXœÑJå½_ŒÁ+…úFM”¯yâM|®	ä5[¼Ù‰Ö4÷º1§DÑ›çXPÒâíMl¯iãuJ<¿‰‚5½!Æ$–Úvß6Ã·Š²?¯âL©Iõµ=¼ˆ.3çªPşà@Iµ¾M„®åU\üÈ	°4£»É™·T°û ÁU„üP:ãKL¹©”õx=j"~Í¯âaLE©œ÷H1³§¨Ñòå-\ìÈk²y­ïybMq®$åÙ^ÔÆû–vZ4ß¹Á”‡zmBmn/fãUKı»˜/PààAB…-Fî•e] Ï¢Ì3¨¨ğğ#"ÈÏ°¡¢ÄÏ› XÃÓ‹ê8’mn;d›XXÓÒëíxnem_oÃc‹H9³•ª|ÿ0
+ <Ã‹Š8?“ƒj:œH+²û¬éUtü8	6c·I³µ«¼ùˆ1}¦Ô'úĞâEL©Lõ¨?ó*ü	R4ì¹h—sr).÷ä2[®ØåÑ\äÊ[¾Ù…ÖõJ=¾„.åZ\ŞÊÅ¿œƒK	¹5–¿t‚;™#VÈô°:£ŸËA¹„–uY<×Šò</Šâ=O¢,Ïë¢xÎ¥hŞrÅ/ŸãBI¶%¶İ¶Í·­°í¡mÇm“lkk{{]ZÌİªÌÿ« ø `@€f Tøa`GA‘‡fUgÿS èp Àw€2¬èqp&!ÖÆ÷–3vª4ÿ»˜Pàa@ED™gWQğç!PÄà™BUş#È°q $ÁÛ†ÚİvÎ6§¶Ñ·å°]¢ÌÍ«¬øëxfUaÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—ŸrÊ/½áF&–Õvı4¸"’Ïo¡`ÇC“‹k;yš]wÎ3§¨Ğóà(BòŒ-*íınf#TÈø°¡oÇa“Di›w[0Û¢ÚÎß¦À×ƒò,2ë¬xê}fT%úßÀG€’lhqC%‹Ş:Ç“Fi—ws2+®úäY@Õş\TÈû±¤TØúÑäEXœÑJå½_ŒÁ+…úFM”¯yâM|®	ä5[¼Ù‰Ö4÷º1§DÑ›çXPÒâíMl¯iãuJ<¿‰‚5½!Æ$–Úvß6Ã·Š²?¯âL©Iõµ=¼ˆ.3çªPşà@Iµ¾M„®åU\üÈ	°4£»É™·T°û ÁU„üP:ãKL¹©”õx=j"~Í¯âaLE©œ÷H1³§¨Ñòå-\ìÈk²y­ïybMq®$åÙ^ÔÆû–vZ4ß¹Á”‡zmBmn/fãUKı»˜/PààAB…-Fî•e] Ï¢Ì3¨¨ğğ#"ÈÏ°¡¢ÄÏ› XÃÓ‹ê8’mn;d›XXÓÒëíxnem_oÃc‹H9³•ª|ÿ0
+ <Ã‹Š8?“ƒj:œH+²û¬éUtü8	6c·I³µ«¼ùˆ1}¦Ô'úĞâEL©Lõ¨?ó*ü	R4ì¹h—sr).÷ä2[®ØåÑ\äÊ[¾Ù…ÖõJ=¾„.åZ\ŞÊÅ¿œƒK	¹5–¿t‚;™#VÈô°:£ŸËA¹„–uY<×Šò</Šâ=O¢,Ïë¢xÎ¥hŞrÅ/ŸãBI¶%¶İ¶Í·­°í¡mÇm“lkk{{]ZÌİªÌÿ« ø `@€f Tøa`GA‘‡fUgÿS èp Àw€2¬èqp&!ÖÆ÷–3vª4ÿ»˜Pàa@ED™gWQğç!PÄà™BUş#È°q $ÁÛ†ÚİvÎ6§¶Ñ·å°]¢ÌÍ«¬øëxfUaÿG`@i€v4¸‘ogaSGé“wh3qª&ş×ğ zÀBŒ)}ö4&ºÔûD™WTñø'ĞnàeA]‡Î¥hßsÂ(ò$/ÚâİNÍ¦¬Öê÷|0¡8Æ“”k{z[LÚªİşÍ¬èapF!–Çw‘3g«Røï`g@QæTùaDq˜'QĞæáVDö˜5S½év 6Á·†²­qî%fÜVÉ÷·1°¥ ÜÃËˆº2Ÿ¯@áG‘fCTˆù0¡~Æ”ycKqº%ßNÁ¦„Ö÷\2Ë­¸ì‘kgyRísn(fñT'úÓèEp!FÅ—Ÿµ¡_Õ3¯'Ãu„ìevcÅšp>%P»ã@ŞÙ“®|™Š—=ÍâŠ‚¶£=ó7ïüS3ÚÎ™FvËg›ÑuøµyëQ3Ş»"Ü­yÖ_ÍJ|ÙKÌ¼VQÙÖä,ë9œøß‡k4U !|!%ù£9àµ5³æ|ÌÈ‰¯˜Â_šDõ¿×”óÍNÈÇZ\“çï×Õ
+\h‹œ0#~’2€{ÎÜ˜&Ó
+	%ÂÂU&¯!&J3ºuÙöjŒY›2Wã?N‡™rò©Ò™=æÓo<ÄÕ†6Êç,CAzô_—Õ"3ØÒRd€à€·µQœ°·c4ZîHVÔ’8wË ‘$èrûw³åVÙénŸ¦¨ñÌ×"*
+gñÇE’5%Ö•	Gß¶\?æØCZ²”WPAn´Û™~ì¶Íp©aòeSYl<•Ë¦Mà×NşÍÃ¸
+Â5_cŸ#òÀ»9JçºlÔ`GÅj™,)=		ít Zİ›€œT¼¾eŒ]â)5“wycŒ±&Ÿ§Ÿ¢¸²Ë>?‘ø4ÌëÄ›!OÃ~Ò¨uC@ÒäE"=¢òBhˆi9ùæºk!½¡¢u¸äÁ-T˜§Eğ¤h ‹Cq®3Œ‹ò%À°"ZÉùï”W<Ó­ı°FÃˆXP~]û‹R‹K:Dºa’‰£Š‡”ì­\.j3ìÁ|%)}Û&ø©®]CYJû~kwß"øç°Eë)<0Rši¬îÜQ{*×*jMrÈ²3˜5™‘Î-ú¨B ;•àò}œ8_ÿêuÚ×}÷/béÇ›M¸ù,`Zp"‘ÃfÄãü7š¼vñøyWé§¿tğ{[Q‡&…€^•®¸r)UhÍó??á•ª]İå8¨™O¹?9²„.€ê67v®UªÎÏ9y‘×eØİŒBAlŒšóJ;s=9M½‘ÈC[c3ìËÖ–/÷=0÷24Aé‘¡è:øptˆR‰Ô§b¬Ö&@4&mñ®¿³ç¾ƒ1Ñí4,„—ÈØ{Ûšğ¨UJ”r”šI¶¤¸ßğZÒ+K.°úB£Ê+M¡T@‘«´àsŸ‰¼ªĞy„bóa€BÓ6´u›ï—‘‡l&±YÕ`ïíC,ïé&²B'£€Uªÿù˜Oš¥{x]Û'Ò°°İcx !¦ Ô7cça— ’oÅTt`ßùÿkJàª?ƒµ"ó=MºÃ°&”£—ªáÆiæŸâRßÒ¶b_DñıÇP<ÈÃ«Pí®·.ÀNÑ‰
+mwèkyàâß —^º bû@°‘.$û-Vx>ó7˜î¯è¶­8­”ùæv3<‰¬2ÔäéM#ªpd„@ª£’Ç^š`°T¨{%ÃÔ“Í^…æÇAÊ"?ƒ7n¼ÒcÑ–Åš¯Ùû³Ä4Yú0U£	iãñ
+1ğGÅ6Ñ¤Ùo§/ Ş'øNË‡
+ÕÿèÈw¦€•JOÅ£¾…Ä.×DÇˆ%zGó­jË[íh ûñz'·9KÒ İ¦×„Íƒğ³ÔXÌïoÇ¦
+Ê¨mÈ	{!õ*ú»-ã‡ˆùKšlUÕ' ¿N,{Ûi}ËsM‘GScísÏH«˜‰ÿšy”RèÉ-è(‘ç'YÃ<«a0ætªøÏø¦X;‘•ZÛ‘$*Ëí\º£Å•<L°¢AƒëîMÜñ÷Pd¼€W.‹÷¸+F•’ñXw-	j6ñzö¿¹ØAj¯
+üåšM€š•¹Üéà®Š“13Jˆ"àÎ3$L0×Ğ4=!>9+-¸ìm» ½Z@¼Ä]ˆ3%ƒª@C¹/1½m}#Å†¦nÏSe`×MP/ğ¦#Ş‚ÛzòõTy©aâÄÍª®g/^‹¨ò#•·}¶êŸÇ'íÓÊ™·?ÿüËbs(Ke·Ş«9¾êöb»ì’¯àò+ÖÒÂÅ0šl˜sS7Äx¡V‚¾3éƒ"«/— fğ‚ìÙÏYF†ó
+)êP³:¼µn`›ÍïtmH/½€«ö?ĞkÖÀ²¯Ùe"gHC–m•0úRæuCujpwïç•‹ã53;ósÛm^p¤›'—>)ZÉgiA+êäØ2ûhìwèwSá[âö{›Š¤4`hÖ3ûÜàMv‡oñ=Ò±•54 MteÊƒZ°ö;NÈ÷ÓÅùĞÙ6Z}‰°Ù%XáÅ|ú†Şzû¤¾ŞNK_irigğîòrÒŒÂÉ§"Ì´ß44DqàyÒ3‰h3Ò.•*çy\'‚Â>òAès-ÎÃä”?>)
+hóÿ›#ì€o¸=HCãâ[“L“Éw	L‰FÛÏV`v™’È†¿¦uî¥½Â¦ÍW&ºšŞw’F¤Ãè´¤Ç·”}š¬Md‡@ı½«úõãôÉ!y17Ãò·ŸÛ¹Ú”ÃAè[Ş$¸zßFeˆê¥6%#Ã½F¯)ÂÃÔÃñ0m Ûˆø ÂÇ>¬:Ú›‹s*f›$Œtß>âw/©åû Šõ_WQÿ)èÎDtì&O/&9VR‹)ÉìúO}V	Àv\Åø`3>®æ7¾–nMsÏîlg«û"~Äù<p<ó@•DÈªjıM&ô¹¡Q?£Uº¾Éáò—£‚Š¼BÁå¹è¥+9RU` ò®8µ‚«x€©[Xà®RydœIR²§1OhìHş9¤ÆŠ'\;CIøòÂ³×!(h£ÄUıâ	¿;=|ÌŒ'PšlN¯ÌÄñFk(kŠÙoÄgnØ›CÏ§9,6O;ÀNxä¼@I^†v³­‰Î¢aë{ñÊ¡xÇrí–Â;FFÒÂ—y¿éÊíKîà‰Û2PHX5ÆzÆÎB1}	m²Y,íÂTRíw/[ÊÍvöÎóCa5uzaJ?,Ã-ÖÉèœğöåöRHÔ5ky¸½¡Ô=6	ŒZ_¢¢¤Õy™r™LûÏéq,×¦…	ì÷D²4`eõHÁÇ;v°8“tİÏÃÎ%aƒÛ:Y`ù„¿÷£|#]2ØÀ.S§»ü´ŸœÑ­1S _Ê¼*Œ­¸W†9'ÀZ4Ü‰n‰ xÌ/²q”ğÆMágç•Ï*UA»dÜg”ÿ4ü#ıÒû)%J[†±RÃ+T2¡),&vŠÂb/ÊÇƒK'GİÆøÉÆ©QO‹\Á´«—Œ¥…¢ïÄ±ÊÖG‘AÔÿÂü,Ö8ø éaÅ%”`št˜ñZŞæT¾J2¶n9¡Õ²‰~ÊR!RP=c0³náŞX	wÇ¼#ŞšËşâßìk—­éñ;ÿ;”¥Ø¨Z†z?–¡ÎİçœşTç•
+~…µ9±¡µ{ÂÊ’SİµJ´äÎ3 Ä=”ãcnª¼¡Ú ~ÆâÊ°ÚÆÌÍÙüDoÜ¨Á×!øõ
+~¯â¹¼|s³•òCn#ÇÊ[\²ªN°_4§	ozò½LèRC¢ÿÓ†xS	»îñV§A»KtN¹C¹¶´º~BÓT×–UoÅj©xli½¨§29Hªñ’ÕÈ8ètôÉ8l\Ì¾¾àŞp5*ü(dº‚¼Êi3ÌÒ¶njĞ.OÃãT=‹JÇ¶Üm*>YNœ„ÛuCDx­˜„</û°‡Ô	$ƒ,¦ÁÛíÙ>¾/ñ€k*‚Q«iÜ3æÙ#¸Ÿ¬,íÓ4`@iìs+÷2‚B:w­5Zè`ï&ê‡¶ëÑpšEÛ\ÖOs'¬Tn|àÄ¡CÃ«¢}HŠ4º?İ”Iÿ2…)˜rÔ¨~u€¸‡—üöŒ°­&jQûbœÉÎ1! AG€ğ‡¤—]öJ²;*{Ì-Ëi=ñ¢µK:=Û¼]J£;M+Â}Š¼»¬Âo	ç³Õ,zl›íÜèM÷+´<†“­íkêÿú†™‘ÒàhÅõ»Û_ËE<Ò£jOû$œ]ÎJ#9M+àÇ…›üŞŒ@­h‘÷â¶Ë1=#M·)4r<«} ‰D²*Ä{ŸÍÅ(uç»Ô|Ì,§nUâxÈ•5û:ÉÑ1a#ÀL-”iıòŠ©ºr¨Öwp· ‹Ír—à|L¦ÛsÕ'ğİ/Ãï„onzktc7F¼˜†_Ì^¥ÉÒºà‘Nkªtó4&µØ±Ü«Å÷‘?j{¿‚iƒ'rtÔ_ğ¾EÛ¤^^@C’¡ëCş‚ ‹D¾Æ‹¿çÖ›qß DGÎõ#¸O&ôS¾oæƒÓŒn­àkÄı‹Á½
+ˆ¸·6õ3¹/fåÓØoUç{Ôœ~Ì€,…l™íĞèeõÛ¸_Fó¯ïgæ×Òti½ğ
+¤º_FÛ_ïGäŞôC¿¦’Sênùá“Ãíê¡úC›Ş¦BQ
+`¹ÇãóÎ¯"gIÕ0x$—]õJ¸;óÆ­kéıò‹¨¿w¶’1è#÷Nµ#8M+ô~¿ƒœ¡ÌA, n…ã›Îİ HE77×4u<¹§áWÂu
+ººß×Dw´Ï?%Z•YøR–iõM2ä—–|{p{/ìwg?^ŒË&·Ù¿ÚĞ/ììgf_YÌÚ¦ÑÙëÛw×?ü!ÈK¼·„¾ˆw?>„?“ÒJåY»ó¬k²(\‹mÍ€Nä~¿¹ŒGqOGª\”Ô¢­‰@l{şÔ¤ö~Fğ‡q4)»«Â—ì†•”ê?Ï@â–Ğ\:F®W‡VW¾Ÿ'°ùØF£„.×¼Q‡@ŸÉ_©Y¡~‚èÄšÿå©İ\æ7¾rVTwÿÊŒİ„¡-ê¹¥ƒbì,mÀ!óvNÄlÅæÇSTU( êTuL Q.?øË£eZ´“[©~x·½¸ˆæn½RÕ©oÌß)àIœøÑC³’Š4âøÈaFİg§‘ÖgìÓ&¼øÑLrÒJ¦>Ó«i‹Ë€/DŞ¡øt»¢}N¾·ãÊ“¯¼4z÷iaPÄíäBõï‹$>ÆŸœ¹yfcVéó”£ş¾‰u˜O4àX/Í7Õì#'ÓI‘t¥7>–Ê€FåTD9Eò:*€õá%4¦½ğLNã0#ÙŠõpZP¯ïª\&Ì·Šy<^—<NÒTf÷=dÍ‘Ä>ÌK¦üÌ5ÎĞ6öI^¨ÚÜ0¶áÃ;­Lºğ¢©Iöi×
+’ƒÁ+GÏ±}Êº§ÚlÂ@?»ˆ¢cAğUdÉAˆÜ,v ­r8\  ‰ísÀ—¼²1±pİßî+º(Ö
+ıU½=äb¶}pÄ…hz
+-L«¿ĞƒK?Í¾nŞ¢şÓG¢±^ÌuÕÿ¶‡ù¨Õ\@úD0Êaá|ª‘jı’u/gos{î¼7Œ]
+×úã•åšê£.Ë\%<«ëè·3SûŸ )ÙZºK)ÈN¶å´²––Óüg›ij¼6ÑE9¢NN‰[…D;v†×â3{"¹¥Ïœ»şØ1¿cRˆJ>ñÂ'°Y‚¸±;_)3ğÏĞÒ ®^÷¢ÊÀÆV0üÉşîÆO5¼¸åy£”7ïŞ˜S…k€¶Ş°\"€'ˆÉğ›2bõa^'Mê2t?6˜~†§°–ğãw/‰)å4²µçèJ¨ÎÄõ p £ò`wúq;ıœâÇõ°VTœ(Ó811!¡<ÍPÏÅO™Fİö¤å‚ —uƒ——¶Öé?x²¯ÀHg˜‚e+'v	àürs#V·íÄFì?kO“øÒG¢ædü]C’­Éòñ¸:zËè(ï~ÊPr8%Ãn	åˆ)ñËVŒ=c&ùBJøıÁ¡g•ü|\
+ğ€µ'h£Ø.­ºÌ6ä^²,Â«Ø½pÔÜ"¥×º`>$\¦EÃ` ´A¼š0^óR­*,Â	gØ;iÅxÿT“Â¡V+=ßöª>\M¬Ú­@9´1pó>c×]¡ıh3q¢¿éU²è ñ{ØäšÇå9áæ÷ŸùøhTŸ±D’ÀŞ]Yiv'®mz0p¦JoçKÓ”yÒºŞZZ‡¤£öE,qf =ƒæø—¼€R`…ƒ6åBJ+È®ï¥–ÒŸ[XK|Ì›oÈ—L*$ĞÕ6…8UZmŠé=Ş¼Æ/‹pßx²„Êrfß.e‚b¡gKGgšÚb÷·ò2¿‘«aqxS|ríz=:WP·´XÓãí†’Iñ²VltvüÿàY«K›ÜÛÆ9L	PEÔâè×q[Û¶!„‹i¡
+šM{†-S¯İ¼´·Ùè¿jô¦zæA¶8Aşà/Ûœ‰zJxÂPá®ˆI›¡*‹-óE­$ù=u²fÆsÃËàG¨¯•‹˜Á×~…‚„½ˆóçK÷D‹)mD`ÈuksC¿ëÄ{J½ªvÒ5hv­‹¼»¿:J«@í5çà:?OqäãEÏôv‚¬‰ğ#T¬ãäÀ©&@>ª®^™£­åŞ€ZÍ¼zÂ¯¯3B1ş_—Íí§F½úÎà.±ÂéÚá*—˜@™"oTã±ü¥O?Ê‚D¨5ïwo¢}êpÿŠF=Óô1bX5Ôğ µ©²{ÿ÷˜hL%Ş˜B¶ïz¶oˆD€`[Ş}ni<ës1RØëè¹­Ôhî’hŸéi¨_à0aÉÅ1Amtƒ`Ø—±ğşIdŸÒ%ì£§E+#¯iürÂŞx@u·Ó”²¾oàMÍ1O-á¾Ò†Ë}Ñ-¯ócúu±ÁuŒT‹G¿Ä)m´ Nj9Ÿ4vì-Afó’\®–Úfş‘$%)
+¨1uR¾#¼µ>Şz<#w«I¾ÿ¬I+$CÙ˜0Èiu:T8-^XD½5Ã{ ‰¯c¢aË¾ès4÷osĞvX¦1¤*åLi-º8ªï¬Î*D‰[\8C¾ô¼RÓøËI{Ï3. ÷€‹áìvg…‡ìníbX÷Sõ>x”©š—œ³ğg!—óÍiÜÌzŞiÃüï½®ëË¶â^²ŒÔˆÍ¬à“ÙdæIóş½²ÛBû`ìFr×fæu©-.²İL&g•ŞÊØ3Ø?U¤#sóvç‹-}êÌ·#?ğwG¸CÌsø88Ó¦=ô¸üOkØ™Ì%Ù¬ò9eæT	M8\v….C?z®˜úÊCFÇ•¿°$5›ÆˆIu_E2 tzßÍ´õIÓIj1Ú]Ÿ€é-k«™»$†¡’“6µëd#<},8SŠçÉo‰LÇs=­g~æÆN^]ä/Û¦zÁ»K_ƒÔ@—> ±Ùn÷ní¬†¡nzel¼B£¿Òş¼ÓdO@Ğjå´Ó‘[i¶õŸ£÷ö¯>¥§ÚEº"# ü±æ¿5­?R\GûÉGdÚ‰œøáı$: »¯ïX4!ıT|\ôªLgÏˆ(ÆÈıŒt¯w¤Ê¸ä­/ƒW›Äu¬šUÂzÆŞO‰/7­¢†ºÅÚWÍñÕ`ã²2Æ tİ.o¬åÓ3FÄ9Å¶š÷²‡øİË;º‡ãúë"Âe-<á]Ø5ÛO·õUr_™­¡?MÛƒ+·^øL´Vqï¹ÓŸ»ƒÛ=Ş…píšÎªÂ;ÆCE»&Ø‘ˆHkÚŒ‘òz?D¼İ{
+% °*ï¸§İCÑARë‡UÇs ¯[I°`æMhŠ®*±F–û&BO‘™&GpÕÛâıêğÆÿùë ÄE™oâ¹§¸Í“ĞÀgÍĞáoA*LGà’@9ºÏINyx±Û¶KÂi½*šw[wĞOÖNÇ¾¥“¶Õ‡È”ôéÅ`Pf¼ÒÈ?°qHš¯ï3CM}ç*ö®VC) ÿ?«ù&ğMémû§©¦Ï¬ä:Jéj|ªs§Åw~tó‹Íé¶‹—KŠñ6È;^ èV"eO4¼Ş6ˆåŠxdû1*\.û‹ÀÔùæh¢x€¬XZƒ¹¶gÙ¿š»ËõBlZÏTØ¢åM%Ác&ˆ6êT.“}ql”AÎ§GHõÃéÒ±ŠUw…jôjË'ów#f»rÔ±¦©i¸JPÇ&aìÌù»_êWÆ©bãŸâ$TšMÏ‡¢¹¬=Ù7œRsî!’¯±ö§ş: «‰Skò1¨¡ÑxgBü¶ÖN/9w™/üvVdß0ÖF‡ºSßPÈ©¯ˆv´9¹ÌAÃ\¥°ü¸ç8ã	"¬vÊûˆQY9İJ?ï©i#ßLÓÒ”Æ0Á™vÉG~]5ÀØå8œ8 q‹ü™1±æ«‰ğñØëçYä²“	pî[;PŸø?ëÚ/sş
+Äôıƒ–àààc$2ï—¬,"Ô&"é7Àı[Ï]òSe0 9Ïœ{»ê)4æfTøİ<eR…éÉ!qqE©¡<öæÒÚGœÀŸ¦²ıü9T¼ş@;7÷ TÓbm@ÅAì—­9˜—ŒŸÕÈ\Vº¥4ü8=b‹”^æ&
+–’”†„ƒ!ÔK€7<“êgëÉşÈªVY{%«Ñ7rg™”°fAô;õBÙb.qå´½ÎG°ÒÃJ+)¯Ú3ıä(f¡èÿ¡0ÏsÉ¨\'¢‹T Êwµ WYÌ\*Š$l 0RÔ˜ä³ØJ(—j¾İÎ=£•ux*]†a&€9AÅìĞ]¬Û—0…:{A²Se—¤–—°Å;ø&pÓ?]ªC£o]bÃØ.[´’JZd*’<X’ÂLÂCOnÎÔóì„m6k~ª.û°Éòâ‹Tÿ€I£sÂÖRà¤ÏE•Á¥p+¡É^¼0MK¡w×€p«¶æ.DœUúG÷„8P‰İ"N¼/[Hn€ÜsÚtq“â˜_&ğĞ<ÔÕ5-0ÇÇkbğ“ıßŠüÉæÆjT¸Ç!h½:¸p+²(Å Ş…òŠ¡¹ÁÜp¦á Ø¼˜Öxãfûw´&Zèò,H¸ã|ÇF¥¸åEj„
+èä5Ìö ²„$ÖQ-ÿ%3ôÀbêf†;Ë{)As„¸HÌœ(h1L®š0‘	8ãV=ÕšÛİÇ¦¿! $ü¡ìş1ÿ«ÊøOp” !»õw“Uõ=Hd¯È@;¹+ú‰/`
+„AA±EËT•˜I"ŞF*¯²Íùœç,“1,‰ëä™šg°Ò9Ø^¶:C_HKIå+î³íVh}ßŸ<ÇĞ¸q+_ĞËÑnP3!µ=r>L*îXsÀŸ*Áš¦¸ğåöµªrU»1±í“bĞHø.!Yè&ú¦sÌi'± µH/Í1"}qD–`ÇøÔ	ë÷ŞÔÔÎK‰7„}g4<¸J+ÒC‚Ğ oÙ¯`3¤}‡núà¶¤hJQ¼JÜÍÇWá[(pÁ+ñeË¼7û*ÆÍ"×—Ğ!dGt*N¼6<Ğ™¹'¥AÕ@’—Ú-Ft—ø€Ğ4/ãÂåößláÑ´¤)”o·Š6,(¹é;QÈmæ<Ì}m+w(¨V–¯½JEÍ‡İÇÚ%îåz¯Å¦ƒ}1wC•»*VnQ×¼8b¬PßXöLªˆâIĞ¤º‡»§M#ârÁ”&È!ğ«!™†0GY5;¸r…ğÿ°§ÅMİW›Ğ~É*´Ê o•ëÖQ_3=‰‚Ï¸ãN¦„“o^¨›Öÿoh…"IÖf‡Ïô¸ê“ÿL-å8t•/¾N~”õ0ï"Œ÷²¯œ#1÷‰ %Š
+mÆÂ¸œ7+poH oŠgÊ|æe›•·fˆ=Y:ï#ãíiFBäå€íŒ o¶ˆ½Í EFˆè"é–‚ü”ÂMÁA?ğƒ€¾¦­©P»xNÇóÅ4l°ÈÓ6s™gÖy%Ø®öÉcÀ´¯œ|˜òJ1ĞK‘­5ÃŒKF‹AßiÊ`z‡ƒøx‘ømÁI¢
+¦ ãşêR<—*j2	¼¼Ç¾×	Ö:¨k
+˜”¥‚\?°™zrBcN.3Ú/Ï-7¸†>~	?¯wMHÒ¤ #`eâ¶™‰ìÛğT_¿"qc”×/™éCá·a{¯ÖÔ‡bpnÎb¥|®s‚µı‡O(4ï8€ê¬#X˜j™ÃŒú ­^ºl‹`œWL BÚ˜ûø Úv4…?şÍa7a©L­Œª×Z„TU¥Ó½4…á=®ÒHÕ3Œ&G£eåÎıÈúıÂ¼¥Röˆ=Õ ½9—#g½y[MÿpLµE(ñ•&ƒÛƒÌb¥¯…"~B}ÑQ½¿ı ŒlÙÍ3åj
+¾¿©hº¦Y£D‰ÒÉL!¦£ägÒœ!Á{6ÒñE±6JÅdD:9jx•Î%Y†½^ÜA•İ£Rµ:˜ØBf;‰æí}÷wU[pf5…ìîø[	Ç‹¯jå°L@ª7•­¶z3ÖWÊ"Qp>„Â’ù¿š§
+	ÿª®é \åLm	`ªŠ³eîñ„ªŸ;Ò~©²RM3´çàÎ<¥wÛ¤;)ÓZ {z^®¼2fô8Ã ğ'g¾lÛgõÁî-1ßy6¦Qæ¼5fGaaGŞWÆ€èlÒ»ŒÊƒ9ŸO2«2Ã´•1“=È‹³(Ó­ıîƒX&İ&è³ãøiZÈ{(!çy
+c»Ò?@ OX£¾4Gö4¨3Ê[(Ÿ€]„Ï?Ö‘†öY;yepÑ                   const fallback = listings.find((entry) => {
                         if (getListingGroupKey(entry) !== groupKey) return false;
                         if (entry.bedDetails && entry.bedDetails.length) return true;
                         return getBedDetails(entry).length > 0;

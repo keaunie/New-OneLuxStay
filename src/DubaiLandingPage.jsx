@@ -1428,7 +1428,13 @@ const SECTION_REVIEWS = {
   "dubai-palm": DUBAI_REVIEWS,
   other: DUBAI_REVIEWS,
 };
-const GOOGLE_REVIEW_LINKS = {};
+const GOOGLE_REVIEW_LINKS = {
+  "dubai-downtown":
+    "https://www.google.com/travel/search?q=one%20lux%20stay%20grande%20signature%20residences&qs=CAAgASgAMihDaG9JeGZQZjJiT2RxcTJXQVJvTkwyY3ZNVEZxWm5KM2VHNTVjQkFCOA1IAA&ts=CAEaOAoYEhYKDS9nLzExamZyd3hueXA6BUR1YmFpEhwSFAoHCOoPEAMYARIHCOoPEAMYAhgBMgQIABAAKgcKBToDUEhQ&ap=KigKEgnNPjmigiA5QBFKbC824JpLQBISCWgqb2iCQjlAEUpsL9aKqktAMAC6AQdyZXZpZXdz",
+  "dubai-marina": "",
+  "dubai-business": "",
+  "dubai-palm": "",
+};
 const HOLLYWOOD_FACILITIES = [
   "Rooftop pool",
   "Valet parking",
