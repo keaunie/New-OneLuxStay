@@ -1270,11 +1270,11 @@ const getReviewLink = (listing) => {
   if (!listing) return "";
   const title = sanitizeText(listing?.title || "");
   const listingText = getListingText(listing) || title.toLowerCase();
-  if (/dodger|stadium/i.test(listingText)) {
-    return NEAR_DODGER_REVIEW_LINK;
-  }
   if (/(?:l\.?\s*a\.?\s*)?plaza\s+village|\bla\s*plaza\b/i.test(listingText)) {
     return LA_PLAZA_REVIEW_LINK;
+  }
+  if (/dodger|stadium/i.test(listingText)) {
+    return NEAR_DODGER_REVIEW_LINK;
   }
   const key = getBuildingKey(listing);
   if (GOOGLE_REVIEW_LINKS[key]) return GOOGLE_REVIEW_LINKS[key];
@@ -1408,7 +1408,7 @@ const SECTION_REVIEWS = {
 const LA_PLAZA_REVIEW_LINK =
   "https://www.google.com/travel/search?q=one%20lux%20stay%20la%20plaza%20village&qs=CAAgACgAMihDaG9Jc3FHeTlkZkkwN3JxQVJvTkwyY3ZNVEZ6TjNKbVgyWXdOeEFCOA1IAA&ts=CAEaPgoeEhwKDS9nLzExczdyZl9mMDc6C0xvcyBBbmdlbGVzEhwSFAoHCOoPEAIYFhIHCOoPEAIYFxgBMgQIABAAKgcKBToDUEhQ&ap=KigKEgkAH9u3HgdBQBG_B5T5ho9dwBISCeugdTubB0FAEb8HFE9Ij13AMAC6AQdyZXZpZXdz";
 const NEAR_DODGER_REVIEW_LINK =
-  "https://www.google.com/travel/search?q=one%20lux%20stay%20la%20plaza%20village&qs=CAAgASgAMidDaGtJd09EVDlkV0wwNnc3R2cwdlp5OHhNWFJtYUhRek9HeHdFQUU4DUgA&ts=CAEaPgoeEhwKDS9nLzExczdyZl9mMDc6C0xvcyBBbmdlbGVzEhwSFAoHCOoPEAIYFhIHCOoPEAIYFxgBMgQIABAAKgcKBToDUEhQ&ap=KigKEgl3OX2DmANBQBEtJ_wB7pFdwBISCUhUSrdgC0FAES0n_FkDjl3AMAC6AQdyZXZpZXdz";
+  "https://www.google.com/travel/search?q=one%20lux%20stay%20la%20plaza%20village&qs=CAAgASgAMidDaGtJd09EVDlkV0wwNnc3R2cwdlp5OHhNWFJtYUhRek9HeHdFQUU4DUgA&ts=CAEaPgoeEhwKDS9nLzExczdyZl9mMDc6C0xvcyBBbmdlbGVzEhwSFAoHCOoPEAIYFhIHCOoPEAIYFxgBMgQIABAAKgcKBToDUEhQ&ap=KigKEgl3OX2DmANBQBEtJ_wB7pFdwBISCUhUSrdgC0FAES0n_FkDjl3AMAC6AQdyZXZpZXdz&ved=0CAAQ5JsGahcKEwjAqND8gNCSAxUAAAAAHQAAAAAQBA";
 const GOOGLE_REVIEW_LINKS = {
   "la-hollywood":
     "https://www.google.com/maps/place/One+Lux+Stay+Hollywood+View+LA+Suites/@34.096727,-118.3144848,908m/data=!3m1!1e3!4m11!3m10!1s0x80c2bf1c3a41cc15:0xbc828ded239ae8a3!5m2!4m1!1i2!8m2!3d34.0967226!4d-118.3119099!9m1!1b1!16s%2Fg%2F11l6btbhs4?entry=ttu&g_ep=EgoyMDI2MDEyNi4wIKXMDSoASAFQAw%3D%3D",
@@ -5073,6 +5073,17 @@ export default function LosAngelesLandingPage() {
       </section> */}
       <header className="antwerp-hero">
         <div className="antwerp-hero__content">
+          <nav className="city-breadcrumbs" aria-label="Breadcrumb">
+            <Link to="/" className="city-breadcrumbs__link">
+              Home
+            </Link>
+            <span className="city-breadcrumbs__sep" aria-hidden="true">
+              ›
+            </span>
+            <span className="city-breadcrumbs__current" aria-current="page">
+              Los Angeles
+            </span>
+          </nav>
           <span className="antwerp-kicker">OneLuxStay / Los Angeles, California</span>
           <h1 className="antwerp-title">Los Angeles collection</h1>
           <p className="antwerp-lede">
@@ -5816,9 +5827,22 @@ export default function LosAngelesLandingPage() {
                         const displayText = shouldTruncate && !isReviewExpanded
                           ? `${reviewText.slice(0, limit).trim()}...`
                           : reviewText;
-                        const reviewsLink = sectionParent
-                          ? getReviewLink(sectionParent)
-                          : GOOGLE_REVIEW_LINKS[activeSection.key];
+                        const listingsForReview = activeSection.listings || [];
+                        const hasPlazaListing = listingsForReview.some((listing) =>
+                          /(?:l\.?\s*a\.?\s*)?plaza\s+village|\bla\s*plaza\b/i.test(
+                            getListingText(listing)
+                          )
+                        );
+                        const hasDodgerListing = listingsForReview.some((listing) =>
+                          /dodger|stadium/i.test(getListingText(listing))
+                        );
+                        const reviewsLink = hasPlazaListing
+                          ? LA_PLAZA_REVIEW_LINK
+                          : hasDodgerListing
+                            ? NEAR_DODGER_REVIEW_LINK
+                            : sectionParent
+                              ? getReviewLink(sectionParent)
+                              : GOOGLE_REVIEW_LINKS[activeSection.key];
                         return (
                           <>
                             <div>

@@ -4572,6 +4572,17 @@ export default function RedondoBeachLandingPage() {
       </section> */}
       <header className="antwerp-hero">
         <div className="antwerp-hero__content">
+          <nav className="city-breadcrumbs" aria-label="Breadcrumb">
+            <Link to="/" className="city-breadcrumbs__link">
+              Home
+            </Link>
+            <span className="city-breadcrumbs__sep" aria-hidden="true">
+              ›
+            </span>
+            <span className="city-breadcrumbs__current" aria-current="page">
+              Redondo Beach
+            </span>
+          </nav>
           <span className="antwerp-kicker">OneLuxStay / Redondo Beach, California</span>
           <h1 className="antwerp-title">Redondo Beach collection</h1>
           <p className="antwerp-lede">

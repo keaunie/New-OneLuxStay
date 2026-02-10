@@ -2812,6 +2812,36 @@ html {
   max-width: 560px;
 }
 
+.city-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #5b4a3d;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.city-breadcrumbs__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.city-breadcrumbs__link:hover,
+.city-breadcrumbs__link:focus-visible {
+  text-decoration: underline;
+}
+
+.city-breadcrumbs__sep {
+  opacity: 0.55;
+}
+
+.city-breadcrumbs__current {
+  opacity: 0.85;
+}
+
 .antwerp-kicker {
   font-size: 0.75rem;
   letter-spacing: 0.32em;
