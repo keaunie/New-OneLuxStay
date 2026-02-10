@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useId } from "react";
+import { useEffect, useMemo, useRef, useState, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
@@ -291,7 +291,10 @@ const getListingId = (listing) => listing?.id || listing?._id || null;
 const isChildListing = (listing) => {
   if (!listing) return false;
   const type = typeof listing.type === "string" ? listing.type.toUpperCase() : "";
-  return type.includes("CHILD");
+  if (type.includes("CHILD")) return true;
+  const listingId = getListingId(listing);
+  const unitTypeId = listing?.unitTypeId;
+  return Boolean(unitTypeId && listingId && String(unitTypeId) !== String(listingId));
 };
 
 const getPrimaryListingId = (listings = []) => {
@@ -304,19 +307,31 @@ const getPrimaryListingId = (listings = []) => {
 
 const getListingGroupKey = (listing) => {
   if (!listing) return null;
-  const title = typeof listing.title === "string" ? listing.title.trim().toLowerCase() : "";
-  const address = listing.address || {};
-  const addressFull =
-    typeof address.full === "string"
-      ? address.full.trim().toLowerCase()
+  const titleRaw = typeof listing.title === "string" ? listing.title.trim().toLowerCase() : "";
+  const normalizeTitleKey = (value) => {
+    if (!value) return "";
+    return value
+      .replace(/(,?\s*(apt|apartment|unit|suite|ste|#|floor|rm|room)\s*[-\w]+)/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+  const title = normalizeTitleKey(titleRaw);
+  const city =
+    typeof listing.address?.city === "string"
+      ? listing.address.city.trim().toLowerCase()
+      : "";
+  const propertyType =
+    typeof listing.propertyType === "string" ? listing.propertyType.trim().toLowerCase() : "";
+  if (title) {
+    return [title, city, propertyType].filter(Boolean).join("|") || null;
+  }
+  const address =
+    typeof listing.address?.full === "string"
+      ? listing.address.full.trim().toLowerCase()
       : typeof listing.location === "string"
         ? listing.location.trim().toLowerCase()
         : "";
-  const city =
-    typeof address.city === "string" ? address.city.trim().toLowerCase() : "";
-  const propertyType =
-    typeof listing.propertyType === "string" ? listing.propertyType.trim().toLowerCase() : "";
-  return [title, addressFull, city, propertyType].filter(Boolean).join("|") || null;
+  return [address, city, propertyType].filter(Boolean).join("|") || null;
 };
 
 const getParentListingId = (listing) =>
@@ -330,9 +345,20 @@ const isParentListing = (listing) => {
 
 const groupListingsByParent = (listings = []) => {
   const groups = {};
+  const toKey = (value) => (value ? String(value) : null);
+  const childParentIds = new Set(
+    listings
+      .filter((listing) => isChildListing(listing))
+      .map((listing) => toKey(listing?.unitTypeId))
+      .filter(Boolean)
+  );
   listings.forEach((listing) => {
-    const parentId = getParentListingId(listing);
     const listingId = getListingId(listing);
+    const listingIds = [listing?.id, listing?._id].map(toKey).filter(Boolean);
+    const matchedParentId = listingIds.find((id) => childParentIds.has(id));
+    const parentId = toKey(listing?.unitTypeId)
+      || matchedParentId
+      || toKey(getParentListingId(listing));
     if (!parentId || !listingId) return;
     if (!groups[parentId]) {
       groups[parentId] = { parentId, parent: null, children: [] };
@@ -2392,6 +2418,18 @@ export default function LosAngelesLandingPage() {
     });
   }, [listings, isMapEnabled, mapsApiKey]);
 
+  const getSectionListings = useCallback(
+    (sectionKey, fallback = []) => {
+      if (!sectionKey) return fallback || [];
+      if (!losAngelesListings.length) return fallback || [];
+      const filtered = losAngelesListings.filter(
+        (listing) => getBuildingKey(listing) === sectionKey
+      );
+      return filtered.length ? filtered : fallback || [];
+    },
+    [losAngelesListings]
+  );
+
   const losAngelesParentListings = useMemo(() => {
     if (!losAngelesListings.length) return [];
     const parentGroups = groupListingsByParent(losAngelesListings);
@@ -3144,7 +3182,10 @@ export default function LosAngelesLandingPage() {
       const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       let calendarMultiLoaded = false;
       const listingPool = (() => {
-        if (activeSection?.listings?.length) return activeSection.listings;
+        if (activeSection?.listings?.length) {
+          const sectionListings = getSectionListings(activeSection.key, activeSection.listings);
+          return sectionListings.length ? sectionListings : activeSection.listings;
+        }
         if (!activeListing) return [];
         const groupKey = getListingGroupKey(activeListing);
         if (!groupKey) return [activeListing];
@@ -3192,25 +3233,34 @@ export default function LosAngelesLandingPage() {
       const availabilityResults = Array.isArray(availabilityJson?.results)
         ? availabilityJson.results
         : [];
-      const availableIds = new Set(availabilityResults.map((item) => item.id).filter(Boolean));
+      const toKey = (value) => (value ? String(value) : null);
+      const availableIds = new Set(
+        availabilityResults.map((item) => toKey(item.id)).filter(Boolean)
+      );
       const availabilityMap = {};
-      const isListingAvailable = (listing) => {
-        if (!listing) return false;
-        const listingId = getListingId(listing);
-        const unitTypeId = listing?.unitTypeId;
-        return (
-          (listingId && availableIds.has(listingId)) ||
-          (unitTypeId && availableIds.has(unitTypeId))
-        );
-      };
+      const getListingIds = (listing) =>
+        [listing?._id, listing?.id, listing?.unitTypeId]
+          .map(toKey)
+          .filter(Boolean);
+      const isListingAvailable = (listing) =>
+        getListingIds(listing).some((id) => availableIds.has(id));
       listingPool.forEach((listing) => {
-        const listingId = getListingId(listing);
-        if (listingId) {
-          availabilityMap[listingId] = isListingAvailable(listing);
+        const ids = getListingIds(listing);
+        const available = isListingAvailable(listing);
+        ids.forEach((id) => {
+          availabilityMap[id] = available;
+        });
+      });
+
+      const childrenByParentId = new Map();
+      listingPool.forEach((listing) => {
+        if (!isChildListing(listing)) return;
+        const parentId = toKey(listing?.unitTypeId);
+        if (!parentId) return;
+        if (!childrenByParentId.has(parentId)) {
+          childrenByParentId.set(parentId, []);
         }
-        if (listing?.unitTypeId && availabilityMap[listing.unitTypeId] === undefined) {
-          availabilityMap[listing.unitTypeId] = availableIds.has(listing.unitTypeId);
-        }
+        childrenByParentId.get(parentId).push(listing);
       });
 
       const bulkRes = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
@@ -3238,15 +3288,27 @@ export default function LosAngelesLandingPage() {
       const parentAvailabilityMap = {};
       const availableParents = Object.values(parentGroups)
         .map((group) => {
-          const hasAvailableChild = group.children.some((child) => isListingAvailable(child));
           const displayListing = group.parent || null;
+          const displayIds = displayListing ? getListingIds(displayListing) : [];
+          const parentIdKeys = new Set(
+            [toKey(group.parentId), ...displayIds].map(toKey).filter(Boolean)
+          );
+          const relatedChildren = [...group.children];
+          parentIdKeys.forEach((parentId) => {
+            const extraChildren = childrenByParentId.get(parentId);
+            if (extraChildren?.length) relatedChildren.push(...extraChildren);
+          });
+          const hasAvailableChild = relatedChildren.some((child) => isListingAvailable(child));
           const hasAvailableParent = displayListing ? isListingAvailable(displayListing) : false;
           const hasAvailable = hasAvailableChild || hasAvailableParent;
           parentAvailabilityMap[group.parentId] = hasAvailable;
           if (displayListing) {
-            const displayId = getListingId(displayListing);
-            if (displayId) parentAvailabilityMap[displayId] = hasAvailable;
-            if (displayListing.unitTypeId) parentAvailabilityMap[displayListing.unitTypeId] = hasAvailable;
+            displayIds.forEach((displayId) => {
+              if (displayId) parentAvailabilityMap[displayId] = hasAvailable;
+            });
+            if (displayListing.unitTypeId) {
+              parentAvailabilityMap[toKey(displayListing.unitTypeId)] = hasAvailable;
+            }
           }
           return displayListing;
         })

@@ -66,6 +66,8 @@ const BED_PATTERNS = [
     { label: "Crib", match: /\bcrib\b/i },
 ];
 
+const MAIDS_ROOM_REGEX = /\bmaid'?s room\b/i;
+
 const BEDROOM_WORDS = new Map([
     ["one", 1],
     ["two", 2],
@@ -120,6 +122,16 @@ const extractBedroomBedDetails = (sources) => {
         .map((line) => line.trim())
         .filter(Boolean)
         .forEach((line) => {
+            if (MAIDS_ROOM_REGEX.test(line)) {
+                const bedType = findBedTypeInText(line);
+                if (!bedType) return;
+                const count = findBedCountInText(line);
+                const label = `Maids room: ${bedType}${count > 1 ? ` x${count}` : ""}`;
+                if (seen.has(label)) return;
+                seen.add(label);
+                details.push(label);
+                return;
+            }
             const bedroom = parseBedroomNumber(line);
             if (!bedroom) return;
             const bedType = findBedTypeInText(line);

@@ -158,6 +158,16 @@ const extractBedroomBedDetails = (sources) => {
     .map((line) => line.trim())
     .filter(Boolean)
     .forEach((line) => {
+      if (MAIDS_ROOM_REGEX.test(line)) {
+        const bedType = findBedTypeInText(line);
+        if (!bedType) return;
+        const count = findBedCountInText(line);
+        const label = `Maids room: ${bedType}${count > 1 ? ` x${count}` : ""}`;
+        if (seen.has(label)) return;
+        seen.add(label);
+        details.push(label);
+        return;
+      }
       const bedroom = parseBedroomNumber(line);
       if (!bedroom) return;
       const bedType = findBedTypeInText(line);
@@ -201,6 +211,7 @@ const addBedsFromText = (map, sources) => {
 const formatBedEntry = (entry) => (entry.count > 1 ? `${entry.label} x${entry.count}` : entry.label);
 
 const LIVING_ROOM_BED_REGEX = /\b(sofa|sleeper|couch|futon|daybed)\b/i;
+const MAIDS_ROOM_REGEX = /\bmaid'?s room\b/i;
 const KING_OR_QUEEN_REGEX =
   /\bking\b\s*(?:\(|\s*)?(?:or|\/)(?:\)|\s*)\s*\bqueen\b|\bqueen\b\s*(?:\(|\s*)?(?:or|\/)(?:\)|\s*)\s*\bking\b/i;
 const KING_OR_QUEEN_LABEL = "King or Queen bed";
@@ -239,6 +250,7 @@ const normalizeRoomLabel = (value) => {
   const bedroomMatch = cleaned.match(/bedroom\s*(\d+)/i);
   if (bedroomMatch) return `Bedroom ${bedroomMatch[1]}`;
   if (/living\s*room/i.test(cleaned)) return "Living room";
+  if (MAIDS_ROOM_REGEX.test(cleaned)) return "Maids room";
   if (/bedroom/i.test(cleaned)) return "Bedroom";
   return cleaned;
 };
@@ -279,14 +291,14 @@ export const splitBedDetailLine = (detail) => {
       detail: formatBedDetailText(parts.slice(1).join(":").trim()),
     };
   }
-  const roomPrefixMatch = text.match(/^(Bedroom\s*\d+|Living\s*room)\s*[-â€“â€”]?\s*(.+)$/i);
+  const roomPrefixMatch = text.match(/^(Bedroom\s*\d+|Living\s*room|Maid'?s room)\s*[-–—]?\s*(.+)$/i);
   if (roomPrefixMatch) {
     return {
       label: normalizeRoomLabel(roomPrefixMatch[1]),
       detail: formatBedDetailText(roomPrefixMatch[2]),
     };
   }
-  const roomSuffixMatch = text.match(/^(.+?)\s+in\s+(Bedroom\s*\d+|Living\s*room)\b/i);
+  const roomSuffixMatch = text.match(/^(.+?)\s+in\s+(Bedroom\s*\d+|Living\s*room|Maid'?s room)\b/i);
   if (roomSuffixMatch) {
     return {
       label: normalizeRoomLabel(roomSuffixMatch[2]),
@@ -372,3 +384,6 @@ const getBedDetails = (listing) => {
 };
 
 export default getBedDetails;
+
+
+

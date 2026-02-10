@@ -321,19 +321,31 @@ const getPrimaryListingId = (listings = []) => {
 
 const getListingGroupKey = (listing) => {
   if (!listing) return null;
-  const title = typeof listing.title === "string" ? listing.title.trim().toLowerCase() : "";
-  const address = listing.address || {};
-  const addressFull =
-    typeof address.full === "string"
-      ? address.full.trim().toLowerCase()
+  const titleRaw = typeof listing.title === "string" ? listing.title.trim().toLowerCase() : "";
+  const normalizeTitleKey = (value) => {
+    if (!value) return "";
+    return value
+      .replace(/(,?\s*(apt|apartment|unit|suite|ste|#|floor|rm|room)\s*[-\w]+)/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+  const title = normalizeTitleKey(titleRaw);
+  const city =
+    typeof listing.address?.city === "string"
+      ? listing.address.city.trim().toLowerCase()
+      : "";
+  const propertyType =
+    typeof listing.propertyType === "string" ? listing.propertyType.trim().toLowerCase() : "";
+  if (title) {
+    return [title, city, propertyType].filter(Boolean).join("|") || null;
+  }
+  const address =
+    typeof listing.address?.full === "string"
+      ? listing.address.full.trim().toLowerCase()
       : typeof listing.location === "string"
         ? listing.location.trim().toLowerCase()
         : "";
-  const city =
-    typeof address.city === "string" ? address.city.trim().toLowerCase() : "";
-  const propertyType =
-    typeof listing.propertyType === "string" ? listing.propertyType.trim().toLowerCase() : "";
-  return [title, addressFull, city, propertyType].filter(Boolean).join("|") || null;
+  return [address, city, propertyType].filter(Boolean).join("|") || null;
 };
 
 const getParentListingId = (listing) =>
@@ -3132,25 +3144,23 @@ export default function DubaiLandingPage() {
       const availabilityResults = Array.isArray(availabilityJson?.results)
         ? availabilityJson.results
         : [];
-      const availableIds = new Set(availabilityResults.map((item) => item.id).filter(Boolean));
+      const toKey = (value) => (value ? String(value) : null);
+      const availableIds = new Set(
+        availabilityResults.map((item) => toKey(item.id)).filter(Boolean)
+      );
       const availabilityMap = {};
-      const isListingAvailable = (listing) => {
-        if (!listing) return false;
-        const listingId = getListingId(listing);
-        const unitTypeId = listing?.unitTypeId;
-        return (
-          (listingId && availableIds.has(listingId)) ||
-          (unitTypeId && availableIds.has(unitTypeId))
-        );
-      };
+      const getListingIds = (listing) =>
+        [listing?._id, listing?.id, listing?.unitTypeId]
+          .map(toKey)
+          .filter(Boolean);
+      const isListingAvailable = (listing) =>
+        getListingIds(listing).some((id) => availableIds.has(id));
       listingPool.forEach((listing) => {
-        const listingId = getListingId(listing);
-        if (listingId) {
-          availabilityMap[listingId] = isListingAvailable(listing);
-        }
-        if (listing?.unitTypeId && availabilityMap[listing.unitTypeId] === undefined) {
-          availabilityMap[listing.unitTypeId] = availableIds.has(listing.unitTypeId);
-        }
+        const ids = getListingIds(listing);
+        const available = isListingAvailable(listing);
+        ids.forEach((id) => {
+          availabilityMap[id] = available;
+        });
       });
 
       const bulkRes = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
