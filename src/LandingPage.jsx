@@ -91,7 +91,7 @@ const getListingImage = (listing) => {
 
 const truncateLabel = (value, max = 36) => {
   if (typeof value !== "string") return "";
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+  return value.length > max ? `${value.slice(0, max - 1)}ï¿½` : value;
 };
 
 const formatCurrency = (value, currency = "USD") => {
@@ -279,13 +279,6 @@ const stays = [
     copy: "Stay dates and pricing update live across every unit in our collection.",
     image:
       "https://assets.guesty.com/image/upload/v1732914973/production/666b3af27fc6d5653142b0af/jpotm8nwcbvufegnbcnx.jpg",
-  },
-  {
-    label: "How it works",
-    headline: "Plan",
-    copy: "Tell us your dates and vibe - we'll shortlist the right residences.",
-    image:
-      "https://assets.guesty.com/image/upload/v1740605753/production/666b3af27fc6d5653142b0af/hzvwqjuhjpwkkmyea38s.jpg",
   },
   {
     label: "How it works",
@@ -1151,10 +1144,12 @@ function LandingPage() {
                   <div className="landing-pill">{stay.label}</div>
                   <h3 className="landing-display text-3xl md:text-4xl mt-4">{stay.headline}</h3>
                   <p className="text-lg text-slate-100/90 mt-3 max-w-2xl">{stay.copy}</p>
+                  {/* Buttons hidden for now.
                   <div className="landing-actions mt-6">
                     <Link to="/listings" className="landing-cta-primary">See live availability</Link>
                     <Link to="/listings" className="landing-cta-secondary">View all {stay.label} stays</Link>
                   </div>
+                  */}
                 </div>
               </ScrollStackItem>
             ))}
