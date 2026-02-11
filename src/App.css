@@ -40,11 +40,35 @@ html {
 
 .app-shell {
   opacity: 0;
-  transition: opacity 0.6s ease;
+  visibility: hidden;
 }
 
 .app-shell.is-ready {
   opacity: 1;
+  visibility: visible;
+  transition: opacity 0.9s ease, visibility 0.9s ease;
+}
+
+.app-shell .antwerp-page {
+  opacity: 0;
+  will-change: opacity;
+}
+
+.app-shell.is-ready .antwerp-page {
+  opacity: 1;
+  transition: opacity 1.6s ease 0.6s;
+}
+
+.app-shell .landing-page {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  will-change: opacity, transform;
+}
+
+.app-shell.is-ready .landing-page {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .app-loading-overlay {
@@ -57,7 +81,16 @@ html {
   place-items: center;
   background: linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
   backdrop-filter: none;
-  transition: opacity 0.4s ease, visibility 0.4s ease;
+  transition: opacity 0.9s ease, visibility 0.9s ease;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-loading-overlay.is-active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .app-loading-overlay.is-hidden {
@@ -77,6 +110,14 @@ html {
   color: var(--ink);
   display: grid;
   gap: 18px;
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.app-loading-overlay.is-active .app-loading-card {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 .app-loading-lottie {
@@ -288,6 +329,7 @@ html {
 .landing-page {
   position: relative;
   font-family: var(--landing-font-body);
+  --date-dropdown-push: 0px;
   background: radial-gradient(circle at 20% 18%, rgba(201, 181, 156, 0.2), transparent 38%),
     radial-gradient(circle at 82% 8%, rgba(217, 207, 199, 0.45), transparent 45%),
     linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
@@ -296,6 +338,10 @@ html {
 
 .landing-page.has-silk {
   background: transparent;
+}
+
+.landing-page.has-date-dropdown {
+  --date-dropdown-push: clamp(220px, 28vh, 360px);
 }
 
 .landing-silk {
@@ -316,6 +362,10 @@ html {
 .landing-page.has-silk > :not(.landing-silk):not(.landing-silk-overlay) {
   position: relative;
   z-index: 1;
+}
+
+.landing-page.has-silk > .landing-hero {
+  z-index: 5;
 }
 
 .landing-page.has-silk #contact {
@@ -348,7 +398,20 @@ html {
   min-height: 70vh;
   overflow: visible;
   position: relative;
-  z-index: 5;
+  z-index: 20;
+}
+.landing-hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--date-dropdown-push));
+  height: var(--date-dropdown-push);
+  background: radial-gradient(circle at 20% 20%, rgba(249, 248, 246, 0.35), transparent 50%),
+    linear-gradient(180deg, rgba(249, 248, 246, 0.9), rgba(239, 233, 227, 0.92));
+  z-index: 1;
+  pointer-events: none;
+  transition: height 240ms ease;
 }
 
 .landing-glow {
@@ -1066,6 +1129,15 @@ html {
   background: radial-gradient(circle at 20% 10%, rgba(201, 181, 156, 0.2), transparent 45%),
     linear-gradient(180deg, rgba(249, 248, 246, 0.95), rgba(239, 233, 227, 0.95));
   overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+  margin-top: 0;
+  transition: margin-top 240ms ease;
+  will-change: margin-top;
+}
+
+.landing-page.has-date-dropdown .landing-showcase-section {
+  margin-top: var(--date-dropdown-push);
 }
 
 .landing-showcase-inner {
@@ -4401,18 +4473,21 @@ html {
 }
 
 .antwerp-modal__overlay.is-page {
-  position: static;
-  inset: auto;
-  background: transparent;
+  position: fixed;
+  inset: 0;
+  background: rgba(35, 31, 26, 0.35);
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 32px 24px 60px;
-  z-index: auto;
+  padding: 24px;
+  z-index: 70;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .antwerp-modal__overlay.is-page .la-unit-modal {
-  max-height: none;
-  overflow: visible;
+  max-height: 92vh;
+  overflow: auto;
 }
 
 .la-unit-modal {

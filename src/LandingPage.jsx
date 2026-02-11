@@ -6,6 +6,7 @@ import SiteFooter from "./components/SiteFooter";
 import CircularGallery from "./components/CircularGallery";
 import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
 import Silk from "./components/Silk";
+import { filterLowQualityImages } from "./utils/imageQuality";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -79,14 +80,18 @@ const isChildListing = (listing) => {
 };
 
 const getListingImage = (listing) => {
+  const candidates = [];
   const direct = listing?.picture;
-  if (typeof direct === "string") return direct;
-  if (direct?.regular) return direct.regular;
-  if (direct?.large) return direct.large;
-  if (direct?.thumbnail) return direct.thumbnail;
+  if (typeof direct === "string") candidates.push(direct);
+  if (direct?.regular) candidates.push(direct.regular);
+  if (direct?.large) candidates.push(direct.large);
+  if (direct?.thumbnail) candidates.push(direct.thumbnail);
   const firstPicture = listing?.pictures?.[0];
-  if (typeof firstPicture === "string") return firstPicture;
-  return firstPicture?.original || firstPicture?.thumbnail || "";
+  if (typeof firstPicture === "string") candidates.push(firstPicture);
+  if (firstPicture?.original) candidates.push(firstPicture.original);
+  if (firstPicture?.thumbnail) candidates.push(firstPicture.thumbnail);
+  const filtered = filterLowQualityImages(candidates.filter(Boolean));
+  return filtered[0] || "";
 };
 
 const truncateLabel = (value, max = 36) => {
@@ -368,6 +373,19 @@ const DateRangePicker = ({ value, onChange }) => {
     });
   }, [open, startDate, today]);
 
+  useEffect(() => {
+    const page = containerRef.current?.closest(".landing-page");
+    if (!page) return;
+    if (open) {
+      page.classList.add("has-date-dropdown");
+    } else {
+      page.classList.remove("has-date-dropdown");
+    }
+    return () => {
+      page.classList.remove("has-date-dropdown");
+    };
+  }, [open]);
+
   const buildMonth = (baseDate) => {
     const year = baseDate.getFullYear();
     const month = baseDate.getMonth();
@@ -419,7 +437,7 @@ const DateRangePicker = ({ value, onChange }) => {
   }, [open, startDate, today]);
 
   return (
-    <div className="landing-date-picker" ref={containerRef}>
+    <div className={`landing-date-picker${open ? " is-open" : ""}`} ref={containerRef}>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <label id={checkInLabelId} className="text-[11px] uppercase tracking-[0.14em] text-slate-200/80">
@@ -989,7 +1007,7 @@ function LandingPage() {
         <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
       </div>
       <div className="landing-silk-overlay" aria-hidden="true" />
-      <header className="landing-hero relative overflow-hidden landing-animate">
+      <header className="landing-hero relative landing-animate">
         <div
           aria-hidden="true"
           className="hero-media hero-media__slideshow"

@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useImperativeHandle,
   useRef,
+  useState,
 } from "react";
 import gsap from "gsap";
 
@@ -50,6 +51,7 @@ const CardSwap = forwardRef(({
   onCardClick,
   skewAmount = 6,
   easing = "elastic",
+  lazy = true,
   children,
 }, ref) => {
   const config =
@@ -84,6 +86,7 @@ const CardSwap = forwardRef(({
   const swapRef = useRef(null);
   const pauseRef = useRef(null);
   const resumeRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(!lazy);
 
   useImperativeHandle(
     ref,
@@ -96,6 +99,26 @@ const CardSwap = forwardRef(({
   );
 
   useEffect(() => {
+    if (!lazy) return undefined;
+    const node = container.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setIsVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [lazy]);
+
+  useEffect(() => {
+    if (!isVisible) return undefined;
     const total = refs.length;
     order.current = Array.from({ length: total }, (_, i) => i);
     if (!total) return undefined;
@@ -196,9 +219,10 @@ const CardSwap = forwardRef(({
       };
     }
     return () => clearInterval(intervalRef.current);
-  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing, refs]);
+  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing, refs, isVisible]);
 
-  const rendered = childArr.map((child, i) =>
+  const renderChildren = isVisible ? childArr : childArr.slice(0, 1);
+  const rendered = renderChildren.map((child, i) =>
     isValidElement(child)
       ? cloneElement(child, {
           key: i,

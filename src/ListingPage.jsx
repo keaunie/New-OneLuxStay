@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { useParams } from "react-router-dom";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
+import { filterLowQualityImages } from "./utils/imageQuality";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -8,6 +9,67 @@ const checkoutBase = (import.meta.env.VITE_API_BASE || "/.netlify/functions").re
   /\/index\/?$/,
   ""
 );
+
+const extractImageUrl = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object") {
+    return (
+      value.url ||
+      value.src ||
+      value.href ||
+      value.secure_url ||
+      value.secureUrl ||
+      ""
+    );
+  }
+  return "";
+};
+
+const getImageKey = (value) => {
+  const url = extractImageUrl(value);
+  if (!url) return "";
+  const cleanUrl = url.split("?")[0];
+  const parts = cleanUrl.split("/");
+  const filename = parts[parts.length - 1] || "";
+  const base = filename.split(".")[0];
+  return base || cleanUrl;
+};
+
+const getListingImageUrls = (listing) => {
+  if (!listing) return [];
+  const urls = [];
+  const seen = new Set();
+  const addUrl = (value) => {
+    const url = extractImageUrl(value);
+    if (!url) return;
+    const key = getImageKey(url);
+    if (key && seen.has(key)) return;
+    if (key) seen.add(key);
+    urls.push(url);
+  };
+  const collectImage = (image) => {
+    if (!image) return;
+    addUrl(image);
+    const variants = [
+      image.original,
+      image.large,
+      image.regular,
+      image.thumbnail,
+      image.medium,
+      image.preview,
+    ];
+    variants.forEach(addUrl);
+  };
+  collectImage(listing.picture);
+  if (Array.isArray(listing.pictures)) {
+    listing.pictures.forEach(collectImage);
+  }
+  const unique = Array.from(new Set(urls));
+  return filterLowQualityImages(unique);
+};
+
+const getPrimaryListingImage = (listing) => getListingImageUrls(listing)[0] || "";
 
 
 const formatCurrency = (value, currency = "USD") =>
@@ -589,11 +651,7 @@ function ListingPage() {
       const city = normalizeCity(l);
       if (!city) return;
       if (!map.has(city)) {
-        const img =
-          l.picture ||
-          (Array.isArray(l.pictures) && l.pictures[0]?.thumbnail) ||
-          (Array.isArray(l.pictures) && l.pictures[0]?.original) ||
-          "";
+        const img = getPrimaryListingImage(l);
         map.set(city, { city, image: img });
       }
     });
@@ -614,6 +672,10 @@ function ListingPage() {
     if (!modalListing) return null;
     return availability[modalListing.id] || null;
   }, [modalListing, availability]);
+  const modalImages = useMemo(
+    () => (modalListing ? getListingImageUrls(modalListing) : []),
+    [modalListing],
+  );
 
   useEffect(() => {
     if (!activeListingId && filteredListings[0]) {
@@ -834,7 +896,7 @@ function ListingPage() {
     setBookingState({ status: "idle", message: "" });
     setAvailabilityNotice("");
     setModalListing(listing);
-    setModalHero(listing.picture);
+    setModalHero(getPrimaryListingImage(listing));
     setIsModalOpen(true);
     setActiveListingId(listing.id);
     checkAvailability(listing);
@@ -1046,6 +1108,7 @@ function ListingPage() {
               const displayNightly = status.nightly ?? listing.basePrice;
               const canBook = status.status === "ready" && status.available !== false;
               const showInquiry = status.status === "ready" && status.available === false;
+              const cardImage = getPrimaryListingImage(listing);
               const derivedBedDetails = getBedDetails(listing);
               const bedDetails = derivedBedDetails.length
                 ? derivedBedDetails
@@ -1062,9 +1125,9 @@ function ListingPage() {
                   className="listing-card group rounded-2xl border p-4 shadow-lg transition"
                 >
                   <div className="relative overflow-hidden rounded-xl bg-slate-900">
-                    {listing.picture ? (
+                    {cardImage ? (
                       <img
-                        src={listing.picture}
+                        src={cardImage}
                         alt={listing.title}
                         loading={index < 2 ? "eager" : "lazy"}
                         className="h-48 w-full object-cover transition duration-500 group-hover:scale-105"
@@ -1216,32 +1279,29 @@ function ListingPage() {
                 <div className="space-y-4 min-w-0">
                   <div className="listing-modal-media overflow-hidden rounded-xl border">
                     <img
-                      src={modalHero || modalListing.picture}
+                      src={modalHero || modalImages[0] || modalListing.picture}
                       alt={modalListing.title}
                       className="h-56 w-full min-w-0 object-cover sm:h-80"
                       loading="eager"
                     />
                   </div>
-                  {Array.isArray(modalListing.pictures) && modalListing.pictures.length > 0 && (
+                  {modalImages.length > 0 && (
                     <div className="listing-modal-thumbs rounded-xl border p-3 overflow-hidden">
                       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                        {modalListing.pictures.map((pic) => {
-                          const src = pic.original || pic.thumbnail || modalListing.picture;
-                          return (
-                            <button
-                              key={pic._id || pic.original || pic.thumbnail}
-                              onClick={() => setModalHero(src)}
-                              className="listing-thumb-btn h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-400"
-                            >
-                              <img
-                                src={src}
-                                alt={pic.caption || modalListing.title}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                              />
-                            </button>
-                          );
-                        })}
+                        {modalImages.map((src, index) => (
+                          <button
+                            key={`${src}-${index}`}
+                            onClick={() => setModalHero(src)}
+                            className="listing-thumb-btn h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          >
+                            <img
+                              src={src}
+                              alt={modalListing.title}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}

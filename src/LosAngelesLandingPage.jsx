@@ -12,6 +12,7 @@ import Silk from "./components/Silk";
 import LoadingScreen from "./components/LoadingScreen";
 import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
+import { filterLowQualityImages } from "./utils/imageQuality";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -1180,14 +1181,15 @@ const getListingImageUrls = (listing) => {
     listing.pictures.forEach(collectImage);
   }
   const unique = Array.from(new Set(urls));
-  if (!unique.length) {
+  const filtered = filterLowQualityImages(unique);
+  if (!filtered.length) {
     console.warn("[Gallery] No images found for listing.", {
       listingId: listing?.id || listing?._id || listing?.unitTypeId || null,
       title: listing?.title || "",
     });
     return [FALLBACK_IMAGE];
   }
-  return unique;
+  return filtered;
 };
 
 const galleryLogCache = new Set();
@@ -1810,7 +1812,15 @@ export default function LosAngelesLandingPage() {
   const { listingId: routeListingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const isListingRoute = Boolean(routeListingId);
+  const isListingRoute = Boolean(routeListingId);  // listing-route-scroll-lock
+  useEffect(() => {
+    if (!isListingRoute) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isListingRoute]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -3634,14 +3644,8 @@ export default function LosAngelesLandingPage() {
       )
       .filter(Boolean);
     return featuredListings.map((listing, index) => {
-      const image =
-        listing.picture?.regular ||
-        listing.picture?.large ||
-        listing.picture?.thumbnail ||
-        listing.pictures?.[0]?.original ||
-        listing.pictures?.[0]?.thumbnail ||
-        fallbackImages[index] ||
-        fallbackImages[0];
+      const images = getListingImageUrls(listing);
+      const image = images[0] || fallbackImages[index] || fallbackImages[0];
       const priceValue =
         typeof listing.basePrice === "number"
           ? listing.basePrice
@@ -6096,7 +6100,10 @@ export default function LosAngelesLandingPage() {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
                       const listingPath = listingPathId ? buildListingPath(listingPathId) : "/los-angeles";
-                      const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
+                      const image =
+                        getListingImageUrls(listing)[0] ||
+                        getImageUrl(listing.picture) ||
+                        getImageUrl(listing.pictures?.[0]);
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
                       const shortDescription = getFirstSentence(fullDescription);

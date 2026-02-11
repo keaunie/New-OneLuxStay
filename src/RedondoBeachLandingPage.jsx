@@ -10,6 +10,7 @@ import Silk from "./components/Silk";
 import LoadingScreen from "./components/LoadingScreen";
 import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
+import { filterLowQualityImages } from "./utils/imageQuality";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -1178,14 +1179,15 @@ const getListingImageUrls = (listing) => {
     listing.pictures.forEach(collectImage);
   }
   const unique = Array.from(new Set(urls));
-  if (!unique.length) {
+  const filtered = filterLowQualityImages(unique);
+  if (!filtered.length) {
     console.warn("[Gallery] No images found for listing.", {
       listingId: listing?.id || listing?._id || listing?.unitTypeId || null,
       title: listing?.title || "",
     });
     return [FALLBACK_IMAGE];
   }
-  return unique;
+  return filtered;
 };
 
 const galleryLogCache = new Set();
@@ -1667,7 +1669,15 @@ export default function RedondoBeachLandingPage() {
   const { listingId: routeListingId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const isListingRoute = Boolean(routeListingId);
+  const isListingRoute = Boolean(routeListingId);  // listing-route-scroll-lock
+  useEffect(() => {
+    if (!isListingRoute) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isListingRoute]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -3346,28 +3356,14 @@ export default function RedondoBeachLandingPage() {
     []
   );
   const bounceListings = useMemo(() => {
-    const featuredIds = [
-      "66e85deca8a40a00145be974",
-      "691b844f8b32740013bc7c2c",
-      "66e3bd82536929001303452f",
-    ];
-    const fallbackImages = heroImages.slice(0, 3);
-    const featuredListings = featuredIds
-      .map((id) =>
-        redondoBeachListings.find(
-          (listing) => String(listing.id || listing._id || listing.unitTypeId || "") === id
-        )
-      )
-      .filter(Boolean);
-    return featuredListings.map((listing, index) => {
-      const image =
-        listing.picture?.regular ||
-        listing.picture?.large ||
-        listing.picture?.thumbnail ||
-        listing.pictures?.[0]?.original ||
-        listing.pictures?.[0]?.thumbnail ||
-        fallbackImages[index] ||
-        fallbackImages[0];
+    const sourceListings = redondoBeachParentListings.length
+      ? redondoBeachParentListings
+      : redondoBeachListings;
+    if (!sourceListings.length) return [];
+    const fallbackImages = heroImages.length ? heroImages : [];
+    return sourceListings.slice(0, 6).map((listing, index) => {
+      const images = getListingImageUrls(listing);
+      const image = images[0] || fallbackImages[index] || fallbackImages[0];
       const priceValue =
         typeof listing.basePrice === "number"
           ? listing.basePrice
@@ -3378,11 +3374,11 @@ export default function RedondoBeachLandingPage() {
       return {
         id: listingId,
         image,
-        title: sanitizeText(listing.title || "One Lux Stay"),
+        title: sanitizeText(listing.title || "One Lux Stay Redondo Beach"),
         price: priceValue ? `From ${formatCurrency(priceValue, listing.currency)}` : "",
       };
     });
-  }, [heroImages, redondoBeachListings]);
+  }, [heroImages, redondoBeachListings, redondoBeachParentListings]);
   const heroCards = useMemo(() => {
     if (!heroImages.length) return [];
     if (!bounceListings.length) {
@@ -5577,7 +5573,10 @@ export default function RedondoBeachLandingPage() {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
                       const listingPath = listingPathId ? buildListingPath(listingPathId) : "/redondo-beach";
-                      const image = getImageUrl(listing.picture) || getImageUrl(listing.pictures?.[0]);
+                      const image =
+                        getListingImageUrls(listing)[0] ||
+                        getImageUrl(listing.picture) ||
+                        getImageUrl(listing.pictures?.[0]);
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
                       const shortDescription = getFirstSentence(fullDescription);
