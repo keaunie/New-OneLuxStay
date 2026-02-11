@@ -96,7 +96,7 @@ const getListingImage = (listing) => {
 
 const truncateLabel = (value, max = 36) => {
   if (typeof value !== "string") return "";
-  return value.length > max ? `${value.slice(0, max - 1)}�` : value;
+  return value.length > max ? `${value.slice(0, max - 3)}...` : value;
 };
 
 const formatCurrency = (value, currency = "USD") => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { useParams } from "react-router-dom";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
-import { filterLowQualityImages } from "./utils/imageQuality";
+import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import "./App.css";
 
 const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
@@ -28,12 +28,7 @@ const extractImageUrl = (value) => {
 
 const getImageKey = (value) => {
   const url = extractImageUrl(value);
-  if (!url) return "";
-  const cleanUrl = url.split("?")[0];
-  const parts = cleanUrl.split("/");
-  const filename = parts[parts.length - 1] || "";
-  const base = filename.split(".")[0];
-  return base || cleanUrl;
+  return getImageKeyFromUrl(url);
 };
 
 const getListingImageUrls = (listing) => {
