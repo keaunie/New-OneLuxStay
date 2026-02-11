@@ -883,7 +883,7 @@ function LandingPage() {
           renderer: "svg",
           loop: true,
           autoplay: true,
-          path: "/3D%20Isometric%20Smart-Living%20Room.json",
+          path: "/Swipe.json",
         }),
       );
     };
