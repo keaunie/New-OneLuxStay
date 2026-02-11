@@ -1,4 +1,4 @@
-﻿import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useId } from "react";
 import lottie from "lottie-web";
 import "./App.css";
@@ -91,7 +91,7 @@ const getListingImage = (listing) => {
 
 const truncateLabel = (value, max = 36) => {
   if (typeof value !== "string") return "";
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+  return value.length > max ? `${value.slice(0, max - 1)}�` : value;
 };
 
 const formatCurrency = (value, currency = "USD") => {
@@ -306,7 +306,7 @@ const offers = [
   {
     kicker: "Last-minute 10%",
     headline: "Spontaneous? Save 10% instantly",
-    body: "Lock in a last‑minute escape and keep 10% back in your pocket.",
+    body: "Lock in a last-minute escape and keep 10% back in your pocket.",
     cta: "See last-minute",
     tone: "dark",
   },
@@ -883,7 +883,7 @@ function LandingPage() {
           renderer: "svg",
           loop: true,
           autoplay: true,
-          path: "https://lottie.host/249ec6fa-70aa-46c3-8dd8-aa25c38dff74/qlsaZ2kzyg.json",
+          path: "/3D%20Isometric%20Smart-Living%20Room.json",
         }),
       );
     };

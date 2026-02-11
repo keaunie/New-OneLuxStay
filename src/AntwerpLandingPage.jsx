@@ -15,7 +15,7 @@ const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const CITY_LOADING_LOTTIE_SRC =
-  "https://lottie.host/a5d4ff5c-b190-4293-8e82-9605dd09d4fb/W3GHTi7kL3.json";
+  "/3D%20Isometric%20Smart-Living%20Room.json";
 const PROPERTY_ADDRESS = "Antwerp, Belgium";
 const PROPERTY_COORDS = { lat: 51.2194, lng: 4.4025 };
 const LANDMARKS = [
@@ -468,6 +468,7 @@ const DateRangePicker = ({
   fallbackPrice,
   fallbackCurrency,
   fallbackMinNights,
+  showMinNights = true,
 }) => {
   const [open, setOpen] = useState(false);
   const setOpenState = (nextOpen) => {
@@ -568,24 +569,29 @@ const DateRangePicker = ({
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
     if (nextStart && nextEnd) {
-      const minNights = toNumber(
-        dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
-      );
-      const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
-      const violatesMin =
-        typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
-      if (!violatesMin) setOpenState(false);
+      if (!showMinNights) {
+        setOpenState(false);
+      } else {
+        const minNights = toNumber(
+          dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
+        );
+        const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
+        const violatesMin =
+          typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
+        if (!violatesMin) setOpenState(false);
+      }
     }
   };
 
   const selectedNights = diffNights(value.checkIn, value.checkOut);
   const selectedMinNights = useMemo(() => {
+    if (!showMinNights) return null;
     if (!dayPrices || !startDate) return fallbackMinNights ?? null;
     const iso = toISODate(startDate);
     const info = dayPrices.get(iso);
     const minNights = toNumber(info?.restrictions?.minNights ?? fallbackMinNights ?? null);
     return typeof minNights === "number" && minNights > 1 ? minNights : null;
-  }, [dayPrices, startDate, fallbackMinNights]);
+  }, [dayPrices, startDate, fallbackMinNights, showMinNights]);
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
@@ -669,7 +675,8 @@ const DateRangePicker = ({
               </button>
             </div>
           </div>
-          {selectedMinNights &&
+          {showMinNights &&
+            selectedMinNights &&
             selectedNights > 0 &&
             selectedNights < selectedMinNights && (
               <div className="la-date-alert" role="alert">
@@ -710,7 +717,8 @@ const DateRangePicker = ({
                       const minNights = toNumber(
                         priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null
                       );
-                      const showMinNights = typeof minNights === "number" && minNights > 1;
+                      const showMinNightsCell =
+                        showMinNights && typeof minNights === "number" && minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
                           weekday: "long",
@@ -735,13 +743,13 @@ const DateRangePicker = ({
                           aria-selected={selected}
                           aria-disabled={disabled}
                           aria-label={
-                            showMinNights
+                            showMinNightsCell
                               ? `${dayAria} Minimum stay ${minNights} nights.`
                               : dayAria
                           }
                           aria-hidden={day ? undefined : true}
                           onClick={() => handleDayClick(day)}
-                          className={`listing-date-cell ${stateClass}${showMinNights ? " has-restriction" : ""}${isPast ? " is-past" : ""}`}
+                          className={`listing-date-cell ${stateClass}${showMinNightsCell ? " has-restriction" : ""}${isPast ? " is-past" : ""}`}
                         >
                           {day ? (
                             <>
@@ -753,7 +761,7 @@ const DateRangePicker = ({
                                   {priceLabel}
                                 </span>
                               )}
-                              {showMinNights && (
+                              {showMinNightsCell && (
                                 <span className="listing-date-cell__restriction">
                                   Min {minNights}
                                 </span>
@@ -1720,9 +1728,9 @@ const CITY_TOUR_SLIDES = {
   "Fashion District": [
     {
       title: "Grote Markt + Nationalestraat",
-      subtitle: "Begin at the square, then follow Antwerpâ€™s fashion artery.",
+      subtitle: "Begin at the square, then follow Antwerp’s fashion artery.",
       copy:
-        "Start at Grote Markt, then head down Nationalestraat toward MoMu and the Royal Academy for the cityâ€™s fashion pulse.",
+        "Start at Grote Markt, then head down Nationalestraat toward MoMu and the Royal Academy for the city’s fashion pulse.",
       highlights: ["Grote Markt", "Nationalestraat", "MoMu"],
       image:
         "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
@@ -1740,7 +1748,7 @@ const CITY_TOUR_SLIDES = {
       title: "Hidden Alleys + Heritage",
       subtitle: "Quiet passages and UNESCO history.",
       copy:
-        "Slip into Vlaeykensgang, then tour Plantin-Moretus Museum for Antwerpâ€™s printing legacy.",
+        "Slip into Vlaeykensgang, then tour Plantin-Moretus Museum for Antwerp’s printing legacy.",
       highlights: ["Vlaeykensgang", "Plantin-Moretus Museum", "Historic alleys"],
       image:
         "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=2000&q=80",
@@ -1758,7 +1766,7 @@ const CITY_TOUR_SLIDES = {
   "Antwerp Central": [
     {
       title: "Railway Cathedral Start",
-      subtitle: "Antwerp Central and the cityâ€™s main boulevard.",
+      subtitle: "Antwerp Central and the city’s main boulevard.",
       copy:
         "Begin at Antwerp Central Station, then walk Meir toward the historic center.",
       highlights: ["Antwerp Central Station", "Meir Shopping Street", "City Hall"],
@@ -1778,7 +1786,7 @@ const CITY_TOUR_SLIDES = {
       title: "Rubens + Plantin-Moretus",
       subtitle: "Golden Age art and printing history.",
       copy:
-        "Tour Rubenshuis and the Plantin-Moretus Museum for a deep dive into Antwerpâ€™s heritage.",
+        "Tour Rubenshuis and the Plantin-Moretus Museum for a deep dive into Antwerp’s heritage.",
       highlights: ["Rubenshuis", "Plantin-Moretus Museum", "Historic streets"],
       image:
         "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=2000&q=80",
@@ -1796,7 +1804,7 @@ const CITY_TOUR_SLIDES = {
   "City Centre": [
     {
       title: "Central Station + Meir",
-      subtitle: "Railway cathedral to the cityâ€™s main boulevard.",
+      subtitle: "Railway cathedral to the city’s main boulevard.",
       copy:
         "Begin at Antwerp Central Station, then walk Meir toward the historic center.",
       highlights: ["Antwerp Central Station", "Meir", "City Hall"],
@@ -1816,7 +1824,7 @@ const CITY_TOUR_SLIDES = {
       title: "Rubens + Plantin-Moretus",
       subtitle: "Art history and printing heritage.",
       copy:
-        "Tour Rubenshuis and Plantin-Moretus Museum for Antwerpâ€™s Golden Age story.",
+        "Tour Rubenshuis and Plantin-Moretus Museum for Antwerp’s Golden Age story.",
       highlights: ["Rubenshuis", "Plantin-Moretus Museum", "Vlaeykensgang"],
       image:
         "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=2000&q=80",
@@ -5687,6 +5695,7 @@ export default function AntwerpLandingPage() {
                       fallbackPrice={fallbackListing?.basePrice}
                       fallbackCurrency={fallbackListing?.currency || "USD"}
                       fallbackMinNights={minNightsFallback}
+                      showMinNights={false}
                       onMonthChange={(month) => {
                         setSectionCalendarStartDate(new Date(month.getFullYear(), month.getMonth(), 1));
                       }}
@@ -5956,7 +5965,7 @@ export default function AntwerpLandingPage() {
                               ) : isUnavailable ? (
                                 <>
                                   <strong>Inquire for exact pricing</strong>
-                                  <span>Weâ€™ll confirm rates & availability.</span>
+                                  <span>We’ll confirm rates & availability.</span>
                                 </>
                               ) : (
                                 <>
@@ -6201,8 +6210,8 @@ export default function AntwerpLandingPage() {
                 />
                 <div>
                   <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us whoâ€™s booking</h3>
-                  <p className="la-inquiry-modal__meta">Weâ€™ll use this to create the reservation after payment.</p>
+                  <h3>Tell us who’s booking</h3>
+                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
                 </div>
               </div>
               <button
@@ -6951,4 +6960,3 @@ export default function AntwerpLandingPage() {
     </div>
   );
 }
-

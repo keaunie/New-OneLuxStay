@@ -15,7 +15,7 @@ const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const CITY_LOADING_LOTTIE_SRC =
-  "https://lottie.host/a5d4ff5c-b190-4293-8e82-9605dd09d4fb/W3GHTi7kL3.json";
+  "/3D%20Isometric%20Smart-Living%20Room.json";
 const AED_SYMBOL = "د. إ.";
 const PROPERTY_ADDRESS = "Dubai, United Arab Emirates";
 const PROPERTY_COORDS = { lat: 25.2048, lng: 55.2708 };
@@ -488,6 +488,7 @@ const DateRangePicker = ({
   fallbackPrice,
   fallbackCurrency,
   fallbackMinNights,
+  showMinNights = true,
 }) => {
   const [open, setOpen] = useState(false);
   const setOpenState = (nextOpen) => {
@@ -588,24 +589,29 @@ const DateRangePicker = ({
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
     if (nextStart && nextEnd) {
-      const minNights = toNumber(
-        dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
-      );
-      const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
-      const violatesMin =
-        typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
-      if (!violatesMin) setOpenState(false);
+      if (!showMinNights) {
+        setOpenState(false);
+      } else {
+        const minNights = toNumber(
+          dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
+        );
+        const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
+        const violatesMin =
+          typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
+        if (!violatesMin) setOpenState(false);
+      }
     }
   };
 
   const selectedNights = diffNights(value.checkIn, value.checkOut);
   const selectedMinNights = useMemo(() => {
+    if (!showMinNights) return null;
     if (!dayPrices || !startDate) return fallbackMinNights ?? null;
     const iso = toISODate(startDate);
     const info = dayPrices.get(iso);
     const minNights = toNumber(info?.restrictions?.minNights ?? fallbackMinNights ?? null);
     return typeof minNights === "number" && minNights > 1 ? minNights : null;
-  }, [dayPrices, startDate, fallbackMinNights]);
+  }, [dayPrices, startDate, fallbackMinNights, showMinNights]);
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
@@ -689,7 +695,8 @@ const DateRangePicker = ({
               </button>
             </div>
           </div>
-          {selectedMinNights &&
+          {showMinNights &&
+            selectedMinNights &&
             selectedNights > 0 &&
             selectedNights < selectedMinNights && (
               <div className="la-date-alert" role="alert">
@@ -730,7 +737,8 @@ const DateRangePicker = ({
                       const minNights = toNumber(
                         priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null
                       );
-                      const showMinNights = typeof minNights === "number" && minNights > 1;
+                      const showMinNightsCell =
+                        showMinNights && typeof minNights === "number" && minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
                           weekday: "long",
@@ -755,13 +763,13 @@ const DateRangePicker = ({
                           aria-selected={selected}
                           aria-disabled={disabled}
                           aria-label={
-                            showMinNights
+                            showMinNightsCell
                               ? `${dayAria} Minimum stay ${minNights} nights.`
                               : dayAria
                           }
                           aria-hidden={day ? undefined : true}
                           onClick={() => handleDayClick(day)}
-                          className={`listing-date-cell ${stateClass}${showMinNights ? " has-restriction" : ""}${isPast ? " is-past" : ""}`}
+                          className={`listing-date-cell ${stateClass}${showMinNightsCell ? " has-restriction" : ""}${isPast ? " is-past" : ""}`}
                         >
                           {day ? (
                             <>
@@ -773,7 +781,7 @@ const DateRangePicker = ({
                                   {priceLabel}
                                 </span>
                               )}
-                              {showMinNights && (
+                              {showMinNightsCell && (
                                 <span className="listing-date-cell__restriction">
                                   Min {minNights}
                                 </span>
@@ -5532,6 +5540,7 @@ export default function DubaiLandingPage() {
                       fallbackPrice={fallbackListing?.basePrice}
                       fallbackCurrency={fallbackListing?.currency || "USD"}
                       fallbackMinNights={minNightsFallback}
+                      showMinNights={false}
                       onMonthChange={(month) => {
                         setSectionCalendarStartDate(new Date(month.getFullYear(), month.getMonth(), 1));
                       }}
