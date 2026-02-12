@@ -1111,18 +1111,14 @@ function LandingPage() {
             </div>
             <button type="submit" className="landing-cta-primary w-full md:w-auto">Book</button>
           </form>
-        </div>
-      </header>
 
-      <main>
-        <section id="collection" className="landing-showcase-section py-16 md:py-20 landing-animate">
-          <div className="landing-circular-gallery" aria-label="Featured city stays">
+          <div className="landing-circular-gallery landing-circular-gallery--hero" aria-label="Featured city stays">
             <CircularGallery
               items={galleryItems}
               bend={0}
               borderRadius={0.08}
-              textColor="#5f4e45"
-              font="600 22px 'Work Sans', sans-serif"
+              textColor="#46372e"
+              font="700 24px 'Work Sans', sans-serif"
               onSelect={handleGallerySelect}
               useFallback={false}
               wave={0}
@@ -1133,7 +1129,8 @@ function LandingPage() {
               <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
             </div>
           </div>
-          <div className="landing-showcase-inner px-6 md:px-10 mt-10">
+
+          <div id="collection" className="landing-showcase-inner px-6 md:px-10 mt-2 md:mt-4">
             <div className="landing-section-head flex items-center justify-between gap-6 flex-col md:flex-row">
               <div className="max-w-2xl">
                 <p className="landing-kicker">Signature stays</p>
@@ -1147,8 +1144,10 @@ function LandingPage() {
               <Link to="/listings" className="landing-link">Book your dates</Link>
             </div>
           </div>
-        </section>
+        </div>
+      </header>
 
+      <main>
         <section className="landing-fullbleed landing-stack-scroll">
           <ScrollStack
             className="landing-stack-scroll__scroller"

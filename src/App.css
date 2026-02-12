@@ -334,6 +334,7 @@ html {
     radial-gradient(circle at 82% 8%, rgba(217, 207, 199, 0.45), transparent 45%),
     linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
   color: var(--ink);
+  overflow-x: hidden;
 }
 
 .landing-page.has-silk {
@@ -395,7 +396,8 @@ html {
     radial-gradient(circle at 70% 10%, rgba(201, 181, 156, 0.2), transparent 38%),
     #f9f8f6;
   border-bottom: 1px solid var(--landing-stroke);
-  min-height: 70vh;
+  min-height: 100vh;
+  min-height: 100svh;
   overflow: visible;
   position: relative;
   z-index: 20;
@@ -533,11 +535,11 @@ html {
   z-index: 2;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 120px 24px 140px;
+  padding: 92px 24px 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   text-align: center;
 }
 
@@ -904,7 +906,7 @@ html {
 
 @media (max-width: 900px) {
   .landing-hero-inner {
-    padding: 80px 18px 100px;
+    padding: 72px 18px 22px;
     gap: 14px;
   }
 
@@ -938,7 +940,7 @@ html {
 
 @media (max-width: 640px) {
   .landing-hero-inner {
-    padding: 64px 14px 80px;
+    padding: 62px 14px 16px;
   }
 
   .landing-chip {
@@ -977,11 +979,11 @@ html {
   z-index: 2;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 120px 24px 140px;
+  padding: 92px 24px 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   text-align: center;
 }
 
@@ -1269,13 +1271,43 @@ html {
   box-shadow: 0 10px 24px rgba(63, 54, 47, 0.18);
 }
 
+.landing-circular-gallery--hero {
+  margin-top: 6px;
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  left: auto;
+  right: auto;
+  align-self: center;
+  height: clamp(340px, 44vh, 560px);
+  padding: 0 0 34px;
+}
+
+.landing-circular-gallery--hero::before,
+.landing-circular-gallery--hero::after {
+  width: clamp(12px, 3vw, 36px);
+}
+
+.landing-circular-gallery--hero::before {
+  background: linear-gradient(90deg, rgba(249, 248, 246, 0.24), rgba(249, 248, 246, 0));
+}
+
+.landing-circular-gallery--hero::after {
+  background: linear-gradient(-90deg, rgba(249, 248, 246, 0.24), rgba(249, 248, 246, 0));
+}
+
 .landing-circular-gallery__hint-label {
   line-height: 1;
 }
 
 .landing-circular-gallery__hint-lottie {
+  display: inline-block;
+  flex: 0 0 auto;
   width: 54px;
   height: 28px;
+  min-width: 54px;
+  min-height: 28px;
 }
 
 .landing-circular-gallery__hint-lottie svg {
@@ -1312,6 +1344,25 @@ html {
   .landing-circular-gallery__hint {
     gap: 6px;
     padding: 6px 12px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .landing-circular-gallery--hero {
+    height: clamp(300px, 40vh, 460px);
+  }
+}
+
+@media (max-width: 768px) {
+  .landing-circular-gallery--hero {
+    height: clamp(270px, 36vh, 400px);
+    padding: 0 0 22px;
+  }
+}
+
+@media (max-width: 520px) {
+  .landing-circular-gallery--hero {
+    height: clamp(250px, 34vh, 350px);
   }
 }
 
@@ -1539,8 +1590,12 @@ html {
 }
 
 .landing-offers-swipe__lottie {
+  display: inline-block;
+  flex: 0 0 auto;
   width: 54px;
   height: 28px;
+  min-width: 54px;
+  min-height: 28px;
 }
 
 .landing-offers-swipe__lottie svg {
@@ -8633,7 +8688,7 @@ video {
   }
 
   .landing-hero {
-    min-height: 62svh;
+    min-height: 100svh;
   }
 
   .landing-city-card {

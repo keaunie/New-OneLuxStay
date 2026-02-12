@@ -1963,9 +1963,13 @@ export default function AntwerpLandingPage() {
   });
   const [checkoutGuestError, setCheckoutGuestError] = useState("");
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
+  const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
+  const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
+  const checkoutSignatureCanvasRef = useRef(null);
+  const isSigningRef = useRef(false);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const heroCarouselRef = useRef(null);
   const cardSwapRef = useRef(null);
@@ -2355,6 +2359,17 @@ export default function AntwerpLandingPage() {
     };
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
+  }, [isCheckoutGuestOpen]);
+
+  useEffect(() => {
+    if (!isCheckoutGuestOpen) return;
+    requestAnimationFrame(() => {
+      const canvas = checkoutSignatureCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      setCheckoutConsentSignatureDataUrl("");
+    });
   }, [isCheckoutGuestOpen]);
 
   useEffect(() => {
@@ -3497,7 +3512,16 @@ export default function AntwerpLandingPage() {
     }
   };
 
-  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency, guest, breakdown }) => {
+  const handleSectionCheckout = async ({
+    listingId,
+    listingTitle,
+    amount,
+    currency,
+    guest,
+    breakdown,
+    consentSignerName,
+    consentSignatureDataUrl,
+  }) => {
     if (!listingId) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
@@ -3525,6 +3549,8 @@ export default function AntwerpLandingPage() {
           currency,
           breakdown,
           guest,
+          consentSignerName,
+          consentSignatureDataUrl,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -3546,6 +3572,14 @@ export default function AntwerpLandingPage() {
       setCheckoutGuestError("Add guest name and email to continue.");
       return;
     }
+    if (!checkoutConsentSignerName.trim()) {
+      setCheckoutGuestError("Please add the signer full name.");
+      return;
+    }
+    if (!checkoutConsentSignatureDataUrl) {
+      setCheckoutGuestError("Please provide a signature.");
+      return;
+    }
     if (!pendingCheckout) {
       setIsCheckoutGuestOpen(false);
       return;
@@ -3553,14 +3587,18 @@ export default function AntwerpLandingPage() {
     setCheckoutGuestError("");
     setIsCheckoutGuestOpen(false);
     const consentText =
-      "By continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt will be emailed to you";
+      "By signing and continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt and consent proof PDF will be emailed to you";
     const payload = {
       ...pendingCheckout,
       guest: checkoutGuest,
       consentText,
       consentAcceptedAt: new Date().toISOString(),
+      consentSignerName: checkoutConsentSignerName.trim(),
+      consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
     };
     setCheckoutConsentAccepted(false);
+    setCheckoutConsentSignerName("");
+    setCheckoutConsentSignatureDataUrl("");
     setCheckoutStep(1);
     setPendingCheckout(null);
     handleSectionCheckout(payload);
@@ -3570,6 +3608,64 @@ export default function AntwerpLandingPage() {
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim()
   );
   const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
+
+  const getSignaturePoint = (event) => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const source = event.touches?.[0] || event;
+    if (!source) return null;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    return {
+      x: (source.clientX - rect.left) * scaleX,
+      y: (source.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startSignatureDraw = (event) => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getSignaturePoint(event);
+    if (!point) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#3f3326";
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    isSigningRef.current = true;
+    event.preventDefault();
+  };
+
+  const drawSignature = (event) => {
+    if (!isSigningRef.current) return;
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getSignaturePoint(event);
+    if (!point) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    setCheckoutConsentSignatureDataUrl(canvas.toDataURL("image/png"));
+    event.preventDefault();
+  };
+
+  const endSignatureDraw = () => {
+    if (!isSigningRef.current) return;
+    isSigningRef.current = false;
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    setCheckoutConsentSignatureDataUrl(canvas.toDataURL("image/png"));
+  };
+
+  const clearSignature = () => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setCheckoutConsentSignatureDataUrl("");
+  };
 
   const handleGuestInputChange = (field) => (event) => {
     const { value } = event.target;
@@ -5991,7 +6087,7 @@ export default function AntwerpLandingPage() {
                               ) : isUnavailable ? (
                                 <>
                                   <strong>Inquire for exact pricing</strong>
-                                  <span>We’ll confirm rates & availability.</span>
+                                  <span>We'll confirm rates & availability.</span>
                                 </>
                               ) : (
                                 <>
@@ -6125,6 +6221,10 @@ export default function AntwerpLandingPage() {
                                         currency: priceCurrency,
                                         breakdown: selectedPlan?.breakdown || null,
                                       });
+                                      setCheckoutStep(1);
+                                      setCheckoutConsentAccepted(false);
+                                      setCheckoutConsentSignerName("");
+                                      setCheckoutConsentSignatureDataUrl("");
                                       setCheckoutGuestError("");
                                       setIsCheckoutGuestOpen(true);
                                       return;
@@ -6236,8 +6336,8 @@ export default function AntwerpLandingPage() {
                 />
                 <div>
                   <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us who’s booking</h3>
-                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
+                  <h3>Tell us who's booking</h3>
+                  <p className="la-inquiry-modal__meta">We'll use this to create the reservation after payment.</p>
                 </div>
               </div>
               <button
@@ -6259,7 +6359,10 @@ export default function AntwerpLandingPage() {
                 nextButtonProps={{
                   disabled:
                     (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 && !checkoutConsentAccepted),
+                    (checkoutStep === 2 &&
+                      (!checkoutConsentAccepted ||
+                        !checkoutConsentSignerName.trim() ||
+                        !checkoutConsentSignatureDataUrl)),
                 }}
               >
                 <Step>
@@ -6342,10 +6445,44 @@ export default function AntwerpLandingPage() {
                         onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
                       />
                       <span>
-                        By continuing to payment, you authorize OneLuxStay to charge the total amount
-                        shown for your reservation. A receipt will be emailed to you.
+                        By signing and continuing to payment, you authorize OneLuxStay to charge the
+                        total amount shown for your reservation. A receipt and consent proof PDF will
+                        be emailed to you.
                       </span>
                     </label>
+                    <label className="la-inquiry-modal__field">
+                      <span>Signer full name</span>
+                      <input
+                        type="text"
+                        value={checkoutConsentSignerName}
+                        autoComplete="name"
+                        placeholder="Type full legal name"
+                        onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
+                      />
+                    </label>
+                    <div className="la-inquiry-modal__signature">
+                      <span>Signature</span>
+                      <canvas
+                        ref={checkoutSignatureCanvasRef}
+                        width={560}
+                        height={150}
+                        className="la-inquiry-modal__signature-pad"
+                        onMouseDown={startSignatureDraw}
+                        onMouseMove={drawSignature}
+                        onMouseUp={endSignatureDraw}
+                        onMouseLeave={endSignatureDraw}
+                        onTouchStart={startSignatureDraw}
+                        onTouchMove={drawSignature}
+                        onTouchEnd={endSignatureDraw}
+                      />
+                      <button
+                        type="button"
+                        className="la-inquiry-modal__signature-clear"
+                        onClick={clearSignature}
+                      >
+                        Clear signature
+                      </button>
+                    </div>
                   </div>
                 </Step>
                 <Step>
@@ -6363,6 +6500,10 @@ export default function AntwerpLandingPage() {
                       <div>
                         <strong>Email</strong>
                         <span>{checkoutGuest.email}</span>
+                      </div>
+                      <div>
+                        <strong>Signed by</strong>
+                        <span>{checkoutConsentSignerName || "--"}</span>
                       </div>
                       {checkoutGuest.phone && (
                         <div>
@@ -6734,6 +6875,10 @@ export default function AntwerpLandingPage() {
                                       currency: priceCurrency,
                                       breakdown: breakdown || null,
                                     });
+                                    setCheckoutStep(1);
+                                    setCheckoutConsentAccepted(false);
+                                    setCheckoutConsentSignerName("");
+                                    setCheckoutConsentSignatureDataUrl("");
                                     setCheckoutGuestError("");
                                     setIsCheckoutGuestOpen(true);
                                     return;
@@ -6986,3 +7131,4 @@ export default function AntwerpLandingPage() {
     </div>
   );
 }
+

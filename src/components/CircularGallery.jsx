@@ -263,12 +263,28 @@ class Media {
           );
           vec4 color = texture2D(tMap, uv);
 
-          float d = roundedBoxSDF(vUv - 0.5, vec2(0.5 - uBorderRadius), uBorderRadius);
-          if (d > 0.0) {
-            discard;
+          // Slight inset leaves room for an outer drop shadow inside the same plane.
+          float inset = 0.02;
+          vec2 cardHalf = vec2(0.5 - uBorderRadius - inset);
+          float cardRadius = max(0.0, uBorderRadius - inset * 0.5);
+          float cardD = roundedBoxSDF(vUv - 0.5, cardHalf, cardRadius);
+
+          // Soft shadow, slightly offset downward for depth.
+          vec2 shadowOffset = vec2(0.0, -0.02);
+          float shadowD = roundedBoxSDF((vUv - 0.5) - shadowOffset, cardHalf, cardRadius);
+          float shadowAlpha = (1.0 - smoothstep(0.0, 0.07, shadowD)) * 0.24;
+
+          if (cardD <= 0.0) {
+            gl_FragColor = vec4(color.rgb, 1.0);
+            return;
           }
 
-          gl_FragColor = vec4(color.rgb, 1.0);
+          if (shadowAlpha > 0.001) {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, shadowAlpha);
+            return;
+          }
+
+          discard;
         }
       `,
       uniforms: {

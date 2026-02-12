@@ -17,7 +17,7 @@ const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const CITY_LOADING_LOTTIE_SRC =
   "/3D%20Isometric%20Smart-Living%20Room.json";
-const AED_SYMBOL = "د. إ.";
+const AED_SYMBOL = "Ø¯. Ø¥.";
 const PROPERTY_ADDRESS = "Dubai, United Arab Emirates";
 const PROPERTY_COORDS = { lat: 25.2048, lng: 55.2708 };
 const LANDMARKS = [
@@ -158,7 +158,7 @@ const formatRuleValue = (value) => {
   if (value === false) return "No";
   if (typeof value === "number") return `${value}`;
   if (typeof value === "string" && value.trim()) return value;
-  return "—";
+  return "â€”";
 };
 
 const formatQuietHours = (quietHours) => {
@@ -1819,9 +1819,13 @@ export default function DubaiLandingPage() {
   });
   const [checkoutGuestError, setCheckoutGuestError] = useState("");
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
+  const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
+  const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
+  const checkoutSignatureCanvasRef = useRef(null);
+  const isSigningRef = useRef(false);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const heroCarouselRef = useRef(null);
   const cardSwapRef = useRef(null);
@@ -2211,6 +2215,17 @@ export default function DubaiLandingPage() {
     };
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
+  }, [isCheckoutGuestOpen]);
+
+  useEffect(() => {
+    if (!isCheckoutGuestOpen) return;
+    requestAnimationFrame(() => {
+      const canvas = checkoutSignatureCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      setCheckoutConsentSignatureDataUrl("");
+    });
   }, [isCheckoutGuestOpen]);
 
   useEffect(() => {
@@ -3347,7 +3362,16 @@ export default function DubaiLandingPage() {
     }
   };
 
-  const handleSectionCheckout = async ({ listingId, listingTitle, amount, currency, guest, breakdown }) => {
+  const handleSectionCheckout = async ({
+    listingId,
+    listingTitle,
+    amount,
+    currency,
+    guest,
+    breakdown,
+    consentSignerName,
+    consentSignatureDataUrl,
+  }) => {
     if (!listingId) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
@@ -3375,6 +3399,8 @@ export default function DubaiLandingPage() {
           currency,
           breakdown,
           guest,
+          consentSignerName,
+          consentSignatureDataUrl,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -3396,6 +3422,14 @@ export default function DubaiLandingPage() {
       setCheckoutGuestError("Add guest name and email to continue.");
       return;
     }
+    if (!checkoutConsentSignerName.trim()) {
+      setCheckoutGuestError("Please add the signer full name.");
+      return;
+    }
+    if (!checkoutConsentSignatureDataUrl) {
+      setCheckoutGuestError("Please provide a signature.");
+      return;
+    }
     if (!pendingCheckout) {
       setIsCheckoutGuestOpen(false);
       return;
@@ -3403,14 +3437,18 @@ export default function DubaiLandingPage() {
     setCheckoutGuestError("");
     setIsCheckoutGuestOpen(false);
     const consentText =
-      "By continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt will be emailed to you";
+      "By signing and continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt and consent proof PDF will be emailed to you";
     const payload = {
       ...pendingCheckout,
       guest: checkoutGuest,
       consentText,
       consentAcceptedAt: new Date().toISOString(),
+      consentSignerName: checkoutConsentSignerName.trim(),
+      consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
     };
     setCheckoutConsentAccepted(false);
+    setCheckoutConsentSignerName("");
+    setCheckoutConsentSignatureDataUrl("");
     setCheckoutStep(1);
     setPendingCheckout(null);
     handleSectionCheckout(payload);
@@ -3420,6 +3458,64 @@ export default function DubaiLandingPage() {
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim()
   );
   const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
+
+  const getSignaturePoint = (event) => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const source = event.touches?.[0] || event;
+    if (!source) return null;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    return {
+      x: (source.clientX - rect.left) * scaleX,
+      y: (source.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startSignatureDraw = (event) => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getSignaturePoint(event);
+    if (!point) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#3f3326";
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    isSigningRef.current = true;
+    event.preventDefault();
+  };
+
+  const drawSignature = (event) => {
+    if (!isSigningRef.current) return;
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getSignaturePoint(event);
+    if (!point) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    setCheckoutConsentSignatureDataUrl(canvas.toDataURL("image/png"));
+    event.preventDefault();
+  };
+
+  const endSignatureDraw = () => {
+    if (!isSigningRef.current) return;
+    isSigningRef.current = false;
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    setCheckoutConsentSignatureDataUrl(canvas.toDataURL("image/png"));
+  };
+
+  const clearSignature = () => {
+    const canvas = checkoutSignatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setCheckoutConsentSignatureDataUrl("");
+  };
 
   const handleGuestInputChange = (field) => (event) => {
     const { value } = event.target;
@@ -3740,7 +3836,7 @@ export default function DubaiLandingPage() {
               }
             }}
           >
-            <span aria-hidden="true">‹</span>
+            <span aria-hidden="true">â€¹</span>
           </button>
           <div className="la-listing-hero__logo-mobile">
             <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
@@ -4024,7 +4120,7 @@ export default function DubaiLandingPage() {
               <div className="la-unit-modal__card la-unit-modal__price">
                 <span>From</span>
                 <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                <small>per night · taxes calculated at checkout</small>
+                <small>per night Â· taxes calculated at checkout</small>
                 {isListingAvailable ? (
                   <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
                     Reserve your dates
@@ -4264,7 +4360,7 @@ export default function DubaiLandingPage() {
                 {groupAmenities(activeListing.amenities).map((group) => (
                   <div key={group.key} className="la-facilities-group">
                     <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">✓</span>
+                      <span className="la-facilities-group__icon">âœ“</span>
                       <h5>{group.label}</h5>
                     </div>
                     <ul>
@@ -4299,7 +4395,7 @@ export default function DubaiLandingPage() {
           const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
           const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
           if (houseRulesLoading && !rules) {
-            return <p>Loading house rules…</p>;
+            return <p>Loading house rulesâ€¦</p>;
           }
           if (houseRulesError && !rules) {
             return <p>{houseRulesError}</p>;
@@ -4700,7 +4796,7 @@ export default function DubaiLandingPage() {
               Home
             </Link>
             <span className="city-breadcrumbs__sep" aria-hidden="true">
-              ›
+              â€º
             </span>
             <span className="city-breadcrumbs__current" aria-current="page">
               Dubai
@@ -4743,7 +4839,7 @@ export default function DubaiLandingPage() {
                   </div>
                   <p>"{review.quote}"</p>
                   <span className="la-review-ticker__meta">
-                    {review.name} · {review.source}
+                    {review.name} Â· {review.source}
                   </span>
                 </article>
               ))}
@@ -4755,7 +4851,7 @@ export default function DubaiLandingPage() {
                 onClick={() => scrollReviewCarousel(-1)}
                 aria-label="Previous review"
               >
-                ←
+                â†
               </button>
               <button
                 type="button"
@@ -4763,7 +4859,7 @@ export default function DubaiLandingPage() {
                 onClick={() => scrollReviewCarousel(1)}
                 aria-label="Next review"
               >
-                →
+                â†’
               </button>
             </div>
           </div>
@@ -5833,7 +5929,7 @@ export default function DubaiLandingPage() {
                               ) : isUnavailable ? (
                                 <>
                                   <strong>Inquire for exact pricing</strong>
-                                  <span>We’ll confirm rates & availability.</span>
+                                  <span>Weâ€™ll confirm rates & availability.</span>
                                 </>
                               ) : (
                                 <>
@@ -5967,6 +6063,10 @@ export default function DubaiLandingPage() {
                                         currency: priceCurrency,
                                         breakdown: selectedPlan?.breakdown || null,
                                       });
+                                      setCheckoutStep(1);
+                                      setCheckoutConsentAccepted(false);
+                                      setCheckoutConsentSignerName("");
+                                      setCheckoutConsentSignatureDataUrl("");
                                       setCheckoutGuestError("");
                                       setIsCheckoutGuestOpen(true);
                                       return;
@@ -6078,8 +6178,8 @@ export default function DubaiLandingPage() {
                 />
                 <div>
                   <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us who’s booking</h3>
-                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
+                  <h3>Tell us who's booking</h3>
+                  <p className="la-inquiry-modal__meta">We'll use this to create the reservation after payment.</p>
                 </div>
               </div>
               <button
@@ -6101,7 +6201,10 @@ export default function DubaiLandingPage() {
                 nextButtonProps={{
                   disabled:
                     (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 && !checkoutConsentAccepted),
+                    (checkoutStep === 2 &&
+                      (!checkoutConsentAccepted ||
+                        !checkoutConsentSignerName.trim() ||
+                        !checkoutConsentSignatureDataUrl)),
                 }}
               >
                 <Step>
@@ -6184,10 +6287,44 @@ export default function DubaiLandingPage() {
                         onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
                       />
                       <span>
-                        By continuing to payment, you authorize OneLuxStay to charge the total amount
-                        shown for your reservation. A receipt will be emailed to you.
+                        By signing and continuing to payment, you authorize OneLuxStay to charge the
+                        total amount shown for your reservation. A receipt and consent proof PDF will
+                        be emailed to you.
                       </span>
                     </label>
+                    <label className="la-inquiry-modal__field">
+                      <span>Signer full name</span>
+                      <input
+                        type="text"
+                        value={checkoutConsentSignerName}
+                        autoComplete="name"
+                        placeholder="Type full legal name"
+                        onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
+                      />
+                    </label>
+                    <div className="la-inquiry-modal__signature">
+                      <span>Signature</span>
+                      <canvas
+                        ref={checkoutSignatureCanvasRef}
+                        width={560}
+                        height={150}
+                        className="la-inquiry-modal__signature-pad"
+                        onMouseDown={startSignatureDraw}
+                        onMouseMove={drawSignature}
+                        onMouseUp={endSignatureDraw}
+                        onMouseLeave={endSignatureDraw}
+                        onTouchStart={startSignatureDraw}
+                        onTouchMove={drawSignature}
+                        onTouchEnd={endSignatureDraw}
+                      />
+                      <button
+                        type="button"
+                        className="la-inquiry-modal__signature-clear"
+                        onClick={clearSignature}
+                      >
+                        Clear signature
+                      </button>
+                    </div>
                   </div>
                 </Step>
                 <Step>
@@ -6205,6 +6342,10 @@ export default function DubaiLandingPage() {
                       <div>
                         <strong>Email</strong>
                         <span>{checkoutGuest.email}</span>
+                      </div>
+                      <div>
+                        <strong>Signed by</strong>
+                        <span>{checkoutConsentSignerName || "--"}</span>
                       </div>
                       {checkoutGuest.phone && (
                         <div>
@@ -6576,6 +6717,10 @@ export default function DubaiLandingPage() {
                                       currency: priceCurrency,
                                       breakdown: breakdown || null,
                                     });
+                                    setCheckoutStep(1);
+                                    setCheckoutConsentAccepted(false);
+                                    setCheckoutConsentSignerName("");
+                                    setCheckoutConsentSignatureDataUrl("");
                                     setCheckoutGuestError("");
                                     setIsCheckoutGuestOpen(true);
                                     return;
@@ -6666,7 +6811,7 @@ export default function DubaiLandingPage() {
                       disabled={calendarMonthIndex <= 0}
                       aria-label="Previous month"
                     >
-                      ←
+                      â†
                     </button>
                     <span className="la-price-calendar__label">
                       {calendarCurrentMonth.toLocaleDateString(undefined, {
@@ -6685,7 +6830,7 @@ export default function DubaiLandingPage() {
                       disabled={calendarMonthIndex >= (calendarPrices?.months || 24) - 1}
                       aria-label="Next month"
                     >
-                      →
+                      â†’
                     </button>
                   </div>
                 </div>
