@@ -641,6 +641,68 @@ html {
   z-index: 2000;
 }
 
+.landing-date-picker .listing-date-dropdown {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  margin-top: 10px;
+  width: min(680px, 94vw);
+  border-radius: 20px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: #f6f1ea;
+  box-shadow: 0 24px 60px rgba(63, 54, 47, 0.18);
+  z-index: 2100;
+}
+
+.landing-date-picker .listing-date-cell {
+  min-height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 181, 156, 0.5);
+  background: rgba(255, 255, 255, 0.88);
+  color: #3b3127;
+  font-size: 0.85rem;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.landing-date-picker .listing-date-cell.is-default {
+  background: rgba(255, 255, 255, 0.88);
+  color: #3b3127;
+  border-color: rgba(201, 181, 156, 0.5);
+}
+
+.landing-date-picker .listing-date-cell:not(.is-disabled):not(.is-selected):hover {
+  background: rgba(201, 181, 156, 0.2);
+  border-color: rgba(181, 156, 132, 0.75);
+}
+
+.landing-date-picker .listing-date-cell:focus-visible {
+  outline: 2px solid rgba(156, 131, 104, 0.8);
+  outline-offset: 1px;
+}
+
+.landing-date-picker .listing-date-cell.is-between {
+  background: rgba(201, 181, 156, 0.2);
+}
+
+.landing-date-picker .listing-date-cell.is-selected {
+  background: #c9b59c;
+  border-color: #b59c84;
+  color: #2a221c;
+  font-weight: 600;
+}
+
+.landing-date-picker .listing-date-cell.is-disabled {
+  background: rgba(255, 255, 255, 0.5);
+  color: rgba(107, 95, 85, 0.7);
+  border-color: rgba(201, 181, 156, 0.3);
+}
+
 .landing-step {
   width: 2.6rem;
   height: 2.6rem;
@@ -1230,7 +1292,7 @@ html {
 
 @media (max-width: 768px) {
   .landing-circular-gallery {
-    height: 360px;
+    height: 460px;
     padding: 0 0 24px;
   }
   .landing-circular-gallery__hint {
@@ -1245,7 +1307,7 @@ html {
 
 @media (max-width: 520px) {
   .landing-circular-gallery {
-    height: 300px;
+    height: 430px;
   }
   .landing-circular-gallery__hint {
     gap: 6px;
@@ -4560,6 +4622,10 @@ html {
   filter: drop-shadow(0 6px 14px rgba(59, 49, 39, 0.25));
 }
 
+.la-listing-hero__logo-mobile {
+  display: none;
+}
+
 .la-listing-hero__kicker {
   font-size: 0.7rem;
   letter-spacing: 0.35em;
@@ -4678,6 +4744,45 @@ html {
 
   .la-listing-hero__logo {
     justify-content: flex-start;
+    margin-top: 4px;
+  }
+
+  .la-listing-hero__logo img {
+    width: min(150px, 44vw);
+  }
+
+  .la-listing-hero--mobile-top-logo .la-listing-hero__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .la-listing-hero--mobile-top-logo .la-listing-hero__logo-mobile {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+  }
+
+  .la-listing-hero--mobile-top-logo .la-listing-hero__logo-mobile img {
+    width: min(120px, 32vw);
+    height: auto;
+    opacity: 0.95;
+    filter: drop-shadow(0 6px 14px rgba(59, 49, 39, 0.25));
+  }
+
+  .la-listing-hero--mobile-top-logo .la-listing-hero__intro .la-listing-hero__logo {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .la-listing-hero__logo img {
+    width: min(108px, 30vw);
+  }
+
+  .la-listing-hero--mobile-top-logo .la-listing-hero__logo-mobile img {
+    width: min(106px, 30vw);
   }
 }
 
@@ -5845,6 +5950,13 @@ html {
   gap: 6px;
 }
 
+.la-date-months,
+.la-date-month,
+.la-date-week,
+.la-date-days {
+  min-width: 0;
+}
+
 .la-section-modal .listing-date-cell {
   height: 34px;
   padding: 0;
@@ -5871,6 +5983,12 @@ html {
   background: rgba(255, 255, 255, 0.9);
   color: #3b3127;
   font-size: 0.85rem;
+}
+
+.listing-date-cell {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .listing-date-dropdown.has-prices .listing-date-cell {
@@ -7256,6 +7374,8 @@ html {
     width: 100%;
     padding: 16px;
     border-radius: 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .la-section-modal__header {
@@ -7312,29 +7432,101 @@ html {
 
   .la-unit-modal__booking {
     grid-template-columns: 1fr;
+    overflow-x: hidden;
   }
 
   .la-date-picker {
     grid-column: span 1;
+    width: 100%;
+    min-width: 0;
   }
 
   .la-date-grid {
     grid-template-columns: 1fr;
+    min-width: 0;
   }
 
-  .la-section-modal .listing-date-dropdown {
+  .la-date-field {
+    min-width: 0;
+  }
+
+  .la-date-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .la-section-modal .listing-date-dropdown,
+  .la-unit-modal .listing-date-dropdown,
+  .la-listing-page .la-date-picker .listing-date-dropdown {
     position: static;
     width: 100%;
+    left: auto;
+    right: auto;
+    margin-top: 10px;
+    max-width: 100%;
+    box-sizing: border-box;
+    max-height: min(68svh, 560px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .la-date-months {
     grid-template-columns: 1fr;
   }
 
+  .la-date-months .la-date-month:nth-child(n + 2) {
+    display: none;
+  }
+
   .la-date-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .la-date-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .la-date-nav-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 1rem;
+  }
+
+  .la-date-body {
+    padding: 10px 12px 12px;
     gap: 10px;
+  }
+
+  .la-date-week,
+  .la-date-days {
+    gap: 4px;
+  }
+
+  .la-date-week {
+    font-size: 0.76rem;
+  }
+
+  .listing-date-dropdown.has-prices .listing-date-cell {
+    min-height: 54px;
+    padding: 4px 2px;
+    gap: 3px;
+  }
+
+  .listing-date-cell__day {
+    font-size: 0.95rem;
+  }
+
+  .listing-date-cell__price {
+    font-size: 0.68rem;
+    line-height: 1;
   }
 
   .la-date-footer {
@@ -8353,4 +8545,141 @@ html {
   margin-left: auto;
   margin-right: auto;
   transform: none;
+}
+
+/* Mobile compatibility hardening across all routes */
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+.landing-page,
+.antwerp-page,
+.listing-page,
+.policy-page,
+.ack-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.antwerp-page,
+.ack-page {
+  min-height: 100svh;
+}
+
+.policy-footer-links a {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .landing-page,
+  .antwerp-page,
+  .listing-page,
+  .policy-page,
+  .ack-page {
+    overflow-x: hidden;
+  }
+
+  @supports (overflow: clip) {
+    .landing-page,
+    .antwerp-page,
+    .listing-page,
+    .policy-page,
+    .ack-page {
+      overflow-x: clip;
+    }
+  }
+
+  .la-bounce-cards {
+    width: min(100%, 520px) !important;
+    height: clamp(240px, 68vw, 360px) !important;
+  }
+
+  .la-bounce-cards__card {
+    border-radius: 20px;
+  }
+
+  .la-unit-modal__contact {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .la-listing-page .listing-date-dropdown,
+  .la-listing-page .la-date-picker .listing-date-dropdown {
+    width: min(100%, 96vw);
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-page.has-date-dropdown {
+    --date-dropdown-push: 0px;
+  }
+
+  .landing-date-picker .listing-date-dropdown {
+    position: static;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 10px;
+    max-height: min(68svh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .landing-hero {
+    min-height: 62svh;
+  }
+
+  .landing-city-card {
+    min-height: 420px;
+    height: 72svh;
+  }
+
+  .landing-stack-scroll .landing-city-card {
+    min-height: 360px;
+    height: min(62svh, 500px);
+  }
+
+  .landing-city-inner {
+    max-width: 100%;
+    padding: 1.4rem 1.2rem;
+  }
+
+  .landing-stack-scroll__inner {
+    padding-top: 10vh;
+    padding-bottom: 24rem;
+  }
+
+  .la-inquiry-modal {
+    width: min(640px, 96vw);
+    padding: 18px 14px;
+    border-radius: 20px;
+  }
+
+  .la-inquiry-modal__header {
+    align-items: flex-start;
+  }
+
+  .la-inquiry-modal__brand {
+    min-width: 0;
+  }
+
+  .la-inquiry-modal__header h3 {
+    font-size: 1.15rem;
+  }
+
+  .policy-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .policy-footer-links {
+    gap: 10px;
+  }
 }

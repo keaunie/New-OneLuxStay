@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useLayoutEffect, useRef, useState, useMemo, useId } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo, useId } from "react";
 import lottie from "lottie-web";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
@@ -177,18 +177,21 @@ const normalizeListingCountry = (listing) => {
 };
 
 const formatGalleryLabel = (listing, quotePricing, isLoading) => {
-  const title = truncateLabel(listing?.title || "OneLuxStay", 36) || "OneLuxStay";
+  const isMobileViewport = typeof window !== "undefined" && window.innerWidth <= 640;
+  const city = normalizeListingCity(listing);
   const country = normalizeListingCountry(listing);
-  const fallback = normalizeListingCity(listing);
-  const subline = country || fallback;
+  const locationRaw = city && country ? `${city}, ${country}` : city || country || "OneLuxStay";
+  const locationLabel = truncateLabel(locationRaw, isMobileViewport ? 28 : 34);
   const nightly = quotePricing?.nightly ?? null;
   const currency = quotePricing?.currency || getListingCurrency(listing);
   const priceLabel = nightly
-    ? `${formatCurrency(nightly, currency)} / night`
+    ? isMobileViewport
+      ? `${formatCurrency(nightly, currency)}/night`
+      : `${formatCurrency(nightly, currency)} / night`
     : isLoading
       ? "Loading..."
       : "Price on request";
-  return [title, subline, priceLabel].filter(Boolean).join("\n");
+  return [locationLabel, priceLabel].filter(Boolean).join("\n");
 };
 
 const BOOKING_STORAGE_KEY = "laBookingFilters";
@@ -337,6 +340,9 @@ const offers = [
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const setOpenState = (nextOpen) => {
+    setOpen(nextOpen);
+  };
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
   const dialogId = useId();
@@ -348,17 +354,17 @@ const DateRangePicker = ({ value, onChange }) => {
   const [view, setView] = useState(() => parseDate(value.checkIn) || today);
   const containerRef = useRef(null);
 
-  const startDate = parseDate(value.checkIn);
-  const endDate = parseDate(value.checkOut);
+  const startDate = useMemo(() => parseDate(value.checkIn), [value.checkIn]);
+  const endDate = useMemo(() => parseDate(value.checkOut), [value.checkOut]);
 
   useEffect(() => {
     const handleClick = (e) => {
       if (!open) return;
       if (containerRef.current && containerRef.current.contains(e.target)) return;
-      setOpen(false);
+      setOpenState(false);
     };
     const handleEsc = (e) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") setOpenState(false);
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleEsc);
@@ -367,15 +373,6 @@ const DateRangePicker = ({ value, onChange }) => {
       document.removeEventListener("keydown", handleEsc);
     };
   }, [open, containerRef]);
-
-  useEffect(() => {
-    if (!open) return;
-    const base = startDate || today;
-    setView((prev) => {
-      const sameMonth = prev.getFullYear() === base.getFullYear() && prev.getMonth() === base.getMonth();
-      return sameMonth ? prev : base;
-    });
-  }, [open, startDate, today]);
 
   useEffect(() => {
     const page = containerRef.current?.closest(".landing-page");
@@ -408,6 +405,17 @@ const DateRangePicker = ({ value, onChange }) => {
     if (startDate && endDate) return day >= startDate && day <= endDate;
     return isSameDay(day, startDate);
   };
+  const syncViewToBaseMonth = () => {
+    const base = startDate || today;
+    setView((prev) => {
+      const sameMonth = prev.getFullYear() === base.getFullYear() && prev.getMonth() === base.getMonth();
+      return sameMonth ? prev : base;
+    });
+  };
+  const openPicker = () => {
+    syncViewToBaseMonth();
+    setOpenState(true);
+  };
 
   const handleDayClick = (day) => {
     if (!day || day < today) return;
@@ -426,30 +434,32 @@ const DateRangePicker = ({ value, onChange }) => {
       checkIn: nextStart ? toISODate(nextStart) : "",
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
-    if (nextStart && nextEnd) setOpen(false);
+    if (nextStart && nextEnd) setOpenState(false);
   };
 
-  const { year, month, cells } = buildMonth(view);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const base = startDate || today;
-    setView((prev) => {
-      const sameMonth = prev.getFullYear() === base.getFullYear() && prev.getMonth() === base.getMonth();
-      return sameMonth ? prev : base;
-    });
-  }, [open, startDate, today]);
+  const primaryMonth = buildMonth(view);
+  const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
+  const isMobileMonthHeader = typeof window !== "undefined" && window.innerWidth <= 640;
+  const primaryMonthLabel = new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+  const secondaryMonthLabel = new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+  const monthLabel = isMobileMonthHeader
+    ? primaryMonthLabel
+    : `${primaryMonthLabel} - ${secondaryMonthLabel}`;
 
   return (
-    <div className={`landing-date-picker${open ? " is-open" : ""}`} ref={containerRef}>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1">
-          <label id={checkInLabelId} className="text-[11px] uppercase tracking-[0.14em] text-slate-200/80">
-            Check-in
-          </label>
+    <div className={`landing-date-picker la-date-picker${open ? " is-open" : ""}`} ref={containerRef}>
+      <div className="la-date-grid">
+        <div className="la-date-field">
+          <label id={checkInLabelId} className="la-date-label">Check-in</label>
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={openPicker}
             aria-haspopup="dialog"
             aria-expanded={open}
             aria-controls={dialogId}
@@ -458,18 +468,16 @@ const DateRangePicker = ({ value, onChange }) => {
               ? startDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
               : "no date selected"
               }`}
-            className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-left text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="la-date-input"
           >
             {startDate ? startDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Add date"}
           </button>
         </div>
-        <div className="flex flex-col gap-1">
-          <label id={checkOutLabelId} className="text-[11px] uppercase tracking-[0.14em] text-slate-200/80">
-            Check-out
-          </label>
+        <div className="la-date-field">
+          <label id={checkOutLabelId} className="la-date-label">Check-out</label>
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={openPicker}
             aria-haspopup="dialog"
             aria-expanded={open}
             aria-controls={dialogId}
@@ -478,7 +486,7 @@ const DateRangePicker = ({ value, onChange }) => {
               ? endDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
               : "no date selected"
               }`}
-            className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-left text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="la-date-input"
           >
             {endDate ? endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Add date"}
           </button>
@@ -491,49 +499,45 @@ const DateRangePicker = ({ value, onChange }) => {
           role="dialog"
           aria-modal="true"
           aria-label="Choose dates"
-          className="absolute left-1/2 top-full z-[9999] mt-3 w-[660px] max-w-[94vw] -translate-x-1/2 rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl pointer-events-auto landing-date-dropdown"
+          className="listing-date-dropdown landing-date-dropdown"
         >
-          <div className="flex items-center justify-between px-4 py-3 text-white">
-            <div className="font-semibold text-lg">
-              {new Date(year, month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-            </div>
-            <div className="flex gap-2">
+          <div className="la-date-header">
+            <div className="la-date-title">{monthLabel}</div>
+            <div className="la-date-nav">
               <button
                 type="button"
+                aria-label="Previous month"
                 onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                className="h-9 w-9 rounded-md bg-amber-400 text-slate-900 font-bold"
+                className="la-date-nav-btn"
               >
                 {"<"}
               </button>
               <button
                 type="button"
+                aria-label="Next month"
                 onClick={() => setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                className="h-9 w-9 rounded-md bg-amber-400 text-slate-900 font-bold"
+                className="la-date-nav-btn"
               >
                 {">"}
               </button>
             </div>
           </div>
-          <div className="flex flex-col gap-4 px-4 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[buildMonth(view), buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1))].map((monthObj) => (
-                <div key={`${monthObj.year}-${monthObj.month}`} className="space-y-2">
-                  <div className="flex items-center justify-between text-white font-semibold">
-                    <span>
-                      {new Date(monthObj.year, monthObj.month, 1).toLocaleDateString(undefined, {
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </span>
+          <div className="la-date-body">
+            <div className="la-date-months">
+              {[primaryMonth, secondaryMonth].map((monthObj) => (
+                <div key={`${monthObj.year}-${monthObj.month}`} className="la-date-month">
+                  <div className="la-date-month-title">
+                    {new Date(monthObj.year, monthObj.month, 1).toLocaleDateString(undefined, {
+                      month: "long",
+                      year: "numeric",
+                    })}
                   </div>
-                  <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-300" role="row">
+                  <div className="la-date-week" role="row">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                      <div key={d} role="columnheader">
-                        {d}
-                      </div>
+                      <div key={d} role="columnheader">{d}</div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-7 gap-2" role="grid">
+                  <div className="la-date-days" role="grid">
                     {monthObj.cells.map((day, idx) => {
                       const disabled = !day || day < today;
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
@@ -546,6 +550,13 @@ const DateRangePicker = ({ value, onChange }) => {
                           year: "numeric",
                         })
                         : "";
+                      const stateClass = disabled
+                        ? "is-disabled"
+                        : selected
+                          ? "is-selected"
+                          : between
+                            ? "is-between"
+                            : "is-default";
                       return (
                         <button
                           key={`${monthObj.year}-${monthObj.month}-${idx}`}
@@ -556,16 +567,13 @@ const DateRangePicker = ({ value, onChange }) => {
                           aria-label={dayLabel}
                           aria-hidden={day ? undefined : true}
                           onClick={() => handleDayClick(day)}
-                          className={`h-10 rounded-lg border text-sm transition ${disabled
-                            ? "border-transparent text-slate-600"
-                            : selected
-                              ? "border-amber-300 bg-amber-400 text-slate-900 font-semibold"
-                              : between
-                                ? "border-amber-400/50 bg-amber-400/10 text-white"
-                                : "border-slate-700 bg-slate-800 text-white hover:border-amber-300"
-                            }`}
+                          className={`listing-date-cell ${stateClass}`}
                         >
-                          {day ? day.getDate() : ""}
+                          {day ? (
+                            <span className="listing-date-cell__day">{day.getDate()}</span>
+                          ) : (
+                            ""
+                          )}
                         </button>
                       );
                     })}
@@ -573,18 +581,18 @@ const DateRangePicker = ({ value, onChange }) => {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-300">
+            <div className="la-date-footer">
               <button
                 type="button"
                 onClick={() => onChange({ checkIn: "", checkOut: "" })}
-                className="rounded-md border border-white/10 bg-slate-800 px-3 py-2 hover:border-amber-300"
+                className="la-date-clear"
               >
                 Clear dates
               </button>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-md bg-amber-400 px-3 py-2 font-semibold text-slate-900 hover:bg-amber-300"
+                onClick={() => setOpenState(false)}
+                className="la-date-done"
               >
                 Done
               </button>
@@ -739,7 +747,7 @@ function LandingPage() {
           const curated = primary.concat(secondary).slice(0, 12);
           setGalleryListings(curated);
         }
-      } catch (err) {
+      } catch {
         if (active) setGalleryListings([]);
       }
     };
@@ -749,6 +757,23 @@ function LandingPage() {
       active = false;
     };
   }, []);
+
+  const normalizeOffersX = useCallback((value) => {
+    const base = offersBaseWidthRef.current;
+    if (!base) return value;
+    let next = value;
+    while (next <= -2 * base) next += base;
+    while (next >= 0) next -= base;
+    return next;
+  }, []);
+
+  const applyOffersTranslate = useCallback((value) => {
+    const next = normalizeOffersX(value);
+    offersTrackXRef.current = next;
+    if (offersTrackRef.current) {
+      offersTrackRef.current.style.transform = `translate3d(${next}px, 0, 0)`;
+    }
+  }, [normalizeOffersX]);
 
   useEffect(() => {
     const track = offersTrackRef.current;
@@ -767,24 +792,7 @@ function LandingPage() {
     const observer = new ResizeObserver(measure);
     observer.observe(track);
     return () => observer.disconnect();
-  }, []);
-
-  const normalizeOffersX = (value) => {
-    const base = offersBaseWidthRef.current;
-    if (!base) return value;
-    let next = value;
-    while (next <= -2 * base) next += base;
-    while (next >= 0) next -= base;
-    return next;
-  };
-
-  const applyOffersTranslate = (value) => {
-    const next = normalizeOffersX(value);
-    offersTrackXRef.current = next;
-    if (offersTrackRef.current) {
-      offersTrackRef.current.style.transform = `translate3d(${next}px, 0, 0)`;
-    }
-  };
+  }, [applyOffersTranslate]);
 
   const startOffersRaf = () => {
     if (offersRafRef.current) return;

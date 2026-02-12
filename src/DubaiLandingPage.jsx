@@ -509,8 +509,8 @@ const DateRangePicker = ({
   const containerRef = useRef(null);
   const onMonthChangeRef = useRef(onMonthChange);
 
-  const startDate = parseDateValue(value.checkIn);
-  const endDate = parseDateValue(value.checkOut);
+  const startDate = useMemo(() => parseDateValue(value.checkIn), [value.checkIn]);
+  const endDate = useMemo(() => parseDateValue(value.checkOut), [value.checkOut]);
 
   useEffect(() => {
     onMonthChangeRef.current = onMonthChange;
@@ -616,13 +616,18 @@ const DateRangePicker = ({
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
-  const monthLabel = `${new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
+  const isMobileMonthHeader = typeof window !== "undefined" && window.innerWidth <= 640;
+  const primaryMonthLabel = new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
-  })} - ${new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
+  });
+  const secondaryMonthLabel = new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
-  })}`;
+  });
+  const monthLabel = isMobileMonthHeader
+    ? primaryMonthLabel
+    : `${primaryMonthLabel} - ${secondaryMonthLabel}`;
 
   return (
     <div className="la-date-picker" ref={containerRef}>
@@ -676,7 +681,6 @@ const DateRangePicker = ({
                 type="button"
                 aria-label="Previous month"
                 onClick={() => {
-                  onChange({ checkIn: "", checkOut: "" });
                   setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
                 }}
                 className="la-date-nav-btn"
@@ -687,7 +691,6 @@ const DateRangePicker = ({
                 type="button"
                 aria-label="Next month"
                 onClick={() => {
-                  onChange({ checkIn: "", checkOut: "" });
                   setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
                 }}
                 className="la-date-nav-btn"
@@ -1044,9 +1047,26 @@ const normalizeCity = (listing) => {
   return "";
 };
 
+const normalizeCountry = (listing) => {
+  const country = listing?.country || listing?.address?.country || "";
+  return typeof country === "string" ? country.trim() : "";
+};
+
+const formatListingLocationLabel = (listing, fallbackCity = "OneLuxStay") => {
+  if (!listing) return fallbackCity;
+  const city = sanitizeText(normalizeCity(listing) || "");
+  const country = sanitizeText(normalizeCountry(listing) || "");
+  if (city && country) return `${city}, ${country}`;
+  if (city) return city;
+  if (country) return country;
+  return fallbackCity;
+};
+
 const formatAddress = (listing) => {
   const address = listing.address || {};
-  const parts = [address.full, address.city, address.country].filter(Boolean);
+  const full = typeof address.full === "string" ? address.full.trim() : "";
+  if (full) return sanitizeText(full);
+  const parts = [address.city, address.country].filter(Boolean);
   if (parts.length) return sanitizeText(parts.join(", "));
   if (typeof listing.location === "string") return sanitizeText(listing.location);
   return "Dubai";
@@ -3706,7 +3726,7 @@ export default function DubaiLandingPage() {
     <div className="la-listing-shell">
       <div className="la-listing-shell__content">
         <div className="la-unit-modal la-listing-page">
-      <section className="la-listing-hero">
+      <section className="la-listing-hero la-listing-hero--mobile-top-logo">
         <div className="la-listing-hero__top">
           <button
             type="button"
@@ -3722,11 +3742,14 @@ export default function DubaiLandingPage() {
           >
             <span aria-hidden="true">‹</span>
           </button>
+          <div className="la-listing-hero__logo-mobile">
+            <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+          </div>
         </div>
         <div className="la-listing-hero__intro">
           <div>
             <p className="la-listing-hero__kicker">Dubai private stay</p>
-            <h3>{sanitizeText(activeListing.title)}</h3>
+            <h3>{formatListingLocationLabel(activeListing, "Dubai")}</h3>
             <div className="la-unit-modal__chips">
               <span>Exceptional location</span>
               <span>Fast arrival</span>
@@ -6239,7 +6262,7 @@ export default function DubaiLandingPage() {
             </div>
             <div className="la-unit-modal__intro">
               <div>
-                <h3>{sanitizeText(activeListing.title)}</h3>
+                <h3>{formatListingLocationLabel(activeListing, "Dubai")}</h3>
                 <div className="la-unit-modal__chips">
                   <span>Exceptional location</span>
                   <span>Fast arrival</span>

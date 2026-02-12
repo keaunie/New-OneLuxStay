@@ -144,7 +144,7 @@ const formatRuleValue = (value) => {
   if (value === false) return "No";
   if (typeof value === "number") return `${value}`;
   if (typeof value === "string" && value.trim()) return value;
-  return "â€”";
+  return "--";
 };
 
 const formatQuietHours = (quietHours) => {
@@ -489,8 +489,8 @@ const DateRangePicker = ({
   const containerRef = useRef(null);
   const onMonthChangeRef = useRef(onMonthChange);
 
-  const startDate = parseDateValue(value.checkIn);
-  const endDate = parseDateValue(value.checkOut);
+  const startDate = useMemo(() => parseDateValue(value.checkIn), [value.checkIn]);
+  const endDate = useMemo(() => parseDateValue(value.checkOut), [value.checkOut]);
 
   useEffect(() => {
     onMonthChangeRef.current = onMonthChange;
@@ -596,13 +596,18 @@ const DateRangePicker = ({
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
-  const monthLabel = `${new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
+  const isMobileMonthHeader = typeof window !== "undefined" && window.innerWidth <= 640;
+  const primaryMonthLabel = new Date(primaryMonth.year, primaryMonth.month, 1).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
-  })} - ${new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
+  });
+  const secondaryMonthLabel = new Date(secondaryMonth.year, secondaryMonth.month, 1).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
-  })}`;
+  });
+  const monthLabel = isMobileMonthHeader
+    ? primaryMonthLabel
+    : `${primaryMonthLabel} - ${secondaryMonthLabel}`;
 
   return (
     <div className="la-date-picker" ref={containerRef}>
@@ -656,7 +661,6 @@ const DateRangePicker = ({
                 type="button"
                 aria-label="Previous month"
                 onClick={() => {
-                  onChange({ checkIn: "", checkOut: "" });
                   setView((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
                 }}
                 className="la-date-nav-btn"
@@ -667,7 +671,6 @@ const DateRangePicker = ({
                 type="button"
                 aria-label="Next month"
                 onClick={() => {
-                  onChange({ checkIn: "", checkOut: "" });
                   setView((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
                 }}
                 className="la-date-nav-btn"
@@ -1036,6 +1039,21 @@ const normalizeCity = (listing) => {
   return "";
 };
 
+const normalizeCountry = (listing) => {
+  const country = listing?.country || listing?.address?.country || "";
+  return typeof country === "string" ? country.trim() : "";
+};
+
+const formatListingLocationLabel = (listing, fallbackCity = "OneLuxStay") => {
+  if (!listing) return fallbackCity;
+  const city = sanitizeText(normalizeCity(listing) || "");
+  const country = sanitizeText(normalizeCountry(listing) || "");
+  if (city && country) return `${city}, ${country}`;
+  if (city) return city;
+  if (country) return country;
+  return fallbackCity;
+};
+
 const ADDRESS_OVERRIDES = {
   "antwerp-fashion": "Lange Leemstraat 103",
   "antwerp-city-centre": "Kribbestraat 6",
@@ -1044,8 +1062,13 @@ const ADDRESS_OVERRIDES = {
 const formatAddress = (listing) => {
   const address = listing.address || {};
   const override = ADDRESS_OVERRIDES[getBuildingKey(listing)];
-  const street = override || address.full;
-  const parts = [street, address.city, address.country].filter(Boolean);
+  if (override) {
+    const parts = [override, address.city, address.country].filter(Boolean);
+    return sanitizeText(parts.join(", "));
+  }
+  const full = typeof address.full === "string" ? address.full.trim() : "";
+  if (full) return sanitizeText(full);
+  const parts = [address.city, address.country].filter(Boolean);
   if (parts.length) return sanitizeText(parts.join(", "));
   if (typeof listing.location === "string") return sanitizeText(listing.location);
   return "Antwerp";
@@ -3834,7 +3857,7 @@ export default function AntwerpLandingPage() {
     <div className="la-listing-shell">
       <div className="la-listing-shell__content">
         <div className="la-unit-modal la-listing-page">
-      <section className="la-listing-hero">
+      <section className="la-listing-hero la-listing-hero--mobile-top-logo">
         <div className="la-listing-hero__top">
           <button
             type="button"
@@ -3850,11 +3873,14 @@ export default function AntwerpLandingPage() {
           >
             <span aria-hidden="true">{"\u2039"}</span>
           </button>
+          <div className="la-listing-hero__logo-mobile">
+            <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+          </div>
         </div>
         <div className="la-listing-hero__intro">
           <div>
             <p className="la-listing-hero__kicker">Antwerp private stay</p>
-            <h3>{sanitizeText(activeListing.title)}</h3>
+            <h3>{formatListingLocationLabel(activeListing, "Antwerp")}</h3>
             <div className="la-unit-modal__chips">
               <span>Exceptional location</span>
               <span>Fast arrival</span>
@@ -4869,7 +4895,7 @@ export default function AntwerpLandingPage() {
                   </div>
                   <p>"{review.quote}"</p>
                   <span className="la-review-ticker__meta">
-                    {review.name} Â· {review.source}
+                    {review.name} | {review.source}
                   </span>
                 </article>
               ))}
@@ -4881,7 +4907,7 @@ export default function AntwerpLandingPage() {
                 onClick={() => scrollReviewCarousel(-1)}
                 aria-label="Previous review"
               >
-                â†
+                {"<"}
               </button>
               <button
                 type="button"
@@ -4889,7 +4915,7 @@ export default function AntwerpLandingPage() {
                 onClick={() => scrollReviewCarousel(1)}
                 aria-label="Next review"
               >
-                â†’
+                {">"}
               </button>
             </div>
           </div>
@@ -6394,7 +6420,7 @@ export default function AntwerpLandingPage() {
             </div>
             <div className="la-unit-modal__intro">
               <div>
-                <h3>{sanitizeText(activeListing.title)}</h3>
+                <h3>{formatListingLocationLabel(activeListing, "Antwerp")}</h3>
                 <div className="la-unit-modal__chips">
                   <span>Exceptional location</span>
                   <span>Fast arrival</span>
@@ -6798,7 +6824,7 @@ export default function AntwerpLandingPage() {
                       disabled={calendarMonthIndex <= 0}
                       aria-label="Previous month"
                     >
-                      â†
+                      {"<"}
                     </button>
                     <span className="la-price-calendar__label">
                       {calendarCurrentMonth.toLocaleDateString(undefined, {
@@ -6817,7 +6843,7 @@ export default function AntwerpLandingPage() {
                       disabled={calendarMonthIndex >= (calendarPrices?.months || 24) - 1}
                       aria-label="Next month"
                     >
-                      â†’
+                      {">"}
                     </button>
                   </div>
                 </div>

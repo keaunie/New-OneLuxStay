@@ -49,11 +49,31 @@ const BounceCards = ({
     [normalizedItems.length]
   );
   const [activeIndex, setActiveIndex] = useState(null);
+  const spreadDistance = useMemo(() => {
+    if (typeof containerWidth === "number") {
+      return Math.max(150, Math.min(350, containerWidth * 0.62));
+    }
+    return 260;
+  }, [containerWidth]);
+
+  const responsiveWidth =
+    typeof containerWidth === "number"
+      ? `min(100%, ${containerWidth}px)`
+      : toPx(containerWidth, "520px");
+  const responsiveHeight =
+    typeof containerHeight === "number"
+      ? `clamp(240px, 62vw, ${containerHeight}px)`
+      : toPx(containerHeight, "360px");
+  const responsiveCardSize =
+    typeof imageSize === "number"
+      ? `clamp(170px, 54vw, ${imageSize}px)`
+      : toPx(imageSize, "230px");
 
   const containerStyle = {
-    width: toPx(containerWidth, "520px"),
-    height: toPx(containerHeight, "360px"),
-    "--bounce-card-size": toPx(imageSize, "230px"),
+    width: responsiveWidth,
+    maxWidth: "100%",
+    height: responsiveHeight,
+    "--bounce-card-size": responsiveCardSize,
   };
 
   return (
@@ -67,7 +87,7 @@ const BounceCards = ({
         const isActive = activeIndex === index;
         const hasHover = activeIndex !== null;
         const offset = index - (activeIndex ?? 0);
-        const spread = hasHover ? Math.sign(offset) * 350 : 0;
+        const spread = hasHover ? Math.sign(offset) * spreadDistance : 0;
         const zIndex = isActive ? 5 : 1;
         return (
           <div
