@@ -1169,8 +1169,9 @@ const getListingImageUrls = (listing) => {
     ];
     variants.forEach((variant) => addUrl(variant, image.caption));
   };
-  collectImage(listing.picture);
-  if (Array.isArray(listing.pictures)) {
+  const hasPictures = Array.isArray(listing.pictures) && listing.pictures.length > 0;
+  if (!hasPictures) collectImage(listing.picture);
+  if (hasPictures) {
     listing.pictures.forEach(collectImage);
   }
   const unique = Array.from(new Set(urls));
@@ -4901,8 +4902,9 @@ export default function RedondoBeachLandingPage() {
                   storyImages.push(url);
                 };
                 group.listings.forEach((listing) => {
-                  pushStoryImage(listing.picture);
-                  (listing.pictures || []).forEach(pushStoryImage);
+                  const hasPictures = Array.isArray(listing.pictures) && listing.pictures.length > 0;
+                  if (!hasPictures) pushStoryImage(listing.picture);
+                  if (hasPictures) listing.pictures.forEach(pushStoryImage);
                 });
                 storyImages.splice(1);
                 const groupStats = getGroupStats(group.listings);
@@ -5158,12 +5160,11 @@ export default function RedondoBeachLandingPage() {
             </div>
             {(() => {
               const images = activeSection.listings
-                .flatMap((listing) => [
-                  getImageUrl(listing.picture),
-                  ...(Array.isArray(listing.pictures)
-                    ? listing.pictures.map((pic) => getImageUrl(pic))
-                    : []),
-                ])
+                .flatMap((listing) => {
+                  const hasPictures = Array.isArray(listing.pictures) && listing.pictures.length > 0;
+                  if (hasPictures) return listing.pictures.map((pic) => getImageUrl(pic));
+                  return [getImageUrl(listing.picture)];
+                })
                 .filter(Boolean)
                 .slice(0, 8);
               const safeIndex = Math.min(sectionHeroIndex, Math.max(images.length - 1, 0));
@@ -5568,10 +5569,7 @@ export default function RedondoBeachLandingPage() {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
                       const listingPath = listingPathId ? buildListingPath(listingPathId) : "/redondo-beach";
-                      const image =
-                        getListingImageUrls(listing)[0] ||
-                        getImageUrl(listing.picture) ||
-                        getImageUrl(listing.pictures?.[0]);
+                      const image = getListingImageUrls(listing)[0] || FALLBACK_IMAGE;
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
                       const shortDescription = getFirstSentence(fullDescription);

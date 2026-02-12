@@ -56,8 +56,9 @@ const getListingImageUrls = (listing) => {
     ];
     variants.forEach(addUrl);
   };
-  collectImage(listing.picture);
-  if (Array.isArray(listing.pictures)) {
+  const hasPictures = Array.isArray(listing.pictures) && listing.pictures.length > 0;
+  if (!hasPictures) collectImage(listing.picture);
+  if (hasPictures) {
     listing.pictures.forEach(collectImage);
   }
   const unique = Array.from(new Set(urls));

@@ -81,15 +81,19 @@ const isChildListing = (listing) => {
 
 const getListingImage = (listing) => {
   const candidates = [];
-  const direct = listing?.picture;
-  if (typeof direct === "string") candidates.push(direct);
-  if (direct?.regular) candidates.push(direct.regular);
-  if (direct?.large) candidates.push(direct.large);
-  if (direct?.thumbnail) candidates.push(direct.thumbnail);
-  const firstPicture = listing?.pictures?.[0];
-  if (typeof firstPicture === "string") candidates.push(firstPicture);
-  if (firstPicture?.original) candidates.push(firstPicture.original);
-  if (firstPicture?.thumbnail) candidates.push(firstPicture.thumbnail);
+  const hasPictures = Array.isArray(listing?.pictures) && listing.pictures.length > 0;
+  if (hasPictures) {
+    const firstPicture = listing?.pictures?.[0];
+    if (typeof firstPicture === "string") candidates.push(firstPicture);
+    if (firstPicture?.original) candidates.push(firstPicture.original);
+    if (firstPicture?.thumbnail) candidates.push(firstPicture.thumbnail);
+  } else {
+    const direct = listing?.picture;
+    if (typeof direct === "string") candidates.push(direct);
+    if (direct?.regular) candidates.push(direct.regular);
+    if (direct?.large) candidates.push(direct.large);
+    if (direct?.thumbnail) candidates.push(direct.thumbnail);
+  }
   const filtered = filterLowQualityImages(candidates.filter(Boolean));
   return filtered[0] || "";
 };
