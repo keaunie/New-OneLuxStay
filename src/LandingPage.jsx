@@ -7,6 +7,7 @@ import CircularGallery from "./components/CircularGallery";
 import ScrollStack, { ScrollStackItem } from "./components/ScrollStack";
 import Silk from "./components/Silk";
 import { filterLowQualityImages } from "./utils/imageQuality";
+import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
@@ -681,11 +682,17 @@ function LandingPage() {
     "Redondo Beach": "/redondo-beach",
     Dubai: "/dubai",
   };
+  const prefetchCityByName = (city) => {
+    const route = cityRoutes[city];
+    if (!route) return;
+    prefetchCityRoute(route);
+  };
 
   const handleCityClick = (city) => {
     const route = cityRoutes[city];
     if (route) {
       setCityNotice("");
+      prefetchCityRoute(route);
       navigate(route);
       return;
     }
@@ -920,6 +927,7 @@ function LandingPage() {
   const handleGallerySelect = (index) => {
     const selected = galleryItems[index];
     if (!selected?.href) return;
+    prefetchRouteByPath(selected.href);
     navigate(selected.href);
   };
 
@@ -1010,6 +1018,7 @@ function LandingPage() {
       return "/listings";
     })();
     const hash = targetRoute === "/listings" ? "#listings" : "";
+    prefetchRouteByPath(targetRoute);
     navigate(`${targetRoute}${query ? `?${query}` : ""}${hash}`);
   };
 
@@ -1072,6 +1081,8 @@ function LandingPage() {
                 type="button"
                 className={`landing-chip${cityRoutes[city] ? "" : " landing-chip--disabled"}`}
                 onClick={() => handleCityClick(city)}
+                onMouseEnter={() => prefetchCityByName(city)}
+                onFocus={() => prefetchCityByName(city)}
               >
                 {city.toUpperCase()}
               </button>
@@ -1086,7 +1097,15 @@ function LandingPage() {
           <form className="landing-hero-form glass" onSubmit={handleHeroSubmit}>
             <div className="landing-form-field">
               <label htmlFor="landing-destination">Destination</label>
-              <select id="landing-destination" value={destination} onChange={(e) => setDestination(e.target.value)}>
+              <select
+                id="landing-destination"
+                value={destination}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDestination(next);
+                  prefetchCityByName(next);
+                }}
+              >
                 {["All", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami"].map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}

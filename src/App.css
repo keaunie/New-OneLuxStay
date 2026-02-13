@@ -2732,7 +2732,7 @@ html {
   pointer-events: none;
 }
 
-.antwerp-page > :not(.antwerp-silk) {
+.antwerp-page > :not(.antwerp-silk):not(.app-loading-overlay) {
   position: relative;
   z-index: 1;
 }
@@ -7127,9 +7127,11 @@ html {
 
 .la-booking-table__guests {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-start;
   gap: 8px;
+  min-width: 0;
+  padding-right: 6px;
   font-size: 0.9rem;
   color: #3b3127;
 }
@@ -7151,13 +7153,19 @@ html {
 }
 
 .la-booking-table__guest-icons {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, 14px);
+  grid-auto-rows: 14px;
+  column-gap: 5px;
+  row-gap: 4px;
+  align-items: center;
+  justify-content: flex-start;
+  max-width: 100%;
 }
 
 .la-booking-table__guest-icons svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   fill: #3b3127;
   display: block;
 }

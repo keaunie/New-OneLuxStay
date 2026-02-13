@@ -451,7 +451,13 @@ const DateRangePicker = ({ value, onChange }) => {
 };
 
 function ListingPage() {
-  const { listingId: routeListingId, citySlug } = useParams();
+  const {
+    listingId: routeListingId,
+    citySlug,
+    checkIn: routeCheckInParam,
+    checkOut: routeCheckOutParam,
+    guests: routeGuestsParam,
+  } = useParams();
   const [listings, setListings] = useState([]);
   const [quote, setQuotes] = useState([]);
   const [loadingListings, setLoadingListings] = useState(true);
@@ -486,9 +492,15 @@ function ListingPage() {
     if (paramsHydrated) return;
     const qs = new URLSearchParams(window.location.search);
     const cityParam = qs.get("city") || qs.get("destination") || "";
-    const checkInParam = qs.get("checkIn") || "";
-    const checkOutParam = qs.get("checkOut") || "";
-    const guestsParam = qs.get("guests") || qs.get("adults") || "";
+    const routeCheckIn = parseDate(routeCheckInParam) ? routeCheckInParam : "";
+    const routeCheckOut = parseDate(routeCheckOutParam) ? routeCheckOutParam : "";
+    const routeGuests =
+      Number.isFinite(Number(routeGuestsParam)) && Number(routeGuestsParam) > 0
+        ? routeGuestsParam
+        : "";
+    const checkInParam = qs.get("checkIn") || routeCheckIn || "";
+    const checkOutParam = qs.get("checkOut") || routeCheckOut || "";
+    const guestsParam = qs.get("guests") || qs.get("adults") || routeGuests || "";
     const listingParam = qs.get("listingId") || qs.get("listing") || routeListingId || "";
     const routeCity = cityFromSlug(citySlug);
 

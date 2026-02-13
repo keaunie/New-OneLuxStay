@@ -11,10 +11,11 @@ import LoadingScreen from "./components/LoadingScreen";
 import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
+import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 
 const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
 const apiBase = rawApiBase.replace(/\/index\/?$/, "");
-const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const CITY_LOADING_LOTTIE_SRC =
   "/3D%20Isometric%20Smart-Living%20Room.json";
@@ -30,7 +31,6 @@ const LANDMARKS = [
 ];
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
-let mapsScriptPromise;
 
 const handleImageError = (event) => {
   const img = event.currentTarget;
@@ -40,24 +40,7 @@ const handleImageError = (event) => {
   if (!img.alt) img.alt = "Image unavailable";
 };
 
-const loadGoogleMaps = (apiKey) => {
-  if (!apiKey) return Promise.reject(new Error("Missing Google Maps API key"));
-  if (mapsScriptPromise) return mapsScriptPromise;
-  mapsScriptPromise = new Promise((resolve, reject) => {
-    if (window.google?.maps) {
-      resolve(window.google.maps);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve(window.google.maps);
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
-  });
-  return mapsScriptPromise;
-};
+const loadGoogleMaps = loadLeafletMaps;
 
 const formatCurrency = (value, currency = "USD") =>
   typeof value === "number"
@@ -1027,6 +1010,61 @@ const writePersistedBooking = (payload) => {
     // Ignore storage failures.
   }
 };
+const normalizeRouteDate = (value) => (parseDateValue(value) ? value : "");
+const normalizeRouteGuests = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
+};
+const normalizeSlugValue = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+const resolveSectionKeyFromSlug = (slug) => {
+  const normalized = normalizeSlugValue(slug);
+  if (!normalized) return null;
+  const aliases = {
+    pier: "redondo-pier",
+    redondopier: "redondo-pier",
+    redondobeachpier: "redondo-pier",
+    harbor: "redondo-pier",
+    kingharbor: "redondo-pier",
+    riviera: "redondo-riviera",
+    rivieravillage: "redondo-riviera",
+    esplanade: "redondo-riviera",
+    southbay: "south-bay",
+    south: "south-bay",
+    hermosa: "south-bay",
+    manhattan: "south-bay",
+  };
+  if (aliases[normalized]) return aliases[normalized];
+  const fromGroup = BUILDING_GROUPS.find(
+    (group) =>
+      normalizeSlugValue(group.key) === normalized || normalizeSlugValue(group.label) === normalized
+  );
+  return fromGroup?.key || null;
+};
+const SECTION_SLUG_BY_KEY = {
+  "redondo-pier": "pier",
+  "redondo-riviera": "rivieravillage",
+  "south-bay": "southbay",
+  other: "redondo",
+};
+const parseRouteBookingBundle = (value = "") => {
+  if (!value) return { checkIn: "", checkOut: "", guests: "" };
+  const safeDecode = (part) => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      return part;
+    }
+  };
+  const [rawCheckIn = "", rawCheckOut = "", rawGuests = ""] = String(value).split("&");
+  return {
+    checkIn: normalizeRouteDate(safeDecode(rawCheckIn)),
+    checkOut: normalizeRouteDate(safeDecode(rawCheckOut)),
+    guests: normalizeRouteGuests(safeDecode(rawGuests)),
+  };
+};
 
 const normalizeCity = (listing) => {
   const titleLower = typeof listing.title === "string" ? listing.title.toLowerCase() : "";
@@ -1682,7 +1720,14 @@ const formatFullDescription = (listing) => {
 };
 
 export default function RedondoBeachLandingPage() {
-  const { listingId: routeListingId } = useParams();
+  const {
+    listingId: routeListingId,
+    checkIn: routeCheckInParam,
+    checkOut: routeCheckOutParam,
+    guests: routeGuestsParam,
+    areaSlug: routeAreaSlug,
+    bookingBundle: routeBookingBundle,
+  } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const isListingRoute = Boolean(routeListingId);  // listing-route-scroll-lock
@@ -1718,20 +1763,31 @@ export default function RedondoBeachLandingPage() {
     const paramCheckIn = params.get("checkIn") || "";
     const paramCheckOut = params.get("checkOut") || "";
     const paramGuests = params.get("guests") || "";
+    const bundle = parseRouteBookingBundle(routeBookingBundle);
+    const routeCheckIn = normalizeRouteDate(routeCheckInParam) || bundle.checkIn;
+    const routeCheckOut = normalizeRouteDate(routeCheckOutParam) || bundle.checkOut;
+    const routeGuests = normalizeRouteGuests(routeGuestsParam) || bundle.guests;
     const persisted = readPersistedBooking();
-    const nextCheckIn = paramCheckIn || persisted?.checkIn || "";
-    const nextCheckOut = paramCheckOut || persisted?.checkOut || "";
-    const nextGuests = paramGuests || persisted?.guests || "2";
+    const nextCheckIn = paramCheckIn || routeCheckIn || persisted?.checkIn || "";
+    const nextCheckOut = paramCheckOut || routeCheckOut || persisted?.checkOut || "";
+    const nextGuests = paramGuests || routeGuests || persisted?.guests || "2";
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
-  }, [location.search]);
+  }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
 
   useEffect(() => {
+    const normalizedGuests = sectionGuests || "2";
+    const hasDateFilters = Boolean(sectionCheckIn || sectionCheckOut);
+    const hasNonDefaultGuests = normalizedGuests !== "2";
+    if (!hasDateFilters && !hasNonDefaultGuests) {
+      writePersistedBooking(null);
+      return;
+    }
     writePersistedBooking({
       checkIn: sectionCheckIn || "",
       checkOut: sectionCheckOut || "",
-      guests: sectionGuests || "2",
+      guests: normalizedGuests,
     });
   }, [sectionCheckIn, sectionCheckOut, sectionGuests]);
   const [houseRulesLoading, setHouseRulesLoading] = useState(false);
@@ -1820,6 +1876,7 @@ export default function RedondoBeachLandingPage() {
   const sectionMapRef = useRef(null);
   const sectionMapInstanceRef = useRef(null);
   const sectionMapMarkerRef = useRef(null);
+  const autoRouteAvailabilityKeyRef = useRef("");
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const mapsApiRef = useRef(null);
@@ -1963,7 +2020,17 @@ export default function RedondoBeachLandingPage() {
       return;
     }
     const params = new URLSearchParams(location.search);
-    const hasParams = params.get("checkIn") || params.get("checkOut") || params.get("guests");
+    const bundle = parseRouteBookingBundle(routeBookingBundle);
+    const routeCheckIn = normalizeRouteDate(routeCheckInParam) || bundle.checkIn;
+    const routeCheckOut = normalizeRouteDate(routeCheckOutParam) || bundle.checkOut;
+    const routeGuests = normalizeRouteGuests(routeGuestsParam) || bundle.guests;
+    const hasParams =
+      params.get("checkIn") ||
+      params.get("checkOut") ||
+      params.get("guests") ||
+      routeCheckIn ||
+      routeCheckOut ||
+      routeGuests;
     const persisted = readPersistedBooking();
     const hasPersisted = persisted?.checkIn || persisted?.checkOut || persisted?.guests;
     if (!hasParams && !hasPersisted) {
@@ -1971,7 +2038,7 @@ export default function RedondoBeachLandingPage() {
       setSectionCheckOut("");
     }
     setCalendarMinNightsOverride(null);
-  }, [activeListing, location.search]);
+  }, [activeListing, location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
 
   useEffect(() => {
     if (!activeListing) return;
@@ -2227,7 +2294,7 @@ export default function RedondoBeachLandingPage() {
   useEffect(() => {
     if (!isMapEnabled) return;
     if (!mapsApiKey) {
-      setMapError("Google Maps API key is missing.");
+      setMapError("Map service is unavailable.");
       return;
     }
     if (!mapRef.current || mapLoadedRef.current) return;
@@ -2310,7 +2377,7 @@ export default function RedondoBeachLandingPage() {
           .catch((err) => {
             console.error(err);
             mapLoadedRef.current = false;
-            setMapError("Unable to load Google Maps.");
+            setMapError("Unable to load map.");
           });
       },
       { threshold: 0.25 }
@@ -2553,6 +2620,13 @@ export default function RedondoBeachLandingPage() {
       return acc;
     }, {});
   }, [groupedListingsAll]);
+
+  useEffect(() => {
+    if (!routeAreaSlug) return;
+    const sectionKey = resolveSectionKeyFromSlug(routeAreaSlug);
+    if (!sectionKey || !sectionsByKey[sectionKey]) return;
+    setActiveSectionKey((current) => (current === sectionKey ? current : sectionKey));
+  }, [routeAreaSlug, sectionsByKey]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
   const handleListingTabClick = (next) => {
@@ -3288,6 +3362,64 @@ export default function RedondoBeachLandingPage() {
     }
   };
 
+  useEffect(() => {
+    if (!routeAreaSlug || !activeSection?.listings?.length) return;
+    if (sectionAvailabilityLoading) return;
+
+    const params = new URLSearchParams(location.search);
+    const bundle = parseRouteBookingBundle(routeBookingBundle);
+    const routeCheckIn =
+      normalizeRouteDate(routeCheckInParam) ||
+      bundle.checkIn ||
+      normalizeRouteDate(params.get("checkIn") || "");
+    const routeCheckOut =
+      normalizeRouteDate(routeCheckOutParam) ||
+      bundle.checkOut ||
+      normalizeRouteDate(params.get("checkOut") || "");
+    const routeGuests =
+      normalizeRouteGuests(routeGuestsParam) ||
+      bundle.guests ||
+      normalizeRouteGuests(params.get("guests") || "");
+
+    if (!routeCheckIn || !routeCheckOut || !routeGuests) return;
+    if (sectionCheckIn !== routeCheckIn || sectionCheckOut !== routeCheckOut) return;
+    if ((sectionGuests || "2") !== routeGuests) return;
+
+    const listingIds = activeSection.listings.map((listing) => getListingId(listing)).filter(Boolean);
+    const listingId = getPrimaryListingId(activeSection.listings);
+    if (!listingIds.length) return;
+
+    const key = [
+      routeAreaSlug,
+      routeCheckIn,
+      routeCheckOut,
+      routeGuests,
+      activeSection.key,
+      listingIds.join(","),
+    ].join("|");
+    if (autoRouteAvailabilityKeyRef.current === key) return;
+    autoRouteAvailabilityKeyRef.current = key;
+
+    fetchAvailabilityListings({ listingIds, listingId });
+  }, [
+    routeAreaSlug,
+    routeBookingBundle,
+    routeCheckInParam,
+    routeCheckOutParam,
+    routeGuestsParam,
+    location.search,
+    activeSection,
+    sectionCheckIn,
+    sectionCheckOut,
+    sectionGuests,
+    sectionAvailabilityLoading,
+  ]);
+
+  useEffect(() => {
+    if (routeAreaSlug) return;
+    autoRouteAvailabilityKeyRef.current = "";
+  }, [routeAreaSlug]);
+
   const handleSectionCheckout = async ({
     listingId,
     listingTitle,
@@ -3512,14 +3644,44 @@ export default function RedondoBeachLandingPage() {
   const inquiryTitle = inquiryListing?.title ? sanitizeText(inquiryListing.title) : "this unit";
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
+  const buildSectionRoute = (sectionKey) => {
+    const lowerPath = location.pathname.toLowerCase();
+    const basePath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
+    const areaSlug = SECTION_SLUG_BY_KEY[sectionKey] || "pier";
+    const params = new URLSearchParams(location.search);
+    const checkIn = sectionCheckIn || params.get("checkIn") || "";
+    const checkOut = sectionCheckOut || params.get("checkOut") || "";
+    const guests = sectionGuests || params.get("guests") || "";
+    if (checkIn && checkOut && guests) {
+      return `${basePath}/${areaSlug}/${encodeURIComponent(checkIn)}&${encodeURIComponent(
+        checkOut
+      )}&${encodeURIComponent(guests)}`;
+    }
+    return `${basePath}/${areaSlug}`;
+  };
+  const closeActiveSection = () => {
+    setActiveSectionKey(null);
+    setSectionCheckIn("");
+    setSectionCheckOut("");
+    setSectionGuests("2");
+    writePersistedBooking(null);
+    const lowerPath = location.pathname.toLowerCase();
+    const basePath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
+    navigate(basePath, {
+      replace: true,
+      state: { skipCityLoader: true },
+    });
+  };
   const buildListingPath = (listingId) => {
-    if (!listingId) return "/redondo-beach";
+    const lowerPath = location.pathname.toLowerCase();
+    const cityPath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
+    if (!listingId) return cityPath;
     const params = new URLSearchParams();
     if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
     if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
     if (sectionGuests) params.set("guests", sectionGuests);
     const query = params.toString();
-    return `/redondo-beach/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
+    return `${cityPath}/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
@@ -3635,14 +3797,15 @@ export default function RedondoBeachLandingPage() {
   useEffect(() => {
     if (!isListingMapOpen || !listingMapRef.current || !activeListing) return;
     if (!mapsApiKey) {
-      setMapError("Google Maps API key is missing.");
+      setMapError("Map service is unavailable.");
       return;
     }
     loadGoogleMaps(mapsApiKey)
       .then((maps) => {
-        const coords = getListingCoords(activeListing) || PROPERTY_COORDS;
+        const initialCenter =
+          listingMapTarget?.coords || getListingCoords(activeListing) || PROPERTY_COORDS;
         const map = new maps.Map(listingMapRef.current, {
-          center: coords,
+          center: initialCenter,
           zoom: 15,
           minZoom: 3,
           maxZoom: 21,
@@ -3659,21 +3822,39 @@ export default function RedondoBeachLandingPage() {
         if (listingMapMarkerRef.current) {
           listingMapMarkerRef.current.setMap(null);
         }
-        listingMapMarkerRef.current = new maps.Marker({
-          map,
-          position: coords,
-          title: activeListing.title || "OneLuxStay",
-        });
+        const placeMarker = (position) => {
+          listingMapMarkerRef.current = new maps.Marker({
+            map,
+            position,
+            title: activeListing.title || "OneLuxStay",
+          });
+        };
+        if (listingMapTarget?.coords) {
+          placeMarker(listingMapTarget.coords);
+        } else if (listingMapTarget?.address) {
+          const geocoder = new maps.Geocoder();
+          geocoder.geocode({ address: listingMapTarget.address }, (results, status) => {
+            if (status === "OK" && results?.[0]?.geometry?.location) {
+              const location = results[0].geometry.location;
+              map.setCenter(location);
+              placeMarker(location);
+            } else {
+              placeMarker(initialCenter);
+            }
+          });
+        } else {
+          placeMarker(initialCenter);
+        }
       })
       .catch(() => {
-        setMapError("Unable to load Google Maps.");
+        setMapError("Unable to load map.");
       });
-  }, [isListingMapOpen, activeListing, mapsApiKey]);
+  }, [isListingMapOpen, activeListing, listingMapTarget, mapsApiKey]);
 
   useEffect(() => {
     if (!isSectionMapOpen || !sectionMapRef.current || !sectionMapTarget) return;
     if (!mapsApiKey) {
-      setMapError("Google Maps API key is missing.");
+      setMapError("Map service is unavailable.");
       return;
     }
     loadGoogleMaps(mapsApiKey)
@@ -3720,7 +3901,7 @@ export default function RedondoBeachLandingPage() {
         }
       })
       .catch(() => {
-        setMapError("Unable to load Google Maps.");
+        setMapError("Unable to load map.");
       });
   }, [isSectionMapOpen, sectionMapTarget, mapsApiKey]);
 
@@ -3827,16 +4008,9 @@ export default function RedondoBeachLandingPage() {
         const thumbImages = uniqueEntries.slice(0, 24);
         const coords = getListingCoords(activeListing);
         const addressQuery = getListingAddressQuery(activeListing);
-        const mapUrl = coords
-          ? `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=14&size=400x280&maptype=roadmap&markers=color:0x2f261e%7C${coords.lat},${coords.lng}&key=${mapsApiKey}`
-          : "";
-        const mapEmbedUrl = coords
-          ? `https://www.google.com/maps?q=${encodeURIComponent(
-            `${coords.lat},${coords.lng}`
-          )}&z=15&output=embed`
-          : addressQuery
-            ? `https://www.google.com/maps?q=${encodeURIComponent(addressQuery)}&z=15&output=embed`
-          : "";
+        const mapCoords = coords || PROPERTY_COORDS;
+        const mapUrl = buildStaticMapUrl(mapCoords, "400x280", 14);
+        const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
         const amenityListRaw = Array.isArray(activeListing.amenities)
           ? activeListing.amenities
           : [];
@@ -4587,29 +4761,11 @@ export default function RedondoBeachLandingPage() {
             >
               Close
             </button>
-            {(() => {
-              const coords = listingMapTarget?.coords || getListingCoords(activeListing);
-              const address = listingMapTarget?.address || getListingAddressQuery(activeListing);
-              const mapEmbedUrl = coords
-                ? `https://www.google.com/maps?q=${encodeURIComponent(
-                  `${coords.lat},${coords.lng}`
-                )}&z=15&output=embed`
-                : address
-                  ? `https://www.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`
-                  : "";
-              return mapEmbedUrl ? (
-                <iframe
-                  title="Interactive Google Map"
-                  className="la-map-modal__canvas"
-                  src={mapEmbedUrl}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="la-unit-modal__placeholder">Map loading</div>
-              );
-            })()}
+                        <div
+              ref={listingMapRef}
+              className="la-map-modal__canvas"
+              aria-label="Interactive map"
+            />
           </div>
         </div>,
         mapPortalTarget
@@ -4639,7 +4795,7 @@ export default function RedondoBeachLandingPage() {
             <div
               ref={sectionMapRef}
               className="la-map-modal__canvas"
-              aria-label="Interactive Google Map"
+              aria-label="Interactive map"
             />
           </div>
         </div>,
@@ -5076,6 +5232,7 @@ export default function RedondoBeachLandingPage() {
                           ? matchedGroup.listings
                           : group.listings;
                         setActiveSectionKey(sectionKey);
+                        navigate(buildSectionRoute(sectionKey));
                         const listingIds = sectionListings
                           .map((listing) => getListingId(listing))
                           .filter(Boolean);
@@ -5233,7 +5390,7 @@ export default function RedondoBeachLandingPage() {
                 ) : (
                   <div
                     ref={mapRef}
-                    aria-label="Google map showing Redondo Beach with nearby landmarks and public transport"
+                    aria-label="Map showing Redondo Beach with nearby landmarks and public transport"
                     className="la-units-map"
                     style={{
                       width: "100%",
@@ -5258,7 +5415,7 @@ export default function RedondoBeachLandingPage() {
                 type="button"
                 className="la-section-modal__back"
                 aria-label="Close listings"
-                onClick={() => setActiveSectionKey(null)}
+                onClick={closeActiveSection}
               >
                 Back to destinations
               </button>
@@ -5345,10 +5502,9 @@ export default function RedondoBeachLandingPage() {
               const coords = sectionParent ? getListingCoords(sectionParent) : null;
               const addressQuery = sectionParent ? formatAddress(sectionParent) : "";
               const sectionLabel = sectionParent ? resolveGroupTitle(sectionParent) : "OneLuxStay";
-              const mapUrl =
-                coords && mapsApiKey
-                  ? `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=13&size=520x320&maptype=roadmap&markers=color:0x1f1c19|${coords.lat},${coords.lng}&key=${mapsApiKey}`
-                  : "";
+              const mapCoords = coords || PROPERTY_COORDS;
+              const mapUrl = buildStaticMapUrl(mapCoords, "520x320", 13);
+              const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 14);
               return (
                 <div className="la-section-hero">
                   <div className="la-section-hero__media">
@@ -5508,20 +5664,10 @@ export default function RedondoBeachLandingPage() {
                       >
                         View larger map
                       </button>
-                      {coords ? (
+                      {mapEmbedUrl ? (
                         <iframe
                           title="Building location map"
-                          src={`https://www.google.com/maps?q=${encodeURIComponent(
-                            `${coords.lat},${coords.lng}`
-                          )}&z=14&output=embed`}
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                          allowFullScreen
-                        />
-                      ) : addressQuery ? (
-                        <iframe
-                          title="Building location map"
-                          src={`https://www.google.com/maps?q=${encodeURIComponent(addressQuery)}&z=14&output=embed`}
+                          src={mapEmbedUrl}
                           loading="lazy"
                           referrerPolicy="no-referrer-when-downgrade"
                           allowFullScreen
@@ -6382,17 +6528,9 @@ export default function RedondoBeachLandingPage() {
               const thumbImages = uniqueEntries.slice(0, 24);
               const coords = getListingCoords(activeListing);
               const addressQuery = getListingAddressQuery(activeListing);
-              const mapUrl =
-                coords && mapsApiKey
-                  ? `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=14&size=480x280&maptype=roadmap&markers=color:0x1f1c19|${coords.lat},${coords.lng}&key=${mapsApiKey}`
-                  : "";
-              const mapEmbedUrl = coords
-                ? `https://www.google.com/maps?q=${encodeURIComponent(
-                  `${coords.lat},${coords.lng}`
-                )}&z=15&output=embed`
-                : addressQuery
-                  ? `https://www.google.com/maps?q=${encodeURIComponent(addressQuery)}&z=15&output=embed`
-                : "";
+              const mapCoords = coords || PROPERTY_COORDS;
+              const mapUrl = buildStaticMapUrl(mapCoords, "480x280", 14);
+              const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
               const amenityListRaw = Array.isArray(activeListing.amenities)
                 ? activeListing.amenities
                 : [];
