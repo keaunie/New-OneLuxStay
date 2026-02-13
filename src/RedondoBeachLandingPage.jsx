@@ -3532,6 +3532,18 @@ export default function RedondoBeachLandingPage() {
   const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
     inquiryBody
   )}`;
+  const logoHomeProps = {
+    role: "button",
+    tabIndex: 0,
+    onClick: () => navigate("/"),
+    onKeyDown: (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        navigate("/");
+      }
+    },
+    style: { cursor: "pointer" },
+  };
 
   const scrollHeroCarousel = (direction) => {
     if (!heroCarouselRef.current) return;
@@ -3738,7 +3750,7 @@ export default function RedondoBeachLandingPage() {
             <span aria-hidden="true">‹</span>
           </button>
           <div className="la-listing-hero__logo-mobile">
-            <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
           </div>
         </div>
         <div className="la-listing-hero__intro">
@@ -3762,7 +3774,7 @@ export default function RedondoBeachLandingPage() {
             })()}
           </div>
           <div className="la-listing-hero__logo">
-            <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
           </div>
         </div>
       </section>
@@ -6014,6 +6026,7 @@ export default function RedondoBeachLandingPage() {
             <div className="la-inquiry-modal__header">
               <div className="la-inquiry-modal__brand">
                 <img
+                  {...logoHomeProps}
                   src={LOGO_URL}
                   alt="OneLuxStay logo"
                   loading="lazy"
@@ -6066,6 +6079,7 @@ export default function RedondoBeachLandingPage() {
             <div className="la-inquiry-modal__header">
               <div className="la-inquiry-modal__brand">
                 <img
+                  {...logoHomeProps}
                   src={LOGO_URL}
                   alt="OneLuxStay logo"
                   loading="lazy"

@@ -53,6 +53,8 @@ function createTextTexture(gl, text, font = "600 22px 'Work Sans', sans-serif", 
   const context = canvas.getContext("2d");
   if (!context) return { texture: new Texture(gl, { generateMipmaps: false }), width: 0, height: 0 };
   const isMobileViewport = typeof window !== "undefined" && window.innerWidth <= 640;
+  const isTabletViewport =
+    typeof window !== "undefined" && window.innerWidth > 640 && window.innerWidth <= 1024;
   let effectiveFont = font;
   if (isMobileViewport) {
     const fontSizeMatch = font.match(/(\d+(?:\.\d+)?)px/);
@@ -63,6 +65,13 @@ function createTextTexture(gl, text, font = "600 22px 'Work Sans', sans-serif", 
         : Math.max(18, Math.round(currentSize * 0.9));
       effectiveFont = font.replace(fontSizeMatch[0], `${adjustedSize}px`);
     }
+  } else if (isTabletViewport) {
+    const fontSizeMatch = font.match(/(\d+(?:\.\d+)?)px/);
+    if (fontSizeMatch) {
+      const currentSize = Number(fontSizeMatch[1]);
+      const adjustedSize = Math.max(19, Math.round(currentSize * 0.94));
+      effectiveFont = font.replace(fontSizeMatch[0], `${adjustedSize}px`);
+    }
   }
 
   const lines = String(text || "").split("\n");
@@ -71,10 +80,10 @@ function createTextTexture(gl, text, font = "600 22px 'Work Sans', sans-serif", 
   const textWidth = Math.ceil(Math.max(0, ...widths));
   const sizeMatch = effectiveFont.match(/(\d+(?:\.\d+)?)px/);
   const fontSize = sizeMatch ? Number(sizeMatch[1]) : 22;
-  const lineHeight = Math.ceil(fontSize * (isMobileViewport ? 1.08 : 1.18));
+  const lineHeight = Math.ceil(fontSize * (isMobileViewport ? 1.08 : isTabletViewport ? 1.12 : 1.18));
   const textHeight = Math.ceil(lineHeight * Math.max(1, lines.length));
-  const paddingX = Math.ceil(fontSize * (isMobileViewport ? 0.82 : 1.1));
-  const paddingY = Math.ceil(fontSize * (isMobileViewport ? 0.52 : 0.72));
+  const paddingX = Math.ceil(fontSize * (isMobileViewport ? 0.82 : isTabletViewport ? 0.96 : 1.1));
+  const paddingY = Math.ceil(fontSize * (isMobileViewport ? 0.52 : isTabletViewport ? 0.64 : 0.72));
 
   canvas.width = textWidth + paddingX * 2;
   canvas.height = textHeight + paddingY * 2;
@@ -85,14 +94,22 @@ function createTextTexture(gl, text, font = "600 22px 'Work Sans', sans-serif", 
 
   context.save();
   context.shadowColor = isMobileViewport ? "rgba(0, 0, 0, 0.1)" : "rgba(0, 0, 0, 0.15)";
-  context.shadowBlur = fontSize * (isMobileViewport ? 0.3 : 0.45);
-  context.shadowOffsetY = fontSize * (isMobileViewport ? 0.1 : 0.16);
-  context.fillStyle = isMobileViewport ? "rgba(247, 241, 234, 0.78)" : "rgba(247, 241, 234, 0.88)";
+  context.shadowBlur = fontSize * (isMobileViewport ? 0.3 : isTabletViewport ? 0.38 : 0.45);
+  context.shadowOffsetY = fontSize * (isMobileViewport ? 0.1 : isTabletViewport ? 0.14 : 0.16);
+  context.fillStyle = isMobileViewport
+    ? "rgba(247, 241, 234, 0.78)"
+    : isTabletViewport
+      ? "rgba(247, 241, 234, 0.84)"
+      : "rgba(247, 241, 234, 0.88)";
   drawRoundedRect(context, 0, 0, canvas.width, canvas.height, radius);
   context.fill();
   context.restore();
 
-  context.strokeStyle = isMobileViewport ? "rgba(90, 78, 69, 0.13)" : "rgba(90, 78, 69, 0.16)";
+  context.strokeStyle = isMobileViewport
+    ? "rgba(90, 78, 69, 0.13)"
+    : isTabletViewport
+      ? "rgba(90, 78, 69, 0.15)"
+      : "rgba(90, 78, 69, 0.16)";
   context.lineWidth = 1;
   drawRoundedRect(context, 0.5, 0.5, canvas.width - 1, canvas.height - 1, radius - 0.5);
   context.stroke();
@@ -383,8 +400,10 @@ class Media {
       }
     }
     const isMobileViewport = this.screen.width <= 640;
+    const isTabletViewport = this.screen.width > 640 && this.screen.width <= 1024;
     const mobileScaleBoost = this.screen.width <= 520 ? 1.42 : isMobileViewport ? 1.28 : 1;
-    this.scale = (this.screen.height / 1500) * mobileScaleBoost;
+    const tabletScaleBoost = isTabletViewport ? 1.1 : 1;
+    this.scale = (this.screen.height / 1500) * mobileScaleBoost * tabletScaleBoost;
     this.plane.scale.y = (this.viewport.height * (900 * this.scale)) / this.screen.height;
     this.plane.scale.x = (this.viewport.width * (700 * this.scale)) / this.screen.width;
     this.plane.program.uniforms.uPlaneSizes.value = [this.plane.scale.x, this.plane.scale.y];

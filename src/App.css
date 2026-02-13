@@ -8738,3 +8738,131 @@ video {
     gap: 10px;
   }
 }
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .landing-page,
+  .antwerp-page,
+  .listing-page,
+  .policy-page,
+  .ack-page {
+    overflow-x: hidden;
+  }
+
+  @supports (overflow: clip) {
+    .landing-page,
+    .antwerp-page,
+    .listing-page,
+    .policy-page,
+    .ack-page {
+      overflow-x: clip;
+    }
+  }
+
+  .landing-hero {
+    min-height: 100svh;
+  }
+
+  .landing-hero-inner {
+    max-width: 980px;
+    padding: 80px 24px 26px;
+    gap: 16px;
+  }
+
+  .landing-display {
+    font-size: clamp(2.1rem, 4.3vw, 3rem);
+    line-height: 1.12;
+  }
+
+  .landing-chip-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .landing-hero-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .landing-hero-form button,
+  .landing-cta-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .landing-date-picker .listing-date-dropdown {
+    width: min(92vw, 860px);
+    max-width: 92vw;
+  }
+
+  .landing-circular-gallery {
+    height: 470px;
+    padding-bottom: 28px;
+  }
+
+  .landing-circular-gallery--hero {
+    height: clamp(300px, 38vh, 440px);
+    padding-bottom: 26px;
+  }
+
+  .la-bounce-cards {
+    width: min(100%, 620px) !important;
+    height: clamp(280px, 56vw, 380px) !important;
+  }
+
+  .antwerp-modal__overlay {
+    padding: 16px;
+  }
+
+  .la-unit-modal {
+    width: min(980px, 95vw);
+    padding: 22px;
+  }
+
+  .la-unit-modal__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .la-unit-modal__grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .la-unit-modal__main img {
+    height: 300px;
+  }
+
+  .la-unit-modal__booking {
+    max-width: 100%;
+  }
+
+  .la-section-modal {
+    width: min(980px, 95vw);
+    padding: 20px;
+  }
+
+  .la-section-modal__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .la-listing-page .listing-date-dropdown,
+  .la-listing-page .la-date-picker .listing-date-dropdown,
+  .listing-page .listing-date-dropdown {
+    width: min(92vw, 860px);
+    max-width: 92vw;
+  }
+
+  .policy-hero-inner {
+    padding: 86px 24px 72px;
+  }
+
+  .policy-body {
+    padding: 40px 24px 72px;
+  }
+}

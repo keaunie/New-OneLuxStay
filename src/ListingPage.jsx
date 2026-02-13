@@ -337,7 +337,7 @@ const DateRangePicker = ({ value, onChange }) => {
           aria-modal="true"
           aria-label="Choose dates"
           aria-describedby={dialogHelpId}
-          className="absolute left-0 z-50 mt-3 w-[660px] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl listing-date-dropdown"
+          className="absolute left-0 z-50 mt-3 w-[660px] max-w-[92vw] rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl listing-date-dropdown"
         >
           <p id={dialogHelpId} className="sr-only">
             Select a check-in date and a check-out date. Use the previous and next buttons to change months.
