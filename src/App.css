@@ -3379,7 +3379,7 @@ html {
 
 @keyframes la-review-scroll {
   0% {
-    transform: translateX(0);
+    transform: translateY(0);
   }
   100% {
     transform: translateY(-50%);
@@ -4460,6 +4460,10 @@ html {
   gap: 16px;
 }
 
+.la-story__content {
+  min-width: 0;
+}
+
 .la-story__image {
   width: 100%;
   min-height: 180px;
@@ -4482,6 +4486,7 @@ html {
   margin: 6px 0 10px;
   font-size: 1.6rem;
   color: #3f342a;
+  overflow-wrap: anywhere;
 }
 
 .la-story__tag {
@@ -4496,6 +4501,7 @@ html {
   color: #4d4036;
   line-height: 1.6;
   margin: 0 0 16px;
+  overflow-wrap: anywhere;
 }
 
 .la-story__row {
@@ -6991,7 +6997,7 @@ html {
 
 .la-booking-table__head {
   display: grid;
-  grid-template-columns: 2.4fr 1fr 1.1fr 1.4fr 0.8fr;
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 0.8fr);
   gap: 12px;
   background: rgba(214, 197, 173, 0.7);
   border-radius: 12px;
@@ -7005,7 +7011,7 @@ html {
 
 .la-booking-table__row {
   display: grid;
-  grid-template-columns: 2.4fr 1fr 1.1fr 1.4fr 0.8fr;
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 0.8fr);
   gap: 12px;
   background: rgba(255, 255, 255, 0.75);
   border-radius: 16px;
@@ -7284,6 +7290,16 @@ html {
   .la-booking-table__head,
   .la-booking-table__row {
     grid-template-columns: 1fr;
+  }
+
+  .la-booking-table__guests {
+    align-items: center;
+    padding-right: 0;
+  }
+
+  .la-booking-table__guest-icons {
+    grid-template-columns: repeat(8, 14px);
+    row-gap: 0;
   }
 
   .la-booking-table__title {
@@ -7612,6 +7628,15 @@ html {
     padding: 14px;
   }
 
+  .la-booking-table__guests {
+    align-items: flex-start;
+  }
+
+  .la-booking-table__guest-icons {
+    grid-template-columns: repeat(4, 14px);
+    row-gap: 4px;
+  }
+
   .la-booking-table__title img,
   .la-booking-table__placeholder {
     height: 160px;
@@ -7789,12 +7814,110 @@ html {
 }
 
 @media (max-width: 1024px) {
+  .antwerp-section__head {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 14px;
+  }
+
+  .la-stats-row {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .la-stat-card {
+    min-width: 0;
+  }
+
+  .la-story__row {
+    overflow: visible;
+    border-radius: 16px;
+    padding: 10px 12px;
+    max-width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .la-story__track {
+    animation: none;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    white-space: normal;
+  }
+
+  .la-story__pill {
+    max-width: 100%;
+  }
+
   .antwerp-hero {
     grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 60px 6vw 46px;
+  }
+
+  .antwerp-hero__content {
+    max-width: 100%;
   }
 
   .antwerp-hero__media {
-    order: -1;
+    display: none;
+  }
+
+  .antwerp-hero__carousel {
+    display: block;
+    width: 100%;
+  }
+
+  .antwerp-hero__carousel-track {
+    gap: 0;
+    padding: 0;
+    scroll-padding-inline: 0;
+    padding-bottom: 8px;
+  }
+
+  .antwerp-hero__carousel-card {
+    flex: 0 0 100%;
+    height: clamp(240px, 42vw, 340px);
+    border-radius: 20px;
+  }
+
+  .antwerp-hero__carousel-controls {
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .la-review-ticker {
+    max-height: none;
+    padding: 14px 0;
+  }
+
+  .la-review-ticker__track {
+    animation: none;
+    transform: none;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .la-review-ticker__track::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .la-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .la-stats-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -7982,7 +8105,8 @@ html {
     overflow-x: hidden;
     overflow-y: auto;
     scroll-snap-type: y mandatory;
-    animation: la-review-scroll 220s linear infinite;
+    animation: none;
+    transform: none;
     scroll-behavior: smooth;
     scrollbar-width: none;
   }
