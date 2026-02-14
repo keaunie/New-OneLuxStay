@@ -19,9 +19,9 @@ function SiteFooter() {
               privacy of a residence with the polish of an elevated hotel.
             </p>
           </div>
-          <Link to="/listings" className="landing-cta-primary">
+          {/* <Link to="/listings" className="landing-cta-primary">
             Book your stay
-          </Link>
+          </Link> */}
         </div>
         <div className="policy-footer-col">
           <h3>Explore</h3>
