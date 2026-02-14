@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState, useMemo, useId } from "react";
+import { createPortal } from "react-dom";
 import lottie from "lottie-web";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
@@ -339,6 +340,18 @@ const offers = [
   },
 ];
 
+const conciergeContacts = {
+  phones: [
+    // { label: "UAE", display: "+971 55 727 7059", href: "tel:+971557277059" },
+    { label: "USA", display: "+1 213 866 3589", href: "tel:+12138663589" },
+    // { label: "EU", display: "+32 3 808 0719", href: "tel:+3238080719" },
+  ],
+  emails: [
+    { label: "Reservations", display: "reservations@oneluxstay.com", href: "mailto:reservations@oneluxstay.com" },
+    // { label: "Data security", display: "datasecurity@oneluxstay.com", href: "mailto:datasecurity@oneluxstay.com" },
+  ],
+};
+
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
   const setOpenState = (nextOpen) => {
@@ -640,6 +653,7 @@ function LandingPage() {
   ];
   const [cityNoticeIndex, setCityNoticeIndex] = useState(0);
   const [cityNotice, setCityNotice] = useState("");
+  const [isConciergeModalOpen, setIsConciergeModalOpen] = useState(false);
   const loopedOffers = useMemo(() => [...offers, ...offers, ...offers], []);
 
   const galleryItems = useMemo(() => {
@@ -997,6 +1011,25 @@ function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!isConciergeModalOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsConciergeModalOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isConciergeModalOpen]);
+
+  const scrollToHero = useCallback(() => {
+    const target = document.getElementById("hero");
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
 
   const handleHeroSubmit = (e) => {
     e.preventDefault();
@@ -1028,7 +1061,7 @@ function LandingPage() {
         <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
       </div>
       <div className="landing-silk-overlay" aria-hidden="true" />
-      <header className="landing-hero relative landing-animate">
+      <header id="hero" className="landing-hero relative landing-animate">
         <div
           aria-hidden="true"
           className="hero-media hero-media__slideshow"
@@ -1258,26 +1291,80 @@ function LandingPage() {
                 </p>
               </div>
               <div className="landing-actions mt-4">
-              <button
-                type="button"
-                className="landing-cta-primary"
-                onClick={() => {
-                  const target = document.getElementById("collection");
-                  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-              >
-                See live availability
-              </button>
-                <a
-                  href="mailto:reservation@oneluxstay.com"
+                <button
+                  type="button"
+                  className="landing-cta-primary"
+                  onClick={scrollToHero}
+                >
+                  See live availability
+                </button>
+                <button
+                  type="button"
                   className="landing-cta-secondary"
+                  onClick={() => setIsConciergeModalOpen(true)}
                 >
                   Email concierge
-                </a>
+                </button>
               </div>
             </div>
           </div>
         </section>
+        {isConciergeModalOpen && typeof document !== "undefined" && createPortal((
+          <div
+            className="landing-contact-modal"
+            role="presentation"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setIsConciergeModalOpen(false);
+            }}
+          >
+            <div
+              className="landing-contact-modal__panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="concierge-modal-title"
+            >
+              <button
+                type="button"
+                className="landing-contact-modal__close"
+                aria-label="Close concierge contact details"
+                onClick={() => setIsConciergeModalOpen(false)}
+              >
+                Close
+              </button>
+              <p className="landing-kicker">OneLuxStay concierge</p>
+              <h3 id="concierge-modal-title" className="landing-display text-3xl md:text-4xl">
+                Contact details
+              </h3>
+              <p className="landing-contact-modal__intro">
+                Reach the team directly by phone or email and we will send tailored options for your stay.
+              </p>
+              <div className="landing-contact-modal__grid">
+                <section className="landing-contact-modal__group" aria-label="Mobile numbers">
+                  <h4>Mobile numbers</h4>
+                  <ul>
+                    {conciergeContacts.phones.map((phone) => (
+                      <li key={phone.href}>
+                        <span>{phone.label}</span>
+                        <a href={phone.href}>{phone.display}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section className="landing-contact-modal__group" aria-label="Email addresses">
+                  <h4>Email addresses</h4>
+                  <ul>
+                    {conciergeContacts.emails.map((email) => (
+                      <li key={email.href}>
+                        <span>{email.label}</span>
+                        <a href={email.href}>{email.display}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </div>
+        ), document.body)}
         <SiteFooter />
       </main>
     </div>
