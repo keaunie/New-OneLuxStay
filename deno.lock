@@ -27,6 +27,7 @@
         "npm:globals@^16.5.0",
         "npm:gsap@^3.13.0",
         "npm:jsrepo@^3.2.1",
+        "npm:leaflet@^1.9.4",
         "npm:lenis@^1.1.14",
         "npm:lottie-web@^5.13.0",
         "npm:motion@^12.33.0",
