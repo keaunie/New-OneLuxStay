@@ -11,6 +11,7 @@ const RedondoBeachLandingPage = lazy(routePreloaders.redondoBeach);
 const DubaiLandingPage = lazy(routePreloaders.dubai);
 const MiamiBeachLandingPage = lazy(routePreloaders.miami);
 const ListingPage = lazy(routePreloaders.listing);
+const GlobalUnitsPage = lazy(routePreloaders.global);
 const PrivacyPolicy = lazy(routePreloaders.privacy);
 const TermsConditions = lazy(routePreloaders.terms);
 const CaliforniaPrivacyPolicy = lazy(routePreloaders.californiaPrivacy);
@@ -132,6 +133,9 @@ function AppRoutes() {
           />
           <Route path="/:citySlug/listing/:listingId" element={renderLazyRoute(ListingPage)} />
           <Route path="/listings" element={renderLazyRoute(ListingPage)} />
+          <Route path="/global" element={renderLazyRoute(GlobalUnitsPage)} />
+          <Route path="/global-units" element={renderLazyRoute(GlobalUnitsPage)} />
+          <Route path="/one-lux-stay-global" element={renderLazyRoute(GlobalUnitsPage)} />
           <Route path="/privacy-policy" element={renderLazyRoute(PrivacyPolicy)} />
           <Route path="/privacy" element={renderLazyRoute(PrivacyPolicy)} />
           <Route path="/terms" element={renderLazyRoute(TermsConditions)} />

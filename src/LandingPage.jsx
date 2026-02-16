@@ -1048,7 +1048,8 @@ function LandingPage() {
       if (cityParam === "Antwerp") return "/antwerp";
       if (cityParam === "Miami" || cityParam === "Miami Beach") return "/miami";
       if (cityParam === "Redondo Beach") return "/redondo-beach";
-      return "/listings";
+      if (cityParam === "Dubai") return "/dubai";
+      return "/global";
     })();
     const hash = targetRoute === "/listings" ? "#listings" : "";
     prefetchRouteByPath(targetRoute);

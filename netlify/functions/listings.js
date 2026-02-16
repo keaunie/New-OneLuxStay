@@ -216,7 +216,7 @@ const extractBedDetails = (listing) => {
 };
 
 const LISTING_FIELDS =
-    "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId";
+    "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId active pmsActive listed";
 
 const normalizeListing = (listing) => {
     if (!listing) return null;
@@ -227,6 +227,23 @@ const normalizeListing = (listing) => {
 
 const getListingId = (listing) =>
     listing?._id || listing?.id || listing?.unitTypeId || null;
+
+const isTruthy = (value) => {
+    if (value === true || value === 1) return true;
+    if (typeof value === "string") return value.trim().toLowerCase() === "true" || value.trim() === "1";
+    return false;
+};
+
+const isActiveAndPmsActive = (listing) => {
+    if (!listing || typeof listing !== "object") return false;
+    const hasActiveProp = Object.prototype.hasOwnProperty.call(listing, "active");
+    const hasPmsActiveProp = Object.prototype.hasOwnProperty.call(listing, "pmsActive");
+
+    // If the API omits these fields for a response shape, trust the upstream query filter.
+    if (!hasActiveProp && !hasPmsActiveProp) return true;
+
+    return isTruthy(listing.active) && isTruthy(listing.pmsActive);
+};
 
 const parseIdList = (value) =>
     String(value || "")
@@ -240,6 +257,9 @@ const fetchListingsByIds = async (ids, token) => {
     const queryParams = new URLSearchParams({
         ids: uniqueIds.join(","),
         fields: LISTING_FIELDS,
+        listed: "true",
+        pmsActive: "true",
+        active: "true",
     });
 
     const tryFetch = async (url) => {
@@ -292,11 +312,12 @@ export async function handler(event) {
         const params = new URLSearchParams({
             limit: "200",
             fields: LISTING_FIELDS,
-            listed: "true",
-            pmsActive: "true",
-            active: "true",
             ...(event.queryStringParameters || {}),
         });
+        // Always enforce active + pmsActive on this endpoint.
+        params.set("listed", "true");
+        params.set("pmsActive", "true");
+        params.set("active", "true");
 
         const response = await fetch(
             `${GUESTY_LISTINGS_URL}?${params.toString()}`,
@@ -316,6 +337,7 @@ export async function handler(event) {
         const baseResults = Array.isArray(data.results) ? data.results : [];
         const enrichedResults = baseResults
             .map((listing) => normalizeListing(listing))
+            .filter((listing) => isActiveAndPmsActive(listing))
             .filter(Boolean);
 
         if (forcedIds.length) {
@@ -325,6 +347,7 @@ export async function handler(event) {
                 const forcedListings = await fetchListingsByIds(missingIds, token);
                 forcedListings
                     .map((listing) => normalizeListing(listing))
+                    .filter((listing) => isActiveAndPmsActive(listing))
                     .filter(Boolean)
                     .forEach((listing) => {
                         const listingId = getListingId(listing);

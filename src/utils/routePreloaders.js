@@ -5,6 +5,7 @@ const preloadRedondoBeachLandingPage = () => import("../RedondoBeachLandingPage"
 const preloadDubaiLandingPage = () => import("../DubaiLandingPage");
 const preloadMiamiBeachLandingPage = () => import("../MiamiBeachLandingPage");
 const preloadListingPage = () => import("../ListingPage");
+const preloadGlobalUnitsPage = () => import("../GlobalUnitsPage");
 const preloadPrivacyPolicy = () => import("../PrivacyPolicy");
 const preloadTermsConditions = () => import("../TermsConditions");
 const preloadCaliforniaPrivacyPolicy = () => import("../CaliforniaPrivacyPolicy");
@@ -18,6 +19,7 @@ export const routePreloaders = {
   dubai: preloadDubaiLandingPage,
   miami: preloadMiamiBeachLandingPage,
   listing: preloadListingPage,
+  global: preloadGlobalUnitsPage,
   privacy: preloadPrivacyPolicy,
   terms: preloadTermsConditions,
   californiaPrivacy: preloadCaliforniaPrivacyPolicy,
@@ -63,6 +65,9 @@ export const prefetchRouteByPath = (value = "") => {
   if (normalized === "/" || normalized === "") return routePreloaders.landing().then(() => undefined);
   if (normalized === "/listings" || normalized.includes("/listing/")) {
     return routePreloaders.listing().then(() => undefined);
+  }
+  if (normalized === "/global" || normalized === "/global-units" || normalized === "/one-lux-stay-global") {
+    return routePreloaders.global().then(() => undefined);
   }
   if (normalized === "/privacy" || normalized === "/privacy-policy") {
     return routePreloaders.privacy().then(() => undefined);

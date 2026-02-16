@@ -533,6 +533,7 @@ html {
 .landing-hero-inner {
   position: relative;
   z-index: 2;
+  isolation: isolate;
   max-width: 1200px;
   margin: 0 auto;
   padding: 92px 24px 30px;
@@ -854,6 +855,8 @@ html {
   margin-top: 10px;
   width: 100%;
   max-width: 1200px;
+  position: relative;
+  z-index: 30;
   border-radius: 26px;
   padding: 22px;
   display: grid;
@@ -865,6 +868,10 @@ html {
     linear-gradient(180deg, rgba(8, 8, 12, 0.92), rgba(8, 8, 14, 0.9));
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.landing-page.has-date-dropdown .landing-hero-form {
+  z-index: 80;
 }
 
 .landing-form-field {
@@ -977,6 +984,7 @@ html {
 .landing-hero-inner {
   position: relative;
   z-index: 2;
+  isolation: isolate;
   max-width: 1200px;
   margin: 0 auto;
   padding: 92px 24px 30px;
@@ -1282,6 +1290,7 @@ html {
   align-self: center;
   height: clamp(340px, 44vh, 560px);
   padding: 0 0 34px;
+  z-index: 5;
 }
 
 .landing-circular-gallery--hero::before,
@@ -4780,19 +4789,20 @@ html {
 
 .la-listing-hero__intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
-  gap: 14px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 18px;
+  align-items: center;
 }
 
 .la-listing-hero__logo {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  align-self: center;
 }
 
 .la-listing-hero__logo img {
-  width: min(220px, 100%);
+  width: clamp(148px, 16vw, 188px);
   height: auto;
   opacity: 0.95;
   filter: drop-shadow(0 6px 14px rgba(59, 49, 39, 0.25));
@@ -8715,6 +8725,154 @@ html {
   font-size: 0.85rem;
 }
 
+.global-hero {
+  position: relative;
+  isolation: isolate;
+  border-bottom: 1px solid var(--landing-stroke);
+  overflow: hidden;
+  background:
+    radial-gradient(110% 90% at 8% 6%, rgba(201, 181, 156, 0.3), transparent 58%),
+    radial-gradient(82% 78% at 96% 8%, rgba(170, 154, 135, 0.16), transparent 64%),
+    linear-gradient(160deg, #f7f3ed 0%, #efe9e3 52%, #f8f4ee 100%);
+}
+
+.global-hero__bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 25% 25%, rgba(132, 108, 84, 0.09) 0 3px, transparent 3px 40px),
+    radial-gradient(circle at 75% 75%, rgba(132, 108, 84, 0.09) 0 3px, transparent 3px 40px),
+    repeating-linear-gradient(
+      45deg,
+      rgba(170, 150, 127, 0.12) 0 2px,
+      transparent 2px 26px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(170, 150, 127, 0.12) 0 2px,
+      transparent 2px 26px
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22));
+  background-size: 84px 84px, 84px 84px, 84px 84px, 84px 84px, auto;
+  background-position: 0 0, 42px 42px, 0 0, 0 0, 0 0;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.global-hero__topbar {
+  position: relative;
+  z-index: 2;
+  max-width: none;
+  margin: 0;
+  padding: 28px 54px 0;
+  justify-content: flex-start;
+}
+
+.global-hero__kicker-top {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(169, 130, 79, 0.55);
+  background: rgba(255, 255, 255, 0.52);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-family: var(--landing-font-display);
+  font-size: clamp(1.02rem, 1.65vw, 1.42rem);
+  line-height: 1;
+  font-weight: 700;
+  color: #8b6c46;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.82),
+    0 8px 16px rgba(151, 114, 69, 0.28);
+  box-shadow:
+    0 8px 22px rgba(63, 54, 47, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36);
+}
+
+.global-hero__brand {
+  margin: 6px auto 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.global-hero__logo {
+  width: clamp(116px, 11vw, 162px);
+  height: clamp(116px, 11vw, 162px);
+  object-fit: contain;
+  filter:
+    drop-shadow(0 10px 20px rgba(63, 54, 47, 0.2))
+    drop-shadow(0 0 12px rgba(184, 145, 92, 0.35));
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.global-hero__brand:hover .global-hero__logo {
+  transform: translateY(-2px) scale(1.02);
+  filter:
+    drop-shadow(0 14px 28px rgba(63, 54, 47, 0.24))
+    drop-shadow(0 0 14px rgba(184, 145, 92, 0.42));
+}
+
+.global-hero__inner {
+  position: relative;
+  z-index: 2;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 24px 56px;
+  display: grid;
+  gap: 16px;
+  text-align: center;
+}
+
+.global-hero__title {
+  margin: 0;
+  font-size: clamp(2.6rem, 4.8vw, 4.1rem);
+  line-height: 0.95;
+  color: #332b24;
+}
+
+.global-hero__tagline {
+  margin: 2px 0 0;
+  font-size: clamp(0.92rem, 1.2vw, 1.02rem);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #8e735b;
+  font-weight: 600;
+}
+
+.global-hero__subtitle {
+  max-width: 700px;
+  margin: 0 auto;
+  font-size: clamp(0.96rem, 1.1vw, 1.06rem);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.global-units-date-picker .la-date-grid {
+  gap: 8px;
+}
+
+.global-units-date-picker .la-date-label {
+  font-size: 0.74rem;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+
+.global-units-date-picker .la-date-input {
+  padding: 8px 10px;
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+}
+
+.global-units-date-picker .listing-date-dropdown {
+  margin-top: 8px;
+}
+
 .policy-footer-links {
   display: flex;
   flex-wrap: wrap;
@@ -8736,12 +8894,44 @@ html {
     grid-template-columns: 1fr 1fr;
   }
 
+  .global-hero__topbar {
+    padding: 22px 22px 0;
+  }
+
+  .global-hero__inner {
+    padding: 24px 20px 48px;
+  }
+
   .policy-topbar {
     padding: 18px 18px 0;
   }
 }
 
 @media (max-width: 640px) {
+  .global-hero__topbar {
+    padding: 18px 14px 0;
+  }
+
+  .global-hero__kicker-top {
+    padding: 7px 12px;
+    letter-spacing: 0.14em;
+    font-size: clamp(0.9rem, 3.2vw, 1.06rem);
+  }
+
+  .global-hero__logo {
+    width: 108px;
+    height: 108px;
+  }
+
+  .global-hero__inner {
+    padding: 20px 16px 44px;
+    gap: 12px;
+  }
+
+  .global-hero__title {
+    font-size: clamp(2.2rem, 10vw, 3rem);
+  }
+
   .policy-hero-inner {
     padding: 70px 16px 60px;
   }

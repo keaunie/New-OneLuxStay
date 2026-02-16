@@ -27,7 +27,7 @@ function SiteFooter() {
           <h3>Explore</h3>
           <ul>
             <li>About One Lux Stay</li>
-            <li>All destinations</li>
+            <li><Link to="/global">One Lux Stay Global</Link></li>
             <li>Contact and inquiries</li>
           </ul>
         </div>
