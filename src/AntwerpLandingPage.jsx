@@ -960,7 +960,12 @@ const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
   return value
     .replace(/\uFFFD/g, "")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .split("")
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join("")
     .trim();
 };
 
@@ -1390,7 +1395,7 @@ const escapeHtml = (value) =>
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
 const rangeLabel = (values, suffix = "") => {
@@ -1739,42 +1744,52 @@ const getGroupStats = (listings) => {
 };
 
 const CITY_TOUR_SLIDES = {
-  "Diamond District": [
+  "Cathedral of Our Lady": [
     {
-      title: "Diamonds + Railway Cathedral",
-      subtitle: "Start at Antwerp Central, then into the diamond streets.",
+      title: "Cathedral of Our Lady (Onze-Lieve-Vrouwekathedraal)",
+      subtitle: "Stunning Gothic Masterpiece in Antwerp",
       copy:
-        "Begin at Antwerp Central Station for its grand architecture, then walk Hoveniersstraat and nearby blocks in the Diamond District.",
-      highlights: ["Antwerp Central Station", "Diamond District", "Hoveniersstraat"],
+        "Discover the grandeur of the Cathedral of Our Lady (Onze-Lieve-Vrouwekathedraal), one of Antwerp's most iconic landmarks. This breathtaking Gothic cathedral features soaring spires, intricate stonework, and houses world-famous paintings by Peter Paul Rubens. A must-see for art and history lovers, it offers an unforgettable glimpse into Antwerp's rich cultural and religious heritage.",
+      highlights: [
+        "Gothic architecture",
+        "Home to Rubens' masterpieces",
+        "Iconic religious landmark",
+        "Must-visit Antwerp attraction",
+      ],
       image:
-        "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=2000&q=80",
+        "https://upload.wikimedia.org/wikipedia/commons/c/c3/Exterior_of_Onze-Lieve-Vrouwekathedraal_%28Antwerp%29-.jpg",
     },
+  ],
+  "Grote Markt": [
     {
-      title: "DIVA + Old Town",
-      subtitle: "Craft, guild houses, and cathedral light.",
+      title: "Grote Markt (Great Market Square)",
+      subtitle: "Iconic Square with Colorful Guild Houses",
       copy:
-        "Visit the DIVA Museum, then head to Grote Markt and the Cathedral of Our Lady before a relaxed Old Town lunch.",
-      highlights: ["DIVA Museum", "Grote Markt", "Cathedral of Our Lady"],
+        "Step into the lively heart of Antwerp at the Grote Markt (Great Market Square). Surrounded by colorful guild houses and the impressive City Hall, this square has been the city's social and cultural center for centuries. Explore the historic architecture, snap stunning photos, and soak in the vibrant atmosphere of one of Belgium's most picturesque squares.",
+      highlights: [
+        "Historic City Hall",
+        "Vibrant guild houses",
+        "Central hub of Antwerp Old Town",
+        "Perfect for sightseeing and photography",
+      ],
       image:
-        "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=2000&q=80",
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/04/4e/92/32/great-market-square-grote.jpg?w=900&h=500&s=1",
     },
+  ],
+  "Het Steen Castle": [
     {
-      title: "Rubens + Meir",
-      subtitle: "Art history and Antwerp's main shopping street.",
+      title: "Het Steen Castle",
+      subtitle: "Historic Fortress on the River Scheldt",
       copy:
-        "Tour Rubenshuis, then stroll Meir for shopping and grand city facades.",
-      highlights: ["Rubenshuis", "Meir Shopping Street", "City Hall"],
+        "Visit Het Steen Castle, a medieval fortress perched on the banks of the river Scheldt. Dating back to the 13th century, this historic castle offers visitors a journey through Antwerp's past, with charming river views and fascinating stories of the city's defense and trade. Perfect for history enthusiasts and anyone looking to explore Antwerp's heritage.",
+      highlights: [
+        "Medieval castle experience",
+        "Riverside views",
+        "Antwerp history and heritage",
+        "Popular tourist destination",
+      ],
       image:
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
-    },
-    {
-      title: "Evening Views",
-      subtitle: "Rooftop panoramas and Belgian dinner.",
-      copy:
-        "Optional sunset at MAS rooftop, then finish with Belgian cuisine near Grote Markt or in Zuid.",
-      highlights: ["MAS Museum rooftop", "Grote Markt", "Zuid dining"],
-      image:
-        "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=2000&q=80",
+        "https://t4.ftcdn.net/jpg/07/29/79/73/360_F_729797340_61vLRa4jZGfsi2J9LadSiQPGwhxf2hBG.jpg",
     },
   ],
   "Fashion District": [
@@ -1905,10 +1920,9 @@ const CITY_TOUR_SLIDES = {
 };
 
 const TOUR_CITIES = [
-  "Diamond District",
-  "Fashion District",
-  "Antwerp Central",
-  "City Centre",
+  "Cathedral of Our Lady",
+  "Grote Markt",
+  "Het Steen Castle",
 ];
 
 
@@ -3079,7 +3093,7 @@ export default function AntwerpLandingPage() {
           ...(calendarGlobalDaysRef.current[listingId] || {}),
           ...map,
         };
-        setPrices(buildCalendarPayload(map));
+        setCalendarPrices(buildCalendarPayload(map));
       }
     } catch {
       // ignore multi calendar failures for min nights
@@ -3256,7 +3270,7 @@ export default function AntwerpLandingPage() {
     const load = async () => {
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const results = {};
-      const getManualTotal = (quoteData) => {
+      const getManualTotal = (quoteData, listingContext) => {
         const plans = Array.isArray(quoteData?.rates?.ratePlans)
           ? quoteData.rates.ratePlans
           : [];
@@ -3291,7 +3305,7 @@ export default function AntwerpLandingPage() {
             typeof money?.fareCleaning === "number" ? money.fareCleaning : 0;
           const discountedAccommodation =
             accommodationAmount > 0 ? accommodationAmount * (1 - discountRate) : accommodationAmount;
-          const taxAmount = computeTaxes(discountedAccommodation, listing);
+          const taxAmount = computeTaxes(discountedAccommodation, listingContext);
           const total = discountedAccommodation + cleaningAmount + taxAmount;
           if (minTotal === null || total < minTotal) {
             minTotal = total;
@@ -3337,7 +3351,7 @@ export default function AntwerpLandingPage() {
           const quoteData = resultMap[listingId];
           if (!quoteData) return;
           const pricing = getQuotePricing(quoteData, listing, nights);
-          const manualTotals = getManualTotal(quoteData);
+          const manualTotals = getManualTotal(quoteData, listing);
           const total =
             (typeof manualTotals?.total === "number" && manualTotals.total > 0
               ? manualTotals.total
@@ -7272,4 +7286,3 @@ export default function AntwerpLandingPage() {
     </div>
   );
 }
-

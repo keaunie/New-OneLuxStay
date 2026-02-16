@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState, Children } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence } from "motion/react";
 
 const stepVariants = {
   enter: (dir) => ({

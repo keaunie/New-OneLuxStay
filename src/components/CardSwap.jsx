@@ -76,7 +76,7 @@ const CardSwap = forwardRef(({
   const childArr = useMemo(() => Children.toArray(children), [children]);
   const refs = useMemo(
     () => childArr.map(() => React.createRef()),
-    [childArr.length]
+    [childArr]
   );
 
   const order = useRef(Array.from({ length: childArr.length }, (_, i) => i));
@@ -86,7 +86,9 @@ const CardSwap = forwardRef(({
   const swapRef = useRef(null);
   const pauseRef = useRef(null);
   const resumeRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(!lazy);
+  const [isVisible, setIsVisible] = useState(
+    !lazy || typeof IntersectionObserver === "undefined"
+  );
 
   useImperativeHandle(
     ref,
@@ -101,10 +103,7 @@ const CardSwap = forwardRef(({
   useEffect(() => {
     if (!lazy) return undefined;
     const node = container.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
-      setIsVisible(true);
-      return undefined;
-    }
+    if (!node || typeof IntersectionObserver === "undefined") return undefined;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
