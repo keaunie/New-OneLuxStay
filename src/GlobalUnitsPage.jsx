@@ -2,10 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
+import apiBase from "./utils/apiBase";
 import "./App.css";
-
-const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
-const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 
 const KNOWN_CITIES = [

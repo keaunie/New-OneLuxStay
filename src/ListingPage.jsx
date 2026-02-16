@@ -2,13 +2,9 @@ import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { useParams } from "react-router-dom";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
+import apiBase from "./utils/apiBase";
 import "./App.css";
-
-const apiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions/index";
-const checkoutBase = (import.meta.env.VITE_API_BASE || "/.netlify/functions").replace(
-  /\/index\/?$/,
-  ""
-);
+const checkoutBase = apiBase;
 
 const extractImageUrl = (value) => {
   if (!value) return "";
@@ -581,7 +577,7 @@ function ListingPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/listings`, { cache: "no-store" });
+        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
         const sanitizedListings = (json.results || []).filter((listing) => {
@@ -595,7 +591,7 @@ function ListingPage() {
         setListings(sanitizedListings);
         setActiveListingId(sanitizedListings[0]?.id || "");
       } catch {
-        setListingsError("Unable to load units from Guesty?");
+        setListingsError("Unable to load units from Guesty.");
       } finally {
         setLoadingListings(false);
       }
@@ -740,21 +736,16 @@ function ListingPage() {
     }));
 
     try {
-      const qs = new URLSearchParams({
-        startDate: search.checkIn,
-        endDate: search.checkOut,
-        adults: search.adults,
-        children: search.children,
-      }).toString();
-
       let availJson = null;
       try {
+        const availabilityQs = new URLSearchParams({
+          ids: String(listing.id),
+          checkIn: search.checkIn,
+          checkOut: search.checkOut,
+          minOccupancy: String(guests),
+        }).toString();
         const availRes = await fetchWithTimeout(
-          `${apiBase}/api/listings/${listing.id}/availability?${new URLSearchParams({
-            startDate: search.checkIn,
-            endDate: search.checkOut,
-            minOccupancy: guests,
-          }).toString()}`,
+          `${apiBase}/check-units/listings/availability-query?${availabilityQs}`,
         );
         if (availRes.ok) {
           availJson = await availRes.json();
@@ -763,16 +754,20 @@ function ListingPage() {
         // ignore availability failure; fall back to quote result
       }
 
-      const quoteRes = await fetchWithTimeout(`${apiBase}/api/reservations/quotes`, {
+      const quoteRes = await fetchWithTimeout(`${apiBase}/check-units/reservations/quotes-bulk`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          listingId: listing.id,
-          checkInDateLocalized: search.checkIn,
-          checkOutDateLocalized: search.checkOut,
-          guestsCount: guests,
+          requests: [
+            {
+              listingId: listing.id,
+              checkInDateLocalized: search.checkIn,
+              checkOutDateLocalized: search.checkOut,
+              guestsCount: guests,
+            },
+          ],
         }),
       });
 
@@ -782,15 +777,17 @@ function ListingPage() {
       }
 
       const quoteJson = await quoteRes.json();
-      const quoteData = quoteJson?.results?.[0] || quoteJson?.results || quoteJson;
+      const quoteData = quoteJson?.results?.[String(listing.id)] || null;
 
       const isAvailable =
+        (Array.isArray(availJson?.results)
+          ? availJson.results.find(
+            (entry) => String(entry?.id || "") === String(listing.id),
+          )?.available
+          : undefined) ??
         availJson?.isAvailable ??
         availJson?.available ??
-        (typeof availJson?.status === "string" ? availJson.status === "AVAILABLE" : undefined) ??
-        (Array.isArray(availJson?.availability)
-          ? availJson.availability.every((d) => (d?.isAvailable ?? d?.available ?? true) !== false)
-          : undefined);
+        (typeof availJson?.status === "string" ? availJson.status === "AVAILABLE" : undefined);
 
       const ratePlan = quoteData?.rates?.ratePlans?.[0];
       const rpMoney =

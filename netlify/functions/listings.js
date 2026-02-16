@@ -228,21 +228,56 @@ const normalizeListing = (listing) => {
 const getListingId = (listing) =>
     listing?._id || listing?.id || listing?.unitTypeId || null;
 
-const isTruthy = (value) => {
+const parseBooleanFlag = (value) => {
     if (value === true || value === 1) return true;
-    if (typeof value === "string") return value.trim().toLowerCase() === "true" || value.trim() === "1";
-    return false;
+    if (value === false || value === 0) return false;
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (!normalized) return null;
+        if ([
+            "true",
+            "1",
+            "yes",
+            "active",
+            "enabled",
+            "listed",
+            "published",
+            "open",
+        ].includes(normalized)) {
+            return true;
+        }
+        if ([
+            "false",
+            "0",
+            "no",
+            "inactive",
+            "disabled",
+            "unlisted",
+            "unpublished",
+            "closed",
+            "archived",
+        ].includes(normalized)) {
+            return false;
+        }
+    }
+    return null;
 };
 
 const isActiveAndPmsActive = (listing) => {
     if (!listing || typeof listing !== "object") return false;
     const hasActiveProp = Object.prototype.hasOwnProperty.call(listing, "active");
     const hasPmsActiveProp = Object.prototype.hasOwnProperty.call(listing, "pmsActive");
+    const hasListedProp = Object.prototype.hasOwnProperty.call(listing, "listed");
 
     // If the API omits these fields for a response shape, trust the upstream query filter.
-    if (!hasActiveProp && !hasPmsActiveProp) return true;
+    if (!hasActiveProp && !hasPmsActiveProp && !hasListedProp) return true;
 
-    return isTruthy(listing.active) && isTruthy(listing.pmsActive);
+    const active = hasActiveProp ? parseBooleanFlag(listing.active) : true;
+    const pmsActive = hasPmsActiveProp ? parseBooleanFlag(listing.pmsActive) : true;
+    const listed = hasListedProp ? parseBooleanFlag(listing.listed) : true;
+    if (active === false || pmsActive === false || listed === false) return false;
+    // Unknown values are treated as pass-through to avoid false negatives.
+    return true;
 };
 
 const parseIdList = (value) =>
@@ -334,7 +369,38 @@ export async function handler(event) {
         }
 
         const data = await response.json();
-        const baseResults = Array.isArray(data.results) ? data.results : [];
+        let baseResults = Array.isArray(data.results) ? data.results : [];
+
+        // Guard against upstream odd responses where count is present but results is empty.
+        if (!baseResults.length && Number(data?.count) > 0) {
+            const relaxedParams = new URLSearchParams({
+                limit: "200",
+                fields: LISTING_FIELDS,
+                ...(event.queryStringParameters || {}),
+            });
+            // Keep listed filter but relax active/pmsActive at query level and filter in-process instead.
+            relaxedParams.set("listed", "true");
+            relaxedParams.delete("active");
+            relaxedParams.delete("pmsActive");
+
+            const relaxedResponse = await fetch(
+                `${GUESTY_LISTINGS_URL}?${relaxedParams.toString()}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: "application/json",
+                    },
+                }
+            );
+            if (relaxedResponse.ok) {
+                const relaxedData = await relaxedResponse.json();
+                const relaxedResults = Array.isArray(relaxedData?.results) ? relaxedData.results : [];
+                if (relaxedResults.length) {
+                    baseResults = relaxedResults;
+                }
+            }
+        }
+
         const enrichedResults = baseResults
             .map((listing) => normalizeListing(listing))
             .filter((listing) => isActiveAndPmsActive(listing))

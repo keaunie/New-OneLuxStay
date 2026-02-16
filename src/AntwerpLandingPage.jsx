@@ -8,11 +8,9 @@ import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
+import apiBase from "./utils/apiBase";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
-
-const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
-const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const PROPERTY_ADDRESS = "Antwerp, Belgium";

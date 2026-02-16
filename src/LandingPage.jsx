@@ -6,11 +6,9 @@ import "./App.css";
 import SiteFooter from "./components/SiteFooter";
 import CircularGallery from "./components/CircularGallery";
 import Silk from "./components/Silk";
+import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
-
-const rawApiBase = import.meta.env.VITE_API_BASE || "/.netlify/functions";
-const apiBase = rawApiBase.replace(/\/index\/?$/, "");
 
 const KNOWN_CITIES = [
   "hollywood",
@@ -80,23 +78,89 @@ const isChildListing = (listing) => {
   return false;
 };
 
-const getListingImage = (listing) => {
-  const candidates = [];
-  const hasPictures = Array.isArray(listing?.pictures) && listing.pictures.length > 0;
-  if (hasPictures) {
-    const firstPicture = listing?.pictures?.[0];
-    if (typeof firstPicture === "string") candidates.push(firstPicture);
-    if (firstPicture?.original) candidates.push(firstPicture.original);
-    if (firstPicture?.thumbnail) candidates.push(firstPicture.thumbnail);
-  } else {
-    const direct = listing?.picture;
-    if (typeof direct === "string") candidates.push(direct);
-    if (direct?.regular) candidates.push(direct.regular);
-    if (direct?.large) candidates.push(direct.large);
-    if (direct?.thumbnail) candidates.push(direct.thumbnail);
+const parseBooleanFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (["true", "1", "yes", "active", "enabled"].includes(normalized)) return true;
+    if (["false", "0", "no", "inactive", "disabled", "archived"].includes(normalized)) return false;
   }
-  const filtered = filterLowQualityImages(candidates.filter(Boolean));
-  return filtered[0] || "";
+  return null;
+};
+
+const isListingActiveForShowcase = (listing) => {
+  if (!listing) return false;
+  const activeFlag = parseBooleanFlag(listing?.active ?? listing?.isActive);
+  const pmsActiveFlag = parseBooleanFlag(listing?.pmsActive ?? listing?.isPmsActive);
+  const statusFlag = parseBooleanFlag(listing?.status);
+  if (activeFlag === false || pmsActiveFlag === false || statusFlag === false) return false;
+  return true;
+};
+
+const extractImageUrl = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object") {
+    return (
+      value.url ||
+      value.src ||
+      value.href ||
+      value.secure_url ||
+      value.secureUrl ||
+      value.original ||
+      value.large ||
+      value.regular ||
+      value.thumbnail ||
+      ""
+    );
+  }
+  return "";
+};
+
+const getListingImages = (listing) => {
+  if (!listing) return [];
+  const out = [];
+  const seen = new Set();
+  const add = (value) => {
+    const url = extractImageUrl(value);
+    if (!url) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+    out.push(url);
+  };
+  const addFromObject = (imageObj) => {
+    if (!imageObj || typeof imageObj !== "object") return;
+    // Prefer lighter variants first to keep the WebGL gallery stable with many units.
+    add(imageObj.thumbnail);
+    add(imageObj.regular);
+    add(imageObj.large);
+    add(imageObj.original);
+    add(imageObj.url);
+    add(imageObj.src);
+    add(imageObj.href);
+  };
+
+  if (Array.isArray(listing.pictures) && listing.pictures.length) {
+    listing.pictures.forEach((image) => {
+      if (typeof image === "string") {
+        add(image);
+      } else {
+        addFromObject(image);
+      }
+    });
+  } else {
+    if (typeof listing.picture === "string") add(listing.picture);
+    addFromObject(listing.picture);
+  }
+
+  return filterLowQualityImages(out);
+};
+
+const getListingImage = (listing) => {
+  const images = getListingImages(listing);
+  return images[0] || "";
 };
 
 const truncateLabel = (value, max = 36) => {
@@ -625,6 +689,7 @@ function LandingPage() {
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(1);
   const [galleryListings, setGalleryListings] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
   const [quotePricing, setQuotePricing] = useState({});
   const [quoteLoading, setQuoteLoading] = useState(false);
   const swipeHintRef = useRef(null);
@@ -739,36 +804,38 @@ function LandingPage() {
   useEffect(() => {
     let active = true;
     const loadGalleryListings = async () => {
+      setGalleryLoading(true);
       try {
         const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
         if (!res.ok) throw new Error("Unable to load listings.");
         const json = await res.json();
         const results = Array.isArray(json?.results) ? json.results : [];
-        const parentResults = results.filter((listing) => !isChildListing(listing));
+        const parentResults = results
+          .filter((listing) => isListingActiveForShowcase(listing))
+          .filter((listing) => !isChildListing(listing));
         const seen = new Set();
-        const seenCities = new Set();
-        const primary = [];
-        const secondary = [];
+        const allUnits = [];
         parentResults.forEach((listing) => {
           const id = getListingId(listing);
           const image = getListingImage(listing);
           if (!id || !image) return;
           if (seen.has(id)) return;
           seen.add(id);
-          const cityKey = normalizeListingCity(listing).toLowerCase();
-          if (cityKey && !seenCities.has(cityKey)) {
-            seenCities.add(cityKey);
-            primary.push(listing);
-          } else {
-            secondary.push(listing);
-          }
+          allUnits.push(listing);
+        });
+        allUnits.sort((a, b) => {
+          const cityA = normalizeListingCity(a) || "Unknown";
+          const cityB = normalizeListingCity(b) || "Unknown";
+          if (cityA !== cityB) return cityA.localeCompare(cityB);
+          return (a?.title || "").localeCompare(b?.title || "");
         });
         if (active) {
-          const curated = primary.concat(secondary).slice(0, 12);
-          setGalleryListings(curated);
+          setGalleryListings(allUnits);
         }
       } catch {
         if (active) setGalleryListings([]);
+      } finally {
+        if (active) setGalleryLoading(false);
       }
     };
 
@@ -884,14 +951,20 @@ function LandingPage() {
           }
           return;
         }
-        const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requests }),
-        });
-        if (!res.ok) throw new Error("Quote pricing failed.");
-        const data = await res.json();
-        const results = data?.results || {};
+        const BATCH_SIZE = 35;
+        const results = {};
+        for (let index = 0; index < requests.length; index += BATCH_SIZE) {
+          const batch = requests.slice(index, index + BATCH_SIZE);
+          const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requests: batch }),
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const batchResults = data?.results || {};
+          Object.assign(results, batchResults);
+        }
         const listingMap = new Map(
           galleryListings.map((listing) => [getListingId(listing), listing]),
         );
@@ -1181,6 +1254,13 @@ function LandingPage() {
               <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
             </div>
           </div>
+          <p className="landing-gallery-status" role="status" aria-live="polite">
+            {galleryLoading
+              ? "Loading available units..."
+              : galleryItems.length
+                ? `Showing ${galleryItems.length} active parent units.`
+                : "No active parent units are available to display right now."}
+          </p>
 
           <div id="collection" className="landing-showcase-inner px-6 md:px-10 mt-2 md:mt-4">
             <div className="landing-section-head flex items-center justify-between gap-6 flex-col md:flex-row">

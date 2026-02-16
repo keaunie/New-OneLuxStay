@@ -440,6 +440,7 @@ class App {
     this.dragThreshold = 6;
     this.lastPointerX = 0;
     this.tiltStrength = tiltStrength;
+    this.itemsCount = Array.isArray(items) ? items.length : 0;
     this.createRenderer();
     this.createCamera();
     this.createScene();
@@ -468,9 +469,22 @@ class App {
   }
 
   createGeometry() {
+    const count = Number(this.itemsCount) || 0;
+    let widthSegments = 100;
+    let heightSegments = 50;
+    if (count > 40) {
+      widthSegments = 20;
+      heightSegments = 10;
+    } else if (count > 24) {
+      widthSegments = 32;
+      heightSegments = 16;
+    } else if (count > 12) {
+      widthSegments = 56;
+      heightSegments = 28;
+    }
     this.planeGeometry = new Plane(this.gl, {
-      heightSegments: 50,
-      widthSegments: 100,
+      heightSegments,
+      widthSegments,
     });
   }
 
@@ -492,7 +506,7 @@ class App {
 
     const galleryItems = items && items.length ? items : useFallback ? defaultItems : [];
     this.itemsCount = galleryItems.length;
-    this.mediasImages = galleryItems.concat(galleryItems);
+    this.mediasImages = galleryItems.length > 24 ? galleryItems : galleryItems.concat(galleryItems);
     this.medias = this.mediasImages.map((data, index) =>
       new Media({
         geometry: this.planeGeometry,
