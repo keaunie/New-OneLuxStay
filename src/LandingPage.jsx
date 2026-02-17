@@ -6,6 +6,7 @@ import "./App.css";
 import SiteFooter from "./components/SiteFooter";
 import CircularGallery from "./components/CircularGallery";
 import Silk from "./components/Silk";
+import ChromaGrid from "./components/ChromaGrid";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
@@ -1254,7 +1255,7 @@ function LandingPage() {
               <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
             </div>
           </div>
-          <p className="landing-gallery-status" role="status" aria-live="polite">
+          <p className="landing-gallery-status text-center" role="status" aria-live="polite">
             {galleryLoading
               ? "Loading available units..."
               : galleryItems.length
@@ -1263,18 +1264,22 @@ function LandingPage() {
           </p>
 
           <div id="collection" className="landing-showcase-inner px-6 md:px-10 mt-2 md:mt-4">
-            <div className="landing-section-head flex items-center justify-between gap-6 flex-col md:flex-row">
-              <div className="max-w-2xl">
-                <p className="landing-kicker">Signature stays</p>
-                <h2 className="landing-display text-3xl md:text-4xl">
+            <div className="landing-section-head flex items-center justify-center gap-4 flex-col text-center">
+              <div className="max-w-2xl mx-auto">
+                <p className="landing-kicker text-center">Signature stays</p>
+                <h2 className="landing-display text-3xl md:text-4xl text-center">
                   Iconic cities, <span className="landing-title-italic">unforgettable stays</span>
                 </h2>
-                <p className="text-slate-300 mt-2">
+                <p className="text-slate-300 mt-2 text-center">
                   A world of refined penthouses and skyline suites, each curated to match the rhythm of its city.
                 </p>
               </div>
               <Link to="/listings" className="landing-link">Book your dates</Link>
             </div>
+          </div>
+
+          <div className="px-6 md:px-10">
+            <ChromaGrid />
           </div>
         </div>
       </header>
@@ -1284,4 +1289,3 @@ function LandingPage() {
 }
 
 export default LandingPage;
-

@@ -1,0 +1,55 @@
+.chroma-grid-card {
+  display: block;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: #221b16;
+  text-decoration: none;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.chroma-grid-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1);
+  transition: transform 320ms ease;
+}
+
+.chroma-grid-card__overlay {
+  background: linear-gradient(180deg, rgba(8, 8, 8, 0.2) 20%, rgba(8, 8, 8, 0.88) 100%);
+  transition: background 220ms ease;
+}
+
+.chroma-grid-card__label {
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(2px);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: background 220ms ease, border-color 220ms ease;
+}
+
+.chroma-grid-card:hover,
+.chroma-grid-card:focus-visible {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.46);
+}
+
+.chroma-grid-card:hover .chroma-grid-card__image,
+.chroma-grid-card:focus-visible .chroma-grid-card__image {
+  transform: scale(1.06);
+}
+
+.chroma-grid-card:hover .chroma-grid-card__overlay,
+.chroma-grid-card:focus-visible .chroma-grid-card__overlay {
+  background: linear-gradient(180deg, rgba(8, 8, 8, 0.08) 16%, rgba(8, 8, 8, 0.92) 100%);
+}
+
+.chroma-grid-card:hover .chroma-grid-card__label,
+.chroma-grid-card:focus-visible .chroma-grid-card__label {
+  background: rgba(0, 0, 0, 0.58);
+  border-color: rgba(255, 255, 255, 0.34);
+}
