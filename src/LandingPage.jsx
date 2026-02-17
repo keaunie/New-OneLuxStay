@@ -1255,13 +1255,6 @@ function LandingPage() {
               <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
             </div>
           </div>
-          <p className="landing-gallery-status text-center" role="status" aria-live="polite">
-            {galleryLoading
-              ? "Loading available units..."
-              : galleryItems.length
-                ? `Showing ${galleryItems.length} active parent units.`
-                : "No active parent units are available to display right now."}
-          </p>
 
           <div id="collection" className="landing-showcase-inner px-6 md:px-10 mt-2 md:mt-4">
             <div className="landing-section-head flex items-center justify-center gap-4 flex-col text-center">
@@ -1274,7 +1267,6 @@ function LandingPage() {
                   A world of refined penthouses and skyline suites, each curated to match the rhythm of its city.
                 </p>
               </div>
-              <Link to="/listings" className="landing-link">Book your dates</Link>
             </div>
           </div>
 
