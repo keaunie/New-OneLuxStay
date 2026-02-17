@@ -118,7 +118,11 @@ const Silk = ({
 
   return (
     <div className={`silk-background ${className}`}>
-      <Canvas dpr={[1, 2]} frameloop="always">
+      <Canvas
+        dpr={[1, 1.25]}
+        frameloop="always"
+        gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
+      >
         <SilkPlane ref={meshRef} uniforms={uniforms} />
       </Canvas>
     </div>
