@@ -28,7 +28,7 @@ const DEFAULT_ITEMS = [
     subtitle: "Design-led stays",
     href: "/antwerp",
     image:
-      "https://assets.guesty.com/image/upload/v1740605704/production/666b3af27fc6d5653142b0af/trgxbthqx1zsbiko2zoo.jpg",
+      "https://assets.guesty.com/image/upload/v1747520363/production/666b3af27fc6d5653142b0af/sgsmqhdjhe0h6ij6cbfe.jpg",
   },
 ];
 
