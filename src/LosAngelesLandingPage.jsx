@@ -970,7 +970,12 @@ const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
   return value
     .replace(/\uFFFD/g, "")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .split("")
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join("")
     .trim();
 };
 
@@ -1392,7 +1397,7 @@ const escapeHtml = (value) =>
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
 const rangeLabel = (values, suffix = "") => {
@@ -3005,7 +3010,7 @@ export default function LosAngelesLandingPage() {
           ...(calendarGlobalDaysRef.current[listingId] || {}),
           ...map,
         };
-        setPrices(buildCalendarPayload(map));
+        setCalendarPrices(buildCalendarPayload(map));
       }
     } catch {
       // ignore multi calendar failures for min nights
@@ -3182,7 +3187,7 @@ export default function LosAngelesLandingPage() {
     const load = async () => {
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const results = {};
-      const getManualTotal = (quoteData) => {
+      const getManualTotal = (quoteData, listingContext) => {
         const plans = Array.isArray(quoteData?.rates?.ratePlans)
           ? quoteData.rates.ratePlans
           : [];
@@ -3217,7 +3222,7 @@ export default function LosAngelesLandingPage() {
             typeof money?.fareCleaning === "number" ? money.fareCleaning : 0;
           const discountedAccommodation =
             accommodationAmount > 0 ? accommodationAmount * (1 - discountRate) : accommodationAmount;
-          const taxAmount = computeTaxes(discountedAccommodation, listing);
+          const taxAmount = computeTaxes(discountedAccommodation, listingContext);
           const total = discountedAccommodation + cleaningAmount + taxAmount;
           if (minTotal === null || total < minTotal) {
             minTotal = total;
@@ -3263,7 +3268,7 @@ export default function LosAngelesLandingPage() {
           const quoteData = resultMap[listingId];
           if (!quoteData) return;
           const pricing = getQuotePricing(quoteData, listing, nights);
-          const manualTotals = getManualTotal(quoteData);
+          const manualTotals = getManualTotal(quoteData, listing);
           const total =
             (typeof manualTotals?.total === "number" && manualTotals.total > 0
               ? manualTotals.total
@@ -7247,5 +7252,4 @@ export default function LosAngelesLandingPage() {
     </div>
   );
 }
-
 
