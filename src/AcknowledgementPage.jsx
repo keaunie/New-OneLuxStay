@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import "./App.css";
+import apiBase from "./utils/apiBase";
 
 const defaultConsentText =
   "By continuing, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt will be emailed to you.";
@@ -49,7 +50,7 @@ const AcknowledgementPage = () => {
 
     setStatus("submitting");
     try {
-      const res = await fetch("/.netlify/functions/acknowledge", {
+      const res = await fetch(`${apiBase}/acknowledge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
