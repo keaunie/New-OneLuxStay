@@ -4804,6 +4804,266 @@ export default function RedondoBeachLandingPage() {
       )
     : null;
 
+  const inquiryModal = isInquiryOpen ? (
+        <div
+          className="antwerp-modal__overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Inquire about a listing"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsInquiryOpen(false);
+          }}
+        >
+          <div className="la-inquiry-modal" role="document">
+            <div className="la-inquiry-modal__header">
+              <div className="la-inquiry-modal__brand">
+                <img
+                  {...logoHomeProps}
+                  src={LOGO_URL}
+                  alt="OneLuxStay logo"
+                  loading="lazy"
+                  className="la-inquiry-modal__logo"
+                  onError={handleImageError}
+                />
+                <div>
+                  <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
+                  <h3>Inquire about {inquiryTitle}</h3>
+                  {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="la-inquiry-modal__close"
+                onClick={() => setIsInquiryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="la-inquiry-modal__body">
+              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
+                Email reservations@oneluxstay.com
+              </a>
+              <a
+                className="la-inquiry-modal__action is-whatsapp"
+                href={inquiryWhatsAppHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                WhatsApp +971 58 885 8935
+              </a>
+              <p className="la-inquiry-modal__note">We usually respond within an hour</p>
+            </div>
+          </div>
+        </div>
+  ) : null;
+
+
+  const checkoutGuestModal = isCheckoutGuestOpen ? (
+        <div
+          className="antwerp-modal__overlay la-checkout-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Guest details for checkout"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
+          }}
+        >
+          <div className="la-inquiry-modal" role="document">
+            <div className="la-inquiry-modal__header">
+              <div className="la-inquiry-modal__brand">
+                <img
+                  {...logoHomeProps}
+                  src={LOGO_URL}
+                  alt="OneLuxStay logo"
+                  loading="lazy"
+                  className="la-inquiry-modal__logo"
+                  onError={handleImageError}
+                />
+                <div>
+                  <p className="la-inquiry-modal__kicker">Guest details</p>
+                  <h3>Tell us who’s booking</h3>
+                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="la-inquiry-modal__close"
+                onClick={() => setIsCheckoutGuestOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="la-inquiry-modal__body">
+              <Stepper
+                initialStep={1}
+                onStepChange={(step) => setCheckoutStep(step)}
+                onFinalStepCompleted={confirmGuestCheckout}
+                disableStepIndicators
+                nextButtonText="Next"
+                finalButtonText="Continue to payment"
+                nextButtonProps={{
+                  disabled:
+                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
+                    (checkoutStep === 2 &&
+                      (!checkoutConsentAccepted ||
+                        !checkoutConsentSignerName.trim() ||
+                        !checkoutConsentSignatureDataUrl)),
+                }}
+              >
+                <Step>
+                  <div className="la-inquiry-modal__step">
+                    <label
+                      className={
+                        "la-inquiry-modal__field" +
+                        (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
+                      }
+                    >
+                      <span>First name</span>
+                      <input
+                        type="text"
+                        value={checkoutGuest.firstName}
+                        autoComplete="given-name"
+                        required
+                        autoFocus
+                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("firstName")}
+                      />
+                    </label>
+                    <label
+                      className={
+                        "la-inquiry-modal__field" +
+                        (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
+                      }
+                    >
+                      <span>Last name</span>
+                      <input
+                        type="text"
+                        value={checkoutGuest.lastName}
+                        autoComplete="family-name"
+                        required
+                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("lastName")}
+                      />
+                    </label>
+                    <label
+                      className={
+                        "la-inquiry-modal__field" +
+                        (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
+                      }
+                    >
+                      <span>Email</span>
+                      <input
+                        type="email"
+                        value={checkoutGuest.email}
+                        autoComplete="email"
+                        required
+                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("email")}
+                      />
+                    </label>
+                    <label className="la-inquiry-modal__field">
+                      <span>Phone (optional)</span>
+                      <input
+                        type="tel"
+                        value={checkoutGuest.phone}
+                        autoComplete="tel"
+                        onKeyDown={handleGuestKeyDown}
+                        onChange={handleGuestInputChange("phone")}
+                      />
+                    </label>
+                    {checkoutGuestError && (
+                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                        {checkoutGuestError}
+                      </p>
+                    )}
+                  </div>
+                </Step>
+                <Step>
+                  <div className="la-inquiry-modal__step">
+                    <label className="la-inquiry-modal__consent">
+                      <input
+                        type="checkbox"
+                        checked={checkoutConsentAccepted}
+                        onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                      />
+                      <span>
+                        By signing and continuing to payment, you authorize OneLuxStay to charge the
+                        total amount shown for your reservation. A receipt and consent proof PDF will
+                        be emailed to you.
+                      </span>
+                    </label>
+                    <label className="la-inquiry-modal__field">
+                      <span>Signer full name</span>
+                      <input
+                        type="text"
+                        value={checkoutConsentSignerName}
+                        autoComplete="name"
+                        placeholder="Type full legal name"
+                        onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
+                      />
+                    </label>
+                    <div className="la-inquiry-modal__signature">
+                      <span>Signature</span>
+                      <canvas
+                        ref={checkoutSignatureCanvasRef}
+                        width={560}
+                        height={150}
+                        className="la-inquiry-modal__signature-pad"
+                        onMouseDown={startSignatureDraw}
+                        onMouseMove={drawSignature}
+                        onMouseUp={endSignatureDraw}
+                        onMouseLeave={endSignatureDraw}
+                        onTouchStart={startSignatureDraw}
+                        onTouchMove={drawSignature}
+                        onTouchEnd={endSignatureDraw}
+                      />
+                      <button
+                        type="button"
+                        className="la-inquiry-modal__signature-clear"
+                        onClick={clearSignature}
+                      >
+                        Clear signature
+                      </button>
+                    </div>
+                  </div>
+                </Step>
+                <Step>
+                  <div className="la-inquiry-modal__step">
+                    <p className="la-inquiry-modal__fineprint">
+                      Review your details and continue to payment.
+                    </p>
+                    <div className="la-inquiry-modal__summary">
+                      <div>
+                        <strong>Name</strong>
+                        <span>
+                          {checkoutGuest.firstName} {checkoutGuest.lastName}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>Email</strong>
+                        <span>{checkoutGuest.email}</span>
+                      </div>
+                      <div>
+                        <strong>Signed by</strong>
+                        <span>{checkoutConsentSignerName || "--"}</span>
+                      </div>
+                      {checkoutGuest.phone && (
+                        <div>
+                          <strong>Phone</strong>
+                          <span>{checkoutGuest.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Step>
+              </Stepper>
+            </div>
+          </div>
+        </div>
+  ) : null;
   if (isListingRoute) {
     return (
       <div className="antwerp-page has-silk">
@@ -4815,6 +5075,8 @@ export default function RedondoBeachLandingPage() {
         ) : (
           <ListingLoadingScreen active cityLabel="Redondo Beach" />
         )}
+        {inquiryModal}
+        {checkoutGuestModal}
         {listingMapModal}
         {zoomModal}
         {tourModal}
@@ -6159,265 +6421,9 @@ export default function RedondoBeachLandingPage() {
         </div>
       )}
 
-      {isInquiryOpen && (
-        <div
-          className="antwerp-modal__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Inquire about a listing"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsInquiryOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  {...logoHomeProps}
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
-                  <h3>Inquire about {inquiryTitle}</h3>
-                  {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsInquiryOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
-                Email reservations@oneluxstay.com
-              </a>
-              <a
-                className="la-inquiry-modal__action is-whatsapp"
-                href={inquiryWhatsAppHref}
-                target="_blank"
-                rel="noreferrer"
-              >
-                WhatsApp +971 58 885 8935
-              </a>
-              <p className="la-inquiry-modal__note">We usually respond within an hour</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {inquiryModal}
 
-      {isCheckoutGuestOpen && (
-        <div
-          className="antwerp-modal__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Guest details for checkout"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  {...logoHomeProps}
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us who’s booking</h3>
-                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsCheckoutGuestOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <Stepper
-                initialStep={1}
-                onStepChange={(step) => setCheckoutStep(step)}
-                onFinalStepCompleted={confirmGuestCheckout}
-                disableStepIndicators
-                nextButtonText="Next"
-                finalButtonText="Continue to payment"
-                nextButtonProps={{
-                  disabled:
-                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 &&
-                      (!checkoutConsentAccepted ||
-                        !checkoutConsentSignerName.trim() ||
-                        !checkoutConsentSignatureDataUrl)),
-                }}
-              >
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>First name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.firstName}
-                        autoComplete="given-name"
-                        required
-                        autoFocus
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("firstName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Last name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.lastName}
-                        autoComplete="family-name"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("lastName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Email</span>
-                      <input
-                        type="email"
-                        value={checkoutGuest.email}
-                        autoComplete="email"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("email")}
-                      />
-                    </label>
-                    <label className="la-inquiry-modal__field">
-                      <span>Phone (optional)</span>
-                      <input
-                        type="tel"
-                        value={checkoutGuest.phone}
-                        autoComplete="tel"
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("phone")}
-                      />
-                    </label>
-                    {checkoutGuestError && (
-                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
-                        {checkoutGuestError}
-                      </p>
-                    )}
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label className="la-inquiry-modal__consent">
-                      <input
-                        type="checkbox"
-                        checked={checkoutConsentAccepted}
-                        onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
-                      />
-                      <span>
-                        By signing and continuing to payment, you authorize OneLuxStay to charge the
-                        total amount shown for your reservation. A receipt and consent proof PDF will
-                        be emailed to you.
-                      </span>
-                    </label>
-                    <label className="la-inquiry-modal__field">
-                      <span>Signer full name</span>
-                      <input
-                        type="text"
-                        value={checkoutConsentSignerName}
-                        autoComplete="name"
-                        placeholder="Type full legal name"
-                        onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
-                      />
-                    </label>
-                    <div className="la-inquiry-modal__signature">
-                      <span>Signature</span>
-                      <canvas
-                        ref={checkoutSignatureCanvasRef}
-                        width={560}
-                        height={150}
-                        className="la-inquiry-modal__signature-pad"
-                        onMouseDown={startSignatureDraw}
-                        onMouseMove={drawSignature}
-                        onMouseUp={endSignatureDraw}
-                        onMouseLeave={endSignatureDraw}
-                        onTouchStart={startSignatureDraw}
-                        onTouchMove={drawSignature}
-                        onTouchEnd={endSignatureDraw}
-                      />
-                      <button
-                        type="button"
-                        className="la-inquiry-modal__signature-clear"
-                        onClick={clearSignature}
-                      >
-                        Clear signature
-                      </button>
-                    </div>
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <p className="la-inquiry-modal__fineprint">
-                      Review your details and continue to payment.
-                    </p>
-                    <div className="la-inquiry-modal__summary">
-                      <div>
-                        <strong>Name</strong>
-                        <span>
-                          {checkoutGuest.firstName} {checkoutGuest.lastName}
-                        </span>
-                      </div>
-                      <div>
-                        <strong>Email</strong>
-                        <span>{checkoutGuest.email}</span>
-                      </div>
-                      <div>
-                        <strong>Signed by</strong>
-                        <span>{checkoutConsentSignerName || "--"}</span>
-                      </div>
-                      {checkoutGuest.phone && (
-                        <div>
-                          <strong>Phone</strong>
-                          <span>{checkoutGuest.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Step>
-              </Stepper>
-            </div>
-          </div>
-        </div>
-      )}
+      {checkoutGuestModal}
 
       {activeListing && !isListingRoute && (
         <div

@@ -5242,6 +5242,59 @@ export default function LosAngelesLandingPage() {
     </div>
   ) : null;
 
+  const inquiryModal = isInquiryOpen ? (
+        <div
+          className="antwerp-modal__overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Inquire about a listing"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsInquiryOpen(false);
+          }}
+        >
+          <div className="la-inquiry-modal" role="document">
+            <div className="la-inquiry-modal__header">
+              <div className="la-inquiry-modal__brand">
+                <img
+                  {...logoHomeProps}
+                  src={LOGO_URL}
+                  alt="OneLuxStay logo"
+                  loading="lazy"
+                  className="la-inquiry-modal__logo"
+                  onError={handleImageError}
+                />
+                <div>
+                  <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
+                  <h3>Inquire about {inquiryTitle}</h3>
+                  {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="la-inquiry-modal__close"
+                onClick={() => setIsInquiryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="la-inquiry-modal__body">
+              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
+                Email reservations@oneluxstay.com
+              </a>
+              <a
+                className="la-inquiry-modal__action is-whatsapp"
+                href={inquiryWhatsAppHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                WhatsApp +971 58 885 8935
+              </a>
+              <p className="la-inquiry-modal__note">We usually respond within an hour</p>
+            </div>
+          </div>
+        </div>
+  ) : null;
+
   if (isListingRoute) {
     return (
       <div className="antwerp-page has-silk">
@@ -5254,6 +5307,7 @@ export default function LosAngelesLandingPage() {
           <ListingLoadingScreen active cityLabel="Los Angeles" />
         )}
         {checkoutGuestModal}
+        {inquiryModal}
         {listingMapModal}
         {zoomModal}
         {tourModal}
@@ -6605,58 +6659,7 @@ export default function LosAngelesLandingPage() {
         </div>
       )}
 
-      {isInquiryOpen && (
-        <div
-          className="antwerp-modal__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Inquire about a listing"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsInquiryOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  {...logoHomeProps}
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
-                  <h3>Inquire about {inquiryTitle}</h3>
-                  {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsInquiryOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
-                Email reservations@oneluxstay.com
-              </a>
-              <a
-                className="la-inquiry-modal__action is-whatsapp"
-                href={inquiryWhatsAppHref}
-                target="_blank"
-                rel="noreferrer"
-              >
-                WhatsApp +971 58 885 8935
-              </a>
-              <p className="la-inquiry-modal__note">We usually respond within an hour</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {inquiryModal}
 
       {checkoutGuestModal}
 
