@@ -1276,6 +1276,7 @@ function LandingPage() {
         </div>
       </section>
 
+      <SiteFooter />
     </div>
   );
 }
