@@ -1,5 +1,10 @@
 const ListingLoadingScreen = ({ active, cityLabel = "Los Angeles" }) => (
-  <div className={`listing-loading-overlay${active ? " is-active" : " is-hidden"}`}>
+  <div
+    className={`listing-loading-overlay${active ? " is-active" : " is-hidden"}`}
+    role="status"
+    aria-live="polite"
+    aria-busy={active ? "true" : "false"}
+  >
     <div className="listing-loading-card">
       <span className="listing-loading-kicker">OneLuxStay / {cityLabel}</span>
       <div className="listing-loading-title listing-loading-shimmer" />

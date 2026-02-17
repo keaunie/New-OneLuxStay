@@ -2864,7 +2864,7 @@ html {
   pointer-events: none;
 }
 
-.antwerp-page > :not(.antwerp-silk):not(.app-loading-overlay) {
+.antwerp-page > :not(.antwerp-silk):not(.app-loading-overlay):not(.listing-loading-overlay):not(.antwerp-modal__overlay) {
   position: relative;
   z-index: 1;
 }
@@ -8879,6 +8879,21 @@ html {
 
 .global-units-date-picker .listing-date-dropdown {
   margin-top: 8px;
+}
+
+.global-unit-card__image {
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.global-unit-card__image.is-fading {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-unit-card__image {
+    transition: none;
+  }
 }
 
 .policy-footer-links {

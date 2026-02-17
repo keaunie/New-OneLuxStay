@@ -286,6 +286,35 @@ const parseIdList = (value) =>
         .map((id) => id.trim())
         .filter(Boolean);
 
+const parseTextList = (value) =>
+    String(value || "")
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+
+const getHiddenConfig = () => {
+    const hiddenIds = new Set([
+        ...parseIdList(process.env.GUESTY_HIDDEN_LISTING_IDS),
+        ...parseIdList(process.env.HIDDEN_LISTING_IDS),
+        ...parseIdList(process.env.VITE_HIDDEN_LISTING_IDS),
+    ]);
+    const hiddenTitleTerms = parseTextList(
+        process.env.GUESTY_HIDDEN_LISTING_TITLES ||
+        process.env.HIDDEN_LISTING_TITLES ||
+        process.env.VITE_HIDDEN_LISTING_TITLES
+    );
+    return { hiddenIds, hiddenTitleTerms };
+};
+
+const isHiddenListing = (listing, hiddenIds, hiddenTitleTerms) => {
+    const id = String(getListingId(listing) || "");
+    if (id && hiddenIds.has(id)) return true;
+    const title = String(listing?.title || "").toLowerCase();
+    const nickname = String(listing?.nickname || "").toLowerCase();
+    if (!hiddenTitleTerms.length) return false;
+    return hiddenTitleTerms.some((term) => title.includes(term) || nickname.includes(term));
+};
+
 const fetchListingsByIds = async (ids, token) => {
     if (!ids.length) return [];
     const uniqueIds = [...new Set(ids)];
@@ -343,6 +372,7 @@ export async function handler(event) {
         );
         const forceIdsQuery = parseIdList(event.queryStringParameters?.includeIds || event.queryStringParameters?.forceIds);
         const forcedIds = [...new Set([...forceIdsEnv, ...forceIdsQuery])];
+        const { hiddenIds, hiddenTitleTerms } = getHiddenConfig();
 
         const params = new URLSearchParams({
             limit: "200",
@@ -404,6 +434,7 @@ export async function handler(event) {
         const enrichedResults = baseResults
             .map((listing) => normalizeListing(listing))
             .filter((listing) => isActiveAndPmsActive(listing))
+            .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
             .filter(Boolean);
 
         if (forcedIds.length) {
@@ -414,6 +445,7 @@ export async function handler(event) {
                 forcedListings
                     .map((listing) => normalizeListing(listing))
                     .filter((listing) => isActiveAndPmsActive(listing))
+                    .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
                     .filter(Boolean)
                     .forEach((listing) => {
                         const listingId = getListingId(listing);

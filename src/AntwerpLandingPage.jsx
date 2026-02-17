@@ -6,6 +6,7 @@ import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
+import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
@@ -5062,9 +5063,7 @@ export default function AntwerpLandingPage() {
         {listingDetail ? (
           <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
         ) : (
-          <div className="antwerp-modal__overlay is-page" role="status" aria-live="polite">
-            <div className="la-unit-modal__placeholder">Loading listing...</div>
-          </div>
+          <ListingLoadingScreen active cityLabel="Antwerp" />
         )}
         {listingMapModal}
         {zoomModal}

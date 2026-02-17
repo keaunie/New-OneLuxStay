@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
@@ -459,6 +459,7 @@ const DateRangePicker = ({ value, onChange }) => {
 };
 
 function GlobalUnitsPage() {
+  const navigate = useNavigate();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -471,7 +472,9 @@ function GlobalUnitsPage() {
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
   const [imageIndexes, setImageIndexes] = useState({});
+  const [imageFading, setImageFading] = useState({});
   const swipeStartXRef = useRef({});
+  const imageFadeTimersRef = useRef({});
 
   useEffect(() => {
     let active = true;
@@ -693,13 +696,31 @@ function GlobalUnitsPage() {
 
   const shiftImage = (listingId, totalImages, step) => {
     if (!listingId || totalImages <= 1) return;
-    setImageIndexes((prev) => {
-      const rawIndex = prev[listingId] ?? 0;
-      const current = ((rawIndex % totalImages) + totalImages) % totalImages;
-      const next = (current + step + totalImages) % totalImages;
-      return { ...prev, [listingId]: next };
-    });
+    if (imageFadeTimersRef.current[listingId]) {
+      clearTimeout(imageFadeTimersRef.current[listingId]);
+      delete imageFadeTimersRef.current[listingId];
+    }
+    setImageFading((prev) => ({ ...prev, [listingId]: true }));
+    imageFadeTimersRef.current[listingId] = setTimeout(() => {
+      setImageIndexes((prev) => {
+        const rawIndex = prev[listingId] ?? 0;
+        const current = ((rawIndex % totalImages) + totalImages) % totalImages;
+        const next = (current + step + totalImages) % totalImages;
+        return { ...prev, [listingId]: next };
+      });
+      requestAnimationFrame(() => {
+        setImageFading((prev) => ({ ...prev, [listingId]: false }));
+      });
+      delete imageFadeTimersRef.current[listingId];
+    }, 130);
   };
+
+  useEffect(() => {
+    return () => {
+      Object.values(imageFadeTimersRef.current).forEach((timerId) => clearTimeout(timerId));
+      imageFadeTimersRef.current = {};
+    };
+  }, []);
 
   const handleTouchStart = (listingId, event) => {
     const touch = event.touches?.[0];
@@ -840,6 +861,7 @@ function GlobalUnitsPage() {
               const nightlyCurrency = todayPriceEntry?.currency || fallbackCurrency;
               const nightly = formatCurrency(nightlyValue, nightlyCurrency);
               const carouselId = `global-unit-carousel-${toDomId(listingId)}`;
+              const listingTitle = listing?.title || listing?.nickname || "One Lux Stay unit";
               const nightlyLabel = todayPriceEntry
                 ? `Today's price ${nightly} / night`
                 : todayPricesLoading && fallbackPrice === null
@@ -849,7 +871,27 @@ function GlobalUnitsPage() {
               return (
                 <article
                   key={id || `${listing?.title || "unit"}-${city}`}
-                  className="overflow-hidden rounded-2xl border border-[rgba(201,181,156,0.55)] bg-white shadow-sm"
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`View ${listingTitle}`}
+                  onClick={(event) => {
+                    if (event.defaultPrevented) return;
+                    const target = event.target;
+                    if (target instanceof Element && target.closest("a,button,input,select,textarea,[role='button']")) {
+                      return;
+                    }
+                    navigate(link);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    const target = event.target;
+                    if (target instanceof Element && target.closest("a,button,input,select,textarea,[role='button']")) {
+                      return;
+                    }
+                    event.preventDefault();
+                    navigate(link);
+                  }}
+                  className="cursor-pointer overflow-hidden rounded-2xl border border-[rgba(201,181,156,0.55)] bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-amber)]"
                 >
                   <div
                     id={carouselId}
@@ -864,10 +906,11 @@ function GlobalUnitsPage() {
                   >
                     {heroImage ? (
                       <img
+                        key={`${listingId}-${imageIndex}-${heroImage}`}
                         src={heroImage}
                         alt={`${listing?.title || "One Lux Stay unit"} image ${imageIndex + 1} of ${Math.max(1, imageCount)}`}
                         loading="lazy"
-                        className="h-full w-full object-cover"
+                        className={`global-unit-card__image h-full w-full object-cover${imageFading[listingId] ? " is-fading" : ""}`}
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-sm text-[var(--ink-soft)]">
@@ -910,7 +953,7 @@ function GlobalUnitsPage() {
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-soft)]">{city}</p>
                       <h2 className="text-lg font-semibold text-[var(--ink)]">
-                        {listing?.title || listing?.nickname || "One Lux Stay unit"}
+                        {listingTitle}
                       </h2>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-[var(--ink-soft)]">

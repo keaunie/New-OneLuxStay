@@ -7,7 +7,7 @@ import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
-import LoadingScreen from "./components/LoadingScreen";
+import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import Stepper, { Step } from "./components/Stepper";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
@@ -15,8 +15,6 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
-const CITY_LOADING_LOTTIE_SRC =
-  "/3D%20Isometric%20Smart-Living%20Room.json";
 const PROPERTY_ADDRESS = "Redondo Beach, CA";
 const PROPERTY_COORDS = { lat: 33.8458, lng: -118.3884 };
 const LANDMARKS = [
@@ -4810,7 +4808,7 @@ export default function RedondoBeachLandingPage() {
         {listingDetail ? (
           <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
         ) : (
-          <LoadingScreen active lottieSrc={CITY_LOADING_LOTTIE_SRC} />
+          <ListingLoadingScreen active cityLabel="Redondo Beach" />
         )}
         {listingMapModal}
         {zoomModal}
