@@ -1152,11 +1152,11 @@ function LandingPage() {
         <div className="hero-media__overlay" aria-hidden="true" />
         <div className="landing-hero-inner">
           <div className="landing-logo-mark">OneLuxStay</div>
-          <p className="landing-kicker text-amber-300 tracking-[0.34em]">The art of luxurious stays</p>
-          <h1 className="landing-display text-4xl md:text-5xl leading-tight text-center">
+          <p className="landing-kicker landing-hero-kicker">The art of luxurious stays</p>
+          <h1 className="landing-display landing-hero-title">
             Experience Timeless Elevated Living
           </h1>
-          <p className="text-lg text-slate-100/90 max-w-3xl text-center">
+          <p className="landing-hero-lead">
             Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Dubai, Los Angeles, Miami,
             and Redondo Beach.
           </p>
@@ -1244,7 +1244,7 @@ function LandingPage() {
               bend={0}
               borderRadius={0.08}
               textColor="#46372e"
-              font="700 24px 'Work Sans', sans-serif"
+              font="700 20px 'Work Sans', sans-serif"
               onSelect={handleGallerySelect}
               useFallback={false}
               wave={0}
@@ -1255,26 +1255,26 @@ function LandingPage() {
               <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
             </div>
           </div>
-
-          <div id="collection" className="landing-showcase-inner px-6 md:px-10 mt-2 md:mt-4">
-            <div className="landing-section-head flex items-center justify-center gap-4 flex-col text-center">
-              <div className="max-w-2xl mx-auto">
-                <p className="landing-kicker text-center">Signature stays</p>
-                <h2 className="landing-display text-3xl md:text-4xl text-center">
-                  Iconic cities, <span className="landing-title-italic">unforgettable stays</span>
-                </h2>
-                <p className="text-slate-300 mt-2 text-center">
-                  A world of refined penthouses and skyline suites, each curated to match the rhythm of its city.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-6 md:px-10">
-            <ChromaGrid />
-          </div>
         </div>
       </header>
+
+      <section id="collection" className="landing-collection-section landing-animate">
+        <div className="landing-showcase-inner px-6 md:px-10">
+          <div className="landing-section-head landing-collection-intro">
+            <p className="landing-kicker landing-collection-kicker">Signature stays</p>
+            <h2 className="landing-display landing-collection-title">
+              Iconic cities, <span className="landing-title-italic">unforgettable stays</span>
+            </h2>
+            <p className="landing-collection-copy">
+              Explore our destinations and discover refined penthouses and skyline suites curated for each city.
+            </p>
+          </div>
+        </div>
+
+        <div className="landing-destination-panel px-6 md:px-10">
+          <ChromaGrid />
+        </div>
+      </section>
 
     </div>
   );

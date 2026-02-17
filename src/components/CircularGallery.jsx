@@ -403,7 +403,8 @@ class Media {
     const isTabletViewport = this.screen.width > 640 && this.screen.width <= 1024;
     const mobileScaleBoost = this.screen.width <= 520 ? 1.42 : isMobileViewport ? 1.28 : 1;
     const tabletScaleBoost = isTabletViewport ? 1.1 : 1;
-    this.scale = (this.screen.height / 1500) * mobileScaleBoost * tabletScaleBoost;
+    const desktopScaleBoost = !isMobileViewport && !isTabletViewport ? 1.3 : 1;
+    this.scale = (this.screen.height / 1500) * mobileScaleBoost * tabletScaleBoost * desktopScaleBoost;
     this.plane.scale.y = (this.viewport.height * (900 * this.scale)) / this.screen.height;
     this.plane.scale.x = (this.viewport.width * (700 * this.scale)) / this.screen.width;
     this.plane.program.uniforms.uPlaneSizes.value = [this.plane.scale.x, this.plane.scale.y];
