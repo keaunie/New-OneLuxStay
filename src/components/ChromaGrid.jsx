@@ -7,28 +7,28 @@ const DEFAULT_ITEMS = [
     subtitle: "Skyline penthouses",
     href: "/losangeles",
     image:
-      "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
+      "https://assets.guesty.com/image/upload/v1733508976/production/666b3af27fc6d5653142b0af/uw8axioi311sthwkvv3u.jpg",
   },
   {
     title: "Dubai",
     subtitle: "Desert glamour",
     href: "/dubai",
     image:
-      "https://assets.guesty.com/image/upload/v1729089198/production/666b3af27fc6d5653142b0af/ksjnj1kppnbajljv9csi.jpg",
+      "https://assets.guesty.com/image/upload/v1732915608/production/666b3af27fc6d5653142b0af/hlppl3lhscwactabjegk.jpg",
   },
   {
     title: "Redondo Beach",
     subtitle: "Coastal luxury stays",
     href: "/redondo-beach",
     image:
-      "https://assets.guesty.com/image/upload/v1732914973/production/666b3af27fc6d5653142b0af/jpotm8nwcbvufegnbcnx.jpg",
+      "https://assets.guesty.com/image/upload/v1760725510/production/666b3af27fc6d5653142b0af/chr4ozsvfyyjp1qguejn.jpg",
   },
   {
     title: "Antwerp",
     subtitle: "Design-led stays",
     href: "/antwerp",
     image:
-      "https://assets.guesty.com/image/upload/v1730119087/production/666b3af27fc6d5653142b0af/npeczkhmy9wff4lzuyvr.jpg",
+      "https://assets.guesty.com/image/upload/v1740605704/production/666b3af27fc6d5653142b0af/trgxbthqx1zsbiko2zoo.jpg",
   },
 ];
 
