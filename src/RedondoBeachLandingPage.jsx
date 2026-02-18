@@ -1628,15 +1628,15 @@ const getGroupStats = (listings) => {
 };
 
 const CITY_TOUR_SLIDES = {
-  "Redondo Beach": [
+  "Redondo Beach Pier": [
     {
       title: "Pier Welcome",
       subtitle: "Salt air and harbor calm.",
       copy:
         "Arrive to pier views and marina strolls. Sunset lands softly across the Pacific.",
-      highlights: ["Redondo Beach Pier", "King Harbor", "Seaside Lagoon"],
+      highlights: ["Redondo Beach Pier", "Fishermans Wharf", "Seaside Lagoon"],
       image:
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1746288864303-3bf076476108?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
       title: "Harbor Glow",
@@ -1645,7 +1645,7 @@ const CITY_TOUR_SLIDES = {
         "Spend the afternoon along the International Boardwalk, then linger for a calm, coastal evening.",
       highlights: ["International Boardwalk", "Veterans Park", "Marina views"],
       image:
-        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1690136201511-fbf86a6cb2ee?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
       title: "Golden Hour",
@@ -1654,38 +1654,38 @@ const CITY_TOUR_SLIDES = {
         "Bike the Strand, grab a late dinner, and return as the shoreline glows.",
       highlights: ["The Strand", "Oceanfront dining", "Sunset rides"],
       image:
-        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1539113718695-a17361f5d954?q=80&w=1794&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
   ],
-  "Riviera Village": [
+  "Hermosa Beach": [
     {
-      title: "Village Mornings",
-      subtitle: "Cafe patios and boutique strolls.",
+      title: "Beach Pier",
+      subtitle: "Alive at sunset.",
       copy:
-        "Start in Riviera Village for coastal cafés, local shops, and a slow walk toward the Esplanade.",
-      highlights: ["Riviera Village", "Boutiques", "Esplanade"],
+        "Start with a stroll along the pier, then settle in for a vibrant evening of local eats and ocean views.",
+      highlights: ["Hermosa Beach Pier", "Boutiques", "Esplanade"],
       image:
-        "https://images.unsplash.com/photo-1476610182048-b716b8518aae?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1683491483095-0e476c6fae69?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
-      title: "Torrance Beach",
-      subtitle: "Quiet sands and open water.",
+      title: "Noble Park",
+      subtitle: "Quiet park and open water.",
       copy:
-        "A calm afternoon at Torrance Beach with easy access back to your stay.",
-      highlights: ["Torrance Beach", "Cliffside views", "Coastal paths"],
+        "A calm afternoon at Noble Park with easy access back to your stay.",
+      highlights: ["Noble Park", "Sunset views", "Coastal paths"],
       image:
         "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80",
     },
   ],
-  "South Bay": [
+  "Torrance Beach": [
     {
-      title: "Strand Ride",
-      subtitle: "Hermosa to Manhattan Beach.",
+      title: "Torrance Beach",
+      subtitle: "Sunset strolls and quiet sands.",
       copy:
-        "Cruise The Strand with stops at pier towns, local cafés, and oceanfront views.",
-      highlights: ["Hermosa Pier", "Manhattan Beach", "The Strand"],
+        "Spend a peaceful day at Torrance Beach, then return to your stay for a calm evening.",
+      highlights: ["Torrance Beach", "Cliffside views", "Coastal paths"],
       image:
-        "https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1749324214365-7cff06403e88?q=80&w=764&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
       title: "Palos Verdes Drive",
@@ -1694,12 +1694,12 @@ const CITY_TOUR_SLIDES = {
         "End the day with a scenic drive and a quiet dinner overlooking the Pacific.",
       highlights: ["Palos Verdes", "Cliffside overlooks", "Sunset views"],
       image:
-        "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=2000&q=80",
+        "https://images.unsplash.com/photo-1596351049218-e43f5009a016?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
   ],
 };
 
-const TOUR_CITIES = ["Redondo Beach", "Riviera Village", "South Bay"];
+const TOUR_CITIES = ["Redondo Beach Pier", "Hermosa Beach", "Torrance Beach"];
 
 
 const getFirstSentence = (text) => {
@@ -3915,646 +3915,646 @@ export default function RedondoBeachLandingPage() {
     <div className="la-listing-shell">
       <div className="la-listing-shell__content">
         <div className="la-unit-modal la-listing-page">
-      <section className="la-listing-hero la-listing-hero--mobile-top-logo">
-        <div className="la-listing-hero__top">
-          <button
-            type="button"
-            className="la-unit-modal__back"
-            aria-label="Back to listings"
-            onClick={() => {
-              setActiveListing(null);
-              setActiveImageIndex(0);
-              if (isListingRoute) {
-                navigate("/redondo-beach");
-              }
-            }}
-          >
-            <span aria-hidden="true">‹</span>
-          </button>
-          <div className="la-listing-hero__logo-mobile">
-            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
-          </div>
-        </div>
-        <div className="la-listing-hero__intro">
-          <div>
-            <p className="la-listing-hero__kicker">Redondo Beach private stay</p>
-            <h3>{formatListingLocationLabel(activeListing, "Redondo Beach")}</h3>
-            <div className="la-unit-modal__chips">
-              <span>Exceptional location</span>
-              <span>Fast arrival</span>
-              <span>Design-forward suites</span>
+          <section className="la-listing-hero la-listing-hero--mobile-top-logo">
+            <div className="la-listing-hero__top">
+              <button
+                type="button"
+                className="la-unit-modal__back"
+                aria-label="Back to listings"
+                onClick={() => {
+                  setActiveListing(null);
+                  setActiveImageIndex(0);
+                  if (isListingRoute) {
+                    navigate("/redondo-beach");
+                  }
+                }}
+              >
+                <span aria-hidden="true">‹</span>
+              </button>
+              <div className="la-listing-hero__logo-mobile">
+                <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+              </div>
             </div>
-            <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>
-            {(() => {
-              const { rating, count } = getReviewStats(getListingReviews(activeListing));
-              if (!rating && !count) return null;
-              return (
-                <p className="la-unit-modal__rating">
-                  Rating: {rating ? `${rating} / 5` : "--"}{count ? ` (${count} reviews)` : ""}
-                </p>
-              );
-            })()}
-          </div>
-          <div className="la-listing-hero__logo">
-            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
-          </div>
-        </div>
-      </section>
-      <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
-        <button
-          type="button"
-          className={listingTab === "overview" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("overview")}
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          className={listingTab === "facilities" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("facilities")}
-        >
-          Facilities
-        </button>
-        <button
-          type="button"
-          className={listingTab === "guest-reviews" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("guest-reviews")}
-        >
-          Guest reviews
-        </button>
-        <button
-          type="button"
-          className={listingTab === "house-rules" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("house-rules")}
-        >
-          House rules
-        </button>
-      </div>
-      {(() => {
-        const galleryListing = getGalleryListing(activeListing, listings);
-        const images = getListingImageUrls(galleryListing);
-        const safeIndex = Math.min(activeImageIndex, Math.max(images.length - 1, 0));
-        const imageEntries = images
-          .map((src, idx) => ({ src, idx }))
-          .filter((entry) => entry.src);
-        const mainEntry = imageEntries.find((entry) => entry.idx === safeIndex) || imageEntries[0];
-        const mainImage = mainEntry?.src || images[0];
-        const mainKey = getImageKey(mainImage);
-        const uniqueEntries = imageEntries
-          .filter((entry) => entry.src && getImageKey(entry.src) !== mainKey)
-          .filter((entry, idx, arr) => (
-            arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
-          ));
-        const sideImages = uniqueEntries.slice(0, 2);
-        const thumbImages = uniqueEntries.slice(0, 24);
-        const coords = getListingCoords(activeListing);
-        const addressQuery = getListingAddressQuery(activeListing);
-        const mapCoords = coords || PROPERTY_COORDS;
-        const mapUrl = buildStaticMapUrl(mapCoords, "400x280", 14);
-        const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
-        const amenityListRaw = Array.isArray(activeListing.amenities)
-          ? activeListing.amenities
-          : [];
-        const amenityList = amenityListRaw
-          .filter((item) => typeof item === "string")
-          ;
-        const aboutText = formatFullDescription(activeListing);
-        const isRedondoPierUnit = getBuildingKey(activeListing) === "redondo-pier";
-        const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
-        const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-        const availabilityStatus = sectionAvailabilityActive
-          ? availability === false
-            ? "Unavailable"
-            : availability === true
-              ? "Available"
-              : "Checking..."
-          : "Select dates";
-        const quote = listingId ? sectionQuotes[listingId] : null;
-        const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-        const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-        const priceCurrency = quote?.currency || activeListing.currency || "USD";
-        const totalPrice =
-          breakdown?.total ??
-          breakdown?.subtotal ??
-          plan?.total ??
-          quote?.total ??
-          null;
-        return (
-          <>
-            <div className="la-unit-modal__grid" id="la-overview">
-              <div className="la-unit-modal__gallery">
-                <div className="la-unit-modal__main">
-                  {mainImage ? (
-                    <button
-                      type="button"
-                      className="la-unit-modal__image-button"
-                      onClick={(event) => handleImagePreview(event, mainImage)}
-                      aria-label="Open image preview"
-                    >
-                      <img
-                        src={mainImage}
-                        alt={sanitizeText(activeListing.title)}
-                        loading="eager"
-                        onError={handleImageError}
-                      />
-                    </button>
-                  ) : (
-                    <div className="la-unit-modal__placeholder">Image loading</div>
-                  )}
+            <div className="la-listing-hero__intro">
+              <div>
+                <p className="la-listing-hero__kicker">Redondo Beach private stay</p>
+                <h3>{formatListingLocationLabel(activeListing, "Redondo Beach")}</h3>
+                <div className="la-unit-modal__chips">
+                  <span>Exceptional location</span>
+                  <span>Fast arrival</span>
+                  <span>Design-forward suites</span>
                 </div>
-                <div className="la-unit-modal__side">
-                  {sideImages.length ? (
-                    sideImages.map((entry) => (
-                      <button
-                        key={`side-${entry.idx}`}
-                        type="button"
-                        className="la-unit-modal__image-button"
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                        aria-label="Select image"
-                      >
-                        <img
-                          src={entry.src}
-                          alt=""
-                          loading="lazy"
-                          onError={handleImageError}
-                        />
-                      </button>
-                    ))
-                  ) : (
-                    [0, 1].map((idx) => (
-                      <div key={`side-${idx}`} className="la-unit-modal__placeholder">
-                        Image loading
-                      </div>
-                    ))
-                  )}
-                </div>
-                {thumbImages.length > 1 && (
-                  <div
-                    className="la-unit-modal__thumbs"
-                    role="list"
-                    ref={thumbsRef}
-                    onMouseEnter={(event) => {
-                      hoveredThumbsRef.current = thumbsRef.current;
-                      handleThumbsMove(event, thumbsRef);
-                    }}
-                    onMouseMove={handleThumbsMove}
-                    onMouseLeave={() => {
-                      hoveredThumbsRef.current = null;
-                      stopAutoScroll();
-                    }}
-                  >
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover left zone");
-                        startAutoScroll(thumbsRef.current, -1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover right zone");
-                        startAutoScroll(thumbsRef.current, 1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    {thumbImages.map((entry, idx) => (
-                      <button
-                        key={`${entry.src}-${entry.idx}`}
-                        type="button"
-                        className={entry.idx === safeIndex ? "is-active" : ""}
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                      >
-                        <img
-                          src={entry.src}
-                          alt=""
-                          loading={idx === 0 ? "eager" : "lazy"}
-                          onError={handleImageError}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
-                  <DateRangePicker
-                    value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                    dayPrices={calendarDayMap}
-                    onChange={({ checkIn, checkOut }) => {
-                      setSectionCheckIn(checkIn);
-                      setSectionCheckOut(checkOut);
-                    }}
-                    onMonthChange={(nextMonth) => {
-                      const listingId = getCalendarListingId(activeListing, redondoBeachListings);
-                      if (!listingId) return;
-                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                      setCalendarStartDate(monthStart);
-                      setCalendarMonthIndex(0);
-                      fetchCalendarMonth(
-                        listingId,
-                        monthStart,
-                        calendarCacheRef,
-                        calendarDaysRef,
-                        calendarInflightRef,
-                        setCalendarLoading,
-                        setCalendarError,
-                        setCalendarPrices
-                      );
-                    }}
-                    onOpenChange={handleListingCalendarOpen}
-                    isLoading={calendarLoading}
-                    fallbackPrice={activeListing.basePrice}
-                    fallbackCurrency={activeListing.currency}
-                    fallbackMinNights={listingMinNightsFallback}
-                  />
-                  <div>
-                    <label htmlFor="la-section-guests">Guests</label>
-                    <select
-                      id="la-section-guests"
-                      value={sectionGuests}
-                      onChange={(event) => setSectionGuests(event.target.value)}
-                    >
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                      <option value="3">3</option>
-                      <option value="4">4</option>
-                      <option value="5">5</option>
-                    </select>
-                  </div>
-                  <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
-                    {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
-                  </button>
-                </div>
-              </div>
-            <div className="la-unit-modal__sidebar">
-              <div className="la-unit-modal__contact" aria-label="Reservation contact">
-                <p>For Reservation Contact</p>
-                <strong>OneLuxStay Redondo Beach</strong>
-                <a href="tel:+12138663589">+1 213 866 3589</a>
-                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
-                  Message concierge
-                </a>
-                <a
-                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
-                  className="la-unit-modal__contact-cta"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp us
-                </a>
-              </div>
-              <div className="la-unit-modal__card la-unit-modal__price">
-                <span>From</span>
-                <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
-                <small>per night · taxes calculated at checkout</small>
-                {isListingAvailable ? (
-                  <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
-                    Reserve your dates
-                  </button>
-                ) : null}
-              </div>
-              <div className="la-unit-modal__card" id="la-guest-reviews">
+                <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>
                 {(() => {
-                  const listingReviews = getListingReviews(activeListing);
-                  const quote =
-                    listingReviews.find((review) => review?.quote && review.quote.trim())?.quote ||
-                    "No review details yet.";
-                  const shouldTruncate = quote.length > 160;
-                  const displayQuote = shouldTruncate && !isReviewExpanded
-                    ? `${quote.slice(0, 160).trim()}...`
-                    : quote;
-                  const reviewLink = getReviewLink(activeListing);
+                  const { rating, count } = getReviewStats(getListingReviews(activeListing));
+                  if (!rating && !count) return null;
                   return (
-                    <>
-                <div className="la-unit-modal__card-head">
-                  <strong>{getReviewLabel(getListingReviews(activeListing))}</strong>
-                  {(() => {
-                    const { count } = getReviewStats(getListingReviews(activeListing));
-                    const label = count ? `${count} reviews` : "No reviews";
-                    return reviewLink ? (
+                    <p className="la-unit-modal__rating">
+                      Rating: {rating ? `${rating} / 5` : "--"}{count ? ` (${count} reviews)` : ""}
+                    </p>
+                  );
+                })()}
+              </div>
+              <div className="la-listing-hero__logo">
+                <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+              </div>
+            </div>
+          </section>
+          <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
+            <button
+              type="button"
+              className={listingTab === "overview" ? "is-active" : ""}
+              onClick={() => handleListingTabClick("overview")}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              className={listingTab === "facilities" ? "is-active" : ""}
+              onClick={() => handleListingTabClick("facilities")}
+            >
+              Facilities
+            </button>
+            <button
+              type="button"
+              className={listingTab === "guest-reviews" ? "is-active" : ""}
+              onClick={() => handleListingTabClick("guest-reviews")}
+            >
+              Guest reviews
+            </button>
+            <button
+              type="button"
+              className={listingTab === "house-rules" ? "is-active" : ""}
+              onClick={() => handleListingTabClick("house-rules")}
+            >
+              House rules
+            </button>
+          </div>
+          {(() => {
+            const galleryListing = getGalleryListing(activeListing, listings);
+            const images = getListingImageUrls(galleryListing);
+            const safeIndex = Math.min(activeImageIndex, Math.max(images.length - 1, 0));
+            const imageEntries = images
+              .map((src, idx) => ({ src, idx }))
+              .filter((entry) => entry.src);
+            const mainEntry = imageEntries.find((entry) => entry.idx === safeIndex) || imageEntries[0];
+            const mainImage = mainEntry?.src || images[0];
+            const mainKey = getImageKey(mainImage);
+            const uniqueEntries = imageEntries
+              .filter((entry) => entry.src && getImageKey(entry.src) !== mainKey)
+              .filter((entry, idx, arr) => (
+                arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
+              ));
+            const sideImages = uniqueEntries.slice(0, 2);
+            const thumbImages = uniqueEntries.slice(0, 24);
+            const coords = getListingCoords(activeListing);
+            const addressQuery = getListingAddressQuery(activeListing);
+            const mapCoords = coords || PROPERTY_COORDS;
+            const mapUrl = buildStaticMapUrl(mapCoords, "400x280", 14);
+            const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
+            const amenityListRaw = Array.isArray(activeListing.amenities)
+              ? activeListing.amenities
+              : [];
+            const amenityList = amenityListRaw
+              .filter((item) => typeof item === "string")
+              ;
+            const aboutText = formatFullDescription(activeListing);
+            const isRedondoPierUnit = getBuildingKey(activeListing) === "redondo-pier";
+            const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
+            const availability = listingId ? sectionAvailabilityMap[listingId] : null;
+            const availabilityStatus = sectionAvailabilityActive
+              ? availability === false
+                ? "Unavailable"
+                : availability === true
+                  ? "Available"
+                  : "Checking..."
+              : "Select dates";
+            const quote = listingId ? sectionQuotes[listingId] : null;
+            const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
+            const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+            const priceCurrency = quote?.currency || activeListing.currency || "USD";
+            const totalPrice =
+              breakdown?.total ??
+              breakdown?.subtotal ??
+              plan?.total ??
+              quote?.total ??
+              null;
+            return (
+              <>
+                <div className="la-unit-modal__grid" id="la-overview">
+                  <div className="la-unit-modal__gallery">
+                    <div className="la-unit-modal__main">
+                      {mainImage ? (
+                        <button
+                          type="button"
+                          className="la-unit-modal__image-button"
+                          onClick={(event) => handleImagePreview(event, mainImage)}
+                          aria-label="Open image preview"
+                        >
+                          <img
+                            src={mainImage}
+                            alt={sanitizeText(activeListing.title)}
+                            loading="eager"
+                            onError={handleImageError}
+                          />
+                        </button>
+                      ) : (
+                        <div className="la-unit-modal__placeholder">Image loading</div>
+                      )}
+                    </div>
+                    <div className="la-unit-modal__side">
+                      {sideImages.length ? (
+                        sideImages.map((entry) => (
+                          <button
+                            key={`side-${entry.idx}`}
+                            type="button"
+                            className="la-unit-modal__image-button"
+                            onClick={() => setActiveImageIndex(entry.idx)}
+                            aria-label="Select image"
+                          >
+                            <img
+                              src={entry.src}
+                              alt=""
+                              loading="lazy"
+                              onError={handleImageError}
+                            />
+                          </button>
+                        ))
+                      ) : (
+                        [0, 1].map((idx) => (
+                          <div key={`side-${idx}`} className="la-unit-modal__placeholder">
+                            Image loading
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {thumbImages.length > 1 && (
+                      <div
+                        className="la-unit-modal__thumbs"
+                        role="list"
+                        ref={thumbsRef}
+                        onMouseEnter={(event) => {
+                          hoveredThumbsRef.current = thumbsRef.current;
+                          handleThumbsMove(event, thumbsRef);
+                        }}
+                        onMouseMove={handleThumbsMove}
+                        onMouseLeave={() => {
+                          hoveredThumbsRef.current = null;
+                          stopAutoScroll();
+                        }}
+                      >
+                        <div
+                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
+                          onMouseEnter={() => {
+                            console.log("[Thumbs] hover left zone");
+                            startAutoScroll(thumbsRef.current, -1);
+                          }}
+                          onMouseLeave={stopAutoScroll}
+                        />
+                        <div
+                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
+                          onMouseEnter={() => {
+                            console.log("[Thumbs] hover right zone");
+                            startAutoScroll(thumbsRef.current, 1);
+                          }}
+                          onMouseLeave={stopAutoScroll}
+                        />
+                        {thumbImages.map((entry, idx) => (
+                          <button
+                            key={`${entry.src}-${entry.idx}`}
+                            type="button"
+                            className={entry.idx === safeIndex ? "is-active" : ""}
+                            onClick={() => setActiveImageIndex(entry.idx)}
+                          >
+                            <img
+                              src={entry.src}
+                              alt=""
+                              loading={idx === 0 ? "eager" : "lazy"}
+                              onError={handleImageError}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
+                      <DateRangePicker
+                        value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                        dayPrices={calendarDayMap}
+                        onChange={({ checkIn, checkOut }) => {
+                          setSectionCheckIn(checkIn);
+                          setSectionCheckOut(checkOut);
+                        }}
+                        onMonthChange={(nextMonth) => {
+                          const listingId = getCalendarListingId(activeListing, redondoBeachListings);
+                          if (!listingId) return;
+                          const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                          setCalendarStartDate(monthStart);
+                          setCalendarMonthIndex(0);
+                          fetchCalendarMonth(
+                            listingId,
+                            monthStart,
+                            calendarCacheRef,
+                            calendarDaysRef,
+                            calendarInflightRef,
+                            setCalendarLoading,
+                            setCalendarError,
+                            setCalendarPrices
+                          );
+                        }}
+                        onOpenChange={handleListingCalendarOpen}
+                        isLoading={calendarLoading}
+                        fallbackPrice={activeListing.basePrice}
+                        fallbackCurrency={activeListing.currency}
+                        fallbackMinNights={listingMinNightsFallback}
+                      />
+                      <div>
+                        <label htmlFor="la-section-guests">Guests</label>
+                        <select
+                          id="la-section-guests"
+                          value={sectionGuests}
+                          onChange={(event) => setSectionGuests(event.target.value)}
+                        >
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                          <option value="3">3</option>
+                          <option value="4">4</option>
+                          <option value="5">5</option>
+                        </select>
+                      </div>
+                      <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
+                        {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="la-unit-modal__sidebar">
+                    <div className="la-unit-modal__contact" aria-label="Reservation contact">
+                      <p>For Reservation Contact</p>
+                      <strong>OneLuxStay Redondo Beach</strong>
+                      <a href="tel:+12138663589">+1 213 866 3589</a>
+                      <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                      <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
+                        Message concierge
+                      </a>
                       <a
-                        href={reviewLink}
-                        className="la-unit-modal__review-link"
+                        href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                        className="la-unit-modal__contact-cta"
                         target="_blank"
                         rel="noreferrer"
                       >
-                        {label}
+                        WhatsApp us
                       </a>
-                    ) : (
-                      <span>{label}</span>
-                    );
-                  })()}
-                  </div>
-                <div className="la-unit-modal__review">
-                  <p>{displayQuote}</p>
-                  {shouldTruncate && (
-                    <button type="button" onClick={() => setIsReviewExpanded((prev) => !prev)}>
-                      {isReviewExpanded ? "See less" : "See more"}
-                    </button>
-                  )}
-                </div>
-                    </>
-                  );
-                })()}
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
-                  {mapEmbedUrl ? (
-                    <iframe
-                      title="Unit location map"
-                      src={mapEmbedUrl}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      allowFullScreen
-                    />
-                  ) : mapUrl ? (
-                    <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
-                  ) : (
-                    <div className="la-unit-modal__placeholder">Map loading</div>
-                  )}
-                  <button
-                    type="button"
-                    className="la-unit-modal__map-overlay"
-                    aria-label="View larger map"
-                    onClick={() => {
-                      setListingMapTarget({
-                        coords: getListingCoords(activeListing),
-                        address: getListingAddressQuery(activeListing),
-                        label: activeListing.title || "OneLuxStay",
-                      });
-                      setIsListingMapOpen(true);
-                    }}
-                  >
-                    <span className="la-unit-modal__map-cta">View larger map</span>
-                  </button>
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__availability">
-                  <div className="la-unit-modal__card-head">
-                    <strong>Availability</strong>
-                    <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                      {availabilityStatus}
-                    </span>
-                  </div>
-                  <div className="la-unit-modal__availability-details">
-                    {availability === false ? (
-                      <p>Unavailable for the selected dates.</p>
-                    ) : breakdown ? (
-                      <>
-                        <div>
-                          <span>Accommodation</span>
-                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                        </div>
-                        {breakdown.discountAmount > 0 && (
-                          <div>
-                            <span>
-                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                            </span>
-                            <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                          </div>
-                        )}
-                        <div>
-                          <span>Cleaning</span>
-                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                        </div>
-                        <div>
-                          <span>Taxes</span>
-                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                        </div>
-                        <div>
-                          <span>Fees</span>
-                          <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
-                        </div>
-                        <div className="la-unit-modal__total">
-                          <span>Total</span>
-                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                        </div>
-                      </>
-                    ) : totalPrice ? (
-                      <div className="la-unit-modal__total">
-                        <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                        <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
-                      </div>
-                    ) : (
-                      <p>Check availability to view pricing breakdown.</p>
-                    )}
-                  </div>
-                  <div className="la-unit-modal__actions">
-                    {(() => {
-                      const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                      if (availability === true) {
-                        return (
-                          <button type="button" className="la-unit-modal__action-primary">
-                            Reserve
-                          </button>
-                        );
-                      }
-                      if (availability === false) {
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__action-primary"
-                            onClick={() => openInquiry(activeListing)}
-                          >
-                            Inquire
-                          </button>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-            {sectionAvailabilityError && (
-              <div role="alert" className="la-section-hero__notice">
-                {sectionAvailabilityError}
-              </div>
-            )}
-            <div className="la-unit-modal__section">
-              <div className="la-unit-modal__rooms">
-                <div>
-                  <p>
-                    Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
-                    {activeListing.accommodates || "--"}
-                  </p>
-                  {(() => {
-                    const direct = getBedDetails(activeListing);
-                    const bedDetails = (() => {
-                      if (direct.length) return direct;
-                      if (activeListing.bedDetails && activeListing.bedDetails.length) {
-                        return activeListing.bedDetails;
-                      }
-                      const groupKey = getListingGroupKey(activeListing);
-                      if (!groupKey || !Array.isArray(listings)) return [];
-                      const fallback = listings.find((entry) => {
-                        if (getListingGroupKey(entry) !== groupKey) return false;
-                        if (entry.bedDetails && entry.bedDetails.length) return true;
-                        return getBedDetails(entry).length > 0;
-                      });
-                      if (!fallback) return [];
-                      const fallbackDirect = getBedDetails(fallback);
-                      return fallbackDirect.length ? fallbackDirect : (fallback.bedDetails || []);
-                    })();
-                    const bedLines = bedDetails
-                      .map(splitBedDetailLine)
-                      .filter((line) => line.detail);
-                    if (!bedLines.length) return null;
-                    return (
-                      <div className="la-booking-table__bed-details">
-                        {bedLines.map((line, idx) => (
-                          <div
-                            key={`listing-bed-${idx}`}
-                            className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
-                          >
-                            {line.label ? (
-                              <span className="la-booking-table__bed-room">{line.label}</span>
-                            ) : null}
-                            <span className="la-booking-table__bed-desc">
-                              {line.detail}
-                              <span className="la-booking-table__bed-icon">
-                                <BedIcon />
-                              </span>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-            <div className="la-unit-modal__section">
-              <h4>About this property</h4>
-              <p>
-                A calm base with quick access to the neighborhood's best corners. Expect bright spaces, effortless
-                arrivals, and a stay that keeps everything close - landmarks, transit, and the city's rhythm.
-              </p>
-            </div>
-          </>
-        );
-      })()}
-      <div className="la-unit-modal__section" id="la-facilities">
-        <div className="la-facilities-head">
-          <div>
-            <h4>Facilities of {sanitizeText(activeListing?.title || "OneLuxStay")}</h4>
-            <p>Great facilities. Review score, 9.6</p>
-          </div>
-        </div>
-        <div className="la-unit-modal__facilities">
-          {activeListing?.amenities?.length ? (
-            <div className="la-facilities-layout">
-              <div className="la-facilities-grid">
-                {groupAmenities(activeListing.amenities).map((group) => (
-                  <div key={group.key} className="la-facilities-group">
-                    <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">✓</span>
-                      <h5>{group.label}</h5>
                     </div>
-                    <ul>
-                      {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
-                        <li key={`${group.key}-${idx}-${item}`}>{item}</li>
-                      ))}
-                    </ul>
+                    <div className="la-unit-modal__card la-unit-modal__price">
+                      <span>From</span>
+                      <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
+                      <small>per night · taxes calculated at checkout</small>
+                      {isListingAvailable ? (
+                        <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
+                          Reserve your dates
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="la-unit-modal__card" id="la-guest-reviews">
+                      {(() => {
+                        const listingReviews = getListingReviews(activeListing);
+                        const quote =
+                          listingReviews.find((review) => review?.quote && review.quote.trim())?.quote ||
+                          "No review details yet.";
+                        const shouldTruncate = quote.length > 160;
+                        const displayQuote = shouldTruncate && !isReviewExpanded
+                          ? `${quote.slice(0, 160).trim()}...`
+                          : quote;
+                        const reviewLink = getReviewLink(activeListing);
+                        return (
+                          <>
+                            <div className="la-unit-modal__card-head">
+                              <strong>{getReviewLabel(getListingReviews(activeListing))}</strong>
+                              {(() => {
+                                const { count } = getReviewStats(getListingReviews(activeListing));
+                                const label = count ? `${count} reviews` : "No reviews";
+                                return reviewLink ? (
+                                  <a
+                                    href={reviewLink}
+                                    className="la-unit-modal__review-link"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {label}
+                                  </a>
+                                ) : (
+                                  <span>{label}</span>
+                                );
+                              })()}
+                            </div>
+                            <div className="la-unit-modal__review">
+                              <p>{displayQuote}</p>
+                              {shouldTruncate && (
+                                <button type="button" onClick={() => setIsReviewExpanded((prev) => !prev)}>
+                                  {isReviewExpanded ? "See less" : "See more"}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
+                      {mapEmbedUrl ? (
+                        <iframe
+                          title="Unit location map"
+                          src={mapEmbedUrl}
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          allowFullScreen
+                        />
+                      ) : mapUrl ? (
+                        <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
+                      ) : (
+                        <div className="la-unit-modal__placeholder">Map loading</div>
+                      )}
+                      <button
+                        type="button"
+                        className="la-unit-modal__map-overlay"
+                        aria-label="View larger map"
+                        onClick={() => {
+                          setListingMapTarget({
+                            coords: getListingCoords(activeListing),
+                            address: getListingAddressQuery(activeListing),
+                            label: activeListing.title || "OneLuxStay",
+                          });
+                          setIsListingMapOpen(true);
+                        }}
+                      >
+                        <span className="la-unit-modal__map-cta">View larger map</span>
+                      </button>
+                    </div>
+                    <div className="la-unit-modal__card la-unit-modal__availability">
+                      <div className="la-unit-modal__card-head">
+                        <strong>Availability</strong>
+                        <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
+                          {availabilityStatus}
+                        </span>
+                      </div>
+                      <div className="la-unit-modal__availability-details">
+                        {availability === false ? (
+                          <p>Unavailable for the selected dates.</p>
+                        ) : breakdown ? (
+                          <>
+                            <div>
+                              <span>Accommodation</span>
+                              <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
+                            </div>
+                            {breakdown.discountAmount > 0 && (
+                              <div>
+                                <span>
+                                  Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                                </span>
+                                <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
+                              </div>
+                            )}
+                            <div>
+                              <span>Cleaning</span>
+                              <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
+                            </div>
+                            <div>
+                              <span>Taxes</span>
+                              <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                            </div>
+                            <div>
+                              <span>Fees</span>
+                              <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                            </div>
+                            <div className="la-unit-modal__total">
+                              <span>Total</span>
+                              <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                            </div>
+                          </>
+                        ) : totalPrice ? (
+                          <div className="la-unit-modal__total">
+                            <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
+                            <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
+                          </div>
+                        ) : (
+                          <p>Check availability to view pricing breakdown.</p>
+                        )}
+                      </div>
+                      <div className="la-unit-modal__actions">
+                        {(() => {
+                          const availability = listingId ? sectionAvailabilityMap[listingId] : null;
+                          if (availability === true) {
+                            return (
+                              <button type="button" className="la-unit-modal__action-primary">
+                                Reserve
+                              </button>
+                            );
+                          }
+                          if (availability === false) {
+                            return (
+                              <button
+                                type="button"
+                                className="la-unit-modal__action-primary"
+                                onClick={() => openInquiry(activeListing)}
+                              >
+                                Inquire
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-              <div className="la-facilities-more">
-                <a className="la-facilities-cta" href="#la-rooms">
-                  See availability
-                </a>
-                <button
-                  type="button"
-                  className="la-unit-modal__amenities-toggle"
-                  onClick={() => setShowAllAmenities((prev) => !prev)}
-                >
-                  {showAllAmenities ? "See less" : "See more"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p>Contact us for full amenities list.</p>
-          )}
-        </div>
-      </div>
-      <div className="la-unit-modal__section" id="la-house-rules">
-        <h4>House rules</h4>
-        {(() => {
-          const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
-          const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
-          if (houseRulesLoading && !rules) {
-            return <p>Loading house rules…</p>;
-          }
-          if (houseRulesError && !rules) {
-            return <p>{houseRulesError}</p>;
-          }
-          if (!rules) {
-            return (
-              <p>
-                House rules are shared at booking and upon request. Contact the concierge for specific policies.
-              </p>
+                </div>
+                {sectionAvailabilityError && (
+                  <div role="alert" className="la-section-hero__notice">
+                    {sectionAvailabilityError}
+                  </div>
+                )}
+                <div className="la-unit-modal__section">
+                  <div className="la-unit-modal__rooms">
+                    <div>
+                      <p>
+                        Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
+                        {activeListing.accommodates || "--"}
+                      </p>
+                      {(() => {
+                        const direct = getBedDetails(activeListing);
+                        const bedDetails = (() => {
+                          if (direct.length) return direct;
+                          if (activeListing.bedDetails && activeListing.bedDetails.length) {
+                            return activeListing.bedDetails;
+                          }
+                          const groupKey = getListingGroupKey(activeListing);
+                          if (!groupKey || !Array.isArray(listings)) return [];
+                          const fallback = listings.find((entry) => {
+                            if (getListingGroupKey(entry) !== groupKey) return false;
+                            if (entry.bedDetails && entry.bedDetails.length) return true;
+                            return getBedDetails(entry).length > 0;
+                          });
+                          if (!fallback) return [];
+                          const fallbackDirect = getBedDetails(fallback);
+                          return fallbackDirect.length ? fallbackDirect : (fallback.bedDetails || []);
+                        })();
+                        const bedLines = bedDetails
+                          .map(splitBedDetailLine)
+                          .filter((line) => line.detail);
+                        if (!bedLines.length) return null;
+                        return (
+                          <div className="la-booking-table__bed-details">
+                            {bedLines.map((line, idx) => (
+                              <div
+                                key={`listing-bed-${idx}`}
+                                className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
+                              >
+                                {line.label ? (
+                                  <span className="la-booking-table__bed-room">{line.label}</span>
+                                ) : null}
+                                <span className="la-booking-table__bed-desc">
+                                  {line.detail}
+                                  <span className="la-booking-table__bed-icon">
+                                    <BedIcon />
+                                  </span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                <div className="la-unit-modal__section">
+                  <h4>About this property</h4>
+                  <p>
+                    A calm base with quick access to the neighborhood's best corners. Expect bright spaces, effortless
+                    arrivals, and a stay that keeps everything close - landmarks, transit, and the city's rhythm.
+                  </p>
+                </div>
+              </>
             );
-          }
-          const houseRules = rules.houseRules || rules;
-          const childrenRules = houseRules.childrenRules || {};
-          const petsAllowed = houseRules.petsAllowed;
-          const smokingAllowed = houseRules.smokingAllowed;
-          const quietBetween = houseRules.quietBetween;
-          const eventsAllowed = houseRules.suitableForEvents;
-          const ruleItems = [
-            {
-              label: "Suitable for children",
-              value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
-            },
-            {
-              label: "Suitable for infants",
-              value: formatRuleValue(childrenRules.suitableForInfants ?? houseRules.suitableForInfants),
-            },
-            {
-              label: "Pets allowed",
-              value: formatRuleValue(
-                typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
-              ),
-            },
-            {
-              label: "Pets charged",
-              value: formatRuleValue(
-                typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
-              ),
-            },
-            {
-              label: "Smoking allowed",
-              value: formatRuleValue(
-                typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
-              ),
-            },
-            {
-              label: "Parties allowed",
-              value: formatRuleValue(
-                typeof eventsAllowed === "object" ? eventsAllowed.enabled : eventsAllowed ?? houseRules.partiesAllowed
-              ),
-            },
-            {
-              label: "Quiet hours",
-              value: quietBetween?.enabled
-                ? formatQuietHours({ set: true, start: quietBetween.hours?.start, end: quietBetween.hours?.end })
-                : formatQuietHours(houseRules.quietHours),
-            },
-            { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
-          ];
-          return (
-            <div className="la-house-rules">
-              <ul>
-                {ruleItems.map((item) => (
-                  <li key={item.label}>
-                    <strong>{item.label}</strong>
-                    <span>{item.value}</span>
-                  </li>
-                ))}
-              </ul>
+          })()}
+          <div className="la-unit-modal__section" id="la-facilities">
+            <div className="la-facilities-head">
+              <div>
+                <h4>Facilities of {sanitizeText(activeListing?.title || "OneLuxStay")}</h4>
+                <p>Great facilities. Review score, 9.6</p>
+              </div>
             </div>
-          );
-        })()}
-      </div>
+            <div className="la-unit-modal__facilities">
+              {activeListing?.amenities?.length ? (
+                <div className="la-facilities-layout">
+                  <div className="la-facilities-grid">
+                    {groupAmenities(activeListing.amenities).map((group) => (
+                      <div key={group.key} className="la-facilities-group">
+                        <div className="la-facilities-group__head">
+                          <span className="la-facilities-group__icon">✓</span>
+                          <h5>{group.label}</h5>
+                        </div>
+                        <ul>
+                          {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
+                            <li key={`${group.key}-${idx}-${item}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="la-facilities-more">
+                    <a className="la-facilities-cta" href="#la-rooms">
+                      See availability
+                    </a>
+                    <button
+                      type="button"
+                      className="la-unit-modal__amenities-toggle"
+                      onClick={() => setShowAllAmenities((prev) => !prev)}
+                    >
+                      {showAllAmenities ? "See less" : "See more"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p>Contact us for full amenities list.</p>
+              )}
+            </div>
+          </div>
+          <div className="la-unit-modal__section" id="la-house-rules">
+            <h4>House rules</h4>
+            {(() => {
+              const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
+              const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
+              if (houseRulesLoading && !rules) {
+                return <p>Loading house rules…</p>;
+              }
+              if (houseRulesError && !rules) {
+                return <p>{houseRulesError}</p>;
+              }
+              if (!rules) {
+                return (
+                  <p>
+                    House rules are shared at booking and upon request. Contact the concierge for specific policies.
+                  </p>
+                );
+              }
+              const houseRules = rules.houseRules || rules;
+              const childrenRules = houseRules.childrenRules || {};
+              const petsAllowed = houseRules.petsAllowed;
+              const smokingAllowed = houseRules.smokingAllowed;
+              const quietBetween = houseRules.quietBetween;
+              const eventsAllowed = houseRules.suitableForEvents;
+              const ruleItems = [
+                {
+                  label: "Suitable for children",
+                  value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
+                },
+                {
+                  label: "Suitable for infants",
+                  value: formatRuleValue(childrenRules.suitableForInfants ?? houseRules.suitableForInfants),
+                },
+                {
+                  label: "Pets allowed",
+                  value: formatRuleValue(
+                    typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
+                  ),
+                },
+                {
+                  label: "Pets charged",
+                  value: formatRuleValue(
+                    typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
+                  ),
+                },
+                {
+                  label: "Smoking allowed",
+                  value: formatRuleValue(
+                    typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
+                  ),
+                },
+                {
+                  label: "Parties allowed",
+                  value: formatRuleValue(
+                    typeof eventsAllowed === "object" ? eventsAllowed.enabled : eventsAllowed ?? houseRules.partiesAllowed
+                  ),
+                },
+                {
+                  label: "Quiet hours",
+                  value: quietBetween?.enabled
+                    ? formatQuietHours({ set: true, start: quietBetween.hours?.start, end: quietBetween.hours?.end })
+                    : formatQuietHours(houseRules.quietHours),
+                },
+                { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
+              ];
+              return (
+                <div className="la-house-rules">
+                  <ul>
+                    {ruleItems.map((item) => (
+                      <li key={item.label}>
+                        <strong>{item.label}</strong>
+                        <span>{item.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
     </div>
@@ -4564,79 +4564,79 @@ export default function RedondoBeachLandingPage() {
   const mapPortalTarget = typeof document !== "undefined" ? document.body : null;
   const zoomModal = zoomImageUrl && zoomPortalTarget
     ? createPortal(
-        <div
-          className="la-zoom-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Image preview"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setZoomImageUrl("");
-          }}
-        >
-          <div className="la-zoom-modal__inner">
-            <button
-              type="button"
-              className="la-zoom-modal__close"
-              onClick={() => setZoomImageUrl("")}
-              aria-label="Close image preview"
-            >
-              Close
+      <div
+        className="la-zoom-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Image preview"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setZoomImageUrl("");
+        }}
+      >
+        <div className="la-zoom-modal__inner">
+          <button
+            type="button"
+            className="la-zoom-modal__close"
+            onClick={() => setZoomImageUrl("")}
+            aria-label="Close image preview"
+          >
+            Close
+          </button>
+          <div className="la-zoom-modal__controls" aria-label="Zoom controls">
+            <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value - 0.2))}>
+              -
             </button>
-            <div className="la-zoom-modal__controls" aria-label="Zoom controls">
-              <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value - 0.2))}>
-                -
-              </button>
-              <span>{Math.round(zoomLevel * 100)}%</span>
-              <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value + 0.2))}>
-                +
-              </button>
-              <button type="button" onClick={() => setZoomLevel(1)}>
-                Reset
-              </button>
-            </div>
-            <div
-              ref={zoomCanvasRef}
-              className={`la-zoom-modal__canvas${zoomLevel > 1 ? " is-zoomed" : ""}`}
-              onPointerDown={(event) => {
-                if (zoomLevel <= 1 || event.button !== 0) return;
-                isPanningRef.current = true;
-                panStartRef.current = { x: event.clientX, y: event.clientY };
-                panOriginRef.current = { x: zoomPan.x, y: zoomPan.y };
-                event.currentTarget.setPointerCapture(event.pointerId);
-              }}
-              onPointerMove={(event) => {
-                if (!isPanningRef.current) return;
-                const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
-                const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
-                setZoomPan(clampZoomPan({ x: nextX, y: nextY }));
-              }}
-              onPointerUp={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                }
-                isPanningRef.current = false;
-              }}
-              onPointerLeave={() => {
-                isPanningRef.current = false;
-              }}
-            >
-              <img
-                ref={zoomImageRef}
-                src={zoomImageUrl}
-                alt="Listing preview"
-                onLoad={() => {
-                  setZoomLevel((value) => clampZoom(value));
-                  setZoomPan((prev) => clampZoomPan(prev));
-                }}
-                style={{
-                  transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
-                }}
-              />
-            </div>
+            <span>{Math.round(zoomLevel * 100)}%</span>
+            <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value + 0.2))}>
+              +
+            </button>
+            <button type="button" onClick={() => setZoomLevel(1)}>
+              Reset
+            </button>
           </div>
-        </div>,
-        zoomPortalTarget
-      )
+          <div
+            ref={zoomCanvasRef}
+            className={`la-zoom-modal__canvas${zoomLevel > 1 ? " is-zoomed" : ""}`}
+            onPointerDown={(event) => {
+              if (zoomLevel <= 1 || event.button !== 0) return;
+              isPanningRef.current = true;
+              panStartRef.current = { x: event.clientX, y: event.clientY };
+              panOriginRef.current = { x: zoomPan.x, y: zoomPan.y };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!isPanningRef.current) return;
+              const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
+              const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
+              setZoomPan(clampZoomPan({ x: nextX, y: nextY }));
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
+              isPanningRef.current = false;
+            }}
+            onPointerLeave={() => {
+              isPanningRef.current = false;
+            }}
+          >
+            <img
+              ref={zoomImageRef}
+              src={zoomImageUrl}
+              alt="Listing preview"
+              onLoad={() => {
+                setZoomLevel((value) => clampZoom(value));
+                setZoomPan((prev) => clampZoomPan(prev));
+              }}
+              style={{
+                transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
+              }}
+            />
+          </div>
+        </div>
+      </div>,
+      zoomPortalTarget
+    )
     : null;
 
   const tourPortalTarget = typeof document !== "undefined" ? document.body : null;
@@ -4644,425 +4644,425 @@ export default function RedondoBeachLandingPage() {
   const tourModal =
     showCityTour && tourCount > 0 && tourPortalTarget
       ? createPortal(
-          <div
-            className="la-tour-overlay"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="la-tour-title"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) {
-                setShowCityTour(false);
-              }
-            }}
-          >
-            <div className="la-tour-modal">
-              <div className="la-tour-intro" aria-hidden="true">
-                <span>One Lux Stay</span>
-              </div>
-              <div className="la-tour-header">
-                <div className="la-tour-brand">OneLuxStay</div>
-                <div className="la-tour-controls">
-                  <button
-                    type="button"
-                    className="la-tour-btn"
-                    onClick={() => setShowCityTour(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-              <div className="la-tour-stage">
+        <div
+          className="la-tour-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="la-tour-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowCityTour(false);
+            }
+          }}
+        >
+          <div className="la-tour-modal">
+            <div className="la-tour-intro" aria-hidden="true">
+              <span>One Lux Stay</span>
+            </div>
+            <div className="la-tour-header">
+              <div className="la-tour-brand">OneLuxStay</div>
+              <div className="la-tour-controls">
                 <button
                   type="button"
-                  className="la-tour-chevron la-tour-chevron--prev"
-                  aria-label="Previous scene"
-                  onClick={() => goToTour(tourIndex - 1)}
+                  className="la-tour-btn"
+                  onClick={() => setShowCityTour(false)}
                 >
-                  {"<"}
+                  Close
                 </button>
-                <button
-                  type="button"
-                  className="la-tour-chevron la-tour-chevron--next"
-                  aria-label="Next scene"
-                  onClick={() => goToTour(tourIndex + 1)}
-                >
-                  {">"}
-                </button>
-                <div
-                  key={tourIndex}
-                  className="la-tour-slide"
-                  style={{ backgroundImage: `url(${activeTourSlide.image || ""})` }}
-                >
-                  <div className="la-tour-gradient" aria-hidden="true" />
-                  <div className="la-tour-content" aria-live="polite">
-                    <p className="la-tour-kicker">{tourCity}</p>
-                    <h2 className="la-tour-title" id="la-tour-title">
-                      {activeTourSlide.title || "City tour"}
-                    </h2>
-                    <p className="la-tour-subtitle">
-                      {activeTourSlide.subtitle || "Enter a cinematic sequence curated for your stay."}
-                    </p>
-                    {activeTourSlide.copy ? (
-                      <p className="la-tour-copy">{activeTourSlide.copy}</p>
-                    ) : null}
-                    {tourHighlights.length ? (
-                      <div className="la-tour-highlights">
-                        {tourHighlights.map((item) => (
-                          <span key={item} className="la-tour-chip">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
+              </div>
+            </div>
+            <div className="la-tour-stage">
+              <button
+                type="button"
+                className="la-tour-chevron la-tour-chevron--prev"
+                aria-label="Previous scene"
+                onClick={() => goToTour(tourIndex - 1)}
+              >
+                {"<"}
+              </button>
+              <button
+                type="button"
+                className="la-tour-chevron la-tour-chevron--next"
+                aria-label="Next scene"
+                onClick={() => goToTour(tourIndex + 1)}
+              >
+                {">"}
+              </button>
+              <div
+                key={tourIndex}
+                className="la-tour-slide"
+                style={{ backgroundImage: `url(${activeTourSlide.image || ""})` }}
+              >
+                <div className="la-tour-gradient" aria-hidden="true" />
+                <div className="la-tour-content" aria-live="polite">
+                  <p className="la-tour-kicker">{tourCity}</p>
+                  <h2 className="la-tour-title" id="la-tour-title">
+                    {activeTourSlide.title || "City tour"}
+                  </h2>
+                  <p className="la-tour-subtitle">
+                    {activeTourSlide.subtitle || "Enter a cinematic sequence curated for your stay."}
+                  </p>
+                  {activeTourSlide.copy ? (
+                    <p className="la-tour-copy">{activeTourSlide.copy}</p>
+                  ) : null}
+                  {tourHighlights.length ? (
+                    <div className="la-tour-highlights">
+                      {tourHighlights.map((item) => (
+                        <span key={item} className="la-tour-chip">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                <div className="la-tour-progress" aria-hidden="true">
-                  <span style={{ width: `${((tourIndex + 1) / tourCount) * 100}%` }} />
-                </div>
-                <div className="la-tour-nav">
-                  <div className="la-tour-dots" role="tablist" aria-label={`${tourCity} tour scenes`}>
-                    {tourSlides.map((slide, index) => (
-                      <button
-                        key={slide.title || `${tourCity}-scene-${index}`}
-                        type="button"
-                        role="tab"
-                        aria-selected={index === tourIndex}
-                        className={index === tourIndex ? "la-tour-dot is-active" : "la-tour-dot"}
-                        onClick={() => goToTour(index)}
-                      >
-                        <span className="sr-only">Scene {index + 1}</span>
-                      </button>
-                    ))}
-                  </div>
+              </div>
+              <div className="la-tour-progress" aria-hidden="true">
+                <span style={{ width: `${((tourIndex + 1) / tourCount) * 100}%` }} />
+              </div>
+              <div className="la-tour-nav">
+                <div className="la-tour-dots" role="tablist" aria-label={`${tourCity} tour scenes`}>
+                  {tourSlides.map((slide, index) => (
+                    <button
+                      key={slide.title || `${tourCity}-scene-${index}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={index === tourIndex}
+                      className={index === tourIndex ? "la-tour-dot is-active" : "la-tour-dot"}
+                      onClick={() => goToTour(index)}
+                    >
+                      <span className="sr-only">Scene {index + 1}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>,
-          tourPortalTarget
-        )
+          </div>
+        </div>,
+        tourPortalTarget
+      )
       : null;
 
   const listingMapModal = isListingMapOpen && mapPortalTarget
     ? createPortal(
-        <div
-          className="la-map-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Interactive map"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsListingMapOpen(false);
-          }}
-        >
-          <div className="la-map-modal__inner">
-            <button
-              type="button"
-              className="la-map-modal__close"
-              onClick={() => setIsListingMapOpen(false)}
-              aria-label="Close map"
-            >
-              Close
-            </button>
-                        <div
-              ref={listingMapRef}
-              className="la-map-modal__canvas"
-              aria-label="Interactive map"
-            />
-          </div>
-        </div>,
-        mapPortalTarget
-      )
+      <div
+        className="la-map-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Interactive map"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setIsListingMapOpen(false);
+        }}
+      >
+        <div className="la-map-modal__inner">
+          <button
+            type="button"
+            className="la-map-modal__close"
+            onClick={() => setIsListingMapOpen(false)}
+            aria-label="Close map"
+          >
+            Close
+          </button>
+          <div
+            ref={listingMapRef}
+            className="la-map-modal__canvas"
+            aria-label="Interactive map"
+          />
+        </div>
+      </div>,
+      mapPortalTarget
+    )
     : null;
 
   const sectionMapModal = isSectionMapOpen && mapPortalTarget
     ? createPortal(
-        <div
-          className="la-map-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Interactive map"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsSectionMapOpen(false);
-          }}
-        >
-          <div className="la-map-modal__inner">
-            <button
-              type="button"
-              className="la-map-modal__close"
-              onClick={() => setIsSectionMapOpen(false)}
-              aria-label="Close map"
-            >
-              Close
-            </button>
-            <div
-              ref={sectionMapRef}
-              className="la-map-modal__canvas"
-              aria-label="Interactive map"
-            />
-          </div>
-        </div>,
-        mapPortalTarget
-      )
+      <div
+        className="la-map-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Interactive map"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setIsSectionMapOpen(false);
+        }}
+      >
+        <div className="la-map-modal__inner">
+          <button
+            type="button"
+            className="la-map-modal__close"
+            onClick={() => setIsSectionMapOpen(false)}
+            aria-label="Close map"
+          >
+            Close
+          </button>
+          <div
+            ref={sectionMapRef}
+            className="la-map-modal__canvas"
+            aria-label="Interactive map"
+          />
+        </div>
+      </div>,
+      mapPortalTarget
+    )
     : null;
 
   const inquiryModal = isInquiryOpen ? (
-        <div
-          className="antwerp-modal__overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Inquire about a listing"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsInquiryOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  {...logoHomeProps}
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
-                  <h3>Inquire about {inquiryTitle}</h3>
-                  {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsInquiryOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
-                Email reservations@oneluxstay.com
-              </a>
-              <a
-                className="la-inquiry-modal__action is-whatsapp"
-                href={inquiryWhatsAppHref}
-                target="_blank"
-                rel="noreferrer"
-              >
-                WhatsApp +971 58 885 8935
-              </a>
-              <p className="la-inquiry-modal__note">We usually respond within an hour</p>
+    <div
+      className="antwerp-modal__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Inquire about a listing"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setIsInquiryOpen(false);
+      }}
+    >
+      <div className="la-inquiry-modal" role="document">
+        <div className="la-inquiry-modal__header">
+          <div className="la-inquiry-modal__brand">
+            <img
+              {...logoHomeProps}
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              className="la-inquiry-modal__logo"
+              onError={handleImageError}
+            />
+            <div>
+              <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
+              <h3>Inquire about {inquiryTitle}</h3>
+              {inquiryDates && <p className="la-inquiry-modal__meta">Dates: {inquiryDates}</p>}
             </div>
           </div>
+          <button
+            type="button"
+            className="la-inquiry-modal__close"
+            onClick={() => setIsInquiryOpen(false)}
+          >
+            Close
+          </button>
         </div>
+        <div className="la-inquiry-modal__body">
+          <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
+            Email reservations@oneluxstay.com
+          </a>
+          <a
+            className="la-inquiry-modal__action is-whatsapp"
+            href={inquiryWhatsAppHref}
+            target="_blank"
+            rel="noreferrer"
+          >
+            WhatsApp +971 58 885 8935
+          </a>
+          <p className="la-inquiry-modal__note">We usually respond within an hour</p>
+        </div>
+      </div>
+    </div>
   ) : null;
 
 
   const checkoutGuestModal = isCheckoutGuestOpen ? (
-        <div
-          className="antwerp-modal__overlay la-checkout-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Guest details for checkout"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
-          }}
-        >
-          <div className="la-inquiry-modal" role="document">
-            <div className="la-inquiry-modal__header">
-              <div className="la-inquiry-modal__brand">
-                <img
-                  {...logoHomeProps}
-                  src={LOGO_URL}
-                  alt="OneLuxStay logo"
-                  loading="lazy"
-                  className="la-inquiry-modal__logo"
-                  onError={handleImageError}
-                />
-                <div>
-                  <p className="la-inquiry-modal__kicker">Guest details</p>
-                  <h3>Tell us who’s booking</h3>
-                  <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="la-inquiry-modal__close"
-                onClick={() => setIsCheckoutGuestOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="la-inquiry-modal__body">
-              <Stepper
-                initialStep={1}
-                onStepChange={(step) => setCheckoutStep(step)}
-                onFinalStepCompleted={confirmGuestCheckout}
-                disableStepIndicators
-                nextButtonText="Next"
-                finalButtonText="Continue to payment"
-                nextButtonProps={{
-                  disabled:
-                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 &&
-                      (!checkoutConsentAccepted ||
-                        !checkoutConsentSignerName.trim() ||
-                        !checkoutConsentSignatureDataUrl)),
-                }}
-              >
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>First name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.firstName}
-                        autoComplete="given-name"
-                        required
-                        autoFocus
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("firstName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Last name</span>
-                      <input
-                        type="text"
-                        value={checkoutGuest.lastName}
-                        autoComplete="family-name"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("lastName")}
-                      />
-                    </label>
-                    <label
-                      className={
-                        "la-inquiry-modal__field" +
-                        (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
-                      }
-                    >
-                      <span>Email</span>
-                      <input
-                        type="email"
-                        value={checkoutGuest.email}
-                        autoComplete="email"
-                        required
-                        aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("email")}
-                      />
-                    </label>
-                    <label className="la-inquiry-modal__field">
-                      <span>Phone (optional)</span>
-                      <input
-                        type="tel"
-                        value={checkoutGuest.phone}
-                        autoComplete="tel"
-                        onKeyDown={handleGuestKeyDown}
-                        onChange={handleGuestInputChange("phone")}
-                      />
-                    </label>
-                    {checkoutGuestError && (
-                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
-                        {checkoutGuestError}
-                      </p>
-                    )}
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label className="la-inquiry-modal__consent">
-                      <input
-                        type="checkbox"
-                        checked={checkoutConsentAccepted}
-                        onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
-                      />
-                      <span>
-                        By signing and continuing to payment, you authorize OneLuxStay to charge the
-                        total amount shown for your reservation. A receipt and consent proof PDF will
-                        be emailed to you.
-                      </span>
-                    </label>
-                    <label className="la-inquiry-modal__field">
-                      <span>Signer full name</span>
-                      <input
-                        type="text"
-                        value={checkoutConsentSignerName}
-                        autoComplete="name"
-                        placeholder="Type full legal name"
-                        onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
-                      />
-                    </label>
-                    <div className="la-inquiry-modal__signature">
-                      <span>Signature</span>
-                      <canvas
-                        ref={checkoutSignatureCanvasRef}
-                        width={560}
-                        height={150}
-                        className="la-inquiry-modal__signature-pad"
-                        onMouseDown={startSignatureDraw}
-                        onMouseMove={drawSignature}
-                        onMouseUp={endSignatureDraw}
-                        onMouseLeave={endSignatureDraw}
-                        onTouchStart={startSignatureDraw}
-                        onTouchMove={drawSignature}
-                        onTouchEnd={endSignatureDraw}
-                      />
-                      <button
-                        type="button"
-                        className="la-inquiry-modal__signature-clear"
-                        onClick={clearSignature}
-                      >
-                        Clear signature
-                      </button>
-                    </div>
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <p className="la-inquiry-modal__fineprint">
-                      Review your details and continue to payment.
-                    </p>
-                    <div className="la-inquiry-modal__summary">
-                      <div>
-                        <strong>Name</strong>
-                        <span>
-                          {checkoutGuest.firstName} {checkoutGuest.lastName}
-                        </span>
-                      </div>
-                      <div>
-                        <strong>Email</strong>
-                        <span>{checkoutGuest.email}</span>
-                      </div>
-                      <div>
-                        <strong>Signed by</strong>
-                        <span>{checkoutConsentSignerName || "--"}</span>
-                      </div>
-                      {checkoutGuest.phone && (
-                        <div>
-                          <strong>Phone</strong>
-                          <span>{checkoutGuest.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Step>
-              </Stepper>
+    <div
+      className="antwerp-modal__overlay la-checkout-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Guest details for checkout"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
+      }}
+    >
+      <div className="la-inquiry-modal" role="document">
+        <div className="la-inquiry-modal__header">
+          <div className="la-inquiry-modal__brand">
+            <img
+              {...logoHomeProps}
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              className="la-inquiry-modal__logo"
+              onError={handleImageError}
+            />
+            <div>
+              <p className="la-inquiry-modal__kicker">Guest details</p>
+              <h3>Tell us who’s booking</h3>
+              <p className="la-inquiry-modal__meta">We’ll use this to create the reservation after payment.</p>
             </div>
           </div>
+          <button
+            type="button"
+            className="la-inquiry-modal__close"
+            onClick={() => setIsCheckoutGuestOpen(false)}
+          >
+            Close
+          </button>
         </div>
+        <div className="la-inquiry-modal__body">
+          <Stepper
+            initialStep={1}
+            onStepChange={(step) => setCheckoutStep(step)}
+            onFinalStepCompleted={confirmGuestCheckout}
+            disableStepIndicators
+            nextButtonText="Next"
+            finalButtonText="Continue to payment"
+            nextButtonProps={{
+              disabled:
+                (checkoutStep === 1 && !isCheckoutGuestValid) ||
+                (checkoutStep === 2 &&
+                  (!checkoutConsentAccepted ||
+                    !checkoutConsentSignerName.trim() ||
+                    !checkoutConsentSignatureDataUrl)),
+            }}
+          >
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.firstName.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>First name</span>
+                  <input
+                    type="text"
+                    value={checkoutGuest.firstName}
+                    autoComplete="given-name"
+                    required
+                    autoFocus
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.firstName.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("firstName")}
+                  />
+                </label>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.lastName.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Last name</span>
+                  <input
+                    type="text"
+                    value={checkoutGuest.lastName}
+                    autoComplete="family-name"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.lastName.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("lastName")}
+                  />
+                </label>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.email.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={checkoutGuest.email}
+                    autoComplete="email"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.email.trim())}
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("email")}
+                  />
+                </label>
+                <label className="la-inquiry-modal__field">
+                  <span>Phone (optional)</span>
+                  <input
+                    type="tel"
+                    value={checkoutGuest.phone}
+                    autoComplete="tel"
+                    onKeyDown={handleGuestKeyDown}
+                    onChange={handleGuestInputChange("phone")}
+                  />
+                </label>
+                {checkoutGuestError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutGuestError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label className="la-inquiry-modal__consent">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConsentAccepted}
+                    onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                  />
+                  <span>
+                    By signing and continuing to payment, you authorize OneLuxStay to charge the
+                    total amount shown for your reservation. A receipt and consent proof PDF will
+                    be emailed to you.
+                  </span>
+                </label>
+                <label className="la-inquiry-modal__field">
+                  <span>Signer full name</span>
+                  <input
+                    type="text"
+                    value={checkoutConsentSignerName}
+                    autoComplete="name"
+                    placeholder="Type full legal name"
+                    onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
+                  />
+                </label>
+                <div className="la-inquiry-modal__signature">
+                  <span>Signature</span>
+                  <canvas
+                    ref={checkoutSignatureCanvasRef}
+                    width={560}
+                    height={150}
+                    className="la-inquiry-modal__signature-pad"
+                    onMouseDown={startSignatureDraw}
+                    onMouseMove={drawSignature}
+                    onMouseUp={endSignatureDraw}
+                    onMouseLeave={endSignatureDraw}
+                    onTouchStart={startSignatureDraw}
+                    onTouchMove={drawSignature}
+                    onTouchEnd={endSignatureDraw}
+                  />
+                  <button
+                    type="button"
+                    className="la-inquiry-modal__signature-clear"
+                    onClick={clearSignature}
+                  >
+                    Clear signature
+                  </button>
+                </div>
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <p className="la-inquiry-modal__fineprint">
+                  Review your details and continue to payment.
+                </p>
+                <div className="la-inquiry-modal__summary">
+                  <div>
+                    <strong>Name</strong>
+                    <span>
+                      {checkoutGuest.firstName} {checkoutGuest.lastName}
+                    </span>
+                  </div>
+                  <div>
+                    <strong>Email</strong>
+                    <span>{checkoutGuest.email}</span>
+                  </div>
+                  <div>
+                    <strong>Signed by</strong>
+                    <span>{checkoutConsentSignerName || "--"}</span>
+                  </div>
+                  {checkoutGuest.phone && (
+                    <div>
+                      <strong>Phone</strong>
+                      <span>{checkoutGuest.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Step>
+          </Stepper>
+        </div>
+      </div>
+    </div>
   ) : null;
   if (isListingRoute) {
     return (
