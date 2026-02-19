@@ -8,7 +8,8 @@
 		"dev:client": "vite --port 5174",
 		"dev:server": "node server/index.js",
 		"start": "node server/index.js",
-		"build": "vite build",
+		"sitemap:generate": "node scripts/generate-sitemap.js",
+		"build": "npm run sitemap:generate && vite build",
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"guesty:token": "node scripts/get-guesty-token.js"
