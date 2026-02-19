@@ -3998,6 +3998,10 @@ export default function AntwerpLandingPage() {
   const tourSlides = CITY_TOUR_SLIDES[tourCity] || CITY_TOUR_SLIDES[TOUR_CITIES[0]] || [];
   const tourCount = tourSlides.length;
   const activeTourSlide = tourSlides[tourIndex] || tourSlides[0] || {};
+  const mapPlaceholderImage =
+    tourSlides[0]?.image ||
+    (CITY_TOUR_SLIDES[TOUR_CITIES[0]] || [])[0]?.image ||
+    "";
 
   const goToTour = (index) => {
     if (!tourCount) return;
@@ -5842,37 +5846,27 @@ export default function AntwerpLandingPage() {
                 </p>
                 {!isMapEnabled ? (
                   <div
-                    className="la-units-map"
+                    className="la-units-map la-units-map--placeholder"
                     style={{
-                      width: "100%",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(201, 181, 156, 0.6)",
-                      overflow: "hidden",
-                      background: "rgba(249, 248, 246, 0.8)",
-                      minHeight: "260px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "10px",
-                      textAlign: "center",
-                      padding: "24px",
+                      "--map-placeholder-image": mapPlaceholderImage ? `url(${mapPlaceholderImage})` : "none",
                     }}
                   >
-                    <p className="antwerp-muted" style={{ margin: 0 }}>
-                      Map loads on demand to keep the page fast.
-                    </p>
-                    <button
-                      type="button"
-                      className="antwerp-card__ghost"
-                      onClick={() => {
-                        mapLoadedRef.current = false;
-                        setMapError("");
-                        setIsMapEnabled(true);
-                      }}
-                    >
-                      Enable map
-                    </button>
+                    <div className="la-units-map__placeholder-content">
+                      <p className="antwerp-muted" style={{ margin: 0 }}>
+                        Map loads on demand to keep the page fast.
+                      </p>
+                      <button
+                        type="button"
+                        className="antwerp-card__ghost"
+                        onClick={() => {
+                          mapLoadedRef.current = false;
+                          setMapError("");
+                          setIsMapEnabled(true);
+                        }}
+                      >
+                        Enable map
+                      </button>
+                    </div>
                   </div>
                 ) : mapError ? (
                   <div
