@@ -1098,8 +1098,8 @@ function LandingPage() {
     };
   }, [isConciergeModalOpen]);
 
-  const scrollToHero = useCallback(() => {
-    const target = document.getElementById("hero");
+  const scrollToCollection = useCallback(() => {
+    const target = document.getElementById("collection");
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
@@ -1129,6 +1129,8 @@ function LandingPage() {
     navigate(`${targetRoute}${query ? `?${query}` : ""}${hash}`);
   };
 
+  const mobileDestinationLabel = "Destination...";
+
   return (
     <div className="landing-page text-white has-silk">
       <div className="landing-silk" aria-hidden="true">
@@ -1150,7 +1152,7 @@ function LandingPage() {
           ))}
         </div>
         <div className="hero-media__overlay" aria-hidden="true" />
-        <div className="landing-hero-inner">
+        <div className="landing-hero-inner landing-hero-desktop">
           <div className="landing-logo-mark">OneLuxStay</div>
           <p className="landing-kicker landing-hero-kicker">The art of luxurious stays</p>
           <h1 className="landing-display landing-hero-title">
@@ -1203,9 +1205,9 @@ function LandingPage() {
 
           <form className="landing-hero-form glass" onSubmit={handleHeroSubmit}>
             <div className="landing-form-field">
-              <label htmlFor="landing-destination">Destination</label>
+              <label htmlFor="landing-destination-desktop">Destination</label>
               <select
-                id="landing-destination"
+                id="landing-destination-desktop"
                 value={destination}
                 onChange={(e) => {
                   const next = e.target.value;
@@ -1228,8 +1230,8 @@ function LandingPage() {
               />
             </div>
             <div className="landing-form-field">
-              <label htmlFor="landing-guests">Guests</label>
-              <select id="landing-guests" value={guests} onChange={(e) => setGuests(Number(e.target.value) || 1)}>
+              <label htmlFor="landing-guests-desktop">Guests</label>
+              <select id="landing-guests-desktop" value={guests} onChange={(e) => setGuests(Number(e.target.value) || 1)}>
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((g) => (
                   <option key={g} value={g}>{g}</option>
                 ))}
@@ -1256,7 +1258,151 @@ function LandingPage() {
             </div>
           </div>
         </div>
+
+        <div className="landing-hero-inner ols-booking-shell landing-hero-mobile">
+          <div className="ols-booking-topbar">
+            <div className="landing-logo-mark">ONELUXSTAY</div>
+          </div>
+
+          <div className="ols-booking-headline">
+            <h1 className="landing-display landing-hero-title">Find your next stay</h1>
+            <p className="landing-hero-lead">
+              Search curated penthouses, skyline suites, and premium serviced homes across OneLuxStay cities.
+            </p>
+          </div>
+
+          <form className="ols-booking-card" onSubmit={handleHeroSubmit}>
+            <div className="ols-booking-field ols-booking-field--destination">
+              <label className="ols-booking-label" htmlFor="landing-destination-mobile">Destination</label>
+              <div className="ols-booking-input-wrap">
+                <span className="ols-booking-search-icon" aria-hidden="true">⌕</span>
+                <select
+                  id="landing-destination-mobile"
+                  className="ols-booking-destination-select"
+                  value={destination}
+                  aria-label="Destination"
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setDestination(next);
+                    prefetchCityByName(next);
+                  }}
+                >
+                  <option value="All">{mobileDestinationLabel}</option>
+                  <option value="Redondo Beach">Redondo Beach</option>
+                  <option value="Los Angeles">Los Angeles</option>
+                  <option value="Dubai">Dubai</option>
+                  <option value="Antwerp">Antwerp</option>
+                  <option value="Miami">Miami</option>
+                </select>
+                {destination !== "All" && (
+                  <button
+                    type="button"
+                    className="ols-booking-clear-btn"
+                    aria-label="Clear destination"
+                    onClick={() => setDestination("All")}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <DateRangePicker
+              value={{ checkIn, checkOut }}
+              onChange={(next) => {
+                setCheckIn(next.checkIn);
+                setCheckOut(next.checkOut);
+              }}
+            />
+
+            <div className="ols-booking-occupancy" role="group" aria-label="Guests and rooms">
+              <div className="ols-booking-guest-field">
+                <label htmlFor="landing-guests-mobile">Adults</label>
+                <select
+                  id="landing-guests-mobile"
+                  value={guests}
+                  onChange={(e) => setGuests(Number(e.target.value) || 1)}
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="ols-booking-guest-field">
+                <label>Children</label>
+                <p className="ols-booking-value">0</p>
+              </div>
+              <div className="ols-booking-guest-field">
+                <label>Rooms</label>
+                <p className="ols-booking-value">1</p>
+              </div>
+            </div>
+
+            <button type="submit" className="ols-booking-search-btn">Search</button>
+          </form>
+
+          <div className="ols-booking-fillers" aria-label="Booking highlights">
+            <p className="ols-booking-note">
+              Flights and bundles are coming soon. Stays booking is live now.
+            </p>
+            <article className="ols-booking-promo" aria-label="Long stay savings">
+              <div>
+                <h2>Unlock savings on long stays</h2>
+                <p>Member perks, direct-booking rates, and concierge support in every destination.</p>
+              </div>
+              <button type="button" className="ols-booking-promo__cta" onClick={scrollToCollection}>
+                Explore signature stays
+              </button>
+            </article>
+          </div>
+        </div>
       </header>
+
+      <section id="offers" className="landing-offers-section landing-animate" aria-label="Discounts and promos">
+        <div className="landing-offers-inner px-6 md:px-10">
+          <div className="landing-offers-head">
+            <div className="landing-offers-copy">
+              <p className="landing-kicker">Discounts & promos</p>
+              <h2 className="landing-display landing-collection-title">
+                Exclusive savings crafted for every stay style
+              </h2>
+              <p className="landing-collection-copy">
+                Unlock member-only value with flexible offers for spontaneous nights, weekly escapes, and long stays.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="landing-offers-controls landing-offers-controls--center" aria-hidden="true">
+          <div className="landing-offers-swipe">
+            <span className="landing-offers-swipe__label">Swipe offers</span>
+            <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />
+          </div>
+        </div>
+
+        <div
+          className="landing-offers-row"
+          ref={offersRef}
+          onPointerDown={handleOffersPointerDown}
+          onPointerMove={handleOffersPointerMove}
+          onPointerUp={handleOffersPointerUp}
+          onPointerCancel={handleOffersPointerUp}
+          onClickCapture={handleOffersClickCapture}
+        >
+          <div className="landing-offers-track" ref={offersTrackRef}>
+            {loopedOffers.map((offer, idx) => (
+              <article key={`${offer.kicker}-${idx}`} className={`landing-offer-card offer-${offer.tone}`}>
+                <p className="landing-offer-kicker">{offer.kicker}</p>
+                <h3 className="landing-offer-title">{offer.headline}</h3>
+                <p className="landing-offer-body">{offer.body}</p>
+                <button type="button" className="landing-offer-cta" onClick={scrollToCollection}>
+                  {offer.cta}
+                </button>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section id="collection" className="landing-collection-section landing-animate">
         <div className="landing-showcase-inner px-6 md:px-10">

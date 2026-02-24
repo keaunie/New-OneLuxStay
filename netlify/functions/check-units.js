@@ -17,6 +17,37 @@ const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   body: JSON.stringify(body),
 });
 
+const resolveFunctionPath = (event = {}) => {
+  const explicitPath =
+    (typeof event.path === "string" && event.path) ||
+    (typeof event.rawPath === "string" && event.rawPath) ||
+    "";
+  let pathname = explicitPath;
+
+  if (!pathname && typeof event.rawUrl === "string" && event.rawUrl) {
+    try {
+      pathname = new URL(event.rawUrl).pathname || "";
+    } catch {
+      pathname = event.rawUrl.split("?")[0];
+    }
+  }
+
+  const clean = String(pathname || "").split("?")[0];
+  const baseCandidates = [
+    "/.netlify/functions/check-units",
+    "/check-units",
+  ];
+
+  for (const base of baseCandidates) {
+    if (clean === base) return "";
+    if (clean.startsWith(`${base}/`)) {
+      return clean.slice(base.length);
+    }
+  }
+
+  return clean;
+};
+
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
   "clp",
@@ -718,38 +749,56 @@ export async function handler(event) {
     return jsonResponse(200, {});
   }
 
-  const path = event.path.replace("/.netlify/functions/check-units", "");
-  if (path === "/checkout" && event.httpMethod === "POST") {
-    try {
-      return await handleCheckout(event);
-    } catch (err) {
-      return jsonResponse(500, { message: "Checkout failed", error: err.message });
+  const path = resolveFunctionPath(event);
+
+  try {
+    if (path === "/checkout" && event.httpMethod === "POST") {
+      try {
+        return await handleCheckout(event);
+      } catch (err) {
+        return jsonResponse(500, { message: "Checkout failed", error: err.message });
+      }
     }
+
+    let tokenPayload;
+    try {
+      tokenPayload = await getGuestyToken();
+    } catch (err) {
+      return jsonResponse(500, {
+        message: "Unable to authenticate with Guesty",
+        error: err?.message || String(err),
+      });
+    }
+
+    const { token, source } = tokenPayload;
+
+    if (path === "/listings/availability-bulk" && event.httpMethod === "GET") {
+      return handleAvailabilityBulk(event, token, source);
+    }
+
+    if (path === "/listings/availability-query" && event.httpMethod === "GET") {
+      return handleAvailabilityQuery(event, token, source);
+    }
+
+    if (path.startsWith("/listings/") && path.endsWith("/calendar-prices") && event.httpMethod === "GET") {
+      const listingId = path.split("/")[2];
+      return handleCalendarPrices(event, token, source, listingId);
+    }
+
+    if (path === "/listings/calendar-multi" && event.httpMethod === "GET") {
+      return handleCalendarMulti(event, token, source);
+    }
+
+    if (path === "/reservations/quotes-bulk" && event.httpMethod === "POST") {
+      return handleQuotesBulk(event, token, source);
+    }
+
+    return jsonResponse(404, { message: "Not Found", path });
+  } catch (err) {
+    return jsonResponse(500, {
+      message: "check-units handler failed",
+      path,
+      error: err?.message || String(err),
+    });
   }
-
-  const { token, source } = await getGuestyToken();
-
-  if (path === "/listings/availability-bulk" && event.httpMethod === "GET") {
-    return handleAvailabilityBulk(event, token, source);
-  }
-
-  if (path === "/listings/availability-query" && event.httpMethod === "GET") {
-    return handleAvailabilityQuery(event, token, source);
-  }
-
-  if (path.startsWith("/listings/") && path.endsWith("/calendar-prices") && event.httpMethod === "GET") {
-    const listingId = path.split("/")[2];
-    return handleCalendarPrices(event, token, source, listingId);
-  }
-
-  if (path === "/listings/calendar-multi" && event.httpMethod === "GET") {
-    return handleCalendarMulti(event, token, source);
-  }
-
-  if (path === "/reservations/quotes-bulk" && event.httpMethod === "POST") {
-    return handleQuotesBulk(event, token, source);
-  }
-
-  return jsonResponse(404, { message: "Not Found" });
 }
-

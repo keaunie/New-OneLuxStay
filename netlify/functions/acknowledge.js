@@ -177,15 +177,18 @@ export async function handler(event) {
     event.headers?.["x-forwarded-for"] || "",
   ];
 
+  let sheetError = null;
   try {
     await appendToSheet(row);
   } catch (err) {
-    return jsonResponse(500, { message: err.message || "Failed to save record." });
+    sheetError = err.message || "Failed to save record.";
+    console.error("[acknowledge] Google Sheets write failed:", sheetError);
   }
 
   let emailError = null;
+  let emailResult = null;
   try {
-    await sendEmail({
+    emailResult = await sendEmail({
       to: email,
       subject: "OneLuxStay Authorization Acknowledgement",
       html: `
@@ -206,7 +209,14 @@ export async function handler(event) {
     });
   } catch (err) {
     emailError = err.message;
+    console.error("[acknowledge] Email send failed:", emailError);
   }
 
-  return jsonResponse(200, { ok: true, emailError });
+  return jsonResponse(200, {
+    ok: !emailError,
+    emailError,
+    sheetError,
+    emailSent: !emailError && !emailResult?.skipped,
+    sheetSaved: !sheetError,
+  });
 }

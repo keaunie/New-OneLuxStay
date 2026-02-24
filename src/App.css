@@ -1673,12 +1673,18 @@ body {
 }
 
 .landing-offers-section {
+  position: relative;
+  z-index: 4;
+  margin-top: clamp(8px, 1.8vw, 16px);
+  padding: clamp(22px, 3.5vw, 42px) 0 clamp(28px, 4.6vw, 56px);
   background: linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
-  border-top: none;
-  border-bottom: none;
+  border-top: 1px solid rgba(201, 181, 156, 0.28);
+  border-bottom: 1px solid rgba(201, 181, 156, 0.2);
 }
 
 .landing-offers-inner {
+  max-width: 1200px;
+  margin: 0 auto;
   position: relative;
   z-index: 2;
 }
@@ -1692,7 +1698,7 @@ body {
 }
 
 .landing-offers-copy {
-  max-width: 460px;
+  max-width: 760px;
 }
 
 .landing-offers-controls {
@@ -1704,7 +1710,7 @@ body {
 .landing-offers-controls--center {
   width: 100%;
   justify-content: center;
-  padding: 0 6vw 22px;
+  padding: 6px 6vw 14px;
 }
 
 .landing-offers-swipe {
@@ -1749,15 +1755,15 @@ body {
 
 @media (max-width: 900px) {
   .landing-offers-controls--center {
-    padding-bottom: 16px;
+    padding-bottom: 10px;
   }
 }
 
 .landing-offers-row {
-  margin-top: -24px;
+  margin-top: 0;
   display: block;
   overflow: hidden;
-  padding: 48px 6vw 32px max(6vw, 28px);
+  padding: 16px 6vw 28px max(6vw, 22px);
   scrollbar-width: none;
   position: relative;
   cursor: grab;
@@ -1775,7 +1781,7 @@ body {
 
 .landing-offers-track {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   will-change: transform;
 }
 
@@ -1784,7 +1790,7 @@ body {
   position: absolute;
   left: max(6vw, 28px);
   right: 6vw;
-  bottom: 18px;
+  bottom: 12px;
   height: 1px;
   border-radius: 999px;
   box-shadow: 0 24px 46px rgba(63, 54, 47, 0.2);
@@ -1920,8 +1926,77 @@ body {
   text-decoration: none;
   font-weight: 600;
   font-size: 0.85rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 640px) {
+  .landing-offers-section {
+    margin-top: 6px;
+    padding: 16px 0 20px;
+  }
+
+  .landing-offers-head {
+    gap: 10px;
+  }
+
+  .landing-offers-copy {
+    max-width: 100%;
+  }
+
+  .landing-offers-copy .landing-collection-title {
+    font-size: clamp(1.9rem, 9vw, 2.45rem);
+    line-height: 1;
+  }
+
+  .landing-offers-copy .landing-collection-copy {
+    margin-top: 4px;
+    font-size: 0.94rem;
+    line-height: 1.45;
+  }
+
+  .landing-offers-controls--center {
+    justify-content: flex-start;
+    padding: 6px 14px 8px;
+  }
+
+  .landing-offers-swipe {
+    min-height: 44px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  }
+
+  .landing-offers-swipe__lottie {
+    display: none;
+  }
+
+  .landing-offers-row {
+    padding: 10px 14px 20px;
+  }
+
+  .landing-offers-track {
+    gap: 12px;
+  }
+
+  .landing-offer-card {
+    flex: 0 0 calc(100vw - 56px);
+    min-height: 312px;
+    border-radius: 24px;
+    padding: 24px;
+  }
+
+  .landing-offer-title {
+    font-size: 1.65rem;
+  }
+
+  .landing-offer-body {
+    font-size: 0.96rem;
+    line-height: 1.42;
+  }
 }
 
 .offer-dark {
@@ -9611,5 +9686,519 @@ video {
   .landing-circular-gallery--hero {
     height: clamp(240px, 32vh, 320px);
     padding-bottom: 16px;
+  }
+}
+
+/* Landing refresh: booking-style mobile structure in OneLuxStay palette */
+.landing-hero-desktop {
+  display: grid;
+}
+
+.landing-hero-mobile {
+  display: none;
+}
+
+.ols-desktop-hero {
+  display: flex;
+}
+
+.ols-mobile-hero {
+  display: none;
+}
+
+.ols-hero-gallery-wrap {
+  padding-top: 0;
+}
+
+.landing-hero-inner.ols-booking-shell {
+  max-width: 1120px;
+  padding-top: clamp(20px, 5vw, 46px);
+  color: #2f251d;
+  gap: 14px;
+  text-align: left;
+}
+
+.ols-booking-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.ols-booking-topbar .landing-logo-mark {
+  color: #2f241a;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.ols-booking-topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ols-booking-icon-btn,
+.ols-booking-menu-btn {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 240, 224, 0.62);
+  background: rgba(71, 58, 48, 0.88);
+  color: #fff8f0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.ols-booking-icon-btn {
+  padding: 0 12px;
+}
+
+.ols-booking-menu-btn {
+  width: 44px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.ols-booking-menu-btn span {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.ols-booking-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: none;
+}
+
+.ols-booking-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.ols-booking-tab {
+  border: 1px solid rgba(255, 240, 224, 0.58);
+  background: rgba(70, 56, 46, 0.9);
+  color: #fff8f0;
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 0 16px;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 0.96rem;
+}
+
+.ols-booking-tab:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.ols-booking-tab.is-active {
+  border-color: #c9a263;
+  background: rgba(248, 233, 207, 0.95);
+  color: #2f2419;
+  box-shadow: 0 0 0 1px rgba(201, 162, 99, 0.35) inset;
+}
+
+.ols-booking-headline {
+  color: #241b15;
+  max-width: 760px;
+  width: 100%;
+  text-align: left;
+}
+
+.ols-booking-headline .landing-hero-title {
+  margin: 0;
+  max-width: 11ch;
+  font-size: clamp(1.95rem, 6.8vw, 3.25rem);
+}
+
+.ols-booking-headline .landing-hero-lead {
+  margin-top: 4px;
+  max-width: 52ch;
+  color: rgba(40, 31, 24, 0.88);
+}
+
+.ols-booking-card {
+  width: min(100%, 860px);
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 4px solid #c79f56;
+  background: linear-gradient(180deg, rgba(252, 247, 239, 0.98), rgba(245, 236, 224, 0.98));
+  box-shadow:
+    0 24px 50px rgba(44, 33, 25, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.ols-booking-field {
+  min-width: 0;
+}
+
+.ols-booking-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #2f241a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.ols-booking-input-wrap {
+  min-height: 62px;
+  border-radius: 12px;
+  border: 1px solid rgba(185, 161, 133, 0.82);
+  background: #fff9f2;
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.ols-booking-search-icon {
+  color: #674d36;
+  font-size: 1.2rem;
+}
+
+.ols-booking-input-wrap input {
+  border: 0;
+  background: transparent;
+  color: #2c2117;
+  width: 100%;
+  min-width: 0;
+  font-size: clamp(0.98rem, 3.4vw, 1.1rem);
+  font-weight: 600;
+  outline: none;
+}
+
+.ols-booking-input-wrap input::placeholder {
+  color: #64513f;
+  opacity: 1;
+}
+
+.ols-booking-destination-select {
+  border: 0;
+  background: transparent;
+  color: #2c2117;
+  width: 100%;
+  min-width: 0;
+  font-size: clamp(0.98rem, 3.4vw, 1.1rem);
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+}
+
+.ols-booking-clear-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(47, 37, 29, 0.9);
+  font-size: 1.45rem;
+  line-height: 1;
+  padding: 0 4px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.ols-booking-card .landing-date-picker {
+  width: 100%;
+}
+
+.ols-booking-card .la-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ols-booking-card .la-date-field {
+  border-radius: 12px;
+  border: 1px solid rgba(185, 161, 133, 0.82);
+  background: #fff9f2;
+  padding: 10px 10px 8px;
+}
+
+.ols-booking-card .la-date-label {
+  color: #2f241a;
+  font-weight: 700;
+}
+
+.ols-booking-card .la-date-input {
+  border: 0;
+  background: transparent;
+  color: #2a1f15;
+  min-height: 0;
+  padding: 2px 0 0;
+  font-size: clamp(0.95rem, 3.2vw, 1.1rem);
+  font-weight: 700;
+}
+
+.ols-booking-occupancy {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: 12px;
+  border: 1px solid rgba(185, 161, 133, 0.82);
+  background: #fff9f2;
+  overflow: hidden;
+}
+
+.ols-booking-guest-field {
+  padding: 10px 10px 8px;
+  border-right: 1px solid rgba(199, 167, 128, 0.42);
+}
+
+.ols-booking-guest-field:last-child {
+  border-right: 0;
+}
+
+.ols-booking-guest-field label {
+  display: block;
+  color: #2f241a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.ols-booking-guest-field select {
+  border: 0;
+  width: 100%;
+  background: transparent;
+  color: #2a1f15;
+  font-size: 1.35rem;
+  font-weight: 750;
+  outline: none;
+  appearance: none;
+}
+
+.ols-booking-value {
+  margin: 0;
+  color: #2a1f15;
+  font-size: 1.35rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.ols-booking-search-btn {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 12px;
+  border: 0;
+  background: linear-gradient(180deg, #6f553b, #544030);
+  color: #fffdf8;
+  font-size: clamp(1.18rem, 4vw, 1.7rem);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 26px rgba(58, 42, 30, 0.36);
+}
+
+.ols-booking-fillers {
+  width: min(100%, 860px);
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.ols-booking-note {
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(188, 160, 127, 0.42);
+  background: rgba(255, 255, 255, 0.8);
+  color: rgba(56, 41, 30, 0.95);
+  text-align: center;
+  font-size: 1rem;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  box-shadow: 0 12px 24px rgba(40, 28, 20, 0.12);
+}
+
+.ols-booking-shell button:focus-visible,
+.ols-booking-shell input:focus-visible,
+.ols-booking-shell select:focus-visible,
+.ols-booking-shell .la-date-input:focus-visible {
+  outline: 3px solid #1f6feb;
+  outline-offset: 2px;
+}
+
+.ols-booking-promo {
+  width: min(100%, 860px);
+  border-radius: 18px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 82% 22%, rgba(255, 209, 143, 0.22), transparent 44%),
+    linear-gradient(145deg, rgba(51, 38, 30, 0.95), rgba(29, 21, 16, 0.95));
+  border: 1px solid rgba(232, 198, 156, 0.35);
+  color: #f7e8d6;
+  box-shadow: 0 16px 34px rgba(26, 18, 12, 0.35);
+  display: grid;
+  gap: 14px;
+}
+
+.ols-booking-promo h2 {
+  margin: 0;
+  font-size: clamp(1.28rem, 4.5vw, 1.8rem);
+  line-height: 1.15;
+}
+
+.ols-booking-promo p {
+  margin: 6px 0 0;
+  color: rgba(247, 232, 214, 0.85);
+  line-height: 1.4;
+}
+
+.ols-booking-promo__cta {
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 198, 156, 0.52);
+  background: rgba(232, 198, 156, 0.16);
+  color: #fff3e5;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ols-hero-gallery-wrap .landing-circular-gallery--hero {
+  margin-top: 4px;
+  height: clamp(250px, 33vh, 400px);
+}
+
+@media (max-width: 640px) {
+  .landing-hero-desktop {
+    display: none;
+  }
+
+  .landing-hero-mobile {
+    display: grid;
+  }
+
+  .ols-desktop-hero {
+    display: none;
+  }
+
+  .ols-mobile-hero {
+    display: flex;
+  }
+
+  .landing-hero-inner.ols-booking-shell {
+    padding: max(12px, calc(env(safe-area-inset-top, 0px) + 8px)) 14px 10px;
+    gap: 10px;
+  }
+
+  .ols-booking-topbar {
+    justify-content: flex-start;
+    width: 100%;
+    padding: 0;
+  }
+
+  .ols-booking-topbar .landing-logo-mark {
+    font-size: clamp(1.55rem, 7vw, 2.05rem);
+    letter-spacing: 0.2em;
+    line-height: 1;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .ols-booking-headline .landing-hero-title {
+    max-width: 9.2ch;
+    font-size: clamp(1.75rem, 8.8vw, 2.2rem);
+    line-height: 0.98;
+  }
+
+  .ols-booking-headline .landing-hero-lead {
+    margin-top: 6px;
+    max-width: 31ch;
+    font-size: clamp(0.92rem, 4.1vw, 1.02rem);
+    line-height: 1.32;
+  }
+
+  .ols-booking-card {
+    margin-top: 2px;
+  }
+
+  .ols-booking-fillers {
+    margin-top: 8px;
+    gap: 10px;
+  }
+
+  .ols-booking-note {
+    padding: 12px 14px;
+    font-size: 0.94rem;
+    line-height: 1.4;
+  }
+
+  .ols-booking-tab {
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 0.88rem;
+  }
+
+  .ols-booking-card .la-date-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ols-booking-occupancy {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ols-booking-guest-field {
+    border-right: 1px solid rgba(199, 167, 128, 0.42);
+    border-bottom: 0;
+  }
+
+  .ols-booking-guest-field:last-child {
+    border-right: 0;
+  }
+
+  .ols-booking-card .la-date-field {
+    padding: 8px 8px 7px;
+  }
+
+  .ols-booking-card .la-date-input {
+    font-size: clamp(0.84rem, 3.4vw, 0.98rem);
+    line-height: 1.15;
+  }
+
+  .ols-booking-guest-field {
+    padding: 8px 8px 7px;
+  }
+
+  .ols-booking-guest-field select {
+    font-size: 1.15rem;
+  }
+
+  .ols-booking-promo {
+    padding: 14px;
+  }
+}
+
+@media (min-width: 900px) {
+  .ols-booking-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ols-booking-field--destination,
+  .ols-booking-occupancy,
+  .ols-booking-search-btn {
+    grid-column: 1 / -1;
+  }
+
+  .ols-booking-promo {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .ols-booking-promo__cta {
+    min-width: 220px;
+    padding: 0 18px;
   }
 }
