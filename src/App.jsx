@@ -16,6 +16,7 @@ const PrivacyPolicy = lazy(routePreloaders.privacy);
 const TermsConditions = lazy(routePreloaders.terms);
 const CaliforniaPrivacyPolicy = lazy(routePreloaders.californiaPrivacy);
 const AcknowledgementPage = lazy(routePreloaders.acknowledge);
+const BookingConfirmationPage = lazy(routePreloaders.bookingConfirmation);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -142,6 +143,7 @@ function AppRoutes() {
           <Route path="/california-privacy-policy" element={renderLazyRoute(CaliforniaPrivacyPolicy)} />
           <Route path="/california-privacy" element={renderLazyRoute(CaliforniaPrivacyPolicy)} />
           <Route path="/acknowledge" element={renderLazyRoute(AcknowledgementPage)} />
+          <Route path="/booking-confirmation" element={renderLazyRoute(BookingConfirmationPage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

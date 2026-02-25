@@ -91,6 +91,58 @@ const getBaseUrl = (event) => {
   return "https://oneluxstay.com";
 };
 
+const formatCurrencyValue = (amount, currency = "USD") => {
+  if (!Number.isFinite(Number(amount))) return "--";
+  const numericAmount = Number(amount);
+  const normalizedCurrency = String(currency || "USD").toUpperCase();
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericAmount);
+  } catch {
+    return `${normalizedCurrency} ${numericAmount.toFixed(2)}`;
+  }
+};
+
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const sendReservationEmail = async ({ to, subject, html }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from || !to) {
+    return { skipped: true };
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to,
+      subject,
+      html,
+    }),
+  });
+
+  const payload = await res.json();
+  if (!res.ok) {
+    throw new Error(payload?.message || "Unable to send reservation email.");
+  }
+  return payload;
+};
+
 let stripeClient;
 const getStripeClient = () => {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -628,6 +680,142 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   return jsonResponse(200, { results, errors: payload?.errors || [], tokenSource });
 };
 
+const handleFreeCheckout = async (event) => {
+  const body = JSON.parse(event.body || "{}");
+  const {
+    listingId,
+    listingTitle,
+    checkIn,
+    checkOut,
+    guests,
+    amount,
+    currency,
+    breakdown,
+    promoCode,
+    promoDiscountAmount,
+    promoDiscountRate,
+    guest,
+    consentText,
+    consentAcceptedAt,
+    consentSignerName,
+    consentSignatureDataUrl,
+  } = body || {};
+
+  if (!listingId || !checkIn || !checkOut || amount == null) {
+    return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
+  }
+
+  if (!guest?.email) {
+    return jsonResponse(400, { message: "Guest email is required" });
+  }
+
+  const breakdownTotal = breakdown && typeof breakdown === "object"
+    ? Number(breakdown.total ?? breakdown.subtotal)
+    : NaN;
+  const numericAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount > 0) {
+    return jsonResponse(400, {
+      message: "Zero-total checkout is only available when total amount is 0.00 or below.",
+    });
+  }
+
+  const normalizedCurrency = (currency || "USD").toUpperCase();
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const resolvedPromoCode =
+    (typeof promoCode === "string" && promoCode.trim()) ||
+    (typeof breakdown?.promoCode === "string" && breakdown.promoCode.trim()) ||
+    "";
+  const resolvedPromoDiscountAmount = Number.isFinite(Number(promoDiscountAmount))
+    ? Number(promoDiscountAmount)
+    : Number.isFinite(Number(breakdown?.promoDiscountAmount))
+      ? Number(breakdown.promoDiscountAmount)
+      : 0;
+  const resolvedPromoDiscountRate = Number.isFinite(Number(promoDiscountRate))
+    ? Number(promoDiscountRate)
+    : Number.isFinite(Number(breakdown?.promoDiscountRate))
+      ? Number(breakdown.promoDiscountRate)
+      : 0;
+
+  const confirmationId = `FREE-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)
+    .toUpperCase()}`;
+  const baseUrl = getBaseUrl(event);
+
+  await writeConsentProof(confirmationId, {
+    createdAt: new Date().toISOString(),
+    sessionId: confirmationId,
+    paymentMode: "zero-total",
+    listingId: String(listingId),
+    listingTitle: listingTitle || "",
+    checkIn,
+    checkOut,
+    guests: Number(guests) || 1,
+    amount: numericAmount,
+    currency: normalizedCurrency,
+    consentText: consentText || "",
+    consentAcceptedAt: consentAcceptedAt || "",
+    consentSignerName: consentSignerName || "",
+    consentSignatureDataUrl: consentSignatureDataUrl || "",
+    promoCode: resolvedPromoCode,
+    promoDiscountAmount: resolvedPromoDiscountAmount,
+    promoDiscountRate: resolvedPromoDiscountRate,
+    guestName,
+    guestEmail: guest?.email || "",
+    guestPhone: guest?.phone || "",
+  });
+
+  let emailSent = false;
+  let emailError = null;
+  try {
+    const formattedAmount = formatCurrencyValue(numericAmount, normalizedCurrency);
+    const emailResult = await sendReservationEmail({
+      to: guest.email,
+      subject: "OneLuxStay Booking Confirmation",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #3f3326;">
+          <h2>Thank you for booking with OneLuxStay</h2>
+          <p>Hi ${escapeHtml(guestName || "Guest")},</p>
+          <p>Your reservation request has been confirmed. No payment was required for this booking.</p>
+          <p><strong>Confirmation ID:</strong> ${escapeHtml(confirmationId)}</p>
+          <p><strong>Listing:</strong> ${escapeHtml(listingTitle || "OneLuxStay stay")}</p>
+          <p><strong>Check-in:</strong> ${escapeHtml(checkIn)}</p>
+          <p><strong>Check-out:</strong> ${escapeHtml(checkOut)}</p>
+          <p><strong>Guests:</strong> ${escapeHtml(String(Number(guests) || 1))}</p>
+          <p><strong>Total charged:</strong> ${escapeHtml(formattedAmount)}</p>
+          <p>Our reservations team will follow up shortly with any final details.</p>
+        </div>
+      `,
+    });
+    emailSent = !emailResult?.skipped;
+  } catch (err) {
+    emailError = err?.message || "Unable to send confirmation email.";
+  }
+
+  const query = new URLSearchParams({
+    mode: "free",
+    confirmationId,
+    email: String(guest?.email || ""),
+    emailSent: emailSent ? "1" : "0",
+    listingTitle: String(listingTitle || ""),
+    checkIn: String(checkIn),
+    checkOut: String(checkOut),
+    guests: String(Number(guests) || 1),
+    amount: String(numericAmount),
+    currency: normalizedCurrency,
+  });
+  const redirectUrl = `${baseUrl}/booking-confirmation?${query.toString()}`;
+
+  return jsonResponse(200, {
+    ok: true,
+    freeCheckout: true,
+    confirmationId,
+    emailSent,
+    redirectUrl,
+    ...(emailError ? { emailError } : {}),
+  });
+};
+
 const handleCheckout = async (event) => {
   const body = JSON.parse(event.body || "{}");
   const {
@@ -639,6 +827,9 @@ const handleCheckout = async (event) => {
     amount,
     currency,
     breakdown,
+    promoCode,
+    promoDiscountAmount,
+    promoDiscountRate,
     guest,
     consentText,
     consentAcceptedAt,
@@ -646,7 +837,7 @@ const handleCheckout = async (event) => {
     consentSignatureDataUrl,
   } = body || {};
 
-  if (!listingId || !checkIn || !checkOut || !amount) {
+  if (!listingId || !checkIn || !checkOut || amount == null) {
     return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
   }
 
@@ -662,6 +853,20 @@ const handleCheckout = async (event) => {
   const stripe = getStripeClient();
   const baseUrl = getBaseUrl(event);
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const resolvedPromoCode =
+    (typeof promoCode === "string" && promoCode.trim()) ||
+    (typeof breakdown?.promoCode === "string" && breakdown.promoCode.trim()) ||
+    "";
+  const resolvedPromoDiscountAmount = Number.isFinite(Number(promoDiscountAmount))
+    ? Number(promoDiscountAmount)
+    : Number.isFinite(Number(breakdown?.promoDiscountAmount))
+      ? Number(breakdown.promoDiscountAmount)
+      : 0;
+  const resolvedPromoDiscountRate = Number.isFinite(Number(promoDiscountRate))
+    ? Number(promoDiscountRate)
+    : Number.isFinite(Number(breakdown?.promoDiscountRate))
+      ? Number(breakdown.promoDiscountRate)
+      : 0;
 
   const breakdownFields =
     breakdown && typeof breakdown === "object"
@@ -672,6 +877,8 @@ const handleCheckout = async (event) => {
           bd_fees: breakdown.fees,
           bd_discount: breakdown.discountAmount,
           bd_discount_rate: breakdown.discountRate,
+          bd_promo_discount: resolvedPromoDiscountAmount,
+          bd_promo_discount_rate: resolvedPromoDiscountRate,
           bd_total: breakdown.total ?? breakdown.subtotal,
         }
       : null;
@@ -707,6 +914,7 @@ const handleCheckout = async (event) => {
       ...(consentAcceptedAt ? { consent_at: String(consentAcceptedAt) } : {}),
       ...(consentSignerName ? { consent_signer_name: String(consentSignerName).slice(0, 200) } : {}),
       ...(consentSignatureDataUrl ? { consent_signature: "true" } : {}),
+      ...(resolvedPromoCode ? { promo_code: String(resolvedPromoCode).slice(0, 80) } : {}),
       ...(breakdownFields
         ? Object.fromEntries(
             Object.entries(breakdownFields)
@@ -736,6 +944,9 @@ const handleCheckout = async (event) => {
     consentAcceptedAt: consentAcceptedAt || "",
     consentSignerName: consentSignerName || "",
     consentSignatureDataUrl: consentSignatureDataUrl || "",
+    promoCode: resolvedPromoCode,
+    promoDiscountAmount: resolvedPromoDiscountAmount,
+    promoDiscountRate: resolvedPromoDiscountRate,
     guestName,
     guestEmail: guest?.email || "",
     guestPhone: guest?.phone || "",
@@ -757,6 +968,14 @@ export async function handler(event) {
         return await handleCheckout(event);
       } catch (err) {
         return jsonResponse(500, { message: "Checkout failed", error: err.message });
+      }
+    }
+
+    if (path === "/checkout-free" && event.httpMethod === "POST") {
+      try {
+        return await handleFreeCheckout(event);
+      } catch (err) {
+        return jsonResponse(500, { message: "Zero-total checkout failed", error: err.message });
       }
     }
 

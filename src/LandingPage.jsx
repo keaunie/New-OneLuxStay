@@ -1329,10 +1329,6 @@ function LandingPage() {
                 </select>
               </div>
               <div className="ols-booking-guest-field">
-                <label>Children</label>
-                <p className="ols-booking-value">0</p>
-              </div>
-              <div className="ols-booking-guest-field">
                 <label>Rooms</label>
                 <p className="ols-booking-value">1</p>
               </div>
@@ -1342,9 +1338,6 @@ function LandingPage() {
           </form>
 
           <div className="ols-booking-fillers" aria-label="Booking highlights">
-            <p className="ols-booking-note">
-              Flights and bundles are coming soon. Stays booking is live now.
-            </p>
             <article className="ols-booking-promo" aria-label="Long stay savings">
               <div>
                 <h2>Unlock savings on long stays</h2>

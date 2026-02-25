@@ -48,6 +48,12 @@ const formatCurrency = (value, currency = "USD") =>
     })
     : "--";
 
+const CHECKOUT_DEFAULT_CURRENCY = "USD";
+const resolveCheckoutCurrency = (currency) => {
+  const normalized = typeof currency === "string" ? currency.trim().toUpperCase() : "";
+  return normalized || CHECKOUT_DEFAULT_CURRENCY;
+};
+
 const roundCurrency = (value) =>
   Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 
@@ -947,6 +953,11 @@ const KNOWN_CITIES = [
   "miami beach",
 ];
 const EXCLUDED_CITIES = ["los angeles", "redondo beach", "dubai", "antwerp", "antwerpen"];
+const CHECKOUT_PROMO_CODES = {
+  WELCOME5: { rate: 0.05, label: "Welcome offer" },
+  LUXE10: { rate: 0.1, label: "Member offer" },
+  STAY15: { rate: 0.15, label: "Extended stay offer" },
+};
 
 const sanitizeText = (value = "") => {
   if (typeof value !== "string") return "";
@@ -1796,6 +1807,9 @@ export default function MiamiBeachLandingPage() {
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
   const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
   const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
+  const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
+  const [checkoutPromoError, setCheckoutPromoError] = useState("");
+  const [checkoutAppliedPromo, setCheckoutAppliedPromo] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
@@ -2060,6 +2074,9 @@ export default function MiamiBeachLandingPage() {
       setIsCheckoutGuestOpen(false);
       setPendingCheckout(null);
       setCheckoutGuestError("");
+      setCheckoutPromoCode("");
+      setCheckoutPromoError("");
+      setCheckoutAppliedPromo(null);
       setSectionHeroIndex(0);
       setSectionQuotes({});
       setExpandedQuoteRows({});
@@ -3425,16 +3442,24 @@ export default function MiamiBeachLandingPage() {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
       return;
     }
-    if (!amount || !Number.isFinite(amount)) {
-      setSectionAvailabilityError("Pricing is unavailable. Please refresh availability.");
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+      const message = "Pricing is unavailable. Please refresh availability.";
+      setSectionAvailabilityError(message);
+      setCheckoutGuestError(message);
       return;
     }
 
+    setCheckoutGuestError("");
     setSectionAvailabilityError("");
     setSectionReserveLoadingId(listingId);
 
     try {
-      const res = await fetch(`${apiBase}/check-units/checkout`, {
+      const checkoutEndpoint =
+        numericAmount <= 0
+          ? `${apiBase}/check-units/checkout-free`
+          : `${apiBase}/check-units/checkout`;
+      const res = await fetch(checkoutEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3443,7 +3468,7 @@ export default function MiamiBeachLandingPage() {
           checkIn: sectionCheckIn,
           checkOut: sectionCheckOut,
           guests: Number(sectionGuests) || 1,
-          amount,
+          amount: numericAmount,
           currency,
           breakdown,
           guest,
@@ -3457,17 +3482,25 @@ export default function MiamiBeachLandingPage() {
       }
       if (json.url) {
         window.location.href = json.url;
+        return;
       }
+      if (json.redirectUrl) {
+        window.location.href = json.redirectUrl;
+        return;
+      }
+      throw new Error("Checkout failed");
     } catch (err) {
-      setSectionAvailabilityError(err.message || "Checkout failed");
+      const message = err.message || "Checkout failed";
+      setSectionAvailabilityError(message);
+      setCheckoutGuestError(message);
     } finally {
       setSectionReserveLoadingId(null);
     }
   };
 
   const confirmGuestCheckout = () => {
-    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email) {
-      setCheckoutGuestError("Add guest name and email to continue.");
+    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email || !checkoutGuest.phone) {
+      setCheckoutGuestError("Add guest name, email, and phone to continue.");
       return;
     }
     if (!checkoutConsentSignerName.trim()) {
@@ -3482,30 +3515,106 @@ export default function MiamiBeachLandingPage() {
       setIsCheckoutGuestOpen(false);
       return;
     }
+    const numericAmount = Number(pendingCheckout.amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+      setCheckoutGuestError("Pricing is unavailable. Please refresh availability.");
+      return;
+    }
     setCheckoutGuestError("");
-    setIsCheckoutGuestOpen(false);
     const consentText =
       "By signing and continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt and consent proof PDF will be emailed to you";
     const payload = {
       ...pendingCheckout,
+      amount: numericAmount,
       guest: checkoutGuest,
       consentText,
       consentAcceptedAt: new Date().toISOString(),
       consentSignerName: checkoutConsentSignerName.trim(),
       consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
     };
-    setCheckoutConsentAccepted(false);
-    setCheckoutConsentSignerName("");
-    setCheckoutConsentSignatureDataUrl("");
-    setCheckoutStep(1);
-    setPendingCheckout(null);
     handleSectionCheckout(payload);
   };
 
   const isCheckoutGuestValid = Boolean(
-    checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim()
+    checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim() && checkoutGuest.phone.trim()
   );
   const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
+
+  const applyCheckoutPromoCode = () => {
+    const normalizedCode = checkoutPromoCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setCheckoutPromoError("Enter a discount code.");
+      return;
+    }
+    const promo = CHECKOUT_PROMO_CODES[normalizedCode];
+    if (!promo) {
+      setCheckoutAppliedPromo(null);
+      setCheckoutPromoError("Invalid code. Try WELCOME5, LUXE10, or STAY15.");
+      return;
+    }
+    setPendingCheckout((prev) => {
+      if (!prev) return prev;
+      const baseAmountValue = Number.isFinite(Number(prev.baseAmount))
+        ? Number(prev.baseAmount)
+        : Number(prev?.baseBreakdown?.total ?? prev?.baseBreakdown?.subtotal ?? prev.amount);
+      if (!Number.isFinite(baseAmountValue) || baseAmountValue <= 0) return prev;
+      const promoDiscountAmount = Number((baseAmountValue * promo.rate).toFixed(2));
+      const discountedTotal = Number(Math.max(baseAmountValue - promoDiscountAmount, 0).toFixed(2));
+      const baseBreakdown = prev?.baseBreakdown && typeof prev.baseBreakdown === "object"
+        ? prev.baseBreakdown
+        : null;
+      const nextBreakdown = baseBreakdown
+        ? {
+            ...baseBreakdown,
+            promoCode: normalizedCode,
+            promoDiscountRate: promo.rate,
+            promoDiscountAmount,
+            total: discountedTotal,
+            subtotal: discountedTotal,
+          }
+        : {
+            promoCode: normalizedCode,
+            promoDiscountRate: promo.rate,
+            promoDiscountAmount,
+            total: discountedTotal,
+            subtotal: discountedTotal,
+          };
+      return {
+        ...prev,
+        amount: discountedTotal,
+        breakdown: nextBreakdown,
+        promoCode: normalizedCode,
+        promoDiscountRate: promo.rate,
+        promoDiscountAmount,
+      };
+    });
+    setCheckoutPromoCode(normalizedCode);
+    setCheckoutAppliedPromo({ code: normalizedCode, ...promo });
+    setCheckoutPromoError("");
+  };
+
+  const clearCheckoutPromoCode = () => {
+    setCheckoutPromoCode("");
+    setCheckoutPromoError("");
+    setCheckoutAppliedPromo(null);
+    setPendingCheckout((prev) => {
+      if (!prev) return prev;
+      const baseAmountValue = Number.isFinite(Number(prev.baseAmount))
+        ? Number(prev.baseAmount)
+        : Number(prev?.baseBreakdown?.total ?? prev?.baseBreakdown?.subtotal ?? prev.amount);
+      return {
+        ...prev,
+        amount: Number.isFinite(baseAmountValue) ? baseAmountValue : prev.amount,
+        breakdown:
+          prev?.baseBreakdown && typeof prev.baseBreakdown === "object"
+            ? { ...prev.baseBreakdown }
+            : prev.breakdown,
+        promoCode: "",
+        promoDiscountRate: 0,
+        promoDiscountAmount: 0,
+      };
+    });
+  };
 
   const getSignaturePoint = (event) => {
     const canvas = checkoutSignatureCanvasRef.current;
@@ -4343,13 +4452,21 @@ export default function MiamiBeachLandingPage() {
                                 listingId,
                                 listingTitle: activeListing.title,
                                 amount: typeof totalPrice === "number" ? totalPrice : null,
-                                currency: priceCurrency,
+                                currency: resolveCheckoutCurrency(priceCurrency),
                                 breakdown: breakdown || null,
+                                baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                                baseBreakdown: breakdown || null,
+                                promoCode: "",
+                                promoDiscountRate: 0,
+                                promoDiscountAmount: 0,
                               });
                               setCheckoutStep(1);
                               setCheckoutConsentAccepted(false);
                               setCheckoutConsentSignerName("");
                               setCheckoutConsentSignatureDataUrl("");
+                              setCheckoutPromoCode("");
+                              setCheckoutPromoError("");
+                              setCheckoutAppliedPromo(null);
                               setCheckoutGuestError("");
                               setIsCheckoutGuestOpen(true);
                             }}
@@ -4860,10 +4977,14 @@ export default function MiamiBeachLandingPage() {
             nextButtonProps={{
               disabled:
                 (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                (checkoutStep === 2 &&
+                (checkoutStep === 3 &&
                   (!checkoutConsentAccepted ||
                     !checkoutConsentSignerName.trim() ||
-                    !checkoutConsentSignatureDataUrl)),
+                    !checkoutConsentSignatureDataUrl)) ||
+                (checkoutStep === 4 &&
+                  (!Number.isFinite(Number(pendingCheckout?.amount)) ||
+                    Number(pendingCheckout?.amount) < 0 ||
+                    Boolean(sectionReserveLoadingId))),
             }}
           >
             <Step>
@@ -4920,12 +5041,19 @@ export default function MiamiBeachLandingPage() {
                     onChange={handleGuestInputChange("email")}
                   />
                 </label>
-                <label className="la-inquiry-modal__field">
-                  <span>Phone (optional)</span>
+                <label
+                  className={
+                    "la-inquiry-modal__field" +
+                    (checkoutGuestError && !checkoutGuest.phone.trim() ? " is-invalid" : "")
+                  }
+                >
+                  <span>Phone</span>
                   <input
                     type="tel"
                     value={checkoutGuest.phone}
                     autoComplete="tel"
+                    required
+                    aria-invalid={Boolean(checkoutGuestError && !checkoutGuest.phone.trim())}
                     onKeyDown={handleGuestKeyDown}
                     onChange={handleGuestInputChange("phone")}
                   />
@@ -4933,6 +5061,61 @@ export default function MiamiBeachLandingPage() {
                 {checkoutGuestError && (
                   <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
                     {checkoutGuestError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <p className="la-inquiry-modal__fineprint">
+                  Add a discount code before continuing to payment.
+                </p>
+                <label className="la-inquiry-modal__field">
+                  <span>Discount code</span>
+                  <div className="la-inquiry-modal__promo-row">
+                    <input
+                      type="text"
+                      value={checkoutPromoCode}
+                      placeholder="Enter code"
+                      autoComplete="off"
+                      onChange={(event) => {
+                        setCheckoutPromoCode(event.target.value.toUpperCase());
+                        if (checkoutPromoError) setCheckoutPromoError("");
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="la-inquiry-modal__promo-btn"
+                      onClick={applyCheckoutPromoCode}
+                    >
+                      Apply
+                    </button>
+                    {checkoutAppliedPromo && (
+                      <button
+                        type="button"
+                        className="la-inquiry-modal__promo-btn is-secondary"
+                        onClick={clearCheckoutPromoCode}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </label>
+                <p className="la-inquiry-modal__fineprint">
+                  Available codes: <strong>WELCOME5</strong>, <strong>LUXE10</strong>, <strong>STAY15</strong>
+                </p>
+                {checkoutAppliedPromo && Number.isFinite(Number(pendingCheckout?.promoDiscountAmount)) && (
+                  <p className="la-inquiry-modal__note is-success" role="status" aria-live="polite">
+                    Code {checkoutAppliedPromo.code} applied: -
+                    {formatCurrency(
+                      Number(pendingCheckout?.promoDiscountAmount || 0),
+                      resolveCheckoutCurrency(pendingCheckout?.currency),
+                    )}
+                  </p>
+                )}
+                {checkoutPromoError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutPromoError}
                   </p>
                 )}
               </div>
@@ -5006,6 +5189,37 @@ export default function MiamiBeachLandingPage() {
                     <strong>Signed by</strong>
                     <span>{checkoutConsentSignerName || "--"}</span>
                   </div>
+                  {checkoutAppliedPromo && (
+                    <div>
+                      <strong>Discount code</strong>
+                      <span>
+                        {checkoutAppliedPromo.code} ({Math.round(checkoutAppliedPromo.rate * 100)}% off)
+                      </span>
+                    </div>
+                  )}
+                  {pendingCheckout && Number.isFinite(Number(pendingCheckout.amount)) && (
+                    <div>
+                      <strong>Total to charge</strong>
+                      <span>
+                        {resolveCheckoutCurrency(pendingCheckout?.currency)} {" - "}
+                        {formatCurrency(
+                          Number(pendingCheckout.amount),
+                          resolveCheckoutCurrency(pendingCheckout?.currency),
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {pendingCheckout && Number(pendingCheckout.amount) <= 0 && (
+                    <p className="la-inquiry-modal__note is-success" role="status" aria-live="polite">
+                      No payment is required for this booking. Continue to confirm and we will email your
+                      confirmation.
+                    </p>
+                  )}
+                  {checkoutGuestError && (
+                    <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                      {checkoutGuestError}
+                    </p>
+                  )}
                   {checkoutGuest.phone && (
                     <div>
                       <strong>Phone</strong>
@@ -6376,13 +6590,21 @@ export default function MiamiBeachLandingPage() {
                                       listingId: checkoutListingId,
                                       listingTitle: listing.title,
                                       amount: typeof total === "number" ? total : null,
-                                      currency: priceCurrency,
+                                      currency: resolveCheckoutCurrency(priceCurrency),
                                       breakdown: selectedPlan?.breakdown || null,
+                                      baseAmount: typeof total === "number" ? total : null,
+                                      baseBreakdown: selectedPlan?.breakdown || null,
+                                      promoCode: "",
+                                      promoDiscountRate: 0,
+                                      promoDiscountAmount: 0,
                                     });
                                     setCheckoutStep(1);
                                     setCheckoutConsentAccepted(false);
                                     setCheckoutConsentSignerName("");
                                     setCheckoutConsentSignatureDataUrl("");
+                                    setCheckoutPromoCode("");
+                                    setCheckoutPromoError("");
+                                    setCheckoutAppliedPromo(null);
                                     setCheckoutGuestError("");
                                     setIsCheckoutGuestOpen(true);
                                   }}
@@ -6757,13 +6979,21 @@ export default function MiamiBeachLandingPage() {
                                     listingId,
                                     listingTitle: activeListing.title,
                                     amount: typeof totalPrice === "number" ? totalPrice : null,
-                                    currency: priceCurrency,
+                                    currency: resolveCheckoutCurrency(priceCurrency),
                                     breakdown: breakdown || null,
+                                    baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                                    baseBreakdown: breakdown || null,
+                                    promoCode: "",
+                                    promoDiscountRate: 0,
+                                    promoDiscountAmount: 0,
                                   });
                                   setCheckoutStep(1);
                                   setCheckoutConsentAccepted(false);
                                   setCheckoutConsentSignerName("");
                                   setCheckoutConsentSignatureDataUrl("");
+                                  setCheckoutPromoCode("");
+                                  setCheckoutPromoError("");
+                                  setCheckoutAppliedPromo(null);
                                   setCheckoutGuestError("");
                                   setIsCheckoutGuestOpen(true);
                                 }}
@@ -7006,5 +7236,9 @@ export default function MiamiBeachLandingPage() {
     </div>
   );
 }
+
+
+
+
 
 

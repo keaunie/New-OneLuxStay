@@ -5827,6 +5827,38 @@ body {
   box-shadow: 0 0 0 3px rgba(173, 141, 107, 0.25);
 }
 
+.la-inquiry-modal__promo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.la-inquiry-modal__promo-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.la-inquiry-modal__promo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(198, 164, 127, 0.7);
+  background: #c6a47f;
+  color: #2b2117;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.la-inquiry-modal__promo-btn.is-secondary {
+  background: rgba(255, 255, 255, 0.8);
+  color: #4a3f35;
+}
+
 .la-inquiry-modal__field.is-invalid input {
   border-color: rgba(175, 91, 74, 0.85);
   box-shadow: 0 0 0 3px rgba(198, 106, 89, 0.18);
@@ -5846,9 +5878,29 @@ body {
   border-radius: 10px;
 }
 
+.la-inquiry-modal__note.is-success {
+  color: #2d5a40;
+  background: rgba(122, 182, 144, 0.2);
+  border: 1px solid rgba(79, 145, 106, 0.34);
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
 @media (max-width: 520px) {
   .la-inquiry-modal {
     padding: 22px;
+  }
+
+  .la-inquiry-modal__promo-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .la-inquiry-modal__promo-row input {
+    grid-column: 1 / -1;
+  }
+
+  .la-inquiry-modal__promo-btn {
+    width: 100%;
   }
 
   .la-inquiry-modal__header {
@@ -9945,7 +9997,7 @@ video {
 
 .ols-booking-occupancy {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border-radius: 12px;
   border: 1px solid rgba(185, 161, 133, 0.82);
   background: #fff9f2;
@@ -10147,7 +10199,7 @@ video {
   }
 
   .ols-booking-occupancy {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ols-booking-guest-field {
