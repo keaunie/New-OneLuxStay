@@ -1399,6 +1399,14 @@ body {
   box-shadow: 0 10px 24px rgba(63, 54, 47, 0.18);
 }
 
+@media (min-width: 641px) {
+  .landing-hero-desktop .landing-hero-title,
+  .landing-hero-desktop .landing-hero-lead {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 .landing-circular-gallery--hero {
   margin-top: 6px;
   width: 100vw;
@@ -6324,6 +6332,19 @@ body {
   font-weight: 600;
 }
 
+.la-unit-modal__rate-plan {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.la-unit-modal__rate-plan label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(74, 63, 53, 0.8);
+}
+
 .la-unit-modal__map img,
 .la-unit-modal__map iframe,
 .la-unit-modal__map .la-unit-modal__placeholder {
@@ -7714,6 +7735,17 @@ body {
   margin: 0;
   font-size: 0.85rem;
   color: rgba(62, 52, 42, 0.9);
+}
+
+.la-booking-table__rate-select {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 181, 156, 0.85);
+  background: rgba(255, 255, 255, 0.86);
+  color: #3b3127;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .la-booking-table__cta-group {

@@ -974,7 +974,7 @@ const EXCLUDED_CITIES = ["redondo beach", "miami", "dubai", "antwerp", "antwerpe
 const CHECKOUT_PROMO_CODES = {
   WELCOME5: { rate: 0.05, label: "Welcome offer" },
   LUXE10: { rate: 0.1, label: "Member offer" },
-  STAY100: { rate: 1.0, label: "Extended stay offer" },
+  STAY10: { rate: 0.1, label: "Extended stay offer" },
 };
 
 const sanitizeText = (value = "") => {
@@ -4392,13 +4392,24 @@ export default function LosAngelesLandingPage() {
               : "Checking..."
           : "Select dates";
         const quote = listingId ? sectionQuotes[listingId] : null;
-        const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-        const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-        const priceCurrency = quote?.currency || activeListing.currency || "USD";
+        const planOptions = quote?.plans || [];
+        const selectedPlanId =
+          (listingId ? selectedRatePlans[listingId] : "") ||
+          quote?.defaultPlanId ||
+          planOptions[0]?.id ||
+          "";
+        const selectedPlan =
+          planOptions.find((ratePlan) => ratePlan.id === selectedPlanId) ||
+          planOptions[0] ||
+          quote?.plan ||
+          quote?.pricing ||
+          null;
+        const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+        const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
         const totalPrice =
           breakdown?.total ??
           breakdown?.subtotal ??
-          plan?.total ??
+          selectedPlan?.total ??
           quote?.total ??
           null;
         return (
@@ -4708,6 +4719,29 @@ export default function LosAngelesLandingPage() {
                       <p>Check availability to view pricing breakdown.</p>
                     )}
                   </div>
+                  {availability !== false && planOptions.length > 0 && (
+                    <div className="la-unit-modal__rate-plan">
+                      <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                      <select
+                        id={`la-listing-rate-plan-${listingId || "active"}`}
+                        value={selectedPlanId}
+                        disabled={sectionAvailabilityLoading}
+                        onChange={(event) =>
+                          setSelectedRatePlans((prev) => ({
+                            ...prev,
+                            [listingId]: event.target.value,
+                          }))
+                        }
+                        className="la-booking-table__rate-select"
+                      >
+                        {planOptions.map((planOption) => (
+                          <option key={planOption.id} value={planOption.id}>
+                            {planOption.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="la-unit-modal__actions">
                     {(() => {
                       const availability = listingId ? sectionAvailabilityMap[listingId] : null;
@@ -6718,7 +6752,6 @@ export default function LosAngelesLandingPage() {
                                       : "Beds --"}
                                   </span>
                                 </p>
-                                <p className="la-booking-table__address">{formatAddress(listing)}</p>
                                 {bedLines.length > 0 && (
                                   <div className="la-booking-table__bed-details">
                                     {bedLines.map((line, idx) => (
@@ -7074,13 +7107,24 @@ export default function LosAngelesLandingPage() {
                     : "Checking..."
                 : "Select dates";
               const quote = listingId ? sectionQuotes[listingId] : null;
-              const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-              const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-              const priceCurrency = quote?.currency || activeListing.currency || "USD";
+              const planOptions = quote?.plans || [];
+              const selectedPlanId =
+                (listingId ? selectedRatePlans[listingId] : "") ||
+                quote?.defaultPlanId ||
+                planOptions[0]?.id ||
+                "";
+              const selectedPlan =
+                planOptions.find((ratePlan) => ratePlan.id === selectedPlanId) ||
+                planOptions[0] ||
+                quote?.plan ||
+                quote?.pricing ||
+                null;
+              const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+              const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
               const totalPrice =
                 breakdown?.total ??
                 breakdown?.subtotal ??
-                plan?.total ??
+                selectedPlan?.total ??
                 quote?.total ??
                 null;
               return (
@@ -7268,6 +7312,29 @@ export default function LosAngelesLandingPage() {
                           <p>Check availability to view pricing breakdown.</p>
                         )}
                       </div>
+                      {availability !== false && planOptions.length > 0 && (
+                        <div className="la-unit-modal__rate-plan">
+                          <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                          <select
+                            id={`la-listing-rate-plan-${listingId || "active"}`}
+                            value={selectedPlanId}
+                            disabled={sectionAvailabilityLoading}
+                            onChange={(event) =>
+                              setSelectedRatePlans((prev) => ({
+                                ...prev,
+                                [listingId]: event.target.value,
+                              }))
+                            }
+                            className="la-booking-table__rate-select"
+                          >
+                            {planOptions.map((planOption) => (
+                              <option key={planOption.id} value={planOption.id}>
+                                {planOption.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="la-unit-modal__actions">
                         {(() => {
                           const availability = listingId ? sectionAvailabilityMap[listingId] : null;

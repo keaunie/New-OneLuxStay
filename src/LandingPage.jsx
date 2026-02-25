@@ -753,6 +753,7 @@ function LandingPage() {
       })
       .filter((item) => item?.image && item?.href);
   }, [galleryListings, checkIn, checkOut, guests, quotePricing, quoteLoading]);
+  const hasDesktopGallery = galleryItems.length > 0;
 
   const cityRoutes = {
     Antwerp: "/antwerp",
@@ -1240,23 +1241,25 @@ function LandingPage() {
             <button type="submit" className="landing-cta-primary w-full md:w-auto">Book</button>
           </form>
 
-          <div className="landing-circular-gallery landing-circular-gallery--hero" aria-label="Featured city stays">
-            <CircularGallery
-              items={galleryItems}
-              bend={0}
-              borderRadius={0.08}
-              textColor="#46372e"
-              font="700 20px 'Work Sans', sans-serif"
-              onSelect={handleGallerySelect}
-              useFallback={false}
-              wave={0}
-              tiltStrength={0.14}
-            />
-            <div className="landing-circular-gallery__hint" aria-hidden="true">
-              <span className="landing-circular-gallery__hint-label">Swipe to explore</span>
-              <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
+          {hasDesktopGallery && (
+            <div className="landing-circular-gallery landing-circular-gallery--hero" aria-label="Featured city stays">
+              <CircularGallery
+                items={galleryItems}
+                bend={0}
+                borderRadius={0.08}
+                textColor="#46372e"
+                font="700 20px 'Work Sans', sans-serif"
+                onSelect={handleGallerySelect}
+                useFallback={false}
+                wave={0}
+                tiltStrength={0.14}
+              />
+              <div className="landing-circular-gallery__hint" aria-hidden="true">
+                <span className="landing-circular-gallery__hint-label">Swipe to explore</span>
+                <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="landing-hero-inner ols-booking-shell landing-hero-mobile">

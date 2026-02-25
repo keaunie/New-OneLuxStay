@@ -6735,7 +6735,6 @@ export default function AntwerpLandingPage() {
                                       : "Beds --"}
                                   </span>
                                 </p>
-                                <p className="la-booking-table__address">{formatAddress(listing)}</p>
                                 {bedLines.length > 0 && (
                                   <div className="la-booking-table__bed-details">
                                     {bedLines.map((line, idx) => (
