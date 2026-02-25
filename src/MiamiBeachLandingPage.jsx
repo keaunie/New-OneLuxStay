@@ -1884,6 +1884,7 @@ export default function MiamiBeachLandingPage() {
   const sectionMapInstanceRef = useRef(null);
   const sectionMapMarkerRef = useRef(null);
   const autoRouteAvailabilityKeyRef = useRef("");
+  const availabilityTableRef = useRef(null);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const mapsApiRef = useRef(null);
@@ -3147,10 +3148,49 @@ export default function MiamiBeachLandingPage() {
     });
   }, [sectionQuotes]);
 
-  const fetchAvailabilityListings = async ({ listingIds, listingId } = {}) => {
+  const findScrollableAncestor = (node) => {
+    let current = node?.parentElement || null;
+    while (current && current !== document.body) {
+      const overflowY = window.getComputedStyle(current).overflowY;
+      const canScroll =
+        (overflowY === "auto" || overflowY === "scroll") &&
+        current.scrollHeight > current.clientHeight;
+      if (canScroll) return current;
+      current = current.parentElement;
+    }
+    return null;
+  };
+
+  const scrollToAvailabilityTable = () => {
+    const tableNode = availabilityTableRef.current;
+    if (!tableNode || typeof window === "undefined") return;
+
+    const explicitContainer =
+      tableNode.closest(".la-section-modal") || tableNode.closest(".la-unit-modal");
+    const scrollContainer = explicitContainer || findScrollableAncestor(tableNode);
+
+    if (scrollContainer) {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const tableRect = tableNode.getBoundingClientRect();
+      const targetTop = scrollContainer.scrollTop + (tableRect.top - containerRect.top) - 20;
+      scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+      return;
+    }
+
+    tableNode.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const fetchAvailabilityListings = async ({ listingIds, listingId, shouldScroll = false } = {}) => {
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
       return;
+    }
+    if (shouldScroll) {
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(scrollToAvailabilityTable);
+      } else {
+        scrollToAvailabilityTable();
+      }
     }
     setSectionAvailabilityLoading(true);
     setSectionAvailabilityError("");
@@ -3474,6 +3514,7 @@ export default function MiamiBeachLandingPage() {
           guest,
           consentSignerName,
           consentSignatureDataUrl,
+          cancelPath: `${window.location.pathname}${window.location.search}`,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -4280,7 +4321,11 @@ export default function MiamiBeachLandingPage() {
                       <option value="5">5</option>
                     </select>
                   </div>
-                  <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
+                  <button
+                    type="button"
+                    className="la-unit-modal__booking-cta"
+                    onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                  >
                     {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
                   </button>
                 </div>
@@ -4308,7 +4353,11 @@ export default function MiamiBeachLandingPage() {
                 <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
                 <small>per night {"\u00b7"} taxes calculated at checkout</small>
                 {isListingAvailable ? (
-                  <button type="button" className="la-listing-hero__reserve" onClick={fetchAvailabilityListings}>
+                  <button
+                    type="button"
+                    className="la-listing-hero__reserve"
+                    onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                  >
                     Reserve your dates
                   </button>
                 ) : null}
@@ -4958,13 +5007,15 @@ export default function MiamiBeachLandingPage() {
               <p className="la-inquiry-modal__meta">We'll use this to create the reservation after payment.</p>
             </div>
           </div>
-          <button
-            type="button"
-            className="la-inquiry-modal__close"
-            onClick={() => setIsCheckoutGuestOpen(false)}
-          >
-            Close
-          </button>
+          {checkoutStep === 1 && (
+            <button
+              type="button"
+              className="la-inquiry-modal__close"
+              onClick={() => setIsCheckoutGuestOpen(false)}
+            >
+              Close
+            </button>
+          )}
         </div>
         <div className="la-inquiry-modal__body">
           <Stepper
@@ -4973,11 +5024,13 @@ export default function MiamiBeachLandingPage() {
             onFinalStepCompleted={confirmGuestCheckout}
             disableStepIndicators
             nextButtonText="Next"
-            finalButtonText="Continue to payment"
+            finalButtonText={sectionReserveLoadingId ? "Redirecting..." : "Continue to payment"}
+            advanceOnFinalStep={false}
+            backButtonProps={{ disabled: Boolean(sectionReserveLoadingId) }}
             nextButtonProps={{
               disabled:
                 (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                (checkoutStep === 3 &&
+                (checkoutStep === 2 &&
                   (!checkoutConsentAccepted ||
                     !checkoutConsentSignerName.trim() ||
                     !checkoutConsentSignatureDataUrl)) ||
@@ -5067,6 +5120,58 @@ export default function MiamiBeachLandingPage() {
             </Step>
             <Step>
               <div className="la-inquiry-modal__step">
+                <label className="la-inquiry-modal__field">
+                  <span>Signer full name</span>
+                  <input
+                    type="text"
+                    value={checkoutConsentSignerName}
+                    autoComplete="name"
+                    placeholder="Type full name"
+                    onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
+                  />
+                </label>
+                <div className="la-inquiry-modal__signature">
+                  <span>Signature</span>
+                  <canvas
+                    ref={checkoutSignatureCanvasRef}
+                    width={560}
+                    height={150}
+                    className="la-inquiry-modal__signature-pad"
+                    onMouseDown={startSignatureDraw}
+                    onMouseMove={drawSignature}
+                    onMouseUp={endSignatureDraw}
+                    onMouseLeave={endSignatureDraw}
+                    onTouchStart={startSignatureDraw}
+                    onTouchMove={drawSignature}
+                    onTouchEnd={endSignatureDraw}
+                  />
+                  <button
+                    type="button"
+                    className="la-inquiry-modal__signature-clear"
+                    onClick={clearSignature}
+                  >
+                    Clear signature
+                  </button>
+                </div>
+
+                <label className="la-inquiry-modal__consent">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConsentAccepted}
+                    onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
+                  />
+                  <span>
+                    By signing and continuing to payment, you authorize OneLuxStay to charge the
+                    total amount shown for your reservation. A receipt and consent proof PDF will
+                    be emailed to you.
+                  </span>
+                </label>
+                
+              </div>
+            </Step>
+
+            <Step>
+              <div className="la-inquiry-modal__step">
                 <p className="la-inquiry-modal__fineprint">
                   Add a discount code before continuing to payment.
                 </p>
@@ -5101,9 +5206,6 @@ export default function MiamiBeachLandingPage() {
                     )}
                   </div>
                 </label>
-                <p className="la-inquiry-modal__fineprint">
-                  Available codes: <strong>WELCOME5</strong>, <strong>LUXE10</strong>, <strong>STAY15</strong>
-                </p>
                 {checkoutAppliedPromo && Number.isFinite(Number(pendingCheckout?.promoDiscountAmount)) && (
                   <p className="la-inquiry-modal__note is-success" role="status" aria-live="polite">
                     Code {checkoutAppliedPromo.code} applied: -
@@ -5120,55 +5222,7 @@ export default function MiamiBeachLandingPage() {
                 )}
               </div>
             </Step>
-            <Step>
-              <div className="la-inquiry-modal__step">
-                <label className="la-inquiry-modal__consent">
-                  <input
-                    type="checkbox"
-                    checked={checkoutConsentAccepted}
-                    onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
-                  />
-                  <span>
-                    By signing and continuing to payment, you authorize OneLuxStay to charge the
-                    total amount shown for your reservation. A receipt and consent proof PDF will
-                    be emailed to you.
-                  </span>
-                </label>
-                <label className="la-inquiry-modal__field">
-                  <span>Signer full name</span>
-                  <input
-                    type="text"
-                    value={checkoutConsentSignerName}
-                    autoComplete="name"
-                    placeholder="Type full legal name"
-                    onChange={(event) => setCheckoutConsentSignerName(event.target.value)}
-                  />
-                </label>
-                <div className="la-inquiry-modal__signature">
-                  <span>Signature</span>
-                  <canvas
-                    ref={checkoutSignatureCanvasRef}
-                    width={560}
-                    height={150}
-                    className="la-inquiry-modal__signature-pad"
-                    onMouseDown={startSignatureDraw}
-                    onMouseMove={drawSignature}
-                    onMouseUp={endSignatureDraw}
-                    onMouseLeave={endSignatureDraw}
-                    onTouchStart={startSignatureDraw}
-                    onTouchMove={drawSignature}
-                    onTouchEnd={endSignatureDraw}
-                  />
-                  <button
-                    type="button"
-                    className="la-inquiry-modal__signature-clear"
-                    onClick={clearSignature}
-                  >
-                    Clear signature
-                  </button>
-                </div>
-              </div>
-            </Step>
+            
             <Step>
               <div className="la-inquiry-modal__step">
                 <p className="la-inquiry-modal__fineprint">
@@ -5201,7 +5255,6 @@ export default function MiamiBeachLandingPage() {
                     <div>
                       <strong>Total to charge</strong>
                       <span>
-                        {resolveCheckoutCurrency(pendingCheckout?.currency)} {" - "}
                         {formatCurrency(
                           Number(pendingCheckout.amount),
                           resolveCheckoutCurrency(pendingCheckout?.currency),
@@ -5224,6 +5277,12 @@ export default function MiamiBeachLandingPage() {
                     <div>
                       <strong>Phone</strong>
                       <span>{checkoutGuest.phone}</span>
+                    </div>
+                  )}
+                  {sectionReserveLoadingId && (
+                    <div className="la-checkout-loading" role="status" aria-live="polite">
+                      <span className="la-checkout-loading__spinner" aria-hidden="true" />
+                      <span>Redirecting to secure payment...</span>
                     </div>
                   )}
                 </div>
@@ -6214,7 +6273,11 @@ export default function MiamiBeachLandingPage() {
                         <option value="5">5</option>
                       </select>
                     </div>
-                    <button type="button" className="la-unit-modal__booking-cta" onClick={fetchAvailabilityListings}>
+                    <button
+                      type="button"
+                      className="la-unit-modal__booking-cta"
+                      onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                    >
                       {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
                     </button>
                   </div>
@@ -6234,6 +6297,7 @@ export default function MiamiBeachLandingPage() {
               );
             })()}
             <div
+              ref={availabilityTableRef}
               className={`la-booking-table${sectionAvailabilityLoading ? " is-loading" : ""}`}
               role="table"
               aria-label="Available units"
@@ -7058,7 +7122,7 @@ export default function MiamiBeachLandingPage() {
                   <option value="5">5</option>
                 </select>
               </div>
-              <button type="button" onClick={fetchAvailabilityListings}>
+              <button type="button" onClick={() => fetchAvailabilityListings({ shouldScroll: true })}>
                 {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
               </button>
             </div>
@@ -7236,6 +7300,11 @@ export default function MiamiBeachLandingPage() {
     </div>
   );
 }
+
+
+
+
+
 
 
 

@@ -93,6 +93,59 @@ const getBaseUrl = (event) => {
   return "https://oneluxstay.com";
 };
 
+const sanitizeInternalPath = (value = "") => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (!trimmed.startsWith("/")) return "";
+  if (trimmed.startsWith("//")) return "";
+  return trimmed;
+};
+
+const getRefererPath = (event = {}) => {
+  const headers = event.headers || {};
+  const referer =
+    headers.referer ||
+    headers.referrer ||
+    headers.Referer ||
+    headers.Referrer ||
+    "";
+  if (!referer) return "";
+  try {
+    const parsed = new URL(referer);
+    return sanitizeInternalPath(`${parsed.pathname || "/"}${parsed.search || ""}`);
+  } catch {
+    return "";
+  }
+};
+
+const withBookingSearchParams = (path = "/", { checkIn, checkOut, guests } = {}) => {
+  const safePath = sanitizeInternalPath(path) || "/";
+  let pathname = "/";
+  let params = new URLSearchParams();
+
+  try {
+    const parsed = new URL(safePath, "https://oneluxstay.local");
+    pathname = sanitizeInternalPath(parsed.pathname) || "/";
+    params = new URLSearchParams(parsed.search || "");
+  } catch {
+    pathname = "/";
+    params = new URLSearchParams();
+  }
+
+  if (checkIn) params.set("checkIn", String(checkIn));
+  if (checkOut) params.set("checkOut", String(checkOut));
+  const guestCount = Number(guests);
+  if (Number.isFinite(guestCount) && guestCount > 0) {
+    const normalizedGuests = String(Math.max(1, Math.round(guestCount)));
+    params.set("guests", normalizedGuests);
+    params.set("adults", normalizedGuests);
+  }
+
+  const query = params.toString();
+  return `${pathname}${query ? `?${query}` : ""}`;
+};
+
 const formatCurrencyValue = (amount, currency = "USD") => {
   if (!Number.isFinite(Number(amount))) return "--";
   const numericAmount = Number(amount);
@@ -1135,6 +1188,7 @@ const handleCheckout = async (event) => {
     consentAcceptedAt,
     consentSignerName,
     consentSignatureDataUrl,
+    cancelPath,
   } = body || {};
 
   if (!listingId || !checkIn || !checkOut || amount == null) {
@@ -1152,6 +1206,19 @@ const handleCheckout = async (event) => {
 
   const stripe = getStripeClient();
   const baseUrl = getBaseUrl(event);
+  const returnTo = withBookingSearchParams(
+    sanitizeInternalPath(cancelPath) || getRefererPath(event) || "/",
+    { checkIn, checkOut, guests },
+  );
+  const cancelQuery = new URLSearchParams({
+    checkout: "cancelled",
+    returnTo,
+  });
+  if (checkIn) cancelQuery.set("checkIn", String(checkIn));
+  if (checkOut) cancelQuery.set("checkOut", String(checkOut));
+  if (Number.isFinite(Number(guests)) && Number(guests) > 0) {
+    cancelQuery.set("guests", String(Math.round(Number(guests))));
+  }
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
   const resolvedPromoCode =
     (typeof promoCode === "string" && promoCode.trim()) ||
@@ -1202,7 +1269,7 @@ const handleCheckout = async (event) => {
       },
     ],
     success_url: `${baseUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/?checkout=cancelled`,
+    cancel_url: `${baseUrl}/?${cancelQuery.toString()}`,
     metadata: {
       listingId: String(listingId),
       checkIn,

@@ -30,6 +30,7 @@ export default function Stepper({
   backButtonText = "Back",
   nextButtonText = "Next",
   finalButtonText = "Continue",
+  advanceOnFinalStep = true,
   disableStepIndicators = false,
   renderStepIndicator,
   ...rest
@@ -62,6 +63,10 @@ export default function Stepper({
   };
 
   const handleComplete = () => {
+    if (!advanceOnFinalStep) {
+      onFinalStepCompleted();
+      return;
+    }
     setDirection(1);
     updateStep(totalSteps + 1);
   };
@@ -170,7 +175,27 @@ function SlideTransition({ children, direction, onHeightReady }) {
   const containerRef = useRef(null);
 
   useLayoutEffect(() => {
-    if (containerRef.current) onHeightReady(containerRef.current.offsetHeight);
+    const node = containerRef.current;
+    if (!node) return undefined;
+
+    let animationFrameId = null;
+    const reportHeight = () => onHeightReady(node.offsetHeight);
+
+    reportHeight();
+
+    if (typeof ResizeObserver === "undefined") return undefined;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(reportHeight);
+    });
+
+    resizeObserver.observe(node);
+
+    return () => {
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
+    };
   }, [children, onHeightReady]);
 
   return (

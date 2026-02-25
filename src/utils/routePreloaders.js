@@ -11,6 +11,7 @@ const preloadTermsConditions = () => import("../TermsConditions");
 const preloadCaliforniaPrivacyPolicy = () => import("../CaliforniaPrivacyPolicy");
 const preloadAcknowledgementPage = () => import("../AcknowledgementPage");
 const preloadBookingConfirmationPage = () => import("../BookingConfirmationPage");
+const preloadCheckoutCancelledPage = () => import("../CheckoutCancelledPage");
 
 export const routePreloaders = {
   landing: preloadLandingPage,
@@ -26,6 +27,7 @@ export const routePreloaders = {
   californiaPrivacy: preloadCaliforniaPrivacyPolicy,
   acknowledge: preloadAcknowledgementPage,
   bookingConfirmation: preloadBookingConfirmationPage,
+  checkoutCancelled: preloadCheckoutCancelledPage,
 };
 
 const normalizePathname = (value = "") => {
@@ -85,6 +87,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/booking-confirmation") {
     return routePreloaders.bookingConfirmation().then(() => undefined);
+  }
+  if (normalized === "/checkout-cancelled") {
+    return routePreloaders.checkoutCancelled().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };

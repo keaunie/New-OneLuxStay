@@ -966,6 +966,7 @@ function ListingPage() {
           currency,
           breakdown: avail.breakdown || null,
           guest: bookingInfo,
+          cancelPath: `${window.location.pathname}${window.location.search}`,
         }),
       });
 

@@ -17,6 +17,7 @@ const TermsConditions = lazy(routePreloaders.terms);
 const CaliforniaPrivacyPolicy = lazy(routePreloaders.californiaPrivacy);
 const AcknowledgementPage = lazy(routePreloaders.acknowledge);
 const BookingConfirmationPage = lazy(routePreloaders.bookingConfirmation);
+const CheckoutCancelledPage = lazy(routePreloaders.checkoutCancelled);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -70,6 +71,19 @@ const useCityRouteLoading = () => {
   return appLoaded;
 };
 
+function RootRoute() {
+  const location = useLocation();
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const checkoutState = (params.get("checkout") || "").toLowerCase();
+  const RootPage = checkoutState === "cancelled" ? CheckoutCancelledPage : LandingPage;
+
+  return (
+    <Suspense fallback={null}>
+      <RootPage />
+    </Suspense>
+  );
+}
+
 function AppRoutes() {
   const appLoaded = useCityRouteLoading();
   const renderLazyRoute = (Component) => (
@@ -83,7 +97,7 @@ function AppRoutes() {
       <LoadingScreen active={!appLoaded} />
       <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
         <Routes>
-          <Route path="/" element={renderLazyRoute(LandingPage)} />
+          <Route path="/" element={<RootRoute />} />
           <Route path="/antwerpen" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerpen/:areaSlug/:bookingBundle" element={renderLazyRoute(AntwerpLandingPage)} />
