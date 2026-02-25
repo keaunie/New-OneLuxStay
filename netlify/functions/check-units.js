@@ -1,9 +1,11 @@
 import Stripe from "stripe";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 const CONSENT_STORE_NAME = "consent-proofs";
+const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -115,7 +117,146 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const sendReservationEmail = async ({ to, subject, html }) => {
+const toProofBaseUrl = (event = {}) => {
+  const fromEnv =
+    process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || "";
+  if (fromEnv) return String(fromEnv).replace(/\/+$/, "");
+
+  const headers = event?.headers || {};
+  const host =
+    headers["x-forwarded-host"] ||
+    headers["X-Forwarded-Host"] ||
+    headers.host ||
+    headers.Host ||
+    "";
+  if (!host) return "";
+  const proto =
+    headers["x-forwarded-proto"] ||
+    headers["X-Forwarded-Proto"] ||
+    (String(host).includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`.replace(/\/+$/, "");
+};
+
+const toDataUrlBytes = (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== "string") return null;
+  const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+  if (!match) return null;
+  return { mime: match[1], bytes: Buffer.from(match[2], "base64") };
+};
+
+const buildConsentPdf = async ({
+  confirmationId,
+  reservationId,
+  listingTitle,
+  checkIn,
+  checkOut,
+  guests,
+  amount,
+  currency,
+  guestName,
+  guestEmail,
+  consentText,
+  consentAcceptedAt,
+  consentSignerName,
+  consentSignatureDataUrl,
+}) => {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const color = rgb(0.2, 0.16, 0.12);
+  let y = 760;
+
+  const drawLine = (label, value, bold = false) => {
+    const safeValue = value || "-";
+    page.drawText(`${label}: ${safeValue}`, {
+      x: 52,
+      y,
+      size: 11,
+      font: bold ? fontBold : font,
+      color,
+    });
+    y -= 20;
+  };
+
+  page.drawText("OneLuxStay Consent Proof", {
+    x: 52,
+    y,
+    size: 20,
+    font: fontBold,
+    color,
+  });
+  y -= 30;
+  drawLine("Generated at", new Date().toISOString());
+  drawLine("Confirmation ID", confirmationId || "-");
+  drawLine("Reservation ID", reservationId || "-");
+  drawLine("Listing", listingTitle || "-");
+  drawLine("Guest", guestName || "-");
+  drawLine("Guest email", guestEmail || "-");
+  drawLine("Check-in", checkIn || "-");
+  drawLine("Check-out", checkOut || "-");
+  drawLine("Guests", Number.isFinite(Number(guests)) ? String(Number(guests)) : "-");
+  drawLine("Total charged", formatCurrencyValue(amount, currency));
+  drawLine("Consent accepted at", consentAcceptedAt || "-");
+  drawLine("Signed by", consentSignerName || "-", true);
+  y -= 6;
+  page.drawText("Consent text:", { x: 52, y, size: 11, font: fontBold, color });
+  y -= 18;
+
+  const text = consentText || "-";
+  const words = String(text).split(/\s+/);
+  let line = "";
+  const maxWidth = 500;
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    const w = font.widthOfTextAtSize(next, 10);
+    if (w > maxWidth) {
+      page.drawText(line, { x: 52, y, size: 10, font, color });
+      y -= 14;
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) {
+    page.drawText(line, { x: 52, y, size: 10, font, color });
+    y -= 22;
+  }
+
+  page.drawText("Guest signature:", { x: 52, y, size: 11, font: fontBold, color });
+  y -= 12;
+  const sig = toDataUrlBytes(consentSignatureDataUrl);
+  if (sig && y > 110) {
+    try {
+      const embedded = sig.mime.includes("png")
+        ? await pdfDoc.embedPng(sig.bytes)
+        : await pdfDoc.embedJpg(sig.bytes);
+      const dims = embedded.scale(0.35);
+      page.drawRectangle({
+        x: 52,
+        y: y - 82,
+        width: 250,
+        height: 84,
+        borderColor: rgb(0.75, 0.7, 0.62),
+        borderWidth: 1,
+      });
+      page.drawImage(embedded, {
+        x: 58,
+        y: y - 76,
+        width: Math.min(238, dims.width),
+        height: Math.min(72, dims.height),
+      });
+    } catch {
+      page.drawText("Signature image unavailable", { x: 52, y, size: 10, font, color });
+    }
+  } else {
+    page.drawText("No signature image captured", { x: 52, y, size: 10, font, color });
+  }
+
+  return pdfDoc.save();
+};
+
+const sendReservationEmail = async ({ to, subject, html, attachments = [] }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
   if (!apiKey || !from || !to) {
@@ -133,6 +274,7 @@ const sendReservationEmail = async ({ to, subject, html }) => {
       to,
       subject,
       html,
+      ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
     }),
   });
 
@@ -181,6 +323,14 @@ const writeConsentProof = async (sessionId, payload) => {
   const store = await getBlobStore(CONSENT_STORE_NAME);
   if (!store) return false;
   await store.setJSON(sessionId, payload);
+  return true;
+};
+
+const writeConsentPdf = async (token, pdfBytes, metadata = {}) => {
+  if (!token || !pdfBytes) return false;
+  const store = await getBlobStore(CONSENT_PDF_STORE_NAME);
+  if (!store) return false;
+  await store.set(token, Buffer.from(pdfBytes), { metadata });
   return true;
 };
 
@@ -859,6 +1009,45 @@ const handleFreeCheckout = async (event) => {
     guestPhone: guest?.phone || "",
   });
 
+  let consentPdfToken = null;
+  let consentPdfUrl = null;
+  let consentPdfBytes = null;
+  let consentPdfError = null;
+  try {
+    consentPdfBytes = await buildConsentPdf({
+      confirmationId,
+      reservationId,
+      listingTitle,
+      checkIn,
+      checkOut,
+      guests: Number(guests) || 1,
+      amount: numericAmount,
+      currency: normalizedCurrency,
+      guestName,
+      guestEmail: guest?.email || "",
+      consentText: consentText || "",
+      consentAcceptedAt: consentAcceptedAt || "",
+      consentSignerName: consentSignerName || guestName || "",
+      consentSignatureDataUrl: consentSignatureDataUrl || "",
+    });
+    consentPdfToken = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`;
+    const stored = await writeConsentPdf(consentPdfToken, consentPdfBytes, {
+      reservationId: reservationId || "",
+      confirmationId,
+    });
+    if (!stored) {
+      throw new Error("Consent proof storage unavailable");
+    }
+    const proofBaseUrl = toProofBaseUrl(event);
+    if (proofBaseUrl) {
+      consentPdfUrl = `${proofBaseUrl}/.netlify/functions/consent-proof?token=${encodeURIComponent(consentPdfToken)}`;
+    } else {
+      consentPdfError = "Consent proof saved, but no public base URL is configured for proof links.";
+    }
+  } catch (err) {
+    consentPdfError = err?.message || "Unable to generate consent proof PDF.";
+  }
+
   let emailSent = false;
   let emailError = null;
   try {
@@ -878,9 +1067,20 @@ const handleFreeCheckout = async (event) => {
           <p><strong>Check-out:</strong> ${escapeHtml(checkOut)}</p>
           <p><strong>Guests:</strong> ${escapeHtml(String(Number(guests) || 1))}</p>
           <p><strong>Total charged:</strong> ${escapeHtml(formattedAmount)}</p>
+          ${consentPdfUrl ? `<p><strong>Consent proof PDF:</strong> <a href="${consentPdfUrl}" target="_blank" rel="noreferrer">Download PDF</a></p>` : ""}
           <p>Our reservations team will follow up shortly with any final details.</p>
         </div>
       `,
+      attachments:
+        consentPdfBytes && consentPdfBytes.length
+          ? [
+              {
+                filename: `consent-proof-${reservationId || confirmationId}.pdf`,
+                content: Buffer.from(consentPdfBytes).toString("base64"),
+                type: "application/pdf",
+              },
+            ]
+          : [],
     });
     emailSent = !emailResult?.skipped;
   } catch (err) {
@@ -899,6 +1099,7 @@ const handleFreeCheckout = async (event) => {
     guests: String(Number(guests) || 1),
     amount: String(numericAmount),
     currency: normalizedCurrency,
+    consentProofUrl: String(consentPdfUrl || ""),
   });
   const redirectUrl = `${baseUrl}/booking-confirmation?${query.toString()}`;
 
@@ -909,6 +1110,8 @@ const handleFreeCheckout = async (event) => {
     reservationId,
     emailSent,
     redirectUrl,
+    consentPdfUrl,
+    ...(consentPdfError ? { consentPdfError } : {}),
     ...(emailError ? { emailError } : {}),
   });
 };

@@ -32,6 +32,7 @@ const BookingConfirmationPage = () => {
   const guests = params.get("guests") || "";
   const amount = params.get("amount") || "0";
   const currency = params.get("currency") || "USD";
+  const consentProofUrl = params.get("consentProofUrl") || "";
   const totalLabel = formatCurrency(amount, currency);
 
   return (
@@ -68,6 +69,14 @@ const BookingConfirmationPage = () => {
             {checkOut && <li>Check-out: {checkOut}</li>}
             {guests && <li>Guests: {guests}</li>}
             <li>Total charged: {totalLabel}</li>
+            {consentProofUrl && (
+              <li>
+                Consent proof PDF:{" "}
+                <a href={consentProofUrl} target="_blank" rel="noreferrer">
+                  Download PDF
+                </a>
+              </li>
+            )}
           </ul>
         </div>
 
