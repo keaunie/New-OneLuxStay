@@ -181,8 +181,24 @@ const writeConsentPdf = async (token, pdfBytes, metadata = {}) => {
   return true;
 };
 
-const toProofBaseUrl = () => {
-  return process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || "";
+const toProofBaseUrl = (event = {}) => {
+  const fromEnv =
+    process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || "";
+  if (fromEnv) return String(fromEnv).replace(/\/+$/, "");
+
+  const headers = event?.headers || {};
+  const host =
+    headers["x-forwarded-host"] ||
+    headers["X-Forwarded-Host"] ||
+    headers.host ||
+    headers.Host ||
+    "";
+  if (!host) return "";
+  const proto =
+    headers["x-forwarded-proto"] ||
+    headers["X-Forwarded-Proto"] ||
+    (String(host).includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`.replace(/\/+$/, "");
 };
 
 const toDataUrlBytes = (dataUrl) => {
@@ -722,16 +738,21 @@ export async function handler(event) {
         },
       });
       consentPdfToken = crypto.randomUUID().replace(/-/g, "");
-      await writeConsentPdf(consentPdfToken, consentPdfBytes, {
+      const stored = await writeConsentPdf(consentPdfToken, consentPdfBytes, {
         reservationId: reservationId || "",
         sessionId: session?.id || "",
       });
-      const proofBaseUrl = toProofBaseUrl();
+      if (!stored) {
+        throw new Error("Consent proof storage unavailable");
+      }
+      const proofBaseUrl = toProofBaseUrl(event);
       if (proofBaseUrl) {
         consentPdfUrl = `${proofBaseUrl}/.netlify/functions/consent-proof?token=${encodeURIComponent(consentPdfToken)}`;
+      } else {
+        consentPdfError = "Consent proof saved, but no public base URL is configured for proof links.";
       }
     } catch (err) {
-      consentPdfError = err.message;
+      consentPdfError = consentPdfError || err.message;
     }
     const noteText = buildReservationNotes(session.metadata || {}, {
       sessionId: session?.id || null,
