@@ -23,6 +23,7 @@ const BookingConfirmationPage = () => {
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   const confirmationId = params.get("confirmationId") || "";
+  const reservationId = params.get("reservationId") || "";
   const email = params.get("email") || "";
   const emailSent = params.get("emailSent") === "1";
   const listingTitle = params.get("listingTitle") || "";
@@ -61,6 +62,7 @@ const BookingConfirmationPage = () => {
           <p>Reservation details</p>
           <ul>
             {confirmationId && <li>Confirmation ID: {confirmationId}</li>}
+            {reservationId && <li>Reservation ID: {reservationId}</li>}
             {listingTitle && <li>Listing: {listingTitle}</li>}
             {checkIn && <li>Check-in: {checkIn}</li>}
             {checkOut && <li>Check-out: {checkOut}</li>}

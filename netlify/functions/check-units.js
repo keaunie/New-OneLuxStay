@@ -247,6 +247,78 @@ const getGuestyToken = async () => {
   return { token: tokenData.token, source: "fresh" };
 };
 
+const createGuestyReservation = async (payload) => {
+  const { token } = await getGuestyToken();
+  const response = await fetchWithTimeout(`${OPEN_API_V1}/reservations`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+};
+
+const buildGuestyReservationPayload = ({
+  listingId,
+  checkIn,
+  checkOut,
+  guests,
+  guest,
+  currency,
+  amount,
+  breakdown,
+}) => {
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+  const firstName = guest?.firstName || nameParts[0] || "Guest";
+  const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
+
+  const payload = {
+    listingId: String(listingId),
+    checkInDateLocalized: String(checkIn),
+    checkOutDateLocalized: String(checkOut),
+    status: "confirmed",
+    guest: {
+      firstName,
+      lastName,
+      email: guest?.email || "",
+      phone: guest?.phone || "",
+    },
+  };
+
+  const accommodation = Number(breakdown?.accommodation);
+  const cleaning = Number(breakdown?.cleaning);
+  const fees = Number(breakdown?.fees);
+  const money = {};
+  if (Number.isFinite(accommodation)) {
+    money.fareAccommodation = accommodation;
+  } else if (Number.isFinite(amount) && amount > 0) {
+    money.fareAccommodation = amount;
+  }
+  if (Number.isFinite(cleaning)) {
+    money.fareCleaning = cleaning;
+  }
+  if (Number.isFinite(fees) && fees > 0) {
+    money.invoiceItems = [{ title: "Fees", amount: fees, normalType: "OTHER" }];
+  }
+  if (currency) {
+    money.currency = String(currency).toUpperCase();
+  }
+  if (Object.keys(money).length) {
+    payload.money = money;
+  }
+
+  return payload;
+};
+
 const addMonths = (date, months) => {
   const next = new Date(date);
   next.setMonth(next.getMonth() + months);
@@ -741,11 +813,33 @@ const handleFreeCheckout = async (event) => {
     .slice(2, 8)
     .toUpperCase()}`;
   const baseUrl = getBaseUrl(event);
+  let reservationId = null;
+
+  try {
+    const reservationPayload = buildGuestyReservationPayload({
+      listingId,
+      checkIn,
+      checkOut,
+      guests: Number(guests) || 1,
+      guest,
+      currency: normalizedCurrency,
+      amount: numericAmount,
+      breakdown,
+    });
+    const reservation = await createGuestyReservation(reservationPayload);
+    reservationId = reservation?._id || reservation?.id || null;
+  } catch (err) {
+    return jsonResponse(502, {
+      message: "Unable to create reservation in Guesty.",
+      error: err?.message || "Unknown error",
+    });
+  }
 
   await writeConsentProof(confirmationId, {
     createdAt: new Date().toISOString(),
     sessionId: confirmationId,
     paymentMode: "zero-total",
+    reservationId: reservationId || "",
     listingId: String(listingId),
     listingTitle: listingTitle || "",
     checkIn,
@@ -778,6 +872,7 @@ const handleFreeCheckout = async (event) => {
           <p>Hi ${escapeHtml(guestName || "Guest")},</p>
           <p>Your reservation request has been confirmed. No payment was required for this booking.</p>
           <p><strong>Confirmation ID:</strong> ${escapeHtml(confirmationId)}</p>
+          ${reservationId ? `<p><strong>Reservation ID:</strong> ${escapeHtml(reservationId)}</p>` : ""}
           <p><strong>Listing:</strong> ${escapeHtml(listingTitle || "OneLuxStay stay")}</p>
           <p><strong>Check-in:</strong> ${escapeHtml(checkIn)}</p>
           <p><strong>Check-out:</strong> ${escapeHtml(checkOut)}</p>
@@ -795,6 +890,7 @@ const handleFreeCheckout = async (event) => {
   const query = new URLSearchParams({
     mode: "free",
     confirmationId,
+    reservationId: String(reservationId || ""),
     email: String(guest?.email || ""),
     emailSent: emailSent ? "1" : "0",
     listingTitle: String(listingTitle || ""),
@@ -810,6 +906,7 @@ const handleFreeCheckout = async (event) => {
     ok: true,
     freeCheckout: true,
     confirmationId,
+    reservationId,
     emailSent,
     redirectUrl,
     ...(emailError ? { emailError } : {}),
