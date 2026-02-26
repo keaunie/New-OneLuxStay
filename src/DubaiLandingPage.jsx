@@ -669,13 +669,14 @@ const DateRangePicker = ({
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
     if (nextStart && nextEnd) {
+      const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
+      if (nights === 0) return;
       if (!showMinNights) {
         setOpenState(false);
       } else {
         const minNights = toNumber(
           dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
         );
-        const nights = diffNights(toISODate(nextStart), toISODate(nextEnd));
         const violatesMin =
           typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
         if (!violatesMin) setOpenState(false);
@@ -684,6 +685,7 @@ const DateRangePicker = ({
   };
 
   const selectedNights = diffNights(value.checkIn, value.checkOut);
+  const hasSameDayStay = Boolean(value.checkIn && value.checkOut && selectedNights === 0);
   const selectedMinNights = useMemo(() => {
     if (!showMinNights) return null;
     if (!dayPrices || !startDate) return fallbackMinNights ?? null;
@@ -778,7 +780,13 @@ const DateRangePicker = ({
               </button>
             </div>
           </div>
-          {showMinNights &&
+          {hasSameDayStay && (
+            <div className="la-date-alert" role="alert">
+              Please change the check-out date.
+            </div>
+          )}
+          {!hasSameDayStay &&
+            showMinNights &&
             selectedMinNights &&
             selectedNights > 0 &&
             selectedNights < selectedMinNights && (
@@ -3368,6 +3376,10 @@ export default function DubaiLandingPage() {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
       return;
     }
+    if (diffNights(sectionCheckIn, sectionCheckOut) === 0) {
+      setSectionAvailabilityError("Please change the check-out date.");
+      return;
+    }
     if (shouldScroll) {
       if (typeof window !== "undefined") {
         window.requestAnimationFrame(scrollToAvailabilityTable);
@@ -3670,6 +3682,10 @@ export default function DubaiLandingPage() {
     if (!listingId) return;
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
+      return;
+    }
+    if (diffNights(sectionCheckIn, sectionCheckOut) === 0) {
+      setSectionAvailabilityError("Please change the check-out date.");
       return;
     }
     const numericAmount = Number(amount);
@@ -7512,7 +7528,6 @@ export default function DubaiLandingPage() {
     </div>
   );
 }
-
 
 
 

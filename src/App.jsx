@@ -32,17 +32,12 @@ const CITY_ROOT_PATHS = new Set([
 ]);
 
 const isCityRootPath = (path = "") => CITY_ROOT_PATHS.has(path.toLowerCase());
-const isAntwerpPath = (path = "") => {
-  const normalized = path.toLowerCase();
-  return normalized === "/antwerp" || normalized === "/antwerpen";
-};
 
 const useCityRouteLoading = () => {
   const location = useLocation();
   const shouldShowLoader = useMemo(
     () =>
       isCityRootPath(location.pathname) &&
-      !isAntwerpPath(location.pathname) &&
       !location.state?.skipCityLoader,
     [location.pathname, location.state],
   );
