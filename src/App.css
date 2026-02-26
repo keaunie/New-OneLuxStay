@@ -358,7 +358,7 @@ body {
 }
 
 .landing-page.has-date-dropdown {
-  --date-dropdown-push: clamp(220px, 28vh, 360px);
+  --date-dropdown-push: 0px;
 }
 
 .landing-silk {
@@ -1381,7 +1381,8 @@ body {
 .landing-circular-gallery__hint {
   position: absolute;
   left: 50%;
-  bottom: 18px;
+  top: 18px;
+  bottom: auto;
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
@@ -1683,8 +1684,8 @@ body {
 .landing-offers-section {
   position: relative;
   z-index: 4;
-  margin-top: clamp(8px, 1.8vw, 16px);
-  padding: clamp(22px, 3.5vw, 42px) 0 clamp(28px, 4.6vw, 56px);
+  margin-top: 0;
+  padding: clamp(14px, 2.6vw, 28px) 0 clamp(24px, 4.2vw, 48px);
   background: linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
   border-top: 1px solid rgba(201, 181, 156, 0.28);
   border-bottom: 1px solid rgba(201, 181, 156, 0.2);
@@ -9811,12 +9812,13 @@ video {
 
 .landing-circular-gallery--hero {
   margin-top: 2px;
-  height: clamp(300px, 36vh, 420px);
+  height: clamp(680px, 82vh, 920px);
   padding: 0 0 24px;
 }
 
 .landing-circular-gallery__hint {
-  bottom: 8px;
+  top: 8px;
+  bottom: auto;
   padding: 5px 12px;
   font-size: 0.78rem;
 }
@@ -9836,7 +9838,7 @@ video {
   }
 
   .landing-circular-gallery--hero {
-    height: clamp(270px, 34vh, 360px);
+    height: clamp(420px, 58vh, 660px);
     padding-bottom: 20px;
   }
 }
@@ -9864,7 +9866,7 @@ video {
   }
 
   .landing-circular-gallery--hero {
-    height: clamp(240px, 32vh, 320px);
+    height: clamp(300px, 46vh, 460px);
     padding-bottom: 16px;
   }
 }

@@ -45,6 +45,8 @@ function SiteFooter() {
           <h3>Connect</h3>
           <ul>
             <li>+1 213 866 3589</li>
+            <li>+971 55 727 7059</li>
+            <li>+32 493 81 34 41</li>
             <li>reservations@oneluxstay.com</li>
           </ul>
         </div>

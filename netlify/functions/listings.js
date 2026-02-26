@@ -292,6 +292,23 @@ const parseTextList = (value) =>
         .map((item) => item.trim().toLowerCase())
         .filter(Boolean);
 
+const INTERNAL_QUERY_PARAM_KEYS = new Set([
+    "includeIds",
+    "forceIds",
+    "onlyIds",
+    "idsOnly",
+]);
+
+const sanitizeGuestyQuery = (queryParams = {}) => {
+    const sanitized = {};
+    Object.entries(queryParams || {}).forEach(([key, value]) => {
+        if (INTERNAL_QUERY_PARAM_KEYS.has(key)) return;
+        if (value === undefined || value === null || value === "") return;
+        sanitized[key] = value;
+    });
+    return sanitized;
+};
+
 const getHiddenConfig = () => {
     const hiddenIds = new Set([
         ...parseIdList(process.env.GUESTY_HIDDEN_LISTING_IDS),
@@ -366,18 +383,54 @@ export async function handler(event) {
 
     try {
         const { token, source: tokenSource } = await getGuestyToken();
+        const rawQueryParams = event.queryStringParameters || {};
 
         const forceIdsEnv = parseIdList(
             process.env.GUESTY_EXTRA_LISTING_IDS || process.env.FORCE_LISTING_IDS
         );
-        const forceIdsQuery = parseIdList(event.queryStringParameters?.includeIds || event.queryStringParameters?.forceIds);
+        const forceIdsQuery = parseIdList(rawQueryParams.includeIds || rawQueryParams.forceIds);
         const forcedIds = [...new Set([...forceIdsEnv, ...forceIdsQuery])];
+        const onlyIdsEnv = parseIdList(
+            process.env.GUESTY_ONLY_LISTING_IDS || process.env.ONLY_LISTING_IDS
+        );
+        const onlyIdsQuery = parseIdList(rawQueryParams.onlyIds || rawQueryParams.idsOnly);
+        const onlyIds = [...new Set([...onlyIdsEnv, ...onlyIdsQuery])];
         const { hiddenIds, hiddenTitleTerms } = getHiddenConfig();
+        const tokenCacheHeader = { "X-Guesty-Token-Cache": tokenSource || "unknown" };
+
+        if (onlyIds.length) {
+            const onlyIdsSet = new Set(onlyIds.map((id) => String(id)));
+            const onlyIdMap = new Map();
+            const scopedResults = await fetchListingsByIds(onlyIds, token);
+            scopedResults
+                .map((listing) => normalizeListing(listing))
+                .filter((listing) => isActiveAndPmsActive(listing))
+                .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
+                .filter(Boolean)
+                .forEach((listing) => {
+                    const id = String(getListingId(listing) || "");
+                    if (!id || !onlyIdsSet.has(id) || onlyIdMap.has(id)) return;
+                    onlyIdMap.set(id, listing);
+                });
+
+            const orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+            return jsonResponse(
+                200,
+                {
+                    results: orderedResults,
+                    count: orderedResults.length,
+                    tokenSource: tokenSource || "unknown",
+                },
+                tokenCacheHeader
+            );
+        }
+
+        const forwardedQueryParams = sanitizeGuestyQuery(rawQueryParams);
 
         const params = new URLSearchParams({
             limit: "200",
             fields: LISTING_FIELDS,
-            ...(event.queryStringParameters || {}),
+            ...forwardedQueryParams,
         });
         // Always enforce active + pmsActive on this endpoint.
         params.set("listed", "true");
@@ -406,7 +459,7 @@ export async function handler(event) {
             const relaxedParams = new URLSearchParams({
                 limit: "200",
                 fields: LISTING_FIELDS,
-                ...(event.queryStringParameters || {}),
+                ...forwardedQueryParams,
             });
             // Keep listed filter but relax active/pmsActive at query level and filter in-process instead.
             relaxedParams.set("listed", "true");
@@ -459,7 +512,7 @@ export async function handler(event) {
         return jsonResponse(
             200,
             { ...data, results: enrichedResults, tokenSource: tokenSource || "unknown" },
-            { "X-Guesty-Token-Cache": tokenSource || "unknown" }
+            tokenCacheHeader
         );
     } catch (err) {
         return jsonResponse(

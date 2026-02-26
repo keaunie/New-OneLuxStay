@@ -4592,7 +4592,7 @@ export default function AntwerpLandingPage() {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+12138663589">+1 213 866 3589</a>
+                <a href="tel:+32493813441">+32 493 81 34 41</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
@@ -6381,7 +6381,7 @@ export default function AntwerpLandingPage() {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Antwerp</strong>
-                      <a href="tel:+12138663589">+1 213 866 3589</a>
+                      <a href="tel:+32493813441">+32 493 81 34 41</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
@@ -6991,7 +6991,7 @@ export default function AntwerpLandingPage() {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+12138663589">+1 213 866 3589</a>
+                <a href="tel:+32493813441">+32 493 81 34 41</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge

@@ -4548,7 +4548,7 @@ export default function DubaiLandingPage() {
                     <div className="la-unit-modal__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Dubai</strong>
-                      <a href="tel:+12138663589">+1 213 866 3589</a>
+                      <a href="tel:+971557277059">+971 55 727 7059</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
@@ -6312,7 +6312,7 @@ export default function DubaiLandingPage() {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Dubai</strong>
-                      <a href="tel:+12138663589">+1 213 866 3589</a>
+                      <a href="tel:+971557277059">+971 55 727 7059</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
@@ -6927,7 +6927,7 @@ export default function DubaiLandingPage() {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Dubai</strong>
-                <a href="tel:+12138663589">+1 213 866 3589</a>
+                <a href="tel:+971557277059">+971 55 727 7059</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge

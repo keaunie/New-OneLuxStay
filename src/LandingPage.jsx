@@ -69,6 +69,16 @@ const normalizeListingCity = (listing) => {
 
 const getListingId = (listing) => listing?.id || listing?._id || listing?.unitTypeId || "";
 
+const parseIdList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+const HERO_GALLERY_LISTING_IDS = parseIdList(
+  import.meta.env.VITE_LANDING_GALLERY_LISTING_IDS || import.meta.env.VITE_GALLERY_LISTING_IDS
+);
+
 const isChildListing = (listing) => {
   if (!listing) return false;
   const type = typeof listing.type === "string" ? listing.type.toUpperCase() : "";
@@ -808,16 +818,31 @@ function LandingPage() {
     const loadGalleryListings = async () => {
       setGalleryLoading(true);
       try {
-        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
+        const params = new URLSearchParams();
+        if (HERO_GALLERY_LISTING_IDS.length) {
+          params.set("onlyIds", HERO_GALLERY_LISTING_IDS.join(","));
+        }
+        const query = params.toString();
+        const res = await fetch(`${apiBase}/listings${query ? `?${query}` : ""}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Unable to load listings.");
         const json = await res.json();
         const results = Array.isArray(json?.results) ? json.results : [];
         const parentResults = results
           .filter((listing) => isListingActiveForShowcase(listing))
           .filter((listing) => !isChildListing(listing));
+        let listingsToRender = parentResults;
+
+        if (HERO_GALLERY_LISTING_IDS.length) {
+          const byId = new Map(
+            parentResults.map((listing) => [String(getListingId(listing) || ""), listing]).filter(([id]) => id)
+          );
+          const ordered = HERO_GALLERY_LISTING_IDS.map((id) => byId.get(id)).filter(Boolean);
+          if (ordered.length) listingsToRender = ordered;
+        }
+
         const seen = new Set();
         const allUnits = [];
-        parentResults.forEach((listing) => {
+        listingsToRender.forEach((listing) => {
           const id = getListingId(listing);
           const image = getListingImage(listing);
           if (!id || !image) return;
@@ -825,12 +850,14 @@ function LandingPage() {
           seen.add(id);
           allUnits.push(listing);
         });
-        allUnits.sort((a, b) => {
-          const cityA = normalizeListingCity(a) || "Unknown";
-          const cityB = normalizeListingCity(b) || "Unknown";
-          if (cityA !== cityB) return cityA.localeCompare(cityB);
-          return (a?.title || "").localeCompare(b?.title || "");
-        });
+        if (!HERO_GALLERY_LISTING_IDS.length) {
+          allUnits.sort((a, b) => {
+            const cityA = normalizeListingCity(a) || "Unknown";
+            const cityB = normalizeListingCity(b) || "Unknown";
+            if (cityA !== cityB) return cityA.localeCompare(cityB);
+            return (a?.title || "").localeCompare(b?.title || "");
+          });
+        }
         if (active) {
           setGalleryListings(allUnits);
         }
@@ -1253,6 +1280,8 @@ function LandingPage() {
                 useFallback={false}
                 wave={0}
                 tiltStrength={0.14}
+                cardWidth={200}
+                cardHeight={300}
               />
               <div className="landing-circular-gallery__hint" aria-hidden="true">
                 <span className="landing-circular-gallery__hint-label">Swipe to explore</span>

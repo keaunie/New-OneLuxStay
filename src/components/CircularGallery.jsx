@@ -209,6 +209,8 @@ class Media {
     font,
     wave = 1,
     tiltStrength = 0.12,
+    cardWidth = 700,
+    cardHeight = 900,
   }) {
     this.extra = 0;
     this.geometry = geometry;
@@ -227,6 +229,8 @@ class Media {
     this.font = font;
     this.wave = wave;
     this.tiltStrength = tiltStrength;
+    this.cardWidth = Number.isFinite(cardWidth) ? cardWidth : 700;
+    this.cardHeight = Number.isFinite(cardHeight) ? cardHeight : 900;
     this.tiltCurrent = 0;
     this.createShader();
     this.createMesh();
@@ -404,9 +408,19 @@ class Media {
     const mobileScaleBoost = this.screen.width <= 520 ? 1.42 : isMobileViewport ? 1.28 : 1;
     const tabletScaleBoost = isTabletViewport ? 1.1 : 1;
     const desktopScaleBoost = !isMobileViewport && !isTabletViewport ? 1.3 : 1;
-    this.scale = (this.screen.height / 1500) * mobileScaleBoost * tabletScaleBoost * desktopScaleBoost;
-    this.plane.scale.y = (this.viewport.height * (900 * this.scale)) / this.screen.height;
-    this.plane.scale.x = (this.viewport.width * (700 * this.scale)) / this.screen.width;
+    const responsiveCardFactor = isMobileViewport ? 0.5 : isTabletViewport ? 0.72 : 1;
+    const targetCardWidth = this.cardWidth * responsiveCardFactor;
+    const targetCardHeight = this.cardHeight * responsiveCardFactor;
+    const isCustomCardSize = this.cardWidth !== 700 || this.cardHeight !== 900;
+    this.scale = isCustomCardSize
+      ? isMobileViewport
+        ? 0.58
+        : isTabletViewport
+          ? 0.8
+          : 1
+      : (this.screen.height / 1500) * mobileScaleBoost * tabletScaleBoost * desktopScaleBoost;
+    this.plane.scale.y = (this.viewport.height * (targetCardHeight * this.scale)) / this.screen.height;
+    this.plane.scale.x = (this.viewport.width * (targetCardWidth * this.scale)) / this.screen.width;
     this.plane.program.uniforms.uPlaneSizes.value = [this.plane.scale.x, this.plane.scale.y];
     this.padding = 2;
     this.width = this.plane.scale.x + this.padding;
@@ -428,6 +442,8 @@ class App {
       useFallback = true,
       wave = 1,
       tiltStrength = 0.12,
+      cardWidth = 700,
+      cardHeight = 900,
     } = {},
   ) {
     if (!container) return;
@@ -447,7 +463,7 @@ class App {
     this.createScene();
     this.onResize();
     this.createGeometry();
-    this.createMedias(items, bend, textColor, borderRadius, font, useFallback, wave, tiltStrength);
+    this.createMedias(items, bend, textColor, borderRadius, font, useFallback, wave, tiltStrength, cardWidth, cardHeight);
     this.update();
     this.addEventListeners();
   }
@@ -489,7 +505,18 @@ class App {
     });
   }
 
-  createMedias(items, bend = 1, textColor, borderRadius, font, useFallback = true, wave = 1, tiltStrength = 0.12) {
+  createMedias(
+    items,
+    bend = 1,
+    textColor,
+    borderRadius,
+    font,
+    useFallback = true,
+    wave = 1,
+    tiltStrength = 0.12,
+    cardWidth = 700,
+    cardHeight = 900,
+  ) {
     const defaultItems = [
       { image: "https://picsum.photos/seed/1/800/600?grayscale", text: "Bridge" },
       { image: "https://picsum.photos/seed/2/800/600?grayscale", text: "Desk Setup" },
@@ -526,6 +553,8 @@ class App {
         font,
         wave,
         tiltStrength,
+        cardWidth,
+        cardHeight,
       }),
     );
     if (this.medias.length) {
@@ -671,6 +700,8 @@ export default function CircularGallery({
   useFallback = true,
   wave = 1,
   tiltStrength = 0.12,
+  cardWidth = 700,
+  cardHeight = 900,
 }) {
   const containerRef = useRef(null);
 
@@ -686,11 +717,13 @@ export default function CircularGallery({
       useFallback,
       wave,
       tiltStrength,
+      cardWidth,
+      cardHeight,
     });
     return () => {
       if (app && app.destroy) app.destroy();
     };
-  }, [items, bend, textColor, borderRadius, font, onSelect, useFallback, wave, tiltStrength]);
+  }, [items, bend, textColor, borderRadius, font, onSelect, useFallback, wave, tiltStrength, cardWidth, cardHeight]);
 
   return <div className="circular-gallery" ref={containerRef} />;
 }
