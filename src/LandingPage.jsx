@@ -703,7 +703,8 @@ function LandingPage() {
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [quotePricing, setQuotePricing] = useState({});
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const swipeHintRef = useRef(null);
+  const [showGalleryHint, setShowGalleryHint] = useState(true);
+  const hasDismissedGalleryHintRef = useRef(false);
   const offersSwipeRef = useRef(null);
   const offersRef = useRef(null);
   const offersTrackRef = useRef(null);
@@ -1032,11 +1033,16 @@ function LandingPage() {
         }),
       );
     };
-    loadSwipeHint(swipeHintRef.current);
     loadSwipeHint(offersSwipeRef.current);
     return () => {
       animations.forEach((animation) => animation.destroy());
     };
+  }, []);
+
+  const dismissGalleryHint = useCallback(() => {
+    if (hasDismissedGalleryHintRef.current) return;
+    hasDismissedGalleryHintRef.current = true;
+    setShowGalleryHint(false);
   }, []);
 
   const handleGallerySelect = (index) => {
@@ -1269,7 +1275,12 @@ function LandingPage() {
           </form>
 
           {hasDesktopGallery && (
-            <div className="landing-circular-gallery landing-circular-gallery--hero" aria-label="Featured city stays">
+            <div
+              className="landing-circular-gallery landing-circular-gallery--hero"
+              aria-label="Featured city stays"
+              onPointerDown={dismissGalleryHint}
+              onTouchStart={dismissGalleryHint}
+            >
               <CircularGallery
                 items={galleryItems}
                 bend={0}
@@ -1280,12 +1291,17 @@ function LandingPage() {
                 useFallback={false}
                 wave={0}
                 tiltStrength={0.14}
-                cardWidth={200}
+                cardWidth={230}
                 cardHeight={300}
               />
-              <div className="landing-circular-gallery__hint" aria-hidden="true">
-                <span className="landing-circular-gallery__hint-label">Swipe to explore</span>
-                <span className="landing-circular-gallery__hint-lottie" ref={swipeHintRef} />
+              <div className={`landing-circular-gallery__hint${showGalleryHint ? "" : " is-hidden"}`} aria-hidden="true">
+                <span className="landing-circular-gallery__hint-icon">↔</span>
+                <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--touch">
+                  Swipe cards to explore
+                </span>
+                <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--desktop">
+                  Drag or scroll to explore
+                </span>
               </div>
             </div>
           )}
