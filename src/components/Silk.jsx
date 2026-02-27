@@ -2,6 +2,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { forwardRef, useLayoutEffect, useMemo, useRef } from "react";
 import { Color } from "three";
 
+let webglSupportCache;
+
 const hexToNormalizedRGB = (hex) => {
   const normalized = hex.replace("#", "");
   return [
@@ -9,6 +11,26 @@ const hexToNormalizedRGB = (hex) => {
     parseInt(normalized.slice(2, 4), 16) / 255,
     parseInt(normalized.slice(4, 6), 16) / 255,
   ];
+};
+
+const hasWebGLSupport = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+  if (typeof webglSupportCache === "boolean") return webglSupportCache;
+  try {
+    const canvas = document.createElement("canvas");
+    const gl =
+      canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext("webgl", { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext("experimental-webgl", { failIfMajorPerformanceCaveat: true });
+    webglSupportCache = Boolean(gl);
+    if (gl) {
+      const loseContext = gl.getExtension("WEBGL_lose_context");
+      if (loseContext?.loseContext) loseContext.loseContext();
+    }
+  } catch {
+    webglSupportCache = false;
+  }
+  return webglSupportCache;
 };
 
 const vertexShader = `
@@ -116,9 +138,16 @@ const Silk = ({
     [speed, scale, noiseIntensity, color, rotation]
   );
 
+  const supportsWebGL = hasWebGLSupport();
+
+  if (!supportsWebGL) {
+    return <div className={`silk-background silk-background--fallback ${className}`} aria-hidden="true" />;
+  }
+
   return (
     <div className={`silk-background ${className}`}>
       <Canvas
+        fallback={<div className="silk-background silk-background--fallback" aria-hidden="true" />}
         dpr={[1, 1.25]}
         frameloop="always"
         gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}

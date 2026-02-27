@@ -1045,12 +1045,12 @@ function LandingPage() {
     setShowGalleryHint(false);
   }, []);
 
-  const handleGallerySelect = (index) => {
+  const handleGallerySelect = useCallback((index) => {
     const selected = galleryItems[index];
     if (!selected?.href) return;
     prefetchRouteByPath(selected.href);
     navigate(selected.href);
-  };
+  }, [galleryItems, navigate]);
 
   const handleOffersPointerDown = (event) => {
     const container = offersRef.current;
@@ -1293,6 +1293,7 @@ function LandingPage() {
                 tiltStrength={0.14}
                 cardWidth={230}
                 cardHeight={300}
+                enableWheelInteraction={false}
               />
               <div className={`landing-circular-gallery__hint${showGalleryHint ? "" : " is-hidden"}`} aria-hidden="true">
                 <span className="landing-circular-gallery__hint-icon">↔</span>
@@ -1302,6 +1303,14 @@ function LandingPage() {
                 <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--desktop">
                   Drag or scroll to explore
                 </span>
+              </div>
+            </div>
+          )}
+
+          {galleryLoading && !hasDesktopGallery && (
+            <div className="landing-circular-gallery landing-circular-gallery--hero">
+              <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+                <span>Loading featured stays...</span>
               </div>
             </div>
           )}

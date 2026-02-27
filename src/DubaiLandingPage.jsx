@@ -1995,7 +1995,7 @@ export default function DubaiLandingPage() {
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
   const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
   const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
-  const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
+const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [checkoutPromoError, setCheckoutPromoError] = useState("");
   const [checkoutAppliedPromo, setCheckoutAppliedPromo] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState(1);
@@ -2266,9 +2266,6 @@ export default function DubaiLandingPage() {
       setIsCheckoutGuestOpen(false);
       setPendingCheckout(null);
       setCheckoutGuestError("");
-      setCheckoutPromoCode("");
-      setCheckoutPromoError("");
-      setCheckoutAppliedPromo(null);
       setSectionHeroIndex(0);
       setSectionQuotes({});
       setExpandedQuoteRows({});
@@ -3787,7 +3784,7 @@ export default function DubaiLandingPage() {
   );
   const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
 
-  const applyCheckoutPromoCode = () => {
+const applyCheckoutPromoCode = () => {
     const normalizedCode = checkoutPromoCode.trim().toUpperCase();
     if (!normalizedCode) {
       setCheckoutPromoError("Enter a discount code.");
@@ -3796,7 +3793,7 @@ export default function DubaiLandingPage() {
     const promo = CHECKOUT_PROMO_CODES[normalizedCode];
     if (!promo) {
       setCheckoutAppliedPromo(null);
-      setCheckoutPromoError("Invalid code. Try WELCOME5, LUXE10, or STAY15.");
+      setCheckoutPromoError("Invalid code.");
       return;
     }
     setPendingCheckout((prev) => {
@@ -5423,7 +5420,7 @@ export default function DubaiLandingPage() {
                     
                   </div>
                 </Step>
-
+                
                 <Step>
                   <div className="la-inquiry-modal__step">
                     <p className="la-inquiry-modal__fineprint">
@@ -5476,8 +5473,8 @@ export default function DubaiLandingPage() {
                     )}
                   </div>
                 </Step>
-                
-                <Step>
+
+<Step>
                   <div className="la-inquiry-modal__step">
                     <p className="la-inquiry-modal__fineprint">
                       Review your details and continue to payment.
@@ -5498,14 +5495,14 @@ export default function DubaiLandingPage() {
                         <span>{checkoutConsentSignerName || "--"}</span>
                       </div>
                       {checkoutAppliedPromo && (
-                        <div>
-                          <strong>Discount code</strong>
-                          <span>
-                            {checkoutAppliedPromo.code} ({Math.round(checkoutAppliedPromo.rate * 100)}% off)
-                          </span>
-                        </div>
-                      )}
-                      {pendingCheckout && Number.isFinite(Number(pendingCheckout.amount)) && (
+                    <div>
+                      <strong>Discount code</strong>
+                      <span>
+                        {checkoutAppliedPromo.code} ({Math.round(checkoutAppliedPromo.rate * 100)}% off)
+                      </span>
+                    </div>
+                  )}
+                  {pendingCheckout && Number.isFinite(Number(pendingCheckout.amount)) && (
                         <div>
                           <strong>Total to charge</strong>
                           <span>
@@ -6875,9 +6872,6 @@ export default function DubaiLandingPage() {
                                       setCheckoutConsentAccepted(false);
                                       setCheckoutConsentSignerName("");
                                       setCheckoutConsentSignatureDataUrl("");
-                                      setCheckoutPromoCode("");
-                                      setCheckoutPromoError("");
-                                      setCheckoutAppliedPromo(null);
                                       setCheckoutGuestError("");
                                       setIsCheckoutGuestOpen(true);
                                       return;
@@ -7275,9 +7269,6 @@ export default function DubaiLandingPage() {
                                     setCheckoutConsentAccepted(false);
                                     setCheckoutConsentSignerName("");
                                     setCheckoutConsentSignatureDataUrl("");
-                                    setCheckoutPromoCode("");
-                                    setCheckoutPromoError("");
-                                    setCheckoutAppliedPromo(null);
                                     setCheckoutGuestError("");
                                     setIsCheckoutGuestOpen(true);
                                     return;

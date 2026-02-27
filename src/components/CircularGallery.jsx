@@ -444,6 +444,7 @@ class App {
       tiltStrength = 0.12,
       cardWidth = 700,
       cardHeight = 900,
+      enableWheelInteraction = true,
     } = {},
   ) {
     if (!container) return;
@@ -457,6 +458,7 @@ class App {
     this.dragThreshold = 6;
     this.lastPointerX = 0;
     this.tiltStrength = tiltStrength;
+    this.enableWheelInteraction = enableWheelInteraction !== false;
     this.itemsCount = Array.isArray(items) ? items.length : 0;
     this.createRenderer();
     this.createCamera();
@@ -596,6 +598,7 @@ class App {
   }
 
   onWheel() {
+    if (!this.enableWheelInteraction) return;
     this.scroll.target += 2;
     this.onCheckDebounce();
   }
@@ -624,13 +627,16 @@ class App {
   }
 
   onResize() {
+    if (!this.container) return;
+    const containerWidth = Math.max(1, this.container.clientWidth || 0);
+    const containerHeight = Math.max(1, this.container.clientHeight || 0);
     this.screen = {
-      width: this.container.clientWidth,
-      height: this.container.clientHeight,
+      width: containerWidth,
+      height: containerHeight,
     };
     this.renderer.setSize(this.screen.width, this.screen.height);
     this.camera.perspective({
-      aspect: this.screen.width / this.screen.height,
+      aspect: this.screen.height ? this.screen.width / this.screen.height : 1,
     });
     const fov = (this.camera.fov * Math.PI) / 180;
     const height = 2 * Math.tan(fov / 2) * this.camera.position.z;
@@ -660,8 +666,10 @@ class App {
     this.boundOnTouchUp = this.onTouchUp.bind(this);
     window.addEventListener("resize", this.boundOnResize);
     if (this.container) {
-      this.container.addEventListener("mousewheel", this.boundOnWheel);
-      this.container.addEventListener("wheel", this.boundOnWheel);
+      if (this.enableWheelInteraction) {
+        this.container.addEventListener("mousewheel", this.boundOnWheel);
+        this.container.addEventListener("wheel", this.boundOnWheel);
+      }
       this.container.addEventListener("mousedown", this.boundOnTouchDown);
       this.container.addEventListener("touchstart", this.boundOnTouchDown);
     }
@@ -675,8 +683,10 @@ class App {
     if (this.raf) window.cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.boundOnResize);
     if (this.container) {
-      this.container.removeEventListener("mousewheel", this.boundOnWheel);
-      this.container.removeEventListener("wheel", this.boundOnWheel);
+      if (this.enableWheelInteraction) {
+        this.container.removeEventListener("mousewheel", this.boundOnWheel);
+        this.container.removeEventListener("wheel", this.boundOnWheel);
+      }
       this.container.removeEventListener("mousedown", this.boundOnTouchDown);
       this.container.removeEventListener("touchstart", this.boundOnTouchDown);
     }
@@ -702,28 +712,49 @@ export default function CircularGallery({
   tiltStrength = 0.12,
   cardWidth = 700,
   cardHeight = 900,
+  enableWheelInteraction = true,
 }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
-    const app = new App(containerRef.current, {
-      items,
-      bend,
-      textColor,
-      borderRadius,
-      font,
-      onSelect,
-      useFallback,
-      wave,
-      tiltStrength,
-      cardWidth,
-      cardHeight,
-    });
+    let app = null;
+    try {
+      app = new App(containerRef.current, {
+        items,
+        bend,
+        textColor,
+        borderRadius,
+        font,
+        onSelect,
+        useFallback,
+        wave,
+        tiltStrength,
+        cardWidth,
+        cardHeight,
+        enableWheelInteraction,
+      });
+    } catch (error) {
+      // Keep the page usable if WebGL/OGL initialization fails.
+      console.error("CircularGallery initialization failed:", error);
+    }
     return () => {
       if (app && app.destroy) app.destroy();
     };
-  }, [items, bend, textColor, borderRadius, font, onSelect, useFallback, wave, tiltStrength, cardWidth, cardHeight]);
+  }, [
+    items,
+    bend,
+    textColor,
+    borderRadius,
+    font,
+    onSelect,
+    useFallback,
+    wave,
+    tiltStrength,
+    cardWidth,
+    cardHeight,
+    enableWheelInteraction,
+  ]);
 
   return <div className="circular-gallery" ref={containerRef} />;
 }

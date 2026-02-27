@@ -1356,6 +1356,30 @@ body {
   height: 100%;
 }
 
+.landing-circular-gallery__loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(249, 248, 246, 0.55), rgba(249, 248, 246, 0.18) 55%, rgba(249, 248, 246, 0.06) 100%);
+}
+
+.landing-circular-gallery__loading span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 181, 156, 0.6);
+  background: rgba(249, 248, 246, 0.92);
+  color: #705840;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 8px 14px;
+  box-shadow: 0 10px 22px rgba(42, 30, 20, 0.16);
+}
+
 .landing-circular-gallery::before,
 .landing-circular-gallery::after {
   content: "";
@@ -4294,15 +4318,17 @@ body {
   gap: 24px;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
   align-items: start;
+  position: relative;
 }
 
 .la-units-aside {
-  position: sticky;
-  top: 90px;
-  align-self: start;
+  position: relative;
+  align-self: stretch;
 }
 
 .la-units-map-card {
+  position: sticky;
+  top: 18px;
   border-radius: 22px;
   padding: 18px;
   background: rgba(255, 255, 255, 0.7);
@@ -4529,29 +4555,21 @@ body {
   z-index: 2;
 }
 
-@media (min-width: 1024px) {
-  .la-units-aside {
-    height: calc(100vh - 140px);
-  }
-
-  .la-units-map-card {
-    height: 100%;
-  }
-
+@media (min-width: 901px) {
   .la-units-map {
-    flex: 1;
-    min-height: 0;
+    height: clamp(320px, 52vh, 560px);
+    min-height: 320px;
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 900px) {
   .la-units-map {
     height: clamp(220px, 40vh, 420px);
     max-height: 60vh;
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 900px) {
   .la-units-layout {
     grid-template-columns: 1fr;
   }
@@ -4559,15 +4577,9 @@ body {
   .la-units-aside {
     position: static;
   }
-}
 
-@media (max-width: 1024px) {
-  .la-units-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .la-units-aside {
-    position: relative;
+  .la-units-map-card {
+    position: static;
     top: auto;
   }
 }
@@ -6261,6 +6273,13 @@ body {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.silk-background--fallback {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(201, 181, 156, 0.22), transparent 42%),
+    radial-gradient(circle at 82% 8%, rgba(217, 207, 199, 0.36), transparent 46%),
+    linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
 }
 
 .la-unit-modal__card {

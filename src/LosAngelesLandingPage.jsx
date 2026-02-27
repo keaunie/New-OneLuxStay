@@ -1994,7 +1994,7 @@ export default function LosAngelesLandingPage() {
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
   const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
   const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
-  const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
+const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [checkoutPromoError, setCheckoutPromoError] = useState("");
   const [checkoutAppliedPromo, setCheckoutAppliedPromo] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState(1);
@@ -2262,9 +2262,6 @@ export default function LosAngelesLandingPage() {
       setIsCheckoutGuestOpen(false);
       setPendingCheckout(null);
       setCheckoutGuestError("");
-      setCheckoutPromoCode("");
-      setCheckoutPromoError("");
-      setCheckoutAppliedPromo(null);
       setSectionHeroIndex(0);
       setSectionQuotes({});
       setExpandedQuoteRows({});
@@ -3811,7 +3808,7 @@ export default function LosAngelesLandingPage() {
   );
   const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
 
-  const applyCheckoutPromoCode = () => {
+const applyCheckoutPromoCode = () => {
     const normalizedCode = checkoutPromoCode.trim().toUpperCase();
     if (!normalizedCode) {
       setCheckoutPromoError("Enter a discount code.");
@@ -3820,7 +3817,7 @@ export default function LosAngelesLandingPage() {
     const promo = CHECKOUT_PROMO_CODES[normalizedCode];
     if (!promo) {
       setCheckoutAppliedPromo(null);
-      setCheckoutPromoError("Invalid code. Try WELCOME5, LUXE10, or STAY15.");
+      setCheckoutPromoError("Invalid code.");
       return;
     }
     setPendingCheckout((prev) => {
@@ -4785,9 +4782,6 @@ export default function LosAngelesLandingPage() {
                               setCheckoutConsentAccepted(false);
                               setCheckoutConsentSignerName("");
                               setCheckoutConsentSignatureDataUrl("");
-                              setCheckoutPromoCode("");
-                              setCheckoutPromoError("");
-                              setCheckoutAppliedPromo(null);
                               setCheckoutGuestError("");
                               setIsCheckoutGuestOpen(true);
                             }}
@@ -5441,7 +5435,7 @@ export default function LosAngelesLandingPage() {
                 
               </div>
             </Step>
-
+            
             <Step>
               <div className="la-inquiry-modal__step">
                 <p className="la-inquiry-modal__fineprint">
@@ -5494,8 +5488,8 @@ export default function LosAngelesLandingPage() {
                 )}
               </div>
             </Step>
-            
-            <Step>
+
+<Step>
               <div className="la-inquiry-modal__step">
                 <p className="la-inquiry-modal__fineprint">
                   Review your details and continue to payment.
@@ -6955,9 +6949,6 @@ export default function LosAngelesLandingPage() {
                                     setCheckoutConsentAccepted(false);
                                     setCheckoutConsentSignerName("");
                                     setCheckoutConsentSignatureDataUrl("");
-                                    setCheckoutPromoCode("");
-                                    setCheckoutPromoError("");
-                                    setCheckoutAppliedPromo(null);
                                     setCheckoutGuestError("");
                                     setIsCheckoutGuestOpen(true);
                                   }}
@@ -7378,9 +7369,6 @@ export default function LosAngelesLandingPage() {
                                   setCheckoutConsentAccepted(false);
                                   setCheckoutConsentSignerName("");
                                   setCheckoutConsentSignatureDataUrl("");
-                                  setCheckoutPromoCode("");
-                                  setCheckoutPromoError("");
-                                  setCheckoutAppliedPromo(null);
                                   setCheckoutGuestError("");
                                   setIsCheckoutGuestOpen(true);
                                 }}
