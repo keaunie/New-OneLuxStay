@@ -1,4 +1,7 @@
 const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
+const DEGRADE_CACHE_MAX_AGE_SECONDS = 60;
+const GEOCODER_BLOCK_FALLBACK_MS = 5 * 60 * 1000;
+let providerBlockedUntil = 0;
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -43,6 +46,13 @@ export async function handler(event) {
   const bounded = String(event.queryStringParameters?.bounded || "").trim();
   if (bounded) params.set("bounded", bounded);
 
+  if (Date.now() < providerBlockedUntil) {
+    return jsonResponse(200, [], {
+      "Cache-Control": `public, max-age=${DEGRADE_CACHE_MAX_AGE_SECONDS}`,
+      "X-Geocode-Degraded": "1",
+    });
+  }
+
   try {
     const userAgent =
       process.env.NOMINATIM_USER_AGENT ||
@@ -55,8 +65,20 @@ export async function handler(event) {
     });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      const statusCode = response.status === 429 ? 429 : 502;
       const retryAfter = response.headers.get("retry-after");
+      if (response.status === 429 || response.status === 502) {
+        const retryAfterSeconds = Number.parseInt(retryAfter || "", 10);
+        const blockMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+          ? retryAfterSeconds * 1000
+          : GEOCODER_BLOCK_FALLBACK_MS;
+        providerBlockedUntil = Math.max(providerBlockedUntil, Date.now() + blockMs);
+        return jsonResponse(200, [], {
+          "Cache-Control": `public, max-age=${DEGRADE_CACHE_MAX_AGE_SECONDS}`,
+          "X-Geocode-Degraded": "1",
+          ...(retryAfter ? { "Retry-After": retryAfter } : {}),
+        });
+      }
+      const statusCode = 502;
       return jsonResponse(statusCode, {
         message: "Geocoding provider error",
         status: response.status,

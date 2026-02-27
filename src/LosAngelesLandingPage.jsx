@@ -2736,17 +2736,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       const clickTarget = marker || backgroundMarker;
       clickTarget.addListener("click", () => {
-        const items = uniqueParents
-          .map((entry) => {
-            const entryTitle = resolveListingTitle(entry);
-            const entryAddress = formatAddress(entry);
-            return `<li><strong>${escapeHtml(entryTitle)}</strong><br />${escapeHtml(entryAddress)}</li>`;
-          })
-          .join("");
         const content = `
           <div>
             <strong>${escapeHtml(title)}</strong>
-            <ul style="margin:8px 0 0 16px;padding:0;">${items}</ul>
           </div>`;
         infoWindow.setContent(content);
         infoWindow.open(map, clickTarget);

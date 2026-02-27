@@ -1,6 +1,17 @@
 import { Link } from "react-router-dom";
 import "./ChromaGrid.css";
 
+const optimizeChromaImage = (url, width = 900) => {
+  if (!url) return "";
+  const value = String(url);
+  const marker = "/image/upload/";
+  if (value.includes("assets.guesty.com") && value.includes(marker)) {
+    if (/\/image\/upload\/(?:[^/]*,)?(?:f_|q_|w_)/.test(value)) return value;
+    return value.replace(marker, `${marker}f_auto,q_auto:good,w_${width}/`);
+  }
+  return value;
+};
+
 const DEFAULT_ITEMS = [
   {
     title: "Los Angeles",
@@ -45,9 +56,13 @@ export default function ChromaGrid({ items = DEFAULT_ITEMS }) {
             >
               <div className="chroma-grid-card__media">
                 <img
-                  src={item.image}
+                  src={optimizeChromaImage(item.image)}
                   alt={item.title}
                   loading="lazy"
+                  decoding="async"
+                  width="1200"
+                  height="960"
+                  sizes="(max-width: 680px) 100vw, (max-width: 1100px) 50vw, 25vw"
                   className="chroma-grid-card__image"
                 />
                 <div className="chroma-grid-card__overlay" />

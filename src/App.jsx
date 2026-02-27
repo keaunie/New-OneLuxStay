@@ -1,9 +1,9 @@
 import { Suspense, lazy, useLayoutEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import LoadingScreen from "./components/LoadingScreen";
 import { routePreloaders } from "./utils/routePreloaders";
 import "./App.css";
 
+const LoadingScreen = lazy(() => import("./components/LoadingScreen"));
 const LandingPage = lazy(routePreloaders.landing);
 const AntwerpLandingPage = lazy(routePreloaders.antwerp);
 const LosAngelesLandingPage = lazy(routePreloaders.losAngeles);
@@ -63,7 +63,7 @@ const useCityRouteLoading = () => {
     };
   }, [shouldShowLoader, location.pathname]);
 
-  return appLoaded;
+  return { appLoaded, shouldShowLoader };
 };
 
 function RootRoute() {
@@ -80,7 +80,7 @@ function RootRoute() {
 }
 
 function AppRoutes() {
-  const appLoaded = useCityRouteLoading();
+  const { appLoaded, shouldShowLoader } = useCityRouteLoading();
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -89,7 +89,11 @@ function AppRoutes() {
 
   return (
     <>
-      <LoadingScreen active={!appLoaded} />
+      {shouldShowLoader && (
+        <Suspense fallback={null}>
+          <LoadingScreen active={!appLoaded} />
+        </Suspense>
+      )}
       <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
         <Routes>
           <Route path="/" element={<RootRoute />} />

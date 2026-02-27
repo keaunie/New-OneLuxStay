@@ -1,6 +1,4 @@
-﻿@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap");
-
-/* Global component-specific overrides live here. Tailwind handles most styling. */
+﻿/* Global component-specific overrides live here. Tailwind handles most styling. */
 
 .no-scrollbar {
   scrollbar-width: none;
@@ -5963,7 +5961,7 @@ body {
 }
 
 .la-inquiry-modal__note.is-success::before {
-  content: "✓";
+  content: "\2713";
   width: 20px;
   height: 20px;
   border-radius: 999px;
@@ -6948,7 +6946,7 @@ body {
 }
 
 .la-facilities-group li::before {
-  content: "✓";
+  content: "\2713";
   margin-right: 8px;
   color: #2d3a2d;
   font-weight: 700;
@@ -10578,3 +10576,4 @@ a[href="#redondo-city-tour"],
 .la-booking-table__row > .la-booking-table__cell:last-child {
   display: none !important;
 }
+

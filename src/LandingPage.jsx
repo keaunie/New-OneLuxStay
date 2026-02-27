@@ -1,15 +1,14 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useCallback, useEffect, useRef, useState, useMemo, useId } from "react";
-import { createPortal } from "react-dom";
-import lottie from "lottie-web";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, useMemo, useId } from "react";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
-import CircularGallery from "./components/CircularGallery";
-import Silk from "./components/Silk";
-import ChromaGrid from "./components/ChromaGrid";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
+
+const Silk = lazy(() => import("./components/Silk"));
+const CircularGallery = lazy(() => import("./components/CircularGallery"));
+const ChromaGrid = lazy(() => import("./components/ChromaGrid"));
 
 const KNOWN_CITIES = [
   "hollywood",
@@ -339,48 +338,32 @@ const resolveQuoteRange = (checkIn, checkOut) => {
   return { checkIn: toISODate(today), checkOut: toISODate(tomorrow) };
 };
 
-const stays = [
-  {
-    label: "The OneLuxStay way",
-    headline: "Elevated with a rhythm that matches yours.",
-    copy: "Every detail is intentional - layered lighting, tactile materials, silent climate control, and seamless tech. Your concierge orchestrates arrivals, perks, and departures.",
-    image:
-      "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    label: "Seamless arrivals",
-    headline: "Design-first homes",
-    copy: "Warm lighting, tactile textures, and cinematic views in every address.",
-    image:
-      "https://assets.guesty.com/image/upload/v1730119087/production/666b3af27fc6d5653142b0af/npeczkhmy9wff4lzuyvr.jpg",
-  },
-  {
-    label: "Hotel-grade service",
-    headline: "Concierge, daily refresh",
-    copy: "In-home experiences tailored to you with on-call support for every stay.",
-    image:
-      "https://assets.guesty.com/image/upload/v1760535614/production/666b3af27fc6d5653142b0af/t7p3cc6hqez89wsmj1gt.jpg",
-  },
-  {
-    label: "Instant availability",
-    headline: "Real-time calendars",
-    copy: "Stay dates and pricing update live across every unit in our collection.",
-    image:
-      "https://assets.guesty.com/image/upload/v1732914973/production/666b3af27fc6d5653142b0af/jpotm8nwcbvufegnbcnx.jpg",
-  },
-  {
-    label: "How it works",
-    headline: "Reserve + Unwind",
-    copy: "Live availability, transparent pricing, and concierge on standby. Arrive to a prepared home with optional chef, spa, or driver.",
-    image:
-      "https://assets.guesty.com/image/upload/v1729089198/production/666b3af27fc6d5653142b0af/ksjnj1kppnbajljv9csi.jpg",
-  },
-];
+const optimizeLandingImage = (url, width = 1600) => {
+  if (!url) return "";
+  const value = String(url);
+  if (value.includes("images.unsplash.com")) {
+    return `${value}&w=${width}&q=72`;
+  }
+  const marker = "/image/upload/";
+  if (value.includes("assets.guesty.com") && value.includes(marker) && !/\/image\/upload\/(?:[^/]*,)?(?:f_|q_|w_)/.test(value)) {
+    return value.replace(marker, `${marker}f_auto,q_auto:good,w_${width}/`);
+  }
+  return value;
+};
 
 const heroSlides = [
-  "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1800&auto=format&fit=crop&ixlib=rb-4.1.0",
-  "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
-  "https://assets.guesty.com/image/upload/v1760535614/production/666b3af27fc6d5653142b0af/t7p3cc6hqez89wsmj1gt.jpg",
+  optimizeLandingImage(
+    "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1800&auto=format&fit=crop&ixlib=rb-4.1.0",
+    1800
+  ),
+  optimizeLandingImage(
+    "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
+    1400
+  ),
+  optimizeLandingImage(
+    "https://assets.guesty.com/image/upload/v1760535614/production/666b3af27fc6d5653142b0af/t7p3cc6hqez89wsmj1gt.jpg",
+    1400
+  ),
 ];
 
 const offers = [
@@ -413,18 +396,6 @@ const offers = [
     tone: "sand",
   },
 ];
-
-const conciergeContacts = {
-  phones: [
-    // { label: "UAE", display: "+971 55 727 7059", href: "tel:+971557277059" },
-    { label: "USA", display: "+1 213 866 3589", href: "tel:+12138663589" },
-    // { label: "EU", display: "+32 3 808 0719", href: "tel:+3238080719" },
-  ],
-  emails: [
-    { label: "Reservations", display: "reservations@oneluxstay.com", href: "mailto:reservations@oneluxstay.com" },
-    // { label: "Data security", display: "datasecurity@oneluxstay.com", href: "mailto:datasecurity@oneluxstay.com" },
-  ],
-};
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
@@ -695,6 +666,13 @@ const DateRangePicker = ({ value, onChange }) => {
 function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false
+  );
+  const [enableHeroEnhancements, setEnableHeroEnhancements] = useState(false);
   const [destination, setDestination] = useState("All");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -730,8 +708,54 @@ function LandingPage() {
   ];
   const [cityNoticeIndex, setCityNoticeIndex] = useState(0);
   const [cityNotice, setCityNotice] = useState("");
-  const [isConciergeModalOpen, setIsConciergeModalOpen] = useState(false);
   const loopedOffers = useMemo(() => [...offers, ...offers, ...offers], []);
+  const shouldUseHeroEnhancements = enableHeroEnhancements && !prefersReducedMotion;
+  const shouldLoadHeroGallery = shouldUseHeroEnhancements && isDesktopViewport;
+  const displayedHeroSlides = shouldUseHeroEnhancements ? heroSlides : heroSlides.slice(0, 1);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      setIsDesktopViewport(desktopQuery.matches);
+      setPrefersReducedMotion(motionQuery.matches);
+    };
+    sync();
+    desktopQuery.addEventListener?.("change", sync);
+    motionQuery.addEventListener?.("change", sync);
+    return () => {
+      desktopQuery.removeEventListener?.("change", sync);
+      motionQuery.removeEventListener?.("change", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopViewport || prefersReducedMotion) {
+      setEnableHeroEnhancements(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const activate = () => {
+      if (!cancelled) setEnableHeroEnhancements(true);
+    };
+    let idleId = null;
+    let timerId = null;
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(activate, { timeout: 1800 });
+    } else {
+      timerId = window.setTimeout(activate, 1000);
+    }
+    return () => {
+      cancelled = true;
+      if (idleId !== null && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, [isDesktopViewport, prefersReducedMotion]);
 
   const galleryItems = useMemo(() => {
     if (!galleryListings.length) return [];
@@ -820,6 +844,11 @@ function LandingPage() {
   }, [destination, checkIn, checkOut, guests, rooms]);
 
   useEffect(() => {
+    if (!shouldLoadHeroGallery) {
+      setGalleryListings([]);
+      setGalleryLoading(false);
+      return undefined;
+    }
     let active = true;
     const loadGalleryListings = async () => {
       setGalleryLoading(true);
@@ -829,7 +858,7 @@ function LandingPage() {
           params.set("onlyIds", HERO_GALLERY_LISTING_IDS.join(","));
         }
         const query = params.toString();
-        const res = await fetch(`${apiBase}/listings${query ? `?${query}` : ""}`, { cache: "no-store" });
+        const res = await fetch(`${apiBase}/listings${query ? `?${query}` : ""}`);
         if (!res.ok) throw new Error("Unable to load listings.");
         const json = await res.json();
         const results = Array.isArray(json?.results) ? json.results : [];
@@ -878,7 +907,7 @@ function LandingPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [shouldLoadHeroGallery]);
 
   const normalizeOffersX = useCallback((value) => {
     const base = offersBaseWidthRef.current;
@@ -951,10 +980,15 @@ function LandingPage() {
   };
 
   useEffect(() => {
+    if (!shouldLoadHeroGallery) {
+      setQuotePricing({});
+      setQuoteLoading(false);
+      return undefined;
+    }
     if (!galleryListings.length) {
       setQuotePricing({});
       setQuoteLoading(false);
-      return;
+      return undefined;
     }
     const { checkIn: quoteCheckIn, checkOut: quoteCheckOut } = resolveQuoteRange(checkIn, checkOut);
     const nights = diffNights(quoteCheckIn, quoteCheckOut);
@@ -1022,25 +1056,39 @@ function LandingPage() {
       active = false;
       setQuoteLoading(false);
     };
-  }, [galleryListings, checkIn, checkOut, guests]);
+  }, [galleryListings, checkIn, checkOut, guests, shouldLoadHeroGallery]);
 
   useEffect(() => {
-    const animations = [];
-    const loadSwipeHint = (container) => {
-      if (!container) return;
-      animations.push(
-        lottie.loadAnimation({
-          container,
-          renderer: "svg",
-          loop: true,
-          autoplay: true,
-          path: "/Swipe.json",
-        }),
-      );
-    };
-    loadSwipeHint(offersSwipeRef.current);
+    const swipeContainer = offersSwipeRef.current;
+    const offersContainer = offersRef.current;
+    if (!swipeContainer || !offersContainer) return undefined;
+    let animation = null;
+    let cancelled = false;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        observer.disconnect();
+        import("lottie-web")
+          .then((module) => {
+            if (cancelled || !offersSwipeRef.current) return;
+            const lottieLib = module?.default || module;
+            animation = lottieLib.loadAnimation({
+              container: offersSwipeRef.current,
+              renderer: "svg",
+              loop: true,
+              autoplay: true,
+              path: "/Swipe.json",
+            });
+          })
+          .catch(() => {});
+      },
+      { threshold: 0.2 }
+    );
+    observer.observe(offersContainer);
     return () => {
-      animations.forEach((animation) => animation.destroy());
+      cancelled = true;
+      observer.disconnect();
+      if (animation?.destroy) animation.destroy();
     };
   }, []);
 
@@ -1123,20 +1171,6 @@ function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (!isConciergeModalOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") setIsConciergeModalOpen(false);
-    };
-    document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isConciergeModalOpen]);
-
   const scrollToCollection = useCallback(() => {
     const target = document.getElementById("collection");
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1174,16 +1208,22 @@ function LandingPage() {
   return (
     <div className="landing-page text-white has-silk">
       <div className="landing-silk" aria-hidden="true">
-        <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
+        {shouldUseHeroEnhancements ? (
+          <Suspense fallback={<div className="silk-background silk-background--fallback" />}>
+            <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
+          </Suspense>
+        ) : (
+          <div className="silk-background silk-background--fallback" />
+        )}
       </div>
       <div className="landing-silk-overlay" aria-hidden="true" />
       <header id="hero" className="landing-hero relative landing-animate">
         <div
           aria-hidden="true"
           className="hero-media hero-media__slideshow"
-          style={{ "--slide-count": heroSlides.length, "--slide-duration": "6s" }}
+          style={{ "--slide-count": displayedHeroSlides.length, "--slide-duration": "6s" }}
         >
-          {heroSlides.map((src, idx) => (
+          {displayedHeroSlides.map((src, idx) => (
             <div
               key={src}
               className={`hero-slide${isHeroPaused ? " is-paused" : ""}`}
@@ -1202,26 +1242,28 @@ function LandingPage() {
             Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Dubai, Los Angeles, Miami,
             and Redondo Beach.
           </p>
-          <button
-            type="button"
-            className="landing-hero-control"
-            aria-pressed={isHeroPaused}
-            aria-label={isHeroPaused ? "Play background slideshow" : "Pause background slideshow"}
-            title={isHeroPaused ? "Play slideshow" : "Pause slideshow"}
-            onClick={() => setIsHeroPaused((prev) => !prev)}
-          >
-            <span className="landing-hero-control__icon" aria-hidden="true">
-              {isHeroPaused ? (
-                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-                  <path d="M8 6.25v11.5a.75.75 0 0 0 1.16.62l9-5.75a.75.75 0 0 0 0-1.24l-9-5.75A.75.75 0 0 0 8 6.25z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-                  <path d="M7 6.5c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1H8c-.55 0-1-.45-1-1v-11zm6 0c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-11z" />
-                </svg>
-              )}
-            </span>
-          </button>
+          {displayedHeroSlides.length > 1 && (
+            <button
+              type="button"
+              className="landing-hero-control"
+              aria-pressed={isHeroPaused}
+              aria-label={isHeroPaused ? "Play background slideshow" : "Pause background slideshow"}
+              title={isHeroPaused ? "Play slideshow" : "Pause slideshow"}
+              onClick={() => setIsHeroPaused((prev) => !prev)}
+            >
+              <span className="landing-hero-control__icon" aria-hidden="true">
+                {isHeroPaused ? (
+                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                    <path d="M8 6.25v11.5a.75.75 0 0 0 1.16.62l9-5.75a.75.75 0 0 0 0-1.24l-9-5.75A.75.75 0 0 0 8 6.25z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                    <path d="M7 6.5c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1H8c-.55 0-1-.45-1-1v-11zm6 0c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-11z" />
+                  </svg>
+                )}
+              </span>
+            </button>
+          )}
 
           <div className="landing-chip-row">
             {["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami"].map((city) => (
@@ -1280,27 +1322,35 @@ function LandingPage() {
             <button type="submit" className="landing-cta-primary w-full md:w-auto">Book</button>
           </form>
 
-          {hasDesktopGallery && (
+          {shouldLoadHeroGallery && hasDesktopGallery && (
             <div
               className="landing-circular-gallery landing-circular-gallery--hero"
               aria-label="Featured city stays"
               onPointerDown={dismissGalleryHint}
               onTouchStart={dismissGalleryHint}
             >
-              <CircularGallery
-                items={galleryItems}
-                bend={0}
-                borderRadius={0.08}
-                textColor="#46372e"
-                font="700 20px 'Work Sans', sans-serif"
-                onSelect={handleGallerySelect}
-                useFallback={false}
-                wave={0}
-                tiltStrength={0.14}
-                cardWidth={230}
-                cardHeight={300}
-                enableWheelInteraction={false}
-              />
+              <Suspense
+                fallback={
+                  <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+                    <span>Loading featured stays...</span>
+                  </div>
+                }
+              >
+                <CircularGallery
+                  items={galleryItems}
+                  bend={0}
+                  borderRadius={0.08}
+                  textColor="#46372e"
+                  font="700 20px 'Work Sans', sans-serif"
+                  onSelect={handleGallerySelect}
+                  useFallback={false}
+                  wave={0}
+                  tiltStrength={0.14}
+                  cardWidth={230}
+                  cardHeight={300}
+                  enableWheelInteraction={false}
+                />
+              </Suspense>
               <div className={`landing-circular-gallery__hint${showGalleryHint ? "" : " is-hidden"}`} aria-hidden="true">
                 <span className="landing-circular-gallery__hint-icon">↔</span>
                 <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--touch">
@@ -1313,7 +1363,7 @@ function LandingPage() {
             </div>
           )}
 
-          {galleryLoading && !hasDesktopGallery && (
+          {shouldLoadHeroGallery && galleryLoading && !hasDesktopGallery && (
             <div className="landing-circular-gallery landing-circular-gallery--hero">
               <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
                 <span>Loading featured stays...</span>
@@ -1502,7 +1552,15 @@ function LandingPage() {
         </div>
 
         <div className="landing-destination-panel px-6 md:px-10">
-          <ChromaGrid />
+          <Suspense
+            fallback={
+              <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+                <span>Loading destinations...</span>
+              </div>
+            }
+          >
+            <ChromaGrid />
+          </Suspense>
         </div>
       </section>
 

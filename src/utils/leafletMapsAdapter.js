@@ -7,10 +7,12 @@ const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const GEOCODE_PROXY_URL = `${apiBase}/geocode`;
 const GEOCODE_REQUEST_INTERVAL_MS = 1200;
+const GEOCODE_BLOCK_FALLBACK_MS = 5 * 60 * 1000;
 const geocodeCache = new Map();
 const geocodeInFlight = new Map();
 let geocodeQueue = Promise.resolve();
 let lastGeocodeRequestAt = 0;
+let geocodeBlockedUntil = 0;
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -48,10 +50,11 @@ const buildViewBox = (location, radiusMeters = 2500) => {
   const latRadius = Math.max(radiusMeters / 111320, 0.01);
   const cosLat = Math.cos((coords.lat * Math.PI) / 180) || 1;
   const lngRadius = Math.max(radiusMeters / (111320 * Math.max(Math.abs(cosLat), 0.2)), 0.01);
-  const left = coords.lng - lngRadius;
-  const right = coords.lng + lngRadius;
-  const top = coords.lat + latRadius;
-  const bottom = coords.lat - latRadius;
+  // Keep viewbox precision stable to avoid generating near-duplicate cache keys.
+  const left = Number((coords.lng - lngRadius).toFixed(4));
+  const right = Number((coords.lng + lngRadius).toFixed(4));
+  const top = Number((coords.lat + latRadius).toFixed(4));
+  const bottom = Number((coords.lat - latRadius).toFixed(4));
   return `${left},${top},${right},${bottom}`;
 };
 
@@ -107,8 +110,14 @@ const geocodeAddress = async (address, { location = null, radius = 2500 } = {}) 
   if (geocodeInFlight.has(cacheKey)) return geocodeInFlight.get(cacheKey);
 
   const requestPromise = enqueueGeocodeTask(async () => {
+    if (Date.now() < geocodeBlockedUntil) {
+      return createFallbackGeocodeFromLocation(normalizedAddress, location, radius);
+    }
     const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (Date.now() < geocodeBlockedUntil) {
+        return createFallbackGeocodeFromLocation(normalizedAddress, location, radius);
+      }
       const response = await fetch(`${GEOCODE_PROXY_URL}?${params.toString()}`);
       if (response.ok) {
         const payload = await response.json();
@@ -131,6 +140,13 @@ const geocodeAddress = async (address, { location = null, radius = 2500 } = {}) 
       const retryDelayMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
         ? retryAfterHeader * 1000
         : 1200 * (attempt + 1);
+      if (response.status === 429) {
+        // Pause future remote requests for a cooldown window and rely on local fallback.
+        geocodeBlockedUntil = Math.max(
+          geocodeBlockedUntil,
+          Date.now() + Math.max(retryDelayMs, GEOCODE_BLOCK_FALLBACK_MS)
+        );
+      }
       await wait(retryDelayMs);
     }
     return createFallbackGeocodeFromLocation(normalizedAddress, location, radius);

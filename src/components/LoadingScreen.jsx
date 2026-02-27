@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import lottie from "lottie-web";
 
 const DEFAULT_LOTTIE_SRC = (import.meta.env.VITE_LOTTIE_LOADING_SRC || "").trim();
 const LOCAL_FALLBACK_LOTTIE_SRC = "/3D%20Isometric%20Smart-Living%20Room.json";
@@ -20,33 +19,57 @@ const LoadingScreen = ({ active, lottieSrc }) => {
     const container = containerRef.current;
     if (!active || !container || !currentSrc || hasFailed) return undefined;
 
+    let destroyed = false;
+    let animation = null;
+    let handleDataFailed = null;
     container.innerHTML = "";
-    const animation = lottie.loadAnimation({
-      container,
-      renderer: "svg",
-      loop: true,
-      autoplay: true,
-      path: currentSrc,
-      rendererSettings: {
-        progressiveLoad: true,
-        preserveAspectRatio: "xMidYMid meet",
-      },
-    });
 
-    const handleDataFailed = () => {
-      if (currentSrc !== LOCAL_FALLBACK_LOTTIE_SRC) {
-        setPrimaryFailedSrc(resolvedLottieSrc);
-        return;
-      }
-      setFatalSrc(resolvedLottieSrc);
-    };
+    import("lottie-web")
+      .then((module) => {
+        if (destroyed || !containerRef.current) return;
+        const lottieLib = module?.default || module;
+        animation = lottieLib.loadAnimation({
+          container: containerRef.current,
+          renderer: "svg",
+          loop: true,
+          autoplay: true,
+          path: currentSrc,
+          rendererSettings: {
+            progressiveLoad: true,
+            preserveAspectRatio: "xMidYMid meet",
+          },
+        });
 
-    animation.addEventListener("data_failed", handleDataFailed);
+        handleDataFailed = () => {
+          if (currentSrc !== LOCAL_FALLBACK_LOTTIE_SRC) {
+            setPrimaryFailedSrc(resolvedLottieSrc);
+            return;
+          }
+          setFatalSrc(resolvedLottieSrc);
+        };
+
+        animation.addEventListener("data_failed", handleDataFailed);
+      })
+      .catch(() => {
+        if (destroyed) return;
+        if (currentSrc !== LOCAL_FALLBACK_LOTTIE_SRC) {
+          setPrimaryFailedSrc(resolvedLottieSrc);
+        } else {
+          setFatalSrc(resolvedLottieSrc);
+        }
+      });
 
     return () => {
-      animation.removeEventListener("data_failed", handleDataFailed);
-      animation.destroy();
-      container.innerHTML = "";
+      destroyed = true;
+      if (animation) {
+        if (handleDataFailed) {
+          animation.removeEventListener("data_failed", handleDataFailed);
+        }
+        animation.destroy();
+      }
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
     };
   }, [active, currentSrc, hasFailed, resolvedLottieSrc]);
 
