@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
@@ -460,11 +460,13 @@ const DateRangePicker = ({ value, onChange }) => {
 
 function GlobalUnitsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [cityFilter, setCityFilter] = useState("All");
+  const [roomsFilter, setRoomsFilter] = useState(1);
   const [todayPrices, setTodayPrices] = useState({});
   const [todayPricesLoading, setTodayPricesLoading] = useState(false);
   const [stayDates, setStayDates] = useState({ checkIn: "", checkOut: "" });
@@ -475,6 +477,24 @@ function GlobalUnitsPage() {
   const [imageFading, setImageFading] = useState({});
   const swipeStartXRef = useRef({});
   const imageFadeTimersRef = useRef({});
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const cityParam = params.get("city") || params.get("destination") || "";
+    const checkInParam = params.get("checkIn") || "";
+    const checkOutParam = params.get("checkOut") || "";
+    const roomsParam = Number.parseInt(params.get("rooms") || "", 10);
+    if (cityParam) setCityFilter(cityParam);
+    if (checkInParam || checkOutParam) {
+      setStayDates((prev) => ({
+        checkIn: checkInParam || prev.checkIn,
+        checkOut: checkOutParam || prev.checkOut,
+      }));
+    }
+    if (Number.isFinite(roomsParam) && roomsParam > 0) {
+      setRoomsFilter(Math.min(8, roomsParam));
+    }
+  }, [location.search]);
 
   useEffect(() => {
     let active = true;
@@ -663,6 +683,14 @@ function GlobalUnitsPage() {
     return listings.filter((listing) => {
       const city = normalizeCity(listing);
       if (cityFilter !== "All" && city !== cityFilter) return false;
+      const listingRoomsRaw = firstNumber(
+        listing?.bedrooms,
+        listing?.bedroomCount,
+        listing?.roomCount,
+        listing?.rooms
+      );
+      const listingRooms = Number.isFinite(listingRoomsRaw) && listingRoomsRaw > 0 ? listingRoomsRaw : 1;
+      if (roomsFilter > 1 && listingRooms < roomsFilter) return false;
       if (!q) return true;
       const haystack = [
         listing?.title,
@@ -676,7 +704,18 @@ function GlobalUnitsPage() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [listings, cityFilter, search]);
+  }, [listings, cityFilter, roomsFilter, search]);
+
+  const buildListingLink = (listing) => {
+    const basePath = buildListingPath(listing);
+    const [pathname, existingQuery = ""] = basePath.split("?");
+    const params = new URLSearchParams(existingQuery);
+    if (stayDates.checkIn) params.set("checkIn", stayDates.checkIn);
+    if (stayDates.checkOut) params.set("checkOut", stayDates.checkOut);
+    if (roomsFilter) params.set("rooms", String(roomsFilter));
+    const query = params.toString();
+    return `${pathname}${query ? `?${query}` : ""}`;
+  };
 
   const filteredListings = useMemo(() => {
     if (!stayDates.checkIn || !stayDates.checkOut || !availableListingIds) {
@@ -782,7 +821,7 @@ function GlobalUnitsPage() {
 
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <section className="global-units-filters mb-5 rounded-2xl border border-[rgba(201,181,156,0.5)] bg-white/70 p-3 sm:p-4">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <label className="flex flex-col gap-1 text-sm text-[var(--ink-soft)] lg:col-span-1">
               Search
               <input
@@ -803,6 +842,21 @@ function GlobalUnitsPage() {
                 {cityOptions.map((city) => (
                   <option key={city} value={city}>
                     {city}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-[var(--ink-soft)] lg:col-span-1">
+              Rooms
+              <select
+                value={roomsFilter}
+                onChange={(event) => setRoomsFilter(Number(event.target.value) || 1)}
+                className="rounded-lg border border-[rgba(201,181,156,0.6)] bg-white px-3 py-2 text-[var(--ink)] outline-none focus:border-[var(--landing-amber)]"
+              >
+                <option value={1}>Any</option>
+                {[2, 3, 4, 5, 6, 7, 8].map((roomCount) => (
+                  <option key={roomCount} value={roomCount}>
+                    {roomCount}+
                   </option>
                 ))}
               </select>
@@ -853,7 +907,7 @@ function GlobalUnitsPage() {
               const imageCount = images.length;
               const imageIndex = getImageIndex(listingId, imageCount);
               const heroImage = imageCount ? images[imageIndex] : "";
-              const link = buildListingPath(listing);
+              const link = buildListingLink(listing);
               const todayPriceEntry = todayPrices[listingId];
               const fallbackPrice = getListingFallbackPrice(listing);
               const fallbackCurrency = getListingCurrency(listing);

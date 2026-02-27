@@ -699,6 +699,7 @@ function LandingPage() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(1);
+  const [rooms, setRooms] = useState(1);
   const [galleryListings, setGalleryListings] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [quotePricing, setQuotePricing] = useState({});
@@ -750,6 +751,7 @@ function LandingPage() {
           params.set("guests", String(guests));
           params.set("adults", String(guests));
         }
+        if (rooms) params.set("rooms", String(rooms));
         const query = params.toString();
         const citySlug = citySlugFromName(cityParam || city);
         const basePath = citySlug ? `/${citySlug}/listing/${encodeURIComponent(listingId)}` : "/listings";
@@ -763,7 +765,7 @@ function LandingPage() {
         };
       })
       .filter((item) => item?.image && item?.href);
-  }, [galleryListings, checkIn, checkOut, guests, quotePricing, quoteLoading]);
+  }, [galleryListings, checkIn, checkOut, guests, rooms, quotePricing, quoteLoading]);
   const hasDesktopGallery = galleryItems.length > 0;
 
   const cityRoutes = {
@@ -798,11 +800,13 @@ function LandingPage() {
     const checkInParam = params.get("checkIn") || "";
     const checkOutParam = params.get("checkOut") || "";
     const guestsParam = params.get("guests") || params.get("adults") || "";
+    const roomsParam = params.get("rooms") || "";
     const persisted = readPersistedBooking();
     setDestination(destinationParam || persisted?.destination || "All");
     setCheckIn(checkInParam || persisted?.checkIn || "");
     setCheckOut(checkOutParam || persisted?.checkOut || "");
     setGuests(guestsParam ? Number(guestsParam) || 1 : persisted?.guests || 1);
+    setRooms(roomsParam ? Number(roomsParam) || 1 : persisted?.rooms || 1);
   }, [location.search]);
 
   useEffect(() => {
@@ -811,8 +815,9 @@ function LandingPage() {
       checkIn,
       checkOut,
       guests,
+      rooms,
     });
-  }, [destination, checkIn, checkOut, guests]);
+  }, [destination, checkIn, checkOut, guests, rooms]);
 
   useEffect(() => {
     let active = true;
@@ -1149,6 +1154,7 @@ function LandingPage() {
       params.set("guests", String(guests));
       params.set("adults", String(guests));
     }
+    if (rooms) params.set("rooms", String(rooms));
     const query = params.toString();
     const targetRoute = (() => {
       if (cityParam === "Los Angeles") return "/losangeles";
@@ -1374,20 +1380,48 @@ function LandingPage() {
 
             <div className="ols-booking-occupancy" role="group" aria-label="Guests and rooms">
               <div className="ols-booking-guest-field">
-                <label htmlFor="landing-guests-mobile">Adults</label>
-                <select
-                  id="landing-guests-mobile"
-                  value={guests}
-                  onChange={(e) => setGuests(Number(e.target.value) || 1)}
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
+                <label id="landing-guests-mobile">Guest/s</label>
+                <div className="ols-booking-stepper" role="group" aria-labelledby="landing-guests-mobile">
+                  <button
+                    type="button"
+                    className="ols-booking-stepper-btn"
+                    aria-label="Decrease guests"
+                    onClick={() => setGuests((prev) => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </button>
+                  <output className="ols-booking-stepper-value" aria-live="polite">{guests}</output>
+                  <button
+                    type="button"
+                    className="ols-booking-stepper-btn"
+                    aria-label="Increase guests"
+                    onClick={() => setGuests((prev) => Math.min(8, prev + 1))}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               <div className="ols-booking-guest-field">
-                <label>Rooms</label>
-                <p className="ols-booking-value">1</p>
+                <label id="landing-rooms-mobile">Rooms</label>
+                <div className="ols-booking-stepper" role="group" aria-labelledby="landing-rooms-mobile">
+                  <button
+                    type="button"
+                    className="ols-booking-stepper-btn"
+                    aria-label="Decrease rooms"
+                    onClick={() => setRooms((prev) => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </button>
+                  <output className="ols-booking-stepper-value" aria-live="polite">{rooms}</output>
+                  <button
+                    type="button"
+                    className="ols-booking-stepper-btn"
+                    aria-label="Increase rooms"
+                    onClick={() => setRooms((prev) => Math.min(5, prev + 1))}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1398,7 +1432,7 @@ function LandingPage() {
             <article className="ols-booking-promo" aria-label="Long stay savings">
               <div>
                 <h2>Unlock savings on long stays</h2>
-                <p>Member perks, direct-booking rates, and concierge support in every destination.</p>
+                <p>Book for more than 7 days, direct-booking rates, and concierge support in every destination.</p>
               </div>
               <button type="button" className="ols-booking-promo__cta" onClick={scrollToCollection}>
                 Explore signature stays

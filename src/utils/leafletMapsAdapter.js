@@ -1,10 +1,11 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import apiBase from "./apiBase";
 
 const TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
+const GEOCODE_PROXY_URL = `${apiBase}/geocode`;
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -61,9 +62,7 @@ const geocodeAddress = async (address, { location = null, radius = 2500 } = {}) 
     params.set("viewbox", viewbox);
     params.set("bounded", "1");
   }
-  const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetch(`${GEOCODE_PROXY_URL}?${params.toString()}`);
   if (!response.ok) return null;
   const payload = await response.json();
   if (!Array.isArray(payload) || !payload.length) return null;

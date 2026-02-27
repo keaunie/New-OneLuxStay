@@ -1969,8 +1969,13 @@ body {
 
 @media (max-width: 640px) {
   .landing-offers-section {
-    margin-top: 6px;
-    padding: 16px 0 20px;
+    margin-top: 0;
+    padding: 8px 0 20px;
+    border-top: 0;
+  }
+
+  .landing-offers-copy > .landing-kicker {
+    margin: 0;
   }
 
   .landing-offers-head {
@@ -10254,6 +10259,11 @@ video {
 .ols-booking-guest-field {
   padding: 10px 10px 8px;
   border-right: 1px solid rgba(199, 167, 128, 0.42);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
 }
 
 .ols-booking-guest-field:last-child {
@@ -10278,6 +10288,33 @@ video {
   font-weight: 750;
   outline: none;
   appearance: none;
+  line-height: 1.1;
+}
+
+.ols-booking-stepper {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.ols-booking-stepper-btn {
+  min-height: 32px;
+  border: 1px solid rgba(185, 161, 133, 0.82);
+  border-radius: 9px;
+  background: #fff9f2;
+  color: #2a1f15;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ols-booking-stepper-value {
+  color: #2a1f15;
+  font-size: 1.35rem;
+  font-weight: 750;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .ols-booking-value {
@@ -10297,8 +10334,13 @@ video {
   color: #fffdf8;
   font-size: clamp(1.18rem, 4vw, 1.7rem);
   font-weight: 800;
+  line-height: 1;
   letter-spacing: 0.01em;
   box-shadow: 0 12px 26px rgba(58, 42, 30, 0.36);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
 }
 
 .ols-booking-fillers {
@@ -10475,6 +10517,20 @@ video {
     font-size: 1.15rem;
   }
 
+  .ols-booking-stepper {
+    grid-template-columns: 30px 1fr 30px;
+    gap: 6px;
+  }
+
+  .ols-booking-stepper-btn {
+    min-height: 28px;
+    font-size: 1rem;
+  }
+
+  .ols-booking-stepper-value {
+    font-size: 1.2rem;
+  }
+
   .ols-booking-promo {
     padding: 14px;
   }
@@ -10500,4 +10556,25 @@ video {
     min-width: 220px;
     padding: 0 18px;
   }
+}
+
+/* Temporary: disable Virtual Tour UI until 360 assets are available */
+.la-city-tour,
+.la-tour-overlay,
+.la-tour-trigger,
+a[href="#la-city-tour"],
+a[href="#redondo-city-tour"],
+.la-unit-modal__room-actions > button[type="button"],
+.la-booking-table__cta {
+  display: none !important;
+}
+
+.la-booking-table__head,
+.la-booking-table__row {
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.4fr);
+}
+
+.la-booking-table__head > [role="columnheader"]:last-child,
+.la-booking-table__row > .la-booking-table__cell:last-child {
+  display: none !important;
 }
