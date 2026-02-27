@@ -55,11 +55,13 @@ export async function handler(event) {
     });
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      return jsonResponse(502, {
+      const statusCode = response.status === 429 ? 429 : 502;
+      const retryAfter = response.headers.get("retry-after");
+      return jsonResponse(statusCode, {
         message: "Geocoding provider error",
         status: response.status,
         error: errorText || null,
-      });
+      }, retryAfter ? { "Retry-After": retryAfter } : {});
     }
     const payload = await response.json();
     return jsonResponse(200, payload, {
@@ -72,4 +74,3 @@ export async function handler(event) {
     });
   }
 }
-
