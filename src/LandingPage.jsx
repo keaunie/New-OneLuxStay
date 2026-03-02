@@ -365,6 +365,10 @@ const heroSlides = [
     1400
   ),
 ];
+const mobileHeroSlide = optimizeLandingImage(
+  "https://images.unsplash.com/photo-1534253893894-10d024888e49?q=80&w=1800&auto=format&fit=crop&ixlib=rb-4.1.0",
+  960
+);
 
 const offers = [
   {
@@ -669,6 +673,9 @@ function LandingPage() {
   const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
   );
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 640px)").matches : false
+  );
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false
   );
@@ -687,7 +694,11 @@ function LandingPage() {
   const offersSwipeRef = useRef(null);
   const offersRef = useRef(null);
   const offersTrackRef = useRef(null);
+  const collectionRef = useRef(null);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const [shouldRenderCollectionGrid, setShouldRenderCollectionGrid] = useState(() =>
+    typeof window !== "undefined" ? !window.matchMedia("(max-width: 640px)").matches : true
+  );
   const isOffersDraggingRef = useRef(false);
   const offersDragStartXRef = useRef(0);
   const offersDragStartTranslateRef = useRef(0);
@@ -711,21 +722,29 @@ function LandingPage() {
   const loopedOffers = useMemo(() => [...offers, ...offers, ...offers], []);
   const shouldUseHeroEnhancements = enableHeroEnhancements && !prefersReducedMotion;
   const shouldLoadHeroGallery = shouldUseHeroEnhancements && isDesktopViewport;
-  const displayedHeroSlides = shouldUseHeroEnhancements ? heroSlides : heroSlides.slice(0, 1);
+  const displayedHeroSlides = shouldUseHeroEnhancements
+    ? heroSlides
+    : [isMobileViewport ? mobileHeroSlide : heroSlides[0]];
+  const shouldUseInteractiveOffers = !isMobileViewport;
+  const offersToRender = shouldUseInteractiveOffers ? loopedOffers : offers;
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const mobileQuery = window.matchMedia("(max-width: 640px)");
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sync = () => {
       setIsDesktopViewport(desktopQuery.matches);
+      setIsMobileViewport(mobileQuery.matches);
       setPrefersReducedMotion(motionQuery.matches);
     };
     sync();
     desktopQuery.addEventListener?.("change", sync);
+    mobileQuery.addEventListener?.("change", sync);
     motionQuery.addEventListener?.("change", sync);
     return () => {
       desktopQuery.removeEventListener?.("change", sync);
+      mobileQuery.removeEventListener?.("change", sync);
       motionQuery.removeEventListener?.("change", sync);
     };
   }, []);
@@ -927,6 +946,7 @@ function LandingPage() {
   }, [normalizeOffersX]);
 
   useEffect(() => {
+    if (!shouldUseInteractiveOffers) return undefined;
     const track = offersTrackRef.current;
     if (!track || typeof ResizeObserver === "undefined") return undefined;
     const measure = () => {
@@ -943,9 +963,10 @@ function LandingPage() {
     const observer = new ResizeObserver(measure);
     observer.observe(track);
     return () => observer.disconnect();
-  }, [applyOffersTranslate]);
+  }, [applyOffersTranslate, shouldUseInteractiveOffers]);
 
   const startOffersRaf = () => {
+    if (!shouldUseInteractiveOffers) return;
     if (offersRafRef.current) return;
     offersLastTimeRef.current = performance.now();
     const tick = (now) => {
@@ -1059,6 +1080,7 @@ function LandingPage() {
   }, [galleryListings, checkIn, checkOut, guests, shouldLoadHeroGallery]);
 
   useEffect(() => {
+    if (isMobileViewport || prefersReducedMotion) return undefined;
     const swipeContainer = offersSwipeRef.current;
     const offersContainer = offersRef.current;
     if (!swipeContainer || !offersContainer) return undefined;
@@ -1090,7 +1112,31 @@ function LandingPage() {
       observer.disconnect();
       if (animation?.destroy) animation.destroy();
     };
-  }, []);
+  }, [isMobileViewport, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setShouldRenderCollectionGrid(true);
+      return undefined;
+    }
+    setShouldRenderCollectionGrid(false);
+    const target = collectionRef.current;
+    if (!target || typeof IntersectionObserver === "undefined") {
+      setShouldRenderCollectionGrid(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setShouldRenderCollectionGrid(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "260px 0px", threshold: 0.01 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isMobileViewport]);
 
   const dismissGalleryHint = useCallback(() => {
     if (hasDismissedGalleryHintRef.current) return;
@@ -1106,6 +1152,7 @@ function LandingPage() {
   }, [galleryItems, navigate]);
 
   const handleOffersPointerDown = (event) => {
+    if (!shouldUseInteractiveOffers) return;
     const container = offersRef.current;
     if (!container) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -1127,6 +1174,7 @@ function LandingPage() {
   };
 
   const handleOffersPointerMove = (event) => {
+    if (!shouldUseInteractiveOffers) return;
     if (!isOffersDraggingRef.current) return;
     const delta = event.clientX - offersDragStartXRef.current;
     if (Math.abs(delta) > 6) offersDragMovedRef.current = true;
@@ -1140,6 +1188,7 @@ function LandingPage() {
   };
 
   const handleOffersPointerUp = (event) => {
+    if (!shouldUseInteractiveOffers) return;
     const container = offersRef.current;
     if (container) {
       container.classList.remove("is-dragging");
@@ -1150,6 +1199,7 @@ function LandingPage() {
   };
 
   const handleOffersClickCapture = (event) => {
+    if (!shouldUseInteractiveOffers) return;
     if (offersDragMovedRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -1218,21 +1268,37 @@ function LandingPage() {
       </div>
       <div className="landing-silk-overlay" aria-hidden="true" />
       <header id="hero" className="landing-hero relative landing-animate">
-        <div
-          aria-hidden="true"
-          className="hero-media hero-media__slideshow"
-          style={{ "--slide-count": displayedHeroSlides.length, "--slide-duration": "6s" }}
-        >
-          {displayedHeroSlides.map((src, idx) => (
-            <div
-              key={src}
-              className={`hero-slide${isHeroPaused ? " is-paused" : ""}`}
-              style={{ backgroundImage: `url(${src})`, "--slide-delay": `${idx * 6}s` }}
+        {isMobileViewport ? (
+          <div aria-hidden="true" className="hero-media hero-media__static">
+            <img
+              src={mobileHeroSlide}
+              alt=""
+              width="1440"
+              height="960"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              className="hero-media__static-image"
             />
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div
+            aria-hidden="true"
+            className="hero-media hero-media__slideshow"
+            style={{ "--slide-count": displayedHeroSlides.length, "--slide-duration": "6s" }}
+          >
+            {displayedHeroSlides.map((src, idx) => (
+              <div
+                key={src}
+                className={`hero-slide${isHeroPaused ? " is-paused" : ""}`}
+                style={{ backgroundImage: `url(${src})`, "--slide-delay": `${idx * 6}s` }}
+              />
+            ))}
+          </div>
+        )}
         <div className="hero-media__overlay" aria-hidden="true" />
-        <div className="landing-hero-inner landing-hero-desktop">
+        {!isMobileViewport && (
+          <div className="landing-hero-inner landing-hero-desktop">
           <div className="landing-logo-mark">OneLuxStay</div>
           <p className="landing-kicker landing-hero-kicker">The art of luxurious stays</p>
           <h1 className="landing-display landing-hero-title">
@@ -1368,9 +1434,18 @@ function LandingPage() {
               </div>
             </div>
           )}
+
+          {shouldLoadHeroGallery && galleryLoading && !hasDesktopGallery && (
+            <div className="landing-circular-gallery landing-circular-gallery--hero">
+              <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+                <span>Loading featured stays...</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="landing-hero-inner ols-booking-shell landing-hero-mobile">
+        {isMobileViewport && (
+          <div className="landing-hero-inner ols-booking-shell landing-hero-mobile">
           <div className="ols-booking-topbar">
             <div className="landing-logo-mark">ONELUXSTAY</div>
           </div>
@@ -1487,7 +1562,8 @@ function LandingPage() {
               </button>
             </article>
           </div>
-        </div>
+          </div>
+        )}
       </header>
 
       <section id="offers" className="landing-offers-section landing-animate" aria-label="Discounts and promos">
@@ -1508,21 +1584,23 @@ function LandingPage() {
         <div className="landing-offers-controls landing-offers-controls--center" aria-hidden="true">
           <div className="landing-offers-swipe">
             <span className="landing-offers-swipe__label">Swipe offers</span>
-            <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />
+            {shouldUseInteractiveOffers && !prefersReducedMotion && (
+              <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />
+            )}
           </div>
         </div>
 
         <div
-          className="landing-offers-row"
-          ref={offersRef}
-          onPointerDown={handleOffersPointerDown}
-          onPointerMove={handleOffersPointerMove}
-          onPointerUp={handleOffersPointerUp}
-          onPointerCancel={handleOffersPointerUp}
-          onClickCapture={handleOffersClickCapture}
+          className={`landing-offers-row ${shouldUseInteractiveOffers ? "landing-offers-row--draggable" : "landing-offers-row--native"}`}
+          ref={shouldUseInteractiveOffers ? offersRef : null}
+          onPointerDown={shouldUseInteractiveOffers ? handleOffersPointerDown : undefined}
+          onPointerMove={shouldUseInteractiveOffers ? handleOffersPointerMove : undefined}
+          onPointerUp={shouldUseInteractiveOffers ? handleOffersPointerUp : undefined}
+          onPointerCancel={shouldUseInteractiveOffers ? handleOffersPointerUp : undefined}
+          onClickCapture={shouldUseInteractiveOffers ? handleOffersClickCapture : undefined}
         >
-          <div className="landing-offers-track" ref={offersTrackRef}>
-            {loopedOffers.map((offer, idx) => (
+          <div className="landing-offers-track" ref={shouldUseInteractiveOffers ? offersTrackRef : null}>
+            {offersToRender.map((offer, idx) => (
               <article key={`${offer.kicker}-${idx}`} className={`landing-offer-card offer-${offer.tone}`}>
                 <p className="landing-offer-kicker">{offer.kicker}</p>
                 <h3 className="landing-offer-title">{offer.headline}</h3>
@@ -1536,7 +1614,7 @@ function LandingPage() {
         </div>
       </section>
 
-      <section id="collection" className="landing-collection-section landing-animate">
+      <section id="collection" className="landing-collection-section landing-animate" ref={collectionRef}>
         <div className="landing-showcase-inner px-6 md:px-10">
           <div className="landing-section-head landing-collection-intro">
             <p className="landing-kicker landing-collection-kicker">Signature stays</p>
@@ -1550,15 +1628,21 @@ function LandingPage() {
         </div>
 
         <div className="landing-destination-panel px-6 md:px-10">
-          <Suspense
-            fallback={
-              <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-                <span>Loading destinations...</span>
-              </div>
-            }
-          >
-            <ChromaGrid />
-          </Suspense>
+          {shouldRenderCollectionGrid ? (
+            <Suspense
+              fallback={
+                <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+                  <span>Loading destinations...</span>
+                </div>
+              }
+            >
+              <ChromaGrid />
+            </Suspense>
+          ) : (
+            <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+              <span>Loading destinations...</span>
+            </div>
+          )}
         </div>
       </section>
 

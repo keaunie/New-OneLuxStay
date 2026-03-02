@@ -781,6 +781,20 @@ body {
   overflow: hidden;
 }
 
+.hero-media__static {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.hero-media__static-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: saturate(0.9) brightness(1.02);
+}
+
 .hero-slide {
   position: absolute;
   inset: 0;
@@ -1802,6 +1816,26 @@ body {
   touch-action: pan-y;
 }
 
+.landing-offers-row--native {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  touch-action: pan-x;
+  cursor: auto;
+  user-select: auto;
+}
+
+.landing-offers-row--native .landing-offers-track {
+  will-change: auto;
+  transform: none !important;
+}
+
+.landing-offers-row--native .landing-offer-card {
+  scroll-snap-align: start;
+}
+
 .landing-offers-row::-webkit-scrollbar {
   display: none;
 }
@@ -2032,6 +2066,11 @@ body {
   .landing-offer-body {
     font-size: 0.96rem;
     line-height: 1.42;
+  }
+
+  .landing-collection-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 920px;
   }
 }
 
@@ -10654,6 +10693,16 @@ a[href="#la-city-tour"],
 a[href="#redondo-city-tour"],
 .la-unit-modal__room-actions > button[type="button"],
 .la-booking-table__cta {
+  display: none !important;
+}
+
+.la-booking-table__head,
+.la-booking-table__row {
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.4fr);
+}
+
+.la-booking-table__head > [role="columnheader"]:last-child,
+.la-booking-table__row > .la-booking-table__cell:last-child {
   display: none !important;
 }
 
