@@ -1443,6 +1443,7 @@ function LandingPage() {
             </div>
           )}
         </div>
+        )}
 
         {isMobileViewport && (
           <div className="landing-hero-inner ols-booking-shell landing-hero-mobile">
