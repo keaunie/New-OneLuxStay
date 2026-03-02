@@ -945,6 +945,19 @@ function LandingPage() {
     }
   }, [normalizeOffersX]);
 
+  const getOffersStep = useCallback(() => {
+    const track = offersTrackRef.current;
+    if (!track) return null;
+    const card = track.querySelector(".landing-offer-card");
+    if (!card) return null;
+    const styles = window.getComputedStyle(track);
+    const gapValue = styles.columnGap || styles.gap || "0";
+    const gap = Number.parseFloat(gapValue) || 0;
+    const width = card.getBoundingClientRect().width;
+    if (!Number.isFinite(width) || width <= 0) return null;
+    return width + gap;
+  }, []);
+
   useEffect(() => {
     if (!shouldUseInteractiveOffers) return undefined;
     const track = offersTrackRef.current;
@@ -999,6 +1012,20 @@ function LandingPage() {
     };
     offersRafRef.current = requestAnimationFrame(tick);
   };
+
+  const getOffersSnapTarget = useCallback(
+    (directionBias = 0) => {
+      const base = offersBaseWidthRef.current;
+      const step = getOffersStep();
+      if (!base || !step) return null;
+      const current = normalizeOffersX(offersTrackXRef.current);
+      const relative = current + base;
+      let index = Math.round(-relative / step);
+      if (directionBias) index += directionBias;
+      return -base - index * step;
+    },
+    [getOffersStep, normalizeOffersX],
+  );
 
   useEffect(() => {
     if (!shouldLoadHeroGallery) {
@@ -1195,6 +1222,13 @@ function LandingPage() {
       container.releasePointerCapture?.(event.pointerId);
     }
     isOffersDraggingRef.current = false;
+    const velocity = offersVelocityRef.current;
+    const bias = Math.abs(velocity) > 0.35 ? (velocity < 0 ? 1 : -1) : 0;
+    const target = getOffersSnapTarget(bias);
+    if (target !== null) {
+      offersTargetXRef.current = target;
+      offersVelocityRef.current = 0;
+    }
     startOffersRaf();
   };
 
