@@ -12,12 +12,28 @@ NODE_VERSION = "18"
 [dev]
 targetPort = 5174
 
-# SPA fallback — KEEP THIS
+[[headers]]
+for = "/*"
+  [headers.values]
+  Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+  X-Frame-Options = "SAMEORIGIN"
+  X-Content-Type-Options = "nosniff"
+  Referrer-Policy = "strict-origin-when-cross-origin"
+  Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+  Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://oneluxstayprop.netlify.app https://oneluxstay.netlify.app; frame-src 'self' https://openstreetmap.org https://*.openstreetmap.org; child-src 'self' https://openstreetmap.org https://*.openstreetmap.org; worker-src 'self' blob:; upgrade-insecure-requests; block-all-mixed-content;"
+
+[[headers]]
+for = "/private/roadmap/*"
+  [headers.values]
+  X-Robots-Tag = "noindex, nofollow, noarchive"
+  Cache-Control = "no-store"
+
+# SPA fallback - KEEP THIS
 [[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200
 
-# Scheduled function — KEEP THIS
+# Scheduled function - KEEP THIS
 [functions."refresh-guesty-token"]
 schedule = "@daily"

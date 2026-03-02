@@ -5611,7 +5611,8 @@ const applyCheckoutPromoCode = () => {
             A curated landing page built directly from live listing data. Every detail below mirrors what is available
             right now for Dubai units.
           </p>
-          <div className="antwerp-hero__actions">
+          <div className="la-hero-reviews-card">
+            <div className="antwerp-hero__actions">
             <a href="#la-city-tour" className="antwerp-cta">
               Browse tours
             </a>
@@ -5667,6 +5668,7 @@ const applyCheckoutPromoCode = () => {
             </div>
           </div>
         </div>
+      </div>
         <div className="antwerp-hero__media">
           <div className="la-hero-card-swap">
             <div className="la-hero-card-swap__frame">

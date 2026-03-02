@@ -5682,59 +5682,61 @@ const applyCheckoutPromoCode = () => {
             A curated landing page built directly from live listing data. Every detail below mirrors what is available
             right now for Antwerp units.
           </p>
-          <div className="antwerp-hero__actions">
-            <a href="#la-city-tour" className="antwerp-cta">
-              Browse tours
-            </a>
-            <a href="#antwerp-units" className="antwerp-ghost">
-              Explore units
-            </a>
-          </div>
-          <div className="la-review-ticker" aria-label="Guest review highlights">
-            <div className="la-review-ticker__track" ref={reviewCarouselRef}>
-              {[...REVIEW_TICKER, ...REVIEW_TICKER].map((review, index) => (
-                <article className="la-review-ticker__item" key={`${review.name}-${index}`}>
-                  <div className="la-review-ticker__stars" aria-label={`${review.rating} out of 5 stars`}>
-                    {Array.from({ length: STAR_TOTAL }).map((_, starIndex) => (
-                      <span
-                        key={`${review.name}-${index}-star-${starIndex}`}
-                        className={
-                          starIndex < review.rating
-                            ? "la-review-ticker__star is-on"
-                            : "la-review-ticker__star"
-                        }
-                        aria-hidden="true"
-                      >
-                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                          <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6z" />
-                        </svg>
-                      </span>
-                    ))}
-                  </div>
-                  <p>"{review.quote}"</p>
-                  <span className="la-review-ticker__meta">
-                    {review.name} | {review.source}
-                  </span>
-                </article>
-              ))}
+          <div className="la-hero-reviews-card">
+            <div className="antwerp-hero__actions">
+              <a href="#la-city-tour" className="antwerp-cta">
+                Browse tours
+              </a>
+              <a href="#antwerp-units" className="antwerp-ghost">
+                Explore units
+              </a>
             </div>
-            <div className="la-review-ticker__controls" aria-hidden="false">
-              <button
-                type="button"
-                className="la-review-ticker__btn"
-                onClick={() => scrollReviewCarousel(-1)}
-                aria-label="Previous review"
-              >
-                {"<"}
-              </button>
-              <button
-                type="button"
-                className="la-review-ticker__btn"
-                onClick={() => scrollReviewCarousel(1)}
-                aria-label="Next review"
-              >
-                {">"}
-              </button>
+            <div className="la-review-ticker" aria-label="Guest review highlights">
+              <div className="la-review-ticker__track" ref={reviewCarouselRef}>
+                {[...REVIEW_TICKER, ...REVIEW_TICKER].map((review, index) => (
+                  <article className="la-review-ticker__item" key={`${review.name}-${index}`}>
+                    <div className="la-review-ticker__stars" aria-label={`${review.rating} out of 5 stars`}>
+                      {Array.from({ length: STAR_TOTAL }).map((_, starIndex) => (
+                        <span
+                          key={`${review.name}-${index}-star-${starIndex}`}
+                          className={
+                            starIndex < review.rating
+                              ? "la-review-ticker__star is-on"
+                              : "la-review-ticker__star"
+                          }
+                          aria-hidden="true"
+                        >
+                          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6z" />
+                          </svg>
+                        </span>
+                      ))}
+                    </div>
+                    <p>"{review.quote}"</p>
+                    <span className="la-review-ticker__meta">
+                      {review.name} | {review.source}
+                    </span>
+                  </article>
+                ))}
+              </div>
+              <div className="la-review-ticker__controls" aria-hidden="false">
+                <button
+                  type="button"
+                  className="la-review-ticker__btn"
+                  onClick={() => scrollReviewCarousel(-1)}
+                  aria-label="Previous review"
+                >
+                  {"<"}
+                </button>
+                <button
+                  type="button"
+                  className="la-review-ticker__btn"
+                  onClick={() => scrollReviewCarousel(1)}
+                  aria-label="Next review"
+                >
+                  {">"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

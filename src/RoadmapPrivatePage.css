@@ -1,0 +1,226 @@
+.roadmap-private-page {
+  min-height: 100vh;
+  background: #0b0b0c;
+  color: #e5e5e5;
+  font-family: "Work Sans", system-ui, -apple-system, sans-serif;
+}
+
+.roadmap-private-container {
+  width: min(1100px, 100% - 3rem);
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.roadmap-private-hero {
+  position: relative;
+  padding: 5.5rem 0;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+}
+
+.roadmap-private-glow {
+  position: absolute;
+  width: 28rem;
+  height: 28rem;
+  right: -8rem;
+  top: -10rem;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.12);
+  filter: blur(48px);
+}
+
+.roadmap-private-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.38);
+  background: rgba(212, 175, 55, 0.1);
+  color: #d4af37;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+}
+
+.roadmap-private-title {
+  margin: 1rem 0 1.1rem;
+  font-size: clamp(2.2rem, 6vw, 4.2rem);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  line-height: 1.02;
+}
+
+.roadmap-private-title span {
+  color: #d4af37;
+}
+
+.roadmap-private-subtitle {
+  display: flex;
+  gap: 1.5rem;
+  color: #a3a3a3;
+  font-size: 0.92rem;
+}
+
+.roadmap-private-main {
+  padding: 5rem 0 5.5rem;
+}
+
+.roadmap-private-section {
+  margin-bottom: 5rem;
+  animation: roadmap-private-fade-in 0.7s ease-out both;
+}
+
+.roadmap-private-section-title {
+  margin: 0 0 1.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: #d4af37;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.roadmap-private-section-badge {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  background: #d4af37;
+  color: #111;
+  font-size: 0.78rem;
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.roadmap-private-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.roadmap-private-card {
+  background: rgba(20, 20, 20, 0.85);
+  border: 1px solid rgba(212, 175, 55, 0.23);
+  border-left: 4px solid #d4af37;
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem;
+  backdrop-filter: blur(14px);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.roadmap-private-card:hover {
+  border-color: #d4af37;
+  box-shadow: 0 0 30px rgba(212, 175, 55, 0.16);
+  transform: translateY(-3px);
+}
+
+.roadmap-private-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: #fff;
+  font-weight: 700;
+}
+
+.roadmap-private-card p {
+  margin: 0;
+  color: #b8b8b8;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.roadmap-private-phase-list {
+  display: grid;
+  gap: 2.4rem;
+}
+
+.roadmap-private-phase-label {
+  color: #d4af37;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.roadmap-private-phase h3 {
+  margin: 0.15rem 0 0.7rem;
+  font-size: 1.2rem;
+  color: #fff;
+}
+
+.roadmap-private-phase ul {
+  margin: 0;
+  padding-left: 1rem;
+  color: #b8b8b8;
+}
+
+.roadmap-private-phase li {
+  line-height: 1.6;
+  margin: 0.2rem 0;
+}
+
+.roadmap-private-table-wrap {
+  background: rgba(20, 20, 20, 0.86);
+  border: 1px solid rgba(212, 175, 55, 0.23);
+  border-radius: 16px;
+  overflow-x: auto;
+}
+
+.roadmap-private-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.roadmap-private-table thead th {
+  background: #1a1a1a;
+  color: #d4af37;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  font-size: 0.9rem;
+}
+
+.roadmap-private-table tbody td {
+  border-top: 1px solid rgba(212, 175, 55, 0.15);
+  padding: 0.95rem 1rem;
+  font-size: 0.93rem;
+  color: #b8b8b8;
+}
+
+.roadmap-private-table tbody tr:hover {
+  background: rgba(212, 175, 55, 0.05);
+}
+
+.roadmap-private-table tbody td:first-child {
+  color: #d4af37;
+  font-weight: 700;
+}
+
+@keyframes roadmap-private-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .roadmap-private-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-private-main {
+    padding-top: 3.8rem;
+  }
+
+  .roadmap-private-subtitle {
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+  }
+}
+

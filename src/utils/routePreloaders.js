@@ -12,6 +12,7 @@ const preloadCaliforniaPrivacyPolicy = () => import("../CaliforniaPrivacyPolicy"
 const preloadAcknowledgementPage = () => import("../AcknowledgementPage");
 const preloadBookingConfirmationPage = () => import("../BookingConfirmationPage");
 const preloadCheckoutCancelledPage = () => import("../CheckoutCancelledPage");
+const preloadRoadmapPrivatePage = () => import("../RoadmapPrivatePage");
 
 export const routePreloaders = {
   landing: preloadLandingPage,
@@ -28,6 +29,7 @@ export const routePreloaders = {
   acknowledge: preloadAcknowledgementPage,
   bookingConfirmation: preloadBookingConfirmationPage,
   checkoutCancelled: preloadCheckoutCancelledPage,
+  roadmapPrivate: preloadRoadmapPrivatePage,
 };
 
 const normalizePathname = (value = "") => {

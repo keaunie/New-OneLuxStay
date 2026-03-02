@@ -16,6 +16,8 @@
 	},
 	"dependencies": {
 		"@api/open-api-docs": "file:.api/apis/open-api-docs",
+		"@fontsource/cormorant-garamond": "^5.2.11",
+		"@fontsource/work-sans": "^5.2.8",
 		"@netlify/blobs": "^10.5.0",
 		"@react-three/fiber": "^9.5.0",
 		"concurrently": "^9.2.1",
