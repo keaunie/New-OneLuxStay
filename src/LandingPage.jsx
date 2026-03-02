@@ -1322,7 +1322,7 @@ function LandingPage() {
             <button type="submit" className="landing-cta-primary w-full md:w-auto">Book</button>
           </form>
 
-          {shouldLoadHeroGallery && hasDesktopGallery && (
+          {shouldLoadHeroGallery && (
             <div
               className="landing-circular-gallery landing-circular-gallery--hero"
               aria-label="Featured city stays"
@@ -1332,7 +1332,7 @@ function LandingPage() {
               <Suspense
                 fallback={
                   <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-                    <span>Loading featured stays...</span>
+                    <span>Loading curated stays...</span>
                   </div>
                 }
               >
@@ -1343,14 +1343,20 @@ function LandingPage() {
                   textColor="#46372e"
                   font="700 20px 'Work Sans', sans-serif"
                   onSelect={handleGallerySelect}
-                  useFallback={false}
+                  useFallback={!hasDesktopGallery}
                   wave={0}
                   tiltStrength={0.14}
                   cardWidth={230}
                   cardHeight={300}
                   enableWheelInteraction={false}
+                  autoScrollSpeed={0.03}
                 />
               </Suspense>
+              {galleryLoading && !hasDesktopGallery ? (
+                <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
+                  <span>Loading curated stays...</span>
+                </div>
+              ) : null}
               <div className={`landing-circular-gallery__hint${showGalleryHint ? "" : " is-hidden"}`} aria-hidden="true">
                 <span className="landing-circular-gallery__hint-icon">↔</span>
                 <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--touch">
@@ -1359,14 +1365,6 @@ function LandingPage() {
                 <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--desktop">
                   Drag or scroll to explore
                 </span>
-              </div>
-            </div>
-          )}
-
-          {shouldLoadHeroGallery && galleryLoading && !hasDesktopGallery && (
-            <div className="landing-circular-gallery landing-circular-gallery--hero">
-              <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-                <span>Loading featured stays...</span>
               </div>
             </div>
           )}

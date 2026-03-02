@@ -1,0 +1,536 @@
+﻿[
+    {
+        "mode":  "mobile",
+        "page":  "acknowledge",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  1,
+                                  "targets":  "div.ack-page \u003e div.ack-card \u003e header.ack-card__header \u003e p.ack-card__kicker"
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "antwerp",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "booking_confirmation",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  1,
+                                  "targets":  "div.ack-page \u003e div.ack-card \u003e header.ack-card__header \u003e p.ack-card__kicker"
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "california_privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "checkout_cancelled",
+        "score":  87,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  1,
+                                  "targets":  "div.ack-page \u003e div.ack-card \u003e header.ack-card__header \u003e p.ack-card__kicker"
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "dubai",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "global",
+        "score":  94,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              },
+                              {
+                                  "id":  "heading-order",
+                                  "title":  "Heading elements are not in a sequentially-descending order",
+                                  "count":  1,
+                                  "targets":  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                              }
+                          ],
+        "advisories":  [
+                           {
+                               "id":  "label-content-name-mismatch",
+                               "title":  "Elements with visible text labels do not have matching accessible names.",
+                               "count":  2
+                           }
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "home",
+        "score":  96,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+                           {
+                               "id":  "label-content-name-mismatch",
+                               "title":  "Elements with visible text labels do not have matching accessible names.",
+                               "count":  2
+                           }
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "listings",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+                           {
+                               "id":  "label-content-name-mismatch",
+                               "title":  "Elements with visible text labels do not have matching accessible names.",
+                               "count":  2
+                           }
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "los_angeles",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "miami_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "redondo_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "mobile",
+        "page":  "terms",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "acknowledge",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  1,
+                                  "targets":  "div.ack-page \u003e div.ack-card \u003e header.ack-card__header \u003e p.ack-card__kicker"
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "antwerp",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "booking_confirmation",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  1,
+                                  "targets":  "div.ack-page \u003e div.ack-card \u003e header.ack-card__header \u003e p.ack-card__kicker"
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "california_privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "checkout_cancelled",
+        "score":  87,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  1,
+                                  "targets":  "div.ack-page \u003e div.ack-card \u003e header.ack-card__header \u003e p.ack-card__kicker"
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "dubai",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "global",
+        "score":  94,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              },
+                              {
+                                  "id":  "heading-order",
+                                  "title":  "Heading elements are not in a sequentially-descending order",
+                                  "count":  1,
+                                  "targets":  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                              }
+                          ],
+        "advisories":  [
+                           {
+                               "id":  "label-content-name-mismatch",
+                               "title":  "Elements with visible text labels do not have matching accessible names.",
+                               "count":  2
+                           }
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "home",
+        "score":  95,
+        "weightedFailCount":  2,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              },
+                              {
+                                  "id":  "landmark-one-main",
+                                  "title":  "Document does not have a main landmark.",
+                                  "count":  1,
+                                  "targets":  "html"
+                              }
+                          ],
+        "advisories":  [
+                           {
+                               "id":  "label-content-name-mismatch",
+                               "title":  "Elements with visible text labels do not have matching accessible names.",
+                               "count":  2
+                           }
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "listings",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+                           {
+                               "id":  "label-content-name-mismatch",
+                               "title":  "Elements with visible text labels do not have matching accessible names.",
+                               "count":  2
+                           }
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "los_angeles",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "miami_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "redondo_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  [
+
+                          ],
+        "advisories":  [
+
+                       ]
+    },
+    {
+        "mode":  "desktop",
+        "page":  "terms",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  [
+                              {
+                                  "id":  "color-contrast",
+                                  "title":  "Background and foreground colors do not have a sufficient contrast ratio.",
+                                  "count":  6,
+                                  "targets":  [
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3",
+                                                  "footer.policy-footer \u003e div.policy-footer-inner \u003e div.policy-footer-col \u003e h3"
+                                              ]
+                              }
+                          ],
+        "advisories":  [
+
+                       ]
+    }
+]

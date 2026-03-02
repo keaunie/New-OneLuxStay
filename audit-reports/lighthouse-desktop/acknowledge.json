@@ -1,0 +1,2495 @@
+{
+  "lighthouseVersion": "13.0.3",
+  "requestedUrl": "http://127.0.0.1:4173/acknowledge",
+  "mainDocumentUrl": "http://127.0.0.1:4173/acknowledge",
+  "finalDisplayedUrl": "http://127.0.0.1:4173/acknowledge",
+  "finalUrl": "http://127.0.0.1:4173/acknowledge",
+  "fetchTime": "2026-03-02T13:53:34.460Z",
+  "gatherMode": "navigation",
+  "runWarnings": [],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.0.0 Safari/537.36",
+  "environment": {
+    "networkUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    "hostUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.0.0 Safari/537.36",
+    "benchmarkIndex": 2636,
+    "credits": {
+      "axe-core": "4.11.1"
+    }
+  },
+  "audits": {
+    "accesskeys": {
+      "id": "accesskeys",
+      "title": "`[accesskey]` values are unique",
+      "description": "Access keys let users quickly focus a part of the page. For proper navigation, each access key must be unique. [Learn more about access keys](https://dequeuniversity.com/rules/axe/4.11/accesskeys).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-allowed-attr": {
+      "id": "aria-allowed-attr",
+      "title": "`[aria-*]` attributes match their roles",
+      "description": "Each ARIA `role` supports a specific subset of `aria-*` attributes. Mismatching these invalidates the `aria-*` attributes. [Learn how to match ARIA attributes to their roles](https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-allowed-role": {
+      "id": "aria-allowed-role",
+      "title": "Uses ARIA roles only on compatible elements",
+      "description": "Many HTML elements can only be assigned certain ARIA roles. Using ARIA roles where they are not allowed can interfere with the accessibility of the web page. [Learn more about ARIA roles](https://dequeuniversity.com/rules/axe/4.11/aria-allowed-role).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-command-name": {
+      "id": "aria-command-name",
+      "title": "`button`, `link`, and `menuitem` elements have accessible names",
+      "description": "When an element doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn how to make command elements more accessible](https://dequeuniversity.com/rules/axe/4.11/aria-command-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-conditional-attr": {
+      "id": "aria-conditional-attr",
+      "title": "ARIA attributes are used as specified for the element's role",
+      "description": "Some ARIA attributes are only allowed on an element under certain conditions. [Learn more about conditional ARIA attributes](https://dequeuniversity.com/rules/axe/4.11/aria-conditional-attr).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-deprecated-role": {
+      "id": "aria-deprecated-role",
+      "title": "Deprecated ARIA roles were not used",
+      "description": "Deprecated ARIA roles may not be processed correctly by assistive technology. [Learn more about deprecated ARIA roles](https://dequeuniversity.com/rules/axe/4.11/aria-deprecated-role).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-dialog-name": {
+      "id": "aria-dialog-name",
+      "title": "Elements with `role=\"dialog\"` or `role=\"alertdialog\"` have accessible names.",
+      "description": "ARIA dialog elements without accessible names may prevent screen readers users from discerning the purpose of these elements. [Learn how to make ARIA dialog elements more accessible](https://dequeuniversity.com/rules/axe/4.11/aria-dialog-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-hidden-body": {
+      "id": "aria-hidden-body",
+      "title": "`[aria-hidden=\"true\"]` is not present on the document `<body>`",
+      "description": "Assistive technologies, like screen readers, work inconsistently when `aria-hidden=\"true\"` is set on the document `<body>`. [Learn how `aria-hidden` affects the document body](https://dequeuniversity.com/rules/axe/4.11/aria-hidden-body).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "aria-hidden-focus": {
+      "id": "aria-hidden-focus",
+      "title": "`[aria-hidden=\"true\"]` elements do not contain focusable descendents",
+      "description": "Focusable descendents within an `[aria-hidden=\"true\"]` element prevent those interactive elements from being available to users of assistive technologies like screen readers. [Learn how `aria-hidden` affects focusable elements](https://dequeuniversity.com/rules/axe/4.11/aria-hidden-focus).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-input-field-name": {
+      "id": "aria-input-field-name",
+      "title": "ARIA input fields have accessible names",
+      "description": "When an input field doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn more about input field labels](https://dequeuniversity.com/rules/axe/4.11/aria-input-field-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-meter-name": {
+      "id": "aria-meter-name",
+      "title": "ARIA `meter` elements have accessible names",
+      "description": "When a meter element doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn how to name `meter` elements](https://dequeuniversity.com/rules/axe/4.11/aria-meter-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-progressbar-name": {
+      "id": "aria-progressbar-name",
+      "title": "ARIA `progressbar` elements have accessible names",
+      "description": "When a `progressbar` element doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn how to label `progressbar` elements](https://dequeuniversity.com/rules/axe/4.11/aria-progressbar-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-prohibited-attr": {
+      "id": "aria-prohibited-attr",
+      "title": "Elements use only permitted ARIA attributes",
+      "description": "Using ARIA attributes in roles where they are prohibited can mean that important information is not communicated to users of assistive technologies. [Learn more about prohibited ARIA roles](https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-required-attr": {
+      "id": "aria-required-attr",
+      "title": "`[role]`s have all required `[aria-*]` attributes",
+      "description": "Some ARIA roles have required attributes that describe the state of the element to screen readers. [Learn more about roles and required attributes](https://dequeuniversity.com/rules/axe/4.11/aria-required-attr).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-required-children": {
+      "id": "aria-required-children",
+      "title": "Elements with an ARIA `[role]` that require children to contain a specific `[role]` have all required children.",
+      "description": "Some ARIA parent roles must contain specific child roles to perform their intended accessibility functions. [Learn more about roles and required children elements](https://dequeuniversity.com/rules/axe/4.11/aria-required-children).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-required-parent": {
+      "id": "aria-required-parent",
+      "title": "`[role]`s are contained by their required parent element",
+      "description": "Some ARIA child roles must be contained by specific parent roles to properly perform their intended accessibility functions. [Learn more about ARIA roles and required parent element](https://dequeuniversity.com/rules/axe/4.11/aria-required-parent).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-roles": {
+      "id": "aria-roles",
+      "title": "`[role]` values are valid",
+      "description": "ARIA roles must have valid values in order to perform their intended accessibility functions. [Learn more about valid ARIA roles](https://dequeuniversity.com/rules/axe/4.11/aria-roles).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-text": {
+      "id": "aria-text",
+      "title": "Elements with the `role=text` attribute do not have focusable descendents.",
+      "description": "Adding `role=text` around a text node split by markup enables VoiceOver to treat it as one phrase, but the element's focusable descendents will not be announced. [Learn more about the `role=text` attribute](https://dequeuniversity.com/rules/axe/4.11/aria-text).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-toggle-field-name": {
+      "id": "aria-toggle-field-name",
+      "title": "ARIA toggle fields have accessible names",
+      "description": "When a toggle field doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn more about toggle fields](https://dequeuniversity.com/rules/axe/4.11/aria-toggle-field-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-tooltip-name": {
+      "id": "aria-tooltip-name",
+      "title": "ARIA `tooltip` elements have accessible names",
+      "description": "When a tooltip element doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn how to name `tooltip` elements](https://dequeuniversity.com/rules/axe/4.11/aria-tooltip-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-treeitem-name": {
+      "id": "aria-treeitem-name",
+      "title": "ARIA `treeitem` elements have accessible names",
+      "description": "When a `treeitem` element doesn't have an accessible name, screen readers announce it with a generic name, making it unusable for users who rely on screen readers. [Learn more about labeling `treeitem` elements](https://dequeuniversity.com/rules/axe/4.11/aria-treeitem-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-valid-attr-value": {
+      "id": "aria-valid-attr-value",
+      "title": "`[aria-*]` attributes have valid values",
+      "description": "Assistive technologies, like screen readers, can't interpret ARIA attributes with invalid values. [Learn more about valid values for ARIA attributes](https://dequeuniversity.com/rules/axe/4.11/aria-valid-attr-value).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "aria-valid-attr": {
+      "id": "aria-valid-attr",
+      "title": "`[aria-*]` attributes are valid and not misspelled",
+      "description": "Assistive technologies, like screen readers, can't interpret ARIA attributes with invalid names. [Learn more about valid ARIA attributes](https://dequeuniversity.com/rules/axe/4.11/aria-valid-attr).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "button-name": {
+      "id": "button-name",
+      "title": "Buttons have an accessible name",
+      "description": "When a button doesn't have an accessible name, screen readers announce it as \"button\", making it unusable for users who rely on screen readers. [Learn how to make buttons more accessible](https://dequeuniversity.com/rules/axe/4.11/button-name).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "bypass": {
+      "id": "bypass",
+      "title": "The page contains a heading, skip link, or landmark region",
+      "description": "Adding ways to bypass repetitive content lets keyboard users navigate the page more efficiently. [Learn more about bypass blocks](https://dequeuniversity.com/rules/axe/4.11/bypass).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "color-contrast": {
+      "id": "color-contrast",
+      "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+      "description": "Low-contrast text is difficult or impossible for many users to read. [Learn how to provide sufficient color contrast](https://dequeuniversity.com/rules/axe/4.11/color-contrast).",
+      "score": 0,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": [
+          {
+            "node": {
+              "type": "node",
+              "lhId": "1-0-P",
+              "path": "1,HTML,1,BODY,0,DIV,0,DIV,0,DIV,0,DIV,0,HEADER,0,P",
+              "selector": "div.ack-page > div.ack-card > header.ack-card__header > p.ack-card__kicker",
+              "boundingRect": {
+                "top": 235,
+                "bottom": 252,
+                "left": 356,
+                "right": 994,
+                "width": 638,
+                "height": 17
+              },
+              "snippet": "<p class=\"ack-card__kicker\">",
+              "nodeLabel": "ONELUXSTAY",
+              "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.59 (foreground color: #8c8278, background color: #fff9f2, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+            },
+            "subItems": {
+              "type": "subitems",
+              "items": [
+                {
+                  "relatedNode": {
+                    "type": "node",
+                    "lhId": "1-1-DIV",
+                    "path": "1,HTML,1,BODY,0,DIV,0,DIV,0,DIV,0,DIV",
+                    "selector": "div#root > div.app-shell > div.ack-page > div.ack-card",
+                    "boundingRect": {
+                      "top": 198,
+                      "bottom": 742,
+                      "left": 315,
+                      "right": 1035,
+                      "width": 720,
+                      "height": 544
+                    },
+                    "snippet": "<div class=\"ack-card\">",
+                    "nodeLabel": "ONELUXSTAY\n\nAuthorization Acknowledgement\n\nPlease confirm the authorization bel…"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "debugData": {
+          "type": "debugdata",
+          "impact": "serious",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ]
+        }
+      }
+    },
+    "definition-list": {
+      "id": "definition-list",
+      "title": "`<dl>`'s contain only properly-ordered `<dt>` and `<dd>` groups, `<script>`, `<template>` or `<div>` elements.",
+      "description": "When definition lists are not properly marked up, screen readers may produce confusing or inaccurate output. [Learn how to structure definition lists correctly](https://dequeuniversity.com/rules/axe/4.11/definition-list).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "dlitem": {
+      "id": "dlitem",
+      "title": "Definition list items are wrapped in `<dl>` elements",
+      "description": "Definition list items (`<dt>` and `<dd>`) must be wrapped in a parent `<dl>` element to ensure that screen readers can properly announce them. [Learn how to structure definition lists correctly](https://dequeuniversity.com/rules/axe/4.11/dlitem).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "document-title": {
+      "id": "document-title",
+      "title": "Document has a `<title>` element",
+      "description": "The title gives screen reader users an overview of the page, and search engine users rely on it heavily to determine if a page is relevant to their search. [Learn more about document titles](https://dequeuniversity.com/rules/axe/4.11/document-title).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "duplicate-id-aria": {
+      "id": "duplicate-id-aria",
+      "title": "ARIA IDs are unique",
+      "description": "The value of an ARIA ID must be unique to prevent other instances from being overlooked by assistive technologies. [Learn how to fix duplicate ARIA IDs](https://dequeuniversity.com/rules/axe/4.11/duplicate-id-aria).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "empty-heading": {
+      "id": "empty-heading",
+      "title": "All heading elements contain content.",
+      "description": "A heading with no content or inaccessible text prevent screen reader users from accessing information on the page's structure. [Learn more about headings](https://dequeuniversity.com/rules/axe/4.11/empty-heading).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "form-field-multiple-labels": {
+      "id": "form-field-multiple-labels",
+      "title": "No form fields have multiple labels",
+      "description": "Form fields with multiple labels can be confusingly announced by assistive technologies like screen readers which use either the first, the last, or all of the labels. [Learn how to use form labels](https://dequeuniversity.com/rules/axe/4.11/form-field-multiple-labels).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "frame-title": {
+      "id": "frame-title",
+      "title": "`<frame>` or `<iframe>` elements have a title",
+      "description": "Screen reader users rely on frame titles to describe the contents of frames. [Learn more about frame titles](https://dequeuniversity.com/rules/axe/4.11/frame-title).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "heading-order": {
+      "id": "heading-order",
+      "title": "Heading elements appear in a sequentially-descending order",
+      "description": "Properly ordered headings that do not skip levels convey the semantic structure of the page, making it easier to navigate and understand when using assistive technologies. [Learn more about heading order](https://dequeuniversity.com/rules/axe/4.11/heading-order).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "html-has-lang": {
+      "id": "html-has-lang",
+      "title": "`<html>` element has a `[lang]` attribute",
+      "description": "If a page doesn't specify a `lang` attribute, a screen reader assumes that the page is in the default language that the user chose when setting up the screen reader. If the page isn't actually in the default language, then the screen reader might not announce the page's text correctly. [Learn more about the `lang` attribute](https://dequeuniversity.com/rules/axe/4.11/html-has-lang).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "html-lang-valid": {
+      "id": "html-lang-valid",
+      "title": "`<html>` element has a valid value for its `[lang]` attribute",
+      "description": "Specifying a valid [BCP 47 language](https://www.w3.org/International/questions/qa-choosing-language-tags#question) helps screen readers announce text properly. [Learn how to use the `lang` attribute](https://dequeuniversity.com/rules/axe/4.11/html-lang-valid).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "html-xml-lang-mismatch": {
+      "id": "html-xml-lang-mismatch",
+      "title": "`<html>` element has an `[xml:lang]` attribute with the same base language as the `[lang]` attribute.",
+      "description": "If the webpage does not specify a consistent language, then the screen reader might not announce the page's text correctly. [Learn more about the `lang` attribute](https://dequeuniversity.com/rules/axe/4.11/html-xml-lang-mismatch).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "identical-links-same-purpose": {
+      "id": "identical-links-same-purpose",
+      "title": "Identical links have the same purpose.",
+      "description": "Links with the same destination should have the same description, to help users understand the link's purpose and decide whether to follow it. [Learn more about identical links](https://dequeuniversity.com/rules/axe/4.11/identical-links-same-purpose).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "image-alt": {
+      "id": "image-alt",
+      "title": "Image elements have `[alt]` attributes",
+      "description": "Informative elements should aim for short, descriptive alternate text. Decorative elements can be ignored with an empty alt attribute. [Learn more about the `alt` attribute](https://dequeuniversity.com/rules/axe/4.11/image-alt).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "image-redundant-alt": {
+      "id": "image-redundant-alt",
+      "title": "Image elements do not have `[alt]` attributes that are redundant text.",
+      "description": "Informative elements should aim for short, descriptive alternative text. Alternative text that is exactly the same as the text adjacent to the link or image is potentially confusing for screen reader users, because the text will be read twice. [Learn more about the `alt` attribute](https://dequeuniversity.com/rules/axe/4.11/image-redundant-alt).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "input-button-name": {
+      "id": "input-button-name",
+      "title": "Input buttons have discernible text.",
+      "description": "Adding discernable and accessible text to input buttons may help screen reader users understand the purpose of the input button. [Learn more about input buttons](https://dequeuniversity.com/rules/axe/4.11/input-button-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "input-image-alt": {
+      "id": "input-image-alt",
+      "title": "`<input type=\"image\">` elements have `[alt]` text",
+      "description": "When an image is being used as an `<input>` button, providing alternative text can help screen reader users understand the purpose of the button. [Learn about input image alt text](https://dequeuniversity.com/rules/axe/4.11/input-image-alt).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "label-content-name-mismatch": {
+      "id": "label-content-name-mismatch",
+      "title": "Elements with visible text labels have matching accessible names.",
+      "description": "Visible text labels that do not match the accessible name can result in a confusing experience for screen reader users. [Learn more about accessible names](https://dequeuniversity.com/rules/axe/4.11/label-content-name-mismatch).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "label": {
+      "id": "label",
+      "title": "Form elements have associated labels",
+      "description": "Labels ensure that form controls are announced properly by assistive technologies, like screen readers. [Learn more about form element labels](https://dequeuniversity.com/rules/axe/4.11/label).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "landmark-one-main": {
+      "id": "landmark-one-main",
+      "title": "Document does not have a main landmark.",
+      "description": "One main landmark helps screen reader users navigate a web page. [Learn more about landmarks](https://dequeuniversity.com/rules/axe/4.11/landmark-one-main).",
+      "score": 0,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": [
+          {
+            "node": {
+              "type": "node",
+              "lhId": "1-2-HTML",
+              "path": "1,HTML",
+              "selector": "html",
+              "boundingRect": {
+                "top": 0,
+                "bottom": 940,
+                "left": 0,
+                "right": 1350,
+                "width": 1350,
+                "height": 940
+              },
+              "snippet": "<html lang=\"en\">",
+              "nodeLabel": "html",
+              "explanation": "Fix all of the following:\n  Document does not have a main landmark"
+            }
+          }
+        ],
+        "debugData": {
+          "type": "debugdata",
+          "impact": "moderate",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ]
+        }
+      }
+    },
+    "link-name": {
+      "id": "link-name",
+      "title": "Links have a discernible name",
+      "description": "Link text (and alternate text for images, when used as links) that is discernible, unique, and focusable improves the navigation experience for screen reader users. [Learn how to make links accessible](https://dequeuniversity.com/rules/axe/4.11/link-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "link-in-text-block": {
+      "id": "link-in-text-block",
+      "title": "Links are distinguishable without relying on color.",
+      "description": "Low-contrast text is difficult or impossible for many users to read. Link text that is discernible improves the experience for users with low vision. [Learn how to make links distinguishable](https://dequeuniversity.com/rules/axe/4.11/link-in-text-block).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "list": {
+      "id": "list",
+      "title": "Lists contain only `<li>` elements and script supporting elements (`<script>` and `<template>`).",
+      "description": "Screen readers have a specific way of announcing lists. Ensuring proper list structure aids screen reader output. [Learn more about proper list structure](https://dequeuniversity.com/rules/axe/4.11/list).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "listitem": {
+      "id": "listitem",
+      "title": "List items (`<li>`) are contained within `<ul>`, `<ol>` or `<menu>` parent elements",
+      "description": "Screen readers require list items (`<li>`) to be contained within a parent `<ul>`, `<ol>` or `<menu>` to be announced properly. [Learn more about proper list structure](https://dequeuniversity.com/rules/axe/4.11/listitem).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "meta-refresh": {
+      "id": "meta-refresh",
+      "title": "The document does not use `<meta http-equiv=\"refresh\">`",
+      "description": "Users do not expect a page to refresh automatically, and doing so will move focus back to the top of the page. This may create a frustrating or confusing experience. [Learn more about the refresh meta tag](https://dequeuniversity.com/rules/axe/4.11/meta-refresh).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "meta-viewport": {
+      "id": "meta-viewport",
+      "title": "`[user-scalable=\"no\"]` is not used in the `<meta name=\"viewport\">` element and the `[maximum-scale]` attribute is not less than 5.",
+      "description": "Disabling zooming is problematic for users with low vision who rely on screen magnification to properly see the contents of a web page. [Learn more about the viewport meta tag](https://dequeuniversity.com/rules/axe/4.11/meta-viewport).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "object-alt": {
+      "id": "object-alt",
+      "title": "`<object>` elements have alternate text",
+      "description": "Screen readers cannot translate non-text content. Adding alternate text to `<object>` elements helps screen readers convey meaning to users. [Learn more about alt text for `object` elements](https://dequeuniversity.com/rules/axe/4.11/object-alt).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "select-name": {
+      "id": "select-name",
+      "title": "Select elements have associated label elements.",
+      "description": "Form elements without effective labels can create frustrating experiences for screen reader users. [Learn more about the `select` element](https://dequeuniversity.com/rules/axe/4.11/select-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "skip-link": {
+      "id": "skip-link",
+      "title": "Skip links are focusable.",
+      "description": "Including a skip link can help users skip to the main content to save time. [Learn more about skip links](https://dequeuniversity.com/rules/axe/4.11/skip-link).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "tabindex": {
+      "id": "tabindex",
+      "title": "No element has a `[tabindex]` value greater than 0",
+      "description": "A value greater than 0 implies an explicit navigation ordering. Although technically valid, this often creates frustrating experiences for users who rely on assistive technologies. [Learn more about the `tabindex` attribute](https://dequeuniversity.com/rules/axe/4.11/tabindex).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "table-duplicate-name": {
+      "id": "table-duplicate-name",
+      "title": "Tables have different content in the summary attribute and `<caption>`.",
+      "description": "The summary attribute should describe the table structure, while `<caption>` should have the onscreen title. Accurate table mark-up helps users of screen readers. [Learn more about summary and caption](https://dequeuniversity.com/rules/axe/4.11/table-duplicate-name).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "table-fake-caption": {
+      "id": "table-fake-caption",
+      "title": "Tables use `<caption>` instead of cells with the `[colspan]` attribute to indicate a caption.",
+      "description": "Screen readers have features to make navigating tables easier. Ensuring that tables use the actual caption element instead of cells with the `[colspan]` attribute may improve the experience for screen reader users. [Learn more about captions](https://dequeuniversity.com/rules/axe/4.11/table-fake-caption).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "target-size": {
+      "id": "target-size",
+      "title": "Touch targets have sufficient size and spacing.",
+      "description": "Touch targets with sufficient size and spacing help users who may have difficulty targeting small controls to activate the targets. [Learn more about touch targets](https://dequeuniversity.com/rules/axe/4.11/target-size).",
+      "score": 1,
+      "scoreDisplayMode": "binary",
+      "details": {
+        "type": "table",
+        "headings": [
+          {
+            "key": "node",
+            "valueType": "node",
+            "subItemsHeading": {
+              "key": "relatedNode",
+              "valueType": "node"
+            },
+            "label": "Failing Elements"
+          }
+        ],
+        "items": []
+      }
+    },
+    "td-has-header": {
+      "id": "td-has-header",
+      "title": "`<td>` elements in a large `<table>` have one or more table headers.",
+      "description": "Screen readers have features to make navigating tables easier. Ensuring that `<td>` elements in a large table (3 or more cells in width and height) have an associated table header may improve the experience for screen reader users. [Learn more about table headers](https://dequeuniversity.com/rules/axe/4.11/td-has-header).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "td-headers-attr": {
+      "id": "td-headers-attr",
+      "title": "Cells in a `<table>` element that use the `[headers]` attribute refer to table cells within the same table.",
+      "description": "Screen readers have features to make navigating tables easier. Ensuring `<td>` cells using the `[headers]` attribute only refer to other cells in the same table may improve the experience for screen reader users. [Learn more about the `headers` attribute](https://dequeuniversity.com/rules/axe/4.11/td-headers-attr).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "th-has-data-cells": {
+      "id": "th-has-data-cells",
+      "title": "`<th>` elements and elements with `[role=\"columnheader\"/\"rowheader\"]` have data cells they describe.",
+      "description": "Screen readers have features to make navigating tables easier. Ensuring table headers always refer to some set of cells may improve the experience for screen reader users. [Learn more about table headers](https://dequeuniversity.com/rules/axe/4.11/th-has-data-cells).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "valid-lang": {
+      "id": "valid-lang",
+      "title": "`[lang]` attributes have a valid value",
+      "description": "Specifying a valid [BCP 47 language](https://www.w3.org/International/questions/qa-choosing-language-tags#question) on elements helps ensure that text is pronounced correctly by a screen reader. [Learn how to use the `lang` attribute](https://dequeuniversity.com/rules/axe/4.11/valid-lang).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "video-caption": {
+      "id": "video-caption",
+      "title": "`<video>` elements contain a `<track>` element with `[kind=\"captions\"]`",
+      "description": "When a video provides a caption it is easier for deaf and hearing impaired users to access its information. [Learn more about video captions](https://dequeuniversity.com/rules/axe/4.11/video-caption).",
+      "score": null,
+      "scoreDisplayMode": "notApplicable"
+    },
+    "custom-controls-labels": {
+      "id": "custom-controls-labels",
+      "title": "Custom controls have associated labels",
+      "description": "Custom interactive controls have associated labels, provided by aria-label or aria-labelledby. [Learn more about custom controls and labels](https://developer.chrome.com/docs/lighthouse/accessibility/custom-controls-labels/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "custom-controls-roles": {
+      "id": "custom-controls-roles",
+      "title": "Custom controls have ARIA roles",
+      "description": "Custom interactive controls have appropriate ARIA roles. [Learn how to add roles to custom controls](https://developer.chrome.com/docs/lighthouse/accessibility/custom-control-roles/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "focus-traps": {
+      "id": "focus-traps",
+      "title": "User focus is not accidentally trapped in a region",
+      "description": "A user can tab into and out of any control or region without accidentally trapping their focus. [Learn how to avoid focus traps](https://developer.chrome.com/docs/lighthouse/accessibility/focus-traps/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "focusable-controls": {
+      "id": "focusable-controls",
+      "title": "Interactive controls are keyboard focusable",
+      "description": "Custom interactive controls are keyboard focusable and display a focus indicator. [Learn how to make custom controls focusable](https://developer.chrome.com/docs/lighthouse/accessibility/focusable-controls/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "interactive-element-affordance": {
+      "id": "interactive-element-affordance",
+      "title": "Interactive elements indicate their purpose and state",
+      "description": "Interactive elements, such as links and buttons, should indicate their state and be distinguishable from non-interactive elements. [Learn how to decorate interactive elements with affordance hints](https://developer.chrome.com/docs/lighthouse/accessibility/interactive-element-affordance/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "logical-tab-order": {
+      "id": "logical-tab-order",
+      "title": "The page has a logical tab order",
+      "description": "Tabbing through the page follows the visual layout. Users cannot focus elements that are offscreen. [Learn more about logical tab ordering](https://developer.chrome.com/docs/lighthouse/accessibility/logical-tab-order/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "managed-focus": {
+      "id": "managed-focus",
+      "title": "The user's focus is directed to new content added to the page",
+      "description": "If new content, such as a dialog, is added to the page, the user's focus is directed to it. [Learn how to direct focus to new content](https://developer.chrome.com/docs/lighthouse/accessibility/managed-focus/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "offscreen-content-hidden": {
+      "id": "offscreen-content-hidden",
+      "title": "Offscreen content is hidden from assistive technology",
+      "description": "Offscreen content is hidden with display: none or aria-hidden=true. [Learn how to properly hide offscreen content](https://developer.chrome.com/docs/lighthouse/accessibility/offscreen-content-hidden/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "use-landmarks": {
+      "id": "use-landmarks",
+      "title": "HTML5 landmark elements are used to improve navigation",
+      "description": "Landmark elements (`<main>`, `<nav>`, etc.) are used to improve the keyboard navigation of the page for assistive technology. [Learn more about landmark elements](https://developer.chrome.com/docs/lighthouse/accessibility/use-landmarks/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    },
+    "visual-order-follows-dom": {
+      "id": "visual-order-follows-dom",
+      "title": "Visual order on the page follows DOM order",
+      "description": "DOM order matches the visual order, improving navigation for assistive technology. [Learn more about DOM and visual ordering](https://developer.chrome.com/docs/lighthouse/accessibility/visual-order-follows-dom/).",
+      "score": null,
+      "scoreDisplayMode": "manual"
+    }
+  },
+  "configSettings": {
+    "output": [
+      "json"
+    ],
+    "maxWaitForFcp": 30000,
+    "maxWaitForLoad": 45000,
+    "pauseAfterFcpMs": 1000,
+    "pauseAfterLoadMs": 1000,
+    "networkQuietThresholdMs": 1000,
+    "cpuQuietThresholdMs": 1000,
+    "formFactor": "desktop",
+    "throttling": {
+      "rttMs": 40,
+      "throughputKbps": 10240,
+      "requestLatencyMs": 0,
+      "downloadThroughputKbps": 0,
+      "uploadThroughputKbps": 0,
+      "cpuSlowdownMultiplier": 1
+    },
+    "throttlingMethod": "simulate",
+    "screenEmulation": {
+      "mobile": false,
+      "width": 1350,
+      "height": 940,
+      "deviceScaleFactor": 1,
+      "disabled": false
+    },
+    "emulatedUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    "auditMode": false,
+    "gatherMode": false,
+    "clearStorageTypes": [
+      "file_systems",
+      "shader_cache",
+      "service_workers",
+      "cache_storage"
+    ],
+    "disableStorageReset": false,
+    "debugNavigation": false,
+    "channel": "cli",
+    "usePassiveGathering": false,
+    "disableFullPageScreenshot": false,
+    "skipAboutBlank": false,
+    "blankPage": "about:blank",
+    "ignoreStatusCode": false,
+    "locale": "en-US",
+    "blockedUrlPatterns": null,
+    "additionalTraceCategories": null,
+    "extraHeaders": null,
+    "precomputedLanternData": null,
+    "onlyAudits": null,
+    "onlyCategories": [
+      "accessibility"
+    ],
+    "skipAudits": null
+  },
+  "categories": {
+    "accessibility": {
+      "title": "Accessibility",
+      "description": "These checks highlight opportunities to [improve the accessibility of your web app](https://developer.chrome.com/docs/lighthouse/accessibility/). Automatic detection can only detect a subset of issues and does not guarantee the accessibility of your web app, so [manual testing](https://web.dev/articles/how-to-review) is also encouraged.",
+      "manualDescription": "These items address areas which an automated testing tool cannot cover. Learn more in our guide on [conducting an accessibility review](https://web.dev/articles/how-to-review).",
+      "supportedModes": [
+        "navigation",
+        "snapshot"
+      ],
+      "auditRefs": [
+        {
+          "id": "accesskeys",
+          "weight": 0,
+          "group": "a11y-navigation"
+        },
+        {
+          "id": "aria-allowed-attr",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-command-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-conditional-attr",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-deprecated-role",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-dialog-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-hidden-body",
+          "weight": 10,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-hidden-focus",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-input-field-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-meter-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-progressbar-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-prohibited-attr",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-required-attr",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-required-children",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-required-parent",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-roles",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-text",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-toggle-field-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-tooltip-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-treeitem-name",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-valid-attr-value",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "aria-valid-attr",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "button-name",
+          "weight": 10,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "bypass",
+          "weight": 0,
+          "group": "a11y-navigation"
+        },
+        {
+          "id": "color-contrast",
+          "weight": 7,
+          "group": "a11y-color-contrast"
+        },
+        {
+          "id": "definition-list",
+          "weight": 0,
+          "group": "a11y-tables-lists"
+        },
+        {
+          "id": "dlitem",
+          "weight": 0,
+          "group": "a11y-tables-lists"
+        },
+        {
+          "id": "document-title",
+          "weight": 7,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "duplicate-id-aria",
+          "weight": 0,
+          "group": "a11y-aria"
+        },
+        {
+          "id": "form-field-multiple-labels",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "frame-title",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "heading-order",
+          "weight": 3,
+          "group": "a11y-navigation"
+        },
+        {
+          "id": "html-has-lang",
+          "weight": 7,
+          "group": "a11y-language"
+        },
+        {
+          "id": "html-lang-valid",
+          "weight": 7,
+          "group": "a11y-language"
+        },
+        {
+          "id": "html-xml-lang-mismatch",
+          "weight": 0,
+          "group": "a11y-language"
+        },
+        {
+          "id": "image-alt",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "input-button-name",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "input-image-alt",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "label",
+          "weight": 10,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "link-in-text-block",
+          "weight": 0,
+          "group": "a11y-color-contrast"
+        },
+        {
+          "id": "link-name",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "list",
+          "weight": 0,
+          "group": "a11y-tables-lists"
+        },
+        {
+          "id": "listitem",
+          "weight": 0,
+          "group": "a11y-tables-lists"
+        },
+        {
+          "id": "meta-refresh",
+          "weight": 0,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "meta-viewport",
+          "weight": 10,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "object-alt",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "select-name",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "skip-link",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "tabindex",
+          "weight": 0,
+          "group": "a11y-navigation"
+        },
+        {
+          "id": "target-size",
+          "weight": 7,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "td-headers-attr",
+          "weight": 0,
+          "group": "a11y-tables-lists"
+        },
+        {
+          "id": "th-has-data-cells",
+          "weight": 0,
+          "group": "a11y-tables-lists"
+        },
+        {
+          "id": "valid-lang",
+          "weight": 0,
+          "group": "a11y-language"
+        },
+        {
+          "id": "video-caption",
+          "weight": 0,
+          "group": "a11y-audio-video"
+        },
+        {
+          "id": "landmark-one-main",
+          "weight": 3,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "focusable-controls",
+          "weight": 0
+        },
+        {
+          "id": "interactive-element-affordance",
+          "weight": 0
+        },
+        {
+          "id": "logical-tab-order",
+          "weight": 0
+        },
+        {
+          "id": "visual-order-follows-dom",
+          "weight": 0
+        },
+        {
+          "id": "focus-traps",
+          "weight": 0
+        },
+        {
+          "id": "managed-focus",
+          "weight": 0
+        },
+        {
+          "id": "use-landmarks",
+          "weight": 0
+        },
+        {
+          "id": "offscreen-content-hidden",
+          "weight": 0
+        },
+        {
+          "id": "custom-controls-labels",
+          "weight": 0
+        },
+        {
+          "id": "custom-controls-roles",
+          "weight": 0
+        },
+        {
+          "id": "table-duplicate-name",
+          "weight": 0,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "empty-heading",
+          "weight": 0,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "aria-allowed-role",
+          "weight": 0,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "image-redundant-alt",
+          "weight": 0,
+          "group": "a11y-names-labels"
+        },
+        {
+          "id": "identical-links-same-purpose",
+          "weight": 0,
+          "group": "a11y-best-practices"
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "weight": 0,
+          "group": "hidden"
+        },
+        {
+          "id": "table-fake-caption",
+          "weight": 0,
+          "group": "hidden"
+        },
+        {
+          "id": "td-has-header",
+          "weight": 0,
+          "group": "hidden"
+        }
+      ],
+      "id": "accessibility",
+      "score": 0.88
+    }
+  },
+  "categoryGroups": {
+    "metrics": {
+      "title": "Metrics"
+    },
+    "insights": {
+      "title": "Insights",
+      "description": "These insights are also available in the Chrome DevTools Performance Panel - [record a trace](https://developer.chrome.com/docs/devtools/performance/reference) to view more detailed information."
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "description": "More information about the performance of your application. These numbers don't [directly affect](https://developer.chrome.com/docs/lighthouse/performance/performance-scoring/) the Performance score."
+    },
+    "a11y-best-practices": {
+      "title": "Best practices",
+      "description": "These items highlight common accessibility best practices."
+    },
+    "a11y-color-contrast": {
+      "title": "Contrast",
+      "description": "These are opportunities to improve the legibility of your content."
+    },
+    "a11y-names-labels": {
+      "title": "Names and labels",
+      "description": "These are opportunities to improve the semantics of the controls in your application. This may enhance the experience for users of assistive technology, like a screen reader."
+    },
+    "a11y-navigation": {
+      "title": "Navigation",
+      "description": "These are opportunities to improve keyboard navigation in your application."
+    },
+    "a11y-aria": {
+      "title": "ARIA",
+      "description": "These are opportunities to improve the usage of ARIA in your application which may enhance the experience for users of assistive technology, like a screen reader."
+    },
+    "a11y-language": {
+      "title": "Internationalization and localization",
+      "description": "These are opportunities to improve the interpretation of your content by users in different locales."
+    },
+    "a11y-audio-video": {
+      "title": "Audio and video",
+      "description": "These are opportunities to provide alternative content for audio and video. This may improve the experience for users with hearing or vision impairments."
+    },
+    "a11y-tables-lists": {
+      "title": "Tables and lists",
+      "description": "These are opportunities to improve the experience of reading tabular or list data using assistive technology, like a screen reader."
+    },
+    "seo-mobile": {
+      "title": "Mobile Friendly",
+      "description": "Make sure your pages are mobile friendly so users don’t have to pinch or zoom in order to read the content pages. [Learn how to make pages mobile-friendly](https://developers.google.com/search/mobile-sites/)."
+    },
+    "seo-content": {
+      "title": "Content Best Practices",
+      "description": "Format your HTML in a way that enables crawlers to better understand your app’s content."
+    },
+    "seo-crawl": {
+      "title": "Crawling and Indexing",
+      "description": "To appear in search results, crawlers need access to your app."
+    },
+    "best-practices-trust-safety": {
+      "title": "Trust and Safety"
+    },
+    "best-practices-ux": {
+      "title": "User Experience"
+    },
+    "best-practices-browser-compat": {
+      "title": "Browser Compatibility"
+    },
+    "best-practices-general": {
+      "title": "General"
+    },
+    "hidden": {
+      "title": ""
+    }
+  },
+  "stackPacks": [],
+  "entities": [
+    {
+      "name": "127.0.0.1",
+      "origins": [
+        "http://127.0.0.1:4173"
+      ],
+      "isFirstParty": true,
+      "isUnrecognized": true
+    },
+    {
+      "name": "Google Fonts",
+      "homepage": "https://fonts.google.com/",
+      "origins": [
+        "https://fonts.googleapis.com",
+        "https://fonts.gstatic.com"
+      ],
+      "category": "cdn"
+    }
+  ],
+  "fullPageScreenshot": {
+    "screenshot": {
+      "data": "data:image/webp;base64,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",
+      "width": 1350,
+      "height": 940
+    },
+    "nodes": {
+      "1-0-P": {
+        "id": "",
+        "top": 235,
+        "bottom": 252,
+        "left": 356,
+        "right": 994,
+        "width": 638,
+        "height": 17
+      },
+      "1-1-DIV": {
+        "id": "",
+        "top": 198,
+        "bottom": 742,
+        "left": 315,
+        "right": 1035,
+        "width": 720,
+        "height": 544
+      },
+      "1-2-HTML": {
+        "id": "",
+        "top": 0,
+        "bottom": 940,
+        "left": 0,
+        "right": 1350,
+        "width": 1350,
+        "height": 940
+      }
+    }
+  },
+  "timing": {
+    "entries": [
+      {
+        "startTime": 1549.51,
+        "name": "lh:config",
+        "duration": 571.56,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 1551.16,
+        "name": "lh:config:resolveArtifactsToDefns",
+        "duration": 44.37,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 2121.32,
+        "name": "lh:runner:gather",
+        "duration": 5249.14,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 2174.37,
+        "name": "lh:driver:connect",
+        "duration": 5.34,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 2179.91,
+        "name": "lh:driver:navigate",
+        "duration": 3.47,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 2183.61,
+        "name": "lh:gather:getBenchmarkIndex",
+        "duration": 1004.39,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3188.26,
+        "name": "lh:gather:getVersion",
+        "duration": 0.79,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3189.16,
+        "name": "lh:gather:getDevicePixelRatio",
+        "duration": 0.97,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3190.86,
+        "name": "lh:prepare:navigationMode",
+        "duration": 41.22,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3191.61,
+        "name": "lh:gather:getVersion",
+        "duration": 0.49,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3204.77,
+        "name": "lh:storage:clearDataForOrigin",
+        "duration": 11.61,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3216.54,
+        "name": "lh:storage:clearBrowserCaches",
+        "duration": 13.76,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3231.2,
+        "name": "lh:gather:prepareThrottlingAndNetwork",
+        "duration": 0.85,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 3236.95,
+        "name": "lh:driver:navigate",
+        "duration": 2802.09,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6040.89,
+        "name": "lh:computed:NetworkRecords",
+        "duration": 0.79,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6042.08,
+        "name": "lh:gather:getArtifact:DevtoolsLog",
+        "duration": 0.02,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6042.13,
+        "name": "lh:gather:getArtifact:Accessibility",
+        "duration": 140.45,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6182.78,
+        "name": "lh:gather:getArtifact:NetworkUserAgent",
+        "duration": 0.06,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6182.84,
+        "name": "lh:gather:getArtifact:Stacks",
+        "duration": 7.46,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6182.91,
+        "name": "lh:gather:collectStacks",
+        "duration": 7.38,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 6190.32,
+        "name": "lh:gather:getArtifact:FullPageScreenshot",
+        "duration": 1170.47,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7358.8,
+        "name": "lh:gather:getVersion",
+        "duration": 0.57,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7370.84,
+        "name": "lh:runner:audit",
+        "duration": 212.33,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7371,
+        "name": "lh:runner:auditing",
+        "duration": 211.75,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7372.34,
+        "name": "lh:audit:accesskeys",
+        "duration": 1.83,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7374.71,
+        "name": "lh:audit:aria-allowed-attr",
+        "duration": 1.43,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7376.57,
+        "name": "lh:audit:aria-allowed-role",
+        "duration": 1.57,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7378.64,
+        "name": "lh:audit:aria-command-name",
+        "duration": 1.76,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7380.71,
+        "name": "lh:audit:aria-conditional-attr",
+        "duration": 1.26,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7382.23,
+        "name": "lh:audit:aria-deprecated-role",
+        "duration": 1.17,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7383.72,
+        "name": "lh:audit:aria-dialog-name",
+        "duration": 1.67,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7385.7,
+        "name": "lh:audit:aria-hidden-body",
+        "duration": 6.06,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7392.03,
+        "name": "lh:audit:aria-hidden-focus",
+        "duration": 1.23,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7393.5,
+        "name": "lh:audit:aria-input-field-name",
+        "duration": 1.35,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7395.09,
+        "name": "lh:audit:aria-meter-name",
+        "duration": 1.35,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7396.68,
+        "name": "lh:audit:aria-progressbar-name",
+        "duration": 1.35,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7398.21,
+        "name": "lh:audit:aria-prohibited-attr",
+        "duration": 1.05,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7399.44,
+        "name": "lh:audit:aria-required-attr",
+        "duration": 1.2,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7400.88,
+        "name": "lh:audit:aria-required-children",
+        "duration": 1.66,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7402.76,
+        "name": "lh:audit:aria-required-parent",
+        "duration": 1.66,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7404.61,
+        "name": "lh:audit:aria-roles",
+        "duration": 1.24,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7406.03,
+        "name": "lh:audit:aria-text",
+        "duration": 1.35,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7407.55,
+        "name": "lh:audit:aria-toggle-field-name",
+        "duration": 1.41,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7409.17,
+        "name": "lh:audit:aria-tooltip-name",
+        "duration": 1.5,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7410.84,
+        "name": "lh:audit:aria-treeitem-name",
+        "duration": 1.45,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7412.47,
+        "name": "lh:audit:aria-valid-attr-value",
+        "duration": 1.44,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7414.08,
+        "name": "lh:audit:aria-valid-attr",
+        "duration": 1.48,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7415.73,
+        "name": "lh:audit:button-name",
+        "duration": 3.06,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7418.96,
+        "name": "lh:audit:bypass",
+        "duration": 1.55,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7420.68,
+        "name": "lh:audit:color-contrast",
+        "duration": 4.24,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7425.12,
+        "name": "lh:audit:definition-list",
+        "duration": 1.84,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7427.12,
+        "name": "lh:audit:dlitem",
+        "duration": 1.6,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7428.89,
+        "name": "lh:audit:document-title",
+        "duration": 3.02,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7432.07,
+        "name": "lh:audit:duplicate-id-aria",
+        "duration": 1.62,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7433.85,
+        "name": "lh:audit:empty-heading",
+        "duration": 2.9,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7436.91,
+        "name": "lh:audit:form-field-multiple-labels",
+        "duration": 21.55,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7458.69,
+        "name": "lh:audit:frame-title",
+        "duration": 2.1,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7461.01,
+        "name": "lh:audit:heading-order",
+        "duration": 3.89,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7465.13,
+        "name": "lh:audit:html-has-lang",
+        "duration": 4.18,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7469.54,
+        "name": "lh:audit:html-lang-valid",
+        "duration": 6.79,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7476.71,
+        "name": "lh:audit:html-xml-lang-mismatch",
+        "duration": 3.88,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7480.94,
+        "name": "lh:audit:identical-links-same-purpose",
+        "duration": 3.36,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7484.55,
+        "name": "lh:audit:image-alt",
+        "duration": 2.64,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7487.49,
+        "name": "lh:audit:image-redundant-alt",
+        "duration": 4.2,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7491.95,
+        "name": "lh:audit:input-button-name",
+        "duration": 2.85,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7495.05,
+        "name": "lh:audit:input-image-alt",
+        "duration": 2.89,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7498.2,
+        "name": "lh:audit:label-content-name-mismatch",
+        "duration": 3.02,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7501.44,
+        "name": "lh:audit:label",
+        "duration": 6.18,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7519.5,
+        "name": "lh:audit:landmark-one-main",
+        "duration": 4.85,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7524.6,
+        "name": "lh:audit:link-name",
+        "duration": 2.94,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7527.78,
+        "name": "lh:audit:link-in-text-block",
+        "duration": 2.71,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7530.72,
+        "name": "lh:audit:list",
+        "duration": 2.33,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7533.22,
+        "name": "lh:audit:listitem",
+        "duration": 2.95,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7536.36,
+        "name": "lh:audit:meta-refresh",
+        "duration": 2.7,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7539.24,
+        "name": "lh:audit:meta-viewport",
+        "duration": 3.17,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7542.61,
+        "name": "lh:audit:object-alt",
+        "duration": 2.34,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7545.15,
+        "name": "lh:audit:select-name",
+        "duration": 2.34,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7547.66,
+        "name": "lh:audit:skip-link",
+        "duration": 2.33,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7550.15,
+        "name": "lh:audit:tabindex",
+        "duration": 3.6,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7553.94,
+        "name": "lh:audit:table-duplicate-name",
+        "duration": 4.12,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7558.26,
+        "name": "lh:audit:table-fake-caption",
+        "duration": 2.67,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7561.1,
+        "name": "lh:audit:target-size",
+        "duration": 2.89,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7564.16,
+        "name": "lh:audit:td-has-header",
+        "duration": 2.87,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7567.21,
+        "name": "lh:audit:td-headers-attr",
+        "duration": 2.87,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7570.25,
+        "name": "lh:audit:th-has-data-cells",
+        "duration": 4.18,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7574.68,
+        "name": "lh:audit:valid-lang",
+        "duration": 3.71,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7578.61,
+        "name": "lh:audit:video-caption",
+        "duration": 3.78,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.42,
+        "name": "lh:audit:custom-controls-labels",
+        "duration": 0.13,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.56,
+        "name": "lh:audit:custom-controls-roles",
+        "duration": 0.02,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.59,
+        "name": "lh:audit:focus-traps",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.6,
+        "name": "lh:audit:focusable-controls",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.62,
+        "name": "lh:audit:interactive-element-affordance",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.64,
+        "name": "lh:audit:logical-tab-order",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.66,
+        "name": "lh:audit:managed-focus",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.69,
+        "name": "lh:audit:offscreen-content-hidden",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.71,
+        "name": "lh:audit:use-landmarks",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.73,
+        "name": "lh:audit:visual-order-follows-dom",
+        "duration": 0.01,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7582.75,
+        "name": "lh:runner:generate",
+        "duration": 0.41,
+        "entryType": "measure"
+      },
+      {
+        "startTime": 7583.61,
+        "name": "lh:computed:EntityClassification",
+        "duration": 1.1,
+        "entryType": "measure"
+      }
+    ],
+    "total": 5461.47
+  },
+  "i18n": {
+    "rendererFormattedStrings": {
+      "calculatorLink": "See calculator.",
+      "collapseView": "Collapse view",
+      "crcInitialNavigation": "Initial Navigation",
+      "crcLongestDurationLabel": "Maximum critical path latency:",
+      "dropdownCopyJSON": "Copy JSON",
+      "dropdownDarkTheme": "Toggle Dark Theme",
+      "dropdownPrintExpanded": "Print Expanded",
+      "dropdownPrintSummary": "Print Summary",
+      "dropdownSaveGist": "Save as Gist",
+      "dropdownSaveHTML": "Save as HTML",
+      "dropdownSaveJSON": "Save as JSON",
+      "dropdownViewUnthrottledTrace": "View Unthrottled Trace",
+      "dropdownViewer": "Open in Viewer",
+      "errorLabel": "Error!",
+      "errorMissingAuditInfo": "Report error: no audit information",
+      "expandView": "Expand view",
+      "firstPartyChipLabel": "1st party",
+      "footerIssue": "File an issue",
+      "hide": "Hide",
+      "labDataTitle": "Lab Data",
+      "lsPerformanceCategoryDescription": "[Lighthouse](https://developers.google.com/web/tools/lighthouse/) analysis of the current page on an emulated mobile network. Values are estimated and may vary.",
+      "manualAuditsGroupTitle": "Additional items to manually check",
+      "notApplicableAuditsGroupTitle": "Not applicable",
+      "openInANewTabTooltip": "Open in a new tab",
+      "opportunityResourceColumnLabel": "Opportunity",
+      "opportunitySavingsColumnLabel": "Estimated Savings",
+      "passedAuditsGroupTitle": "Passed audits",
+      "runtimeAnalysisWindow": "Initial page load",
+      "runtimeAnalysisWindowSnapshot": "Point-in-time snapshot",
+      "runtimeAnalysisWindowTimespan": "User interactions timespan",
+      "runtimeCustom": "Custom throttling",
+      "runtimeDesktopEmulation": "Emulated Desktop",
+      "runtimeMobileEmulation": "Emulated Moto G Power",
+      "runtimeNoEmulation": "No emulation",
+      "runtimeSettingsAxeVersion": "Axe version",
+      "runtimeSettingsBenchmark": "Unthrottled CPU/Memory Power",
+      "runtimeSettingsCPUThrottling": "CPU throttling",
+      "runtimeSettingsDevice": "Device",
+      "runtimeSettingsNetworkThrottling": "Network throttling",
+      "runtimeSettingsScreenEmulation": "Screen emulation",
+      "runtimeSettingsUANetwork": "User agent (network)",
+      "runtimeSingleLoad": "Single page session",
+      "runtimeSingleLoadTooltip": "This data is taken from a single page session, as opposed to field data summarizing many sessions.",
+      "runtimeSlow4g": "Slow 4G throttling",
+      "runtimeUnknown": "Unknown",
+      "show": "Show",
+      "showRelevantAudits": "Show audits relevant to:",
+      "snippetCollapseButtonLabel": "Collapse snippet",
+      "snippetExpandButtonLabel": "Expand snippet",
+      "thirdPartyResourcesLabel": "Show 3rd-party resources",
+      "throttlingProvided": "Provided by environment",
+      "toplevelWarningsMessage": "There were issues affecting this run of Lighthouse:",
+      "unattributable": "Unattributable",
+      "unscoredLabel": "Unscored",
+      "unscoredTitle": "This audit does not contribute to the overall category score.",
+      "varianceDisclaimer": "Values are estimated and may vary. The [performance score is calculated](https://developer.chrome.com/docs/lighthouse/performance/performance-scoring/) directly from these metrics.",
+      "viewTraceLabel": "View Trace",
+      "viewTreemapLabel": "View Treemap",
+      "warningAuditsGroupTitle": "Passed audits but with warnings",
+      "warningHeader": "Warnings: "
+    },
+    "icuMessagePaths": {
+      "core/audits/accessibility/accesskeys.js | title": [
+        "audits.accesskeys.title"
+      ],
+      "core/audits/accessibility/accesskeys.js | description": [
+        "audits.accesskeys.description"
+      ],
+      "core/audits/accessibility/aria-allowed-attr.js | title": [
+        "audits[aria-allowed-attr].title"
+      ],
+      "core/audits/accessibility/aria-allowed-attr.js | description": [
+        "audits[aria-allowed-attr].description"
+      ],
+      "core/audits/accessibility/aria-allowed-role.js | title": [
+        "audits[aria-allowed-role].title"
+      ],
+      "core/audits/accessibility/aria-allowed-role.js | description": [
+        "audits[aria-allowed-role].description"
+      ],
+      "core/audits/accessibility/aria-command-name.js | title": [
+        "audits[aria-command-name].title"
+      ],
+      "core/audits/accessibility/aria-command-name.js | description": [
+        "audits[aria-command-name].description"
+      ],
+      "core/audits/accessibility/aria-conditional-attr.js | title": [
+        "audits[aria-conditional-attr].title"
+      ],
+      "core/audits/accessibility/aria-conditional-attr.js | description": [
+        "audits[aria-conditional-attr].description"
+      ],
+      "core/audits/accessibility/aria-deprecated-role.js | title": [
+        "audits[aria-deprecated-role].title"
+      ],
+      "core/audits/accessibility/aria-deprecated-role.js | description": [
+        "audits[aria-deprecated-role].description"
+      ],
+      "core/audits/accessibility/aria-dialog-name.js | title": [
+        "audits[aria-dialog-name].title"
+      ],
+      "core/audits/accessibility/aria-dialog-name.js | description": [
+        "audits[aria-dialog-name].description"
+      ],
+      "core/audits/accessibility/aria-hidden-body.js | title": [
+        "audits[aria-hidden-body].title"
+      ],
+      "core/audits/accessibility/aria-hidden-body.js | description": [
+        "audits[aria-hidden-body].description"
+      ],
+      "core/lib/i18n/i18n.js | columnFailingElem": [
+        "audits[aria-hidden-body].details.headings[0].label",
+        "audits[button-name].details.headings[0].label",
+        "audits[color-contrast].details.headings[0].label",
+        "audits[document-title].details.headings[0].label",
+        "audits[heading-order].details.headings[0].label",
+        "audits[html-has-lang].details.headings[0].label",
+        "audits[html-lang-valid].details.headings[0].label",
+        "audits.label.details.headings[0].label",
+        "audits[landmark-one-main].details.headings[0].label",
+        "audits[meta-viewport].details.headings[0].label",
+        "audits[target-size].details.headings[0].label"
+      ],
+      "core/audits/accessibility/aria-hidden-focus.js | title": [
+        "audits[aria-hidden-focus].title"
+      ],
+      "core/audits/accessibility/aria-hidden-focus.js | description": [
+        "audits[aria-hidden-focus].description"
+      ],
+      "core/audits/accessibility/aria-input-field-name.js | title": [
+        "audits[aria-input-field-name].title"
+      ],
+      "core/audits/accessibility/aria-input-field-name.js | description": [
+        "audits[aria-input-field-name].description"
+      ],
+      "core/audits/accessibility/aria-meter-name.js | title": [
+        "audits[aria-meter-name].title"
+      ],
+      "core/audits/accessibility/aria-meter-name.js | description": [
+        "audits[aria-meter-name].description"
+      ],
+      "core/audits/accessibility/aria-progressbar-name.js | title": [
+        "audits[aria-progressbar-name].title"
+      ],
+      "core/audits/accessibility/aria-progressbar-name.js | description": [
+        "audits[aria-progressbar-name].description"
+      ],
+      "core/audits/accessibility/aria-prohibited-attr.js | title": [
+        "audits[aria-prohibited-attr].title"
+      ],
+      "core/audits/accessibility/aria-prohibited-attr.js | description": [
+        "audits[aria-prohibited-attr].description"
+      ],
+      "core/audits/accessibility/aria-required-attr.js | title": [
+        "audits[aria-required-attr].title"
+      ],
+      "core/audits/accessibility/aria-required-attr.js | description": [
+        "audits[aria-required-attr].description"
+      ],
+      "core/audits/accessibility/aria-required-children.js | title": [
+        "audits[aria-required-children].title"
+      ],
+      "core/audits/accessibility/aria-required-children.js | description": [
+        "audits[aria-required-children].description"
+      ],
+      "core/audits/accessibility/aria-required-parent.js | title": [
+        "audits[aria-required-parent].title"
+      ],
+      "core/audits/accessibility/aria-required-parent.js | description": [
+        "audits[aria-required-parent].description"
+      ],
+      "core/audits/accessibility/aria-roles.js | title": [
+        "audits[aria-roles].title"
+      ],
+      "core/audits/accessibility/aria-roles.js | description": [
+        "audits[aria-roles].description"
+      ],
+      "core/audits/accessibility/aria-text.js | title": [
+        "audits[aria-text].title"
+      ],
+      "core/audits/accessibility/aria-text.js | description": [
+        "audits[aria-text].description"
+      ],
+      "core/audits/accessibility/aria-toggle-field-name.js | title": [
+        "audits[aria-toggle-field-name].title"
+      ],
+      "core/audits/accessibility/aria-toggle-field-name.js | description": [
+        "audits[aria-toggle-field-name].description"
+      ],
+      "core/audits/accessibility/aria-tooltip-name.js | title": [
+        "audits[aria-tooltip-name].title"
+      ],
+      "core/audits/accessibility/aria-tooltip-name.js | description": [
+        "audits[aria-tooltip-name].description"
+      ],
+      "core/audits/accessibility/aria-treeitem-name.js | title": [
+        "audits[aria-treeitem-name].title"
+      ],
+      "core/audits/accessibility/aria-treeitem-name.js | description": [
+        "audits[aria-treeitem-name].description"
+      ],
+      "core/audits/accessibility/aria-valid-attr-value.js | title": [
+        "audits[aria-valid-attr-value].title"
+      ],
+      "core/audits/accessibility/aria-valid-attr-value.js | description": [
+        "audits[aria-valid-attr-value].description"
+      ],
+      "core/audits/accessibility/aria-valid-attr.js | title": [
+        "audits[aria-valid-attr].title"
+      ],
+      "core/audits/accessibility/aria-valid-attr.js | description": [
+        "audits[aria-valid-attr].description"
+      ],
+      "core/audits/accessibility/button-name.js | title": [
+        "audits[button-name].title"
+      ],
+      "core/audits/accessibility/button-name.js | description": [
+        "audits[button-name].description"
+      ],
+      "core/audits/accessibility/bypass.js | title": [
+        "audits.bypass.title"
+      ],
+      "core/audits/accessibility/bypass.js | description": [
+        "audits.bypass.description"
+      ],
+      "core/audits/accessibility/color-contrast.js | failureTitle": [
+        "audits[color-contrast].title"
+      ],
+      "core/audits/accessibility/color-contrast.js | description": [
+        "audits[color-contrast].description"
+      ],
+      "core/audits/accessibility/definition-list.js | title": [
+        "audits[definition-list].title"
+      ],
+      "core/audits/accessibility/definition-list.js | description": [
+        "audits[definition-list].description"
+      ],
+      "core/audits/accessibility/dlitem.js | title": [
+        "audits.dlitem.title"
+      ],
+      "core/audits/accessibility/dlitem.js | description": [
+        "audits.dlitem.description"
+      ],
+      "core/audits/accessibility/document-title.js | title": [
+        "audits[document-title].title"
+      ],
+      "core/audits/accessibility/document-title.js | description": [
+        "audits[document-title].description"
+      ],
+      "core/audits/accessibility/duplicate-id-aria.js | title": [
+        "audits[duplicate-id-aria].title"
+      ],
+      "core/audits/accessibility/duplicate-id-aria.js | description": [
+        "audits[duplicate-id-aria].description"
+      ],
+      "core/audits/accessibility/empty-heading.js | title": [
+        "audits[empty-heading].title"
+      ],
+      "core/audits/accessibility/empty-heading.js | description": [
+        "audits[empty-heading].description"
+      ],
+      "core/audits/accessibility/form-field-multiple-labels.js | title": [
+        "audits[form-field-multiple-labels].title"
+      ],
+      "core/audits/accessibility/form-field-multiple-labels.js | description": [
+        "audits[form-field-multiple-labels].description"
+      ],
+      "core/audits/accessibility/frame-title.js | title": [
+        "audits[frame-title].title"
+      ],
+      "core/audits/accessibility/frame-title.js | description": [
+        "audits[frame-title].description"
+      ],
+      "core/audits/accessibility/heading-order.js | title": [
+        "audits[heading-order].title"
+      ],
+      "core/audits/accessibility/heading-order.js | description": [
+        "audits[heading-order].description"
+      ],
+      "core/audits/accessibility/html-has-lang.js | title": [
+        "audits[html-has-lang].title"
+      ],
+      "core/audits/accessibility/html-has-lang.js | description": [
+        "audits[html-has-lang].description"
+      ],
+      "core/audits/accessibility/html-lang-valid.js | title": [
+        "audits[html-lang-valid].title"
+      ],
+      "core/audits/accessibility/html-lang-valid.js | description": [
+        "audits[html-lang-valid].description"
+      ],
+      "core/audits/accessibility/html-xml-lang-mismatch.js | title": [
+        "audits[html-xml-lang-mismatch].title"
+      ],
+      "core/audits/accessibility/html-xml-lang-mismatch.js | description": [
+        "audits[html-xml-lang-mismatch].description"
+      ],
+      "core/audits/accessibility/identical-links-same-purpose.js | title": [
+        "audits[identical-links-same-purpose].title"
+      ],
+      "core/audits/accessibility/identical-links-same-purpose.js | description": [
+        "audits[identical-links-same-purpose].description"
+      ],
+      "core/audits/accessibility/image-alt.js | title": [
+        "audits[image-alt].title"
+      ],
+      "core/audits/accessibility/image-alt.js | description": [
+        "audits[image-alt].description"
+      ],
+      "core/audits/accessibility/image-redundant-alt.js | title": [
+        "audits[image-redundant-alt].title"
+      ],
+      "core/audits/accessibility/image-redundant-alt.js | description": [
+        "audits[image-redundant-alt].description"
+      ],
+      "core/audits/accessibility/input-button-name.js | title": [
+        "audits[input-button-name].title"
+      ],
+      "core/audits/accessibility/input-button-name.js | description": [
+        "audits[input-button-name].description"
+      ],
+      "core/audits/accessibility/input-image-alt.js | title": [
+        "audits[input-image-alt].title"
+      ],
+      "core/audits/accessibility/input-image-alt.js | description": [
+        "audits[input-image-alt].description"
+      ],
+      "core/audits/accessibility/label-content-name-mismatch.js | title": [
+        "audits[label-content-name-mismatch].title"
+      ],
+      "core/audits/accessibility/label-content-name-mismatch.js | description": [
+        "audits[label-content-name-mismatch].description"
+      ],
+      "core/audits/accessibility/label.js | title": [
+        "audits.label.title"
+      ],
+      "core/audits/accessibility/label.js | description": [
+        "audits.label.description"
+      ],
+      "core/audits/accessibility/landmark-one-main.js | failureTitle": [
+        "audits[landmark-one-main].title"
+      ],
+      "core/audits/accessibility/landmark-one-main.js | description": [
+        "audits[landmark-one-main].description"
+      ],
+      "core/audits/accessibility/link-name.js | title": [
+        "audits[link-name].title"
+      ],
+      "core/audits/accessibility/link-name.js | description": [
+        "audits[link-name].description"
+      ],
+      "core/audits/accessibility/link-in-text-block.js | title": [
+        "audits[link-in-text-block].title"
+      ],
+      "core/audits/accessibility/link-in-text-block.js | description": [
+        "audits[link-in-text-block].description"
+      ],
+      "core/audits/accessibility/list.js | title": [
+        "audits.list.title"
+      ],
+      "core/audits/accessibility/list.js | description": [
+        "audits.list.description"
+      ],
+      "core/audits/accessibility/listitem.js | title": [
+        "audits.listitem.title"
+      ],
+      "core/audits/accessibility/listitem.js | description": [
+        "audits.listitem.description"
+      ],
+      "core/audits/accessibility/meta-refresh.js | title": [
+        "audits[meta-refresh].title"
+      ],
+      "core/audits/accessibility/meta-refresh.js | description": [
+        "audits[meta-refresh].description"
+      ],
+      "core/audits/accessibility/meta-viewport.js | title": [
+        "audits[meta-viewport].title"
+      ],
+      "core/audits/accessibility/meta-viewport.js | description": [
+        "audits[meta-viewport].description"
+      ],
+      "core/audits/accessibility/object-alt.js | title": [
+        "audits[object-alt].title"
+      ],
+      "core/audits/accessibility/object-alt.js | description": [
+        "audits[object-alt].description"
+      ],
+      "core/audits/accessibility/select-name.js | title": [
+        "audits[select-name].title"
+      ],
+      "core/audits/accessibility/select-name.js | description": [
+        "audits[select-name].description"
+      ],
+      "core/audits/accessibility/skip-link.js | title": [
+        "audits[skip-link].title"
+      ],
+      "core/audits/accessibility/skip-link.js | description": [
+        "audits[skip-link].description"
+      ],
+      "core/audits/accessibility/tabindex.js | title": [
+        "audits.tabindex.title"
+      ],
+      "core/audits/accessibility/tabindex.js | description": [
+        "audits.tabindex.description"
+      ],
+      "core/audits/accessibility/table-duplicate-name.js | title": [
+        "audits[table-duplicate-name].title"
+      ],
+      "core/audits/accessibility/table-duplicate-name.js | description": [
+        "audits[table-duplicate-name].description"
+      ],
+      "core/audits/accessibility/table-fake-caption.js | title": [
+        "audits[table-fake-caption].title"
+      ],
+      "core/audits/accessibility/table-fake-caption.js | description": [
+        "audits[table-fake-caption].description"
+      ],
+      "core/audits/accessibility/target-size.js | title": [
+        "audits[target-size].title"
+      ],
+      "core/audits/accessibility/target-size.js | description": [
+        "audits[target-size].description"
+      ],
+      "core/audits/accessibility/td-has-header.js | title": [
+        "audits[td-has-header].title"
+      ],
+      "core/audits/accessibility/td-has-header.js | description": [
+        "audits[td-has-header].description"
+      ],
+      "core/audits/accessibility/td-headers-attr.js | title": [
+        "audits[td-headers-attr].title"
+      ],
+      "core/audits/accessibility/td-headers-attr.js | description": [
+        "audits[td-headers-attr].description"
+      ],
+      "core/audits/accessibility/th-has-data-cells.js | title": [
+        "audits[th-has-data-cells].title"
+      ],
+      "core/audits/accessibility/th-has-data-cells.js | description": [
+        "audits[th-has-data-cells].description"
+      ],
+      "core/audits/accessibility/valid-lang.js | title": [
+        "audits[valid-lang].title"
+      ],
+      "core/audits/accessibility/valid-lang.js | description": [
+        "audits[valid-lang].description"
+      ],
+      "core/audits/accessibility/video-caption.js | title": [
+        "audits[video-caption].title"
+      ],
+      "core/audits/accessibility/video-caption.js | description": [
+        "audits[video-caption].description"
+      ],
+      "core/config/default-config.js | a11yCategoryTitle": [
+        "categories.accessibility.title"
+      ],
+      "core/config/default-config.js | a11yCategoryDescription": [
+        "categories.accessibility.description"
+      ],
+      "core/config/default-config.js | a11yCategoryManualDescription": [
+        "categories.accessibility.manualDescription"
+      ],
+      "core/config/default-config.js | metricGroupTitle": [
+        "categoryGroups.metrics.title"
+      ],
+      "core/config/default-config.js | insightsGroupTitle": [
+        "categoryGroups.insights.title"
+      ],
+      "core/config/default-config.js | insightsGroupDescription": [
+        "categoryGroups.insights.description"
+      ],
+      "core/config/default-config.js | diagnosticsGroupTitle": [
+        "categoryGroups.diagnostics.title"
+      ],
+      "core/config/default-config.js | diagnosticsGroupDescription": [
+        "categoryGroups.diagnostics.description"
+      ],
+      "core/config/default-config.js | a11yBestPracticesGroupTitle": [
+        "categoryGroups[a11y-best-practices].title"
+      ],
+      "core/config/default-config.js | a11yBestPracticesGroupDescription": [
+        "categoryGroups[a11y-best-practices].description"
+      ],
+      "core/config/default-config.js | a11yColorContrastGroupTitle": [
+        "categoryGroups[a11y-color-contrast].title"
+      ],
+      "core/config/default-config.js | a11yColorContrastGroupDescription": [
+        "categoryGroups[a11y-color-contrast].description"
+      ],
+      "core/config/default-config.js | a11yNamesLabelsGroupTitle": [
+        "categoryGroups[a11y-names-labels].title"
+      ],
+      "core/config/default-config.js | a11yNamesLabelsGroupDescription": [
+        "categoryGroups[a11y-names-labels].description"
+      ],
+      "core/config/default-config.js | a11yNavigationGroupTitle": [
+        "categoryGroups[a11y-navigation].title"
+      ],
+      "core/config/default-config.js | a11yNavigationGroupDescription": [
+        "categoryGroups[a11y-navigation].description"
+      ],
+      "core/config/default-config.js | a11yAriaGroupTitle": [
+        "categoryGroups[a11y-aria].title"
+      ],
+      "core/config/default-config.js | a11yAriaGroupDescription": [
+        "categoryGroups[a11y-aria].description"
+      ],
+      "core/config/default-config.js | a11yLanguageGroupTitle": [
+        "categoryGroups[a11y-language].title"
+      ],
+      "core/config/default-config.js | a11yLanguageGroupDescription": [
+        "categoryGroups[a11y-language].description"
+      ],
+      "core/config/default-config.js | a11yAudioVideoGroupTitle": [
+        "categoryGroups[a11y-audio-video].title"
+      ],
+      "core/config/default-config.js | a11yAudioVideoGroupDescription": [
+        "categoryGroups[a11y-audio-video].description"
+      ],
+      "core/config/default-config.js | a11yTablesListsVideoGroupTitle": [
+        "categoryGroups[a11y-tables-lists].title"
+      ],
+      "core/config/default-config.js | a11yTablesListsVideoGroupDescription": [
+        "categoryGroups[a11y-tables-lists].description"
+      ],
+      "core/config/default-config.js | seoMobileGroupTitle": [
+        "categoryGroups[seo-mobile].title"
+      ],
+      "core/config/default-config.js | seoMobileGroupDescription": [
+        "categoryGroups[seo-mobile].description"
+      ],
+      "core/config/default-config.js | seoContentGroupTitle": [
+        "categoryGroups[seo-content].title"
+      ],
+      "core/config/default-config.js | seoContentGroupDescription": [
+        "categoryGroups[seo-content].description"
+      ],
+      "core/config/default-config.js | seoCrawlingGroupTitle": [
+        "categoryGroups[seo-crawl].title"
+      ],
+      "core/config/default-config.js | seoCrawlingGroupDescription": [
+        "categoryGroups[seo-crawl].description"
+      ],
+      "core/config/default-config.js | bestPracticesTrustSafetyGroupTitle": [
+        "categoryGroups[best-practices-trust-safety].title"
+      ],
+      "core/config/default-config.js | bestPracticesUXGroupTitle": [
+        "categoryGroups[best-practices-ux].title"
+      ],
+      "core/config/default-config.js | bestPracticesBrowserCompatGroupTitle": [
+        "categoryGroups[best-practices-browser-compat].title"
+      ],
+      "core/config/default-config.js | bestPracticesGeneralGroupTitle": [
+        "categoryGroups[best-practices-general].title"
+      ]
+    }
+  }
+}

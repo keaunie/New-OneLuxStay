@@ -1,0 +1,546 @@
+﻿[
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "acknowledge",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "antwerp",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "booking_confirmation",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "california_privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "checkout_cancelled",
+        "score":  87,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "dubai",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "global",
+        "score":  94,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, heading-order"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "home",
+        "score":  96,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "listings",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "los_angeles",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "miami_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "redondo_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "mobile",
+        "page":  "terms",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "acknowledge",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "antwerp",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "booking_confirmation",
+        "score":  88,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "california_privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "checkout_cancelled",
+        "score":  87,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "dubai",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "global",
+        "score":  94,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, heading-order"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "home",
+        "score":  95,
+        "weightedFailCount":  2,
+        "weightedFails":  "color-contrast, landmark-one-main"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "listings",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "los_angeles",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "miami_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "privacy_policy",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "redondo_beach",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "core",
+        "mode":  "desktop",
+        "page":  "terms",
+        "score":  92,
+        "weightedFailCount":  1,
+        "weightedFails":  "color-contrast"
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "antwerp_listing_66e468a543cd83001318d31a",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "antwerp_listing_66e468a543cd83001318d31a_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "dubai_listing_67250a7e6cafcb0013e9cb18",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "dubai_listing_67250a7e6cafcb0013e9cb18_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "los_angeles_listing_66e1e3875a1f6300d736f28e",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "los_angeles_listing_66e1e3875a1f6300d736f28e_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "miami_beach_listing_66e876b98cb1f00010ea8ad5",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "miami_beach_listing_66e876b98cb1f00010ea8ad5_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "redondo_beach_listing_68c6f3c58247f20013bae867",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "mobile",
+        "page":  "redondo_beach_listing_68c6f3c58247f20013bae867_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "antwerp_listing_66e468a543cd83001318d31a",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "antwerp_listing_66e468a543cd83001318d31a_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "dubai_listing_67250a7e6cafcb0013e9cb18",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "dubai_listing_67250a7e6cafcb0013e9cb18_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "los_angeles_listing_66e1e3875a1f6300d736f28e",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "los_angeles_listing_66e1e3875a1f6300d736f28e_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "miami_beach_listing_66e876b98cb1f00010ea8ad5",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "miami_beach_listing_66e876b98cb1f00010ea8ad5_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "redondo_beach_listing_68c6f3c58247f20013bae867",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "listing-sample",
+        "mode":  "desktop",
+        "page":  "redondo_beach_listing_68c6f3c58247f20013bae867_2026_03_16_2026_03_19_2",
+        "score":  100,
+        "weightedFailCount":  0,
+        "weightedFails":  ""
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "antwerp_antwerpcentral",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "antwerp_antwerpcentral_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "dubai_businessbay",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "dubai_businessbay_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "los_angeles_downtownla",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "los_angeles_downtownla_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "miami_beach_brickell",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "miami_beach_brickell_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "redondo_beach_redondobeach",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "mobile",
+        "page":  "redondo_beach_redondobeach_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "antwerp_antwerpcentral",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "antwerp_antwerpcentral_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "dubai_businessbay",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "dubai_businessbay_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "los_angeles_downtownla",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "los_angeles_downtownla_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "miami_beach_brickell",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "miami_beach_brickell_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "redondo_beach_redondobeach",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    },
+    {
+        "group":  "area-sample",
+        "mode":  "desktop",
+        "page":  "redondo_beach_redondobeach_2026_03_16_2026_03_19_2",
+        "score":  92,
+        "weightedFailCount":  2,
+        "weightedFails":  "aria-prohibited-attr, color-contrast"
+    }
+]

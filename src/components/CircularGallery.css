@@ -9,3 +9,49 @@
 .circular-gallery:active {
   cursor: grabbing;
 }
+
+.circular-gallery--fallback {
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: default;
+  padding: 0 12px 10px;
+}
+
+.circular-gallery__fallback-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(180px, 220px);
+  gap: 14px;
+  min-height: 100%;
+  align-content: center;
+  padding: 10px 2px;
+}
+
+.circular-gallery__fallback-card {
+  appearance: none;
+  border: 1px solid rgba(201, 181, 156, 0.55);
+  border-radius: 14px;
+  background: rgba(249, 248, 246, 0.95);
+  box-shadow: 0 12px 22px rgba(42, 30, 20, 0.14);
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  color: #3f362f;
+}
+
+.circular-gallery__fallback-card img {
+  width: 100%;
+  height: 78%;
+  object-fit: cover;
+  display: block;
+}
+
+.circular-gallery__fallback-card span {
+  display: block;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+}

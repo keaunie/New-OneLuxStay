@@ -1,7 +1,42 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Mesh, Plane, Program, Renderer, Texture, Transform } from "ogl";
 
 import "./CircularGallery.css";
+
+let webglSupportCache;
+const DEFAULT_GALLERY_ITEMS = [
+  { image: "https://picsum.photos/seed/1/800/600?grayscale", text: "Antwerp Suites" },
+  { image: "https://picsum.photos/seed/2/800/600?grayscale", text: "Dubai Skyline" },
+  { image: "https://picsum.photos/seed/3/800/600?grayscale", text: "Los Angeles Lofts" },
+  { image: "https://picsum.photos/seed/4/800/600?grayscale", text: "Redondo Retreats" },
+  { image: "https://picsum.photos/seed/5/800/600?grayscale", text: "Miami Beachfront" },
+  { image: "https://picsum.photos/seed/16/800/600?grayscale", text: "Penthouse Stays" },
+  { image: "https://picsum.photos/seed/17/800/600?grayscale", text: "Ocean View Homes" },
+  { image: "https://picsum.photos/seed/8/800/600?grayscale", text: "Rooftop Terraces" },
+  { image: "https://picsum.photos/seed/9/800/600?grayscale", text: "Designer Interiors" },
+  { image: "https://picsum.photos/seed/10/800/600?grayscale", text: "City Escape" },
+  { image: "https://picsum.photos/seed/21/800/600?grayscale", text: "Signature Stay" },
+  { image: "https://picsum.photos/seed/12/800/600?grayscale", text: "Curated Collection" },
+];
+
+function canUseWebGL() {
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+  if (typeof webglSupportCache === "boolean") return webglSupportCache;
+  try {
+    const canvas = document.createElement("canvas");
+    const gl =
+      canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext("webgl", { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext("experimental-webgl", { failIfMajorPerformanceCaveat: true }) ||
+      canvas.getContext("webgl2") ||
+      canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl");
+    webglSupportCache = Boolean(gl);
+  } catch {
+    webglSupportCache = false;
+  }
+  return webglSupportCache;
+}
 
 function debounce(func, wait) {
   let timeout;
@@ -445,6 +480,7 @@ class App {
       cardWidth = 700,
       cardHeight = 900,
       enableWheelInteraction = true,
+      autoScrollSpeed = 0,
     } = {},
   ) {
     if (!container) return;
@@ -459,6 +495,7 @@ class App {
     this.lastPointerX = 0;
     this.tiltStrength = tiltStrength;
     this.enableWheelInteraction = enableWheelInteraction !== false;
+    this.autoScrollSpeed = Number.isFinite(autoScrollSpeed) ? autoScrollSpeed : 0;
     this.itemsCount = Array.isArray(items) ? items.length : 0;
     this.createRenderer();
     this.createCamera();
@@ -471,8 +508,14 @@ class App {
   }
 
   createRenderer() {
+    if (!canUseWebGL()) {
+      throw new Error("WebGL is not available in this browser/context.");
+    }
     this.renderer = new Renderer({ alpha: true });
     this.gl = this.renderer.gl;
+    if (!this.gl) {
+      throw new Error("Failed to create WebGL context.");
+    }
     this.gl.clearColor(0, 0, 0, 0);
     this.container.appendChild(this.gl.canvas);
   }
@@ -519,22 +562,7 @@ class App {
     cardWidth = 700,
     cardHeight = 900,
   ) {
-    const defaultItems = [
-      { image: "https://picsum.photos/seed/1/800/600?grayscale", text: "Bridge" },
-      { image: "https://picsum.photos/seed/2/800/600?grayscale", text: "Desk Setup" },
-      { image: "https://picsum.photos/seed/3/800/600?grayscale", text: "Waterfall" },
-      { image: "https://picsum.photos/seed/4/800/600?grayscale", text: "Strawberries" },
-      { image: "https://picsum.photos/seed/5/800/600?grayscale", text: "Deep Diving" },
-      { image: "https://picsum.photos/seed/16/800/600?grayscale", text: "Train Track" },
-      { image: "https://picsum.photos/seed/17/800/600?grayscale", text: "Santorini" },
-      { image: "https://picsum.photos/seed/8/800/600?grayscale", text: "Blurry Lights" },
-      { image: "https://picsum.photos/seed/9/800/600?grayscale", text: "New York" },
-      { image: "https://picsum.photos/seed/10/800/600?grayscale", text: "Good Boy" },
-      { image: "https://picsum.photos/seed/21/800/600?grayscale", text: "Coastline" },
-      { image: "https://picsum.photos/seed/12/800/600?grayscale", text: "Palm Trees" },
-    ];
-
-    const galleryItems = items && items.length ? items : useFallback ? defaultItems : [];
+    const galleryItems = items && items.length ? items : useFallback ? DEFAULT_GALLERY_ITEMS : [];
     this.itemsCount = galleryItems.length;
     this.mediasImages = galleryItems.length > 24 ? galleryItems : galleryItems.concat(galleryItems);
     this.medias = this.mediasImages.map((data, index) =>
@@ -648,6 +676,9 @@ class App {
   }
 
   update() {
+    if (!this.isDown && this.autoScrollSpeed) {
+      this.scroll.target += this.autoScrollSpeed;
+    }
     this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.scroll.ease);
     const direction = this.scroll.current > this.scroll.last ? "right" : "left";
     if (this.medias) {
@@ -713,11 +744,21 @@ export default function CircularGallery({
   cardWidth = 700,
   cardHeight = 900,
   enableWheelInteraction = true,
+  autoScrollSpeed = 0,
 }) {
   const containerRef = useRef(null);
+  const [renderFallback, setRenderFallback] = useState(false);
+  const fallbackItems = useMemo(() => {
+    const source = items && items.length ? items : useFallback ? DEFAULT_GALLERY_ITEMS : [];
+    return source.slice(0, 12);
+  }, [items, useFallback]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
+    if (!canUseWebGL()) {
+      setRenderFallback(true);
+      return undefined;
+    }
     let app = null;
     try {
       app = new App(containerRef.current, {
@@ -733,10 +774,13 @@ export default function CircularGallery({
         cardWidth,
         cardHeight,
         enableWheelInteraction,
+        autoScrollSpeed,
       });
+      setRenderFallback(false);
     } catch (error) {
       // Keep the page usable if WebGL/OGL initialization fails.
-      console.error("CircularGallery initialization failed:", error);
+      console.warn("CircularGallery initialization skipped:", error);
+      setRenderFallback(true);
     }
     return () => {
       if (app && app.destroy) app.destroy();
@@ -754,7 +798,30 @@ export default function CircularGallery({
     cardWidth,
     cardHeight,
     enableWheelInteraction,
+    autoScrollSpeed,
   ]);
+
+  if (renderFallback) {
+    return (
+      <div className="circular-gallery circular-gallery--fallback">
+        <div className="circular-gallery__fallback-track">
+          {fallbackItems.map((item, index) => (
+            <button
+              key={`fallback-${index}-${item.image}`}
+              type="button"
+              className="circular-gallery__fallback-card"
+              onClick={() => {
+                if (typeof onSelect === "function" && items && items.length) onSelect(index % items.length);
+              }}
+            >
+              <img src={item.image} alt={item.text || `Featured stay ${index + 1}`} loading="lazy" />
+              {item.text ? <span>{item.text}</span> : null}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return <div className="circular-gallery" ref={containerRef} />;
 }

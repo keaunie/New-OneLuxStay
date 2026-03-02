@@ -6572,7 +6572,7 @@ const applyCheckoutPromoCode = () => {
                 <div role="columnheader">Guests</div>
                 <div role="columnheader">Today&apos;s price</div>
                 <div role="columnheader">Your choices</div>
-                <div role="columnheader">Virtual tour</div>
+                <div role="columnheader">Action</div>
               </div>
               {sectionAvailabilityLoading ? (
                 <>
@@ -6942,13 +6942,6 @@ const applyCheckoutPromoCode = () => {
                                   {isReserving ? "Redirecting..." : "Reserve"}
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                className="la-booking-table__cta"
-                                disabled={isLoadingRates}
-                              >
-                                Virtual tour
-                              </button>
                             </div>
                           </div>
                         </article>
@@ -7558,7 +7551,6 @@ const applyCheckoutPromoCode = () => {
                   })()}
                 </div>
                 <div className="la-unit-modal__room-actions">
-                  <button type="button">Virtual tour</button>
                   <Link to="/listings" className="antwerp-card__link">
                     Book now
                   </Link>
