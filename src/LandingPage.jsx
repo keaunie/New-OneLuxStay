@@ -1342,30 +1342,9 @@ function LandingPage() {
             Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Dubai, Los Angeles, Miami,
             and Redondo Beach.
           </p>
-          {displayedHeroSlides.length > 1 && (
-            <button
-              type="button"
-              className="landing-hero-control"
-              aria-pressed={isHeroPaused}
-              aria-label={isHeroPaused ? "Play background slideshow" : "Pause background slideshow"}
-              title={isHeroPaused ? "Play slideshow" : "Pause slideshow"}
-              onClick={() => setIsHeroPaused((prev) => !prev)}
-            >
-              <span className="landing-hero-control__icon" aria-hidden="true">
-                {isHeroPaused ? (
-                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-                    <path d="M8 6.25v11.5a.75.75 0 0 0 1.16.62l9-5.75a.75.75 0 0 0 0-1.24l-9-5.75A.75.75 0 0 0 8 6.25z" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-                    <path d="M7 6.5c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1H8c-.55 0-1-.45-1-1v-11zm6 0c0-.55.45-1 1-1h2c.55 0 1 .45 1 1v11c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-11z" />
-                  </svg>
-                )}
-              </span>
-            </button>
-          )}
+          
 
-          <div className="landing-chip-row">
+          <div className="landing-chip-row" data-tour-target="destination-shortcuts">
             {["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami"].map((city) => (
               <button
                 key={city}
@@ -1385,7 +1364,7 @@ function LandingPage() {
             </div>
           )}
 
-          <form className="landing-hero-form glass" onSubmit={handleHeroSubmit}>
+          <form className="landing-hero-form glass" data-tour-target="booking-island" onSubmit={handleHeroSubmit}>
             <div className="landing-form-field">
               <label htmlFor="landing-destination-desktop">Destination</label>
               <select
@@ -1423,12 +1402,19 @@ function LandingPage() {
           </form>
 
           {shouldLoadHeroGallery && (
-            <div
-              className="landing-circular-gallery landing-circular-gallery--hero"
-              aria-label="Featured city stays"
-              onPointerDown={dismissGalleryHint}
-              onTouchStart={dismissGalleryHint}
-            >
+            <>
+              <div
+                className={`landing-circular-gallery__hint-row${showGalleryHint ? "" : " is-hidden"}`}
+                aria-hidden="true"
+              >
+              </div>
+              <section
+                className="landing-circular-gallery landing-circular-gallery--hero"
+                data-tour-target="featured-units"
+                aria-label="Featured city stays"
+                onPointerDown={dismissGalleryHint}
+                onTouchStart={dismissGalleryHint}
+              >
               <Suspense
                 fallback={
                   <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
@@ -1448,33 +1434,13 @@ function LandingPage() {
                   tiltStrength={0.14}
                   cardWidth={230}
                   cardHeight={300}
-                  enableWheelInteraction={false}
+                  enableWheelInteraction
                   autoScrollSpeed={0.03}
                 />
               </Suspense>
-              {galleryLoading && !hasDesktopGallery ? (
-                <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-                  <span>Loading curated stays...</span>
-                </div>
-              ) : null}
-              <div className={`landing-circular-gallery__hint${showGalleryHint ? "" : " is-hidden"}`} aria-hidden="true">
-                <span className="landing-circular-gallery__hint-icon">↔</span>
-                <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--touch">
-                  Swipe cards to explore
-                </span>
-                <span className="landing-circular-gallery__hint-label landing-circular-gallery__hint-label--desktop">
-                  Drag or scroll to explore
-                </span>
-              </div>
-            </div>
-          )}
-
-          {shouldLoadHeroGallery && galleryLoading && !hasDesktopGallery && (
-            <div className="landing-circular-gallery landing-circular-gallery--hero">
-              <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-                <span>Loading featured stays...</span>
-              </div>
-            </div>
+              
+            </section>
+            </>
           )}
         </div>
         )}
@@ -1492,8 +1458,8 @@ function LandingPage() {
             </p>
           </div>
 
-          <form className="ols-booking-card" onSubmit={handleHeroSubmit}>
-            <div className="ols-booking-field ols-booking-field--destination">
+          <form className="ols-booking-card" data-tour-target="booking-island" onSubmit={handleHeroSubmit}>
+            <div className="ols-booking-field ols-booking-field--destination" data-tour-target="destination-shortcuts">
               <label className="ols-booking-label" htmlFor="landing-destination-mobile">Destination</label>
               <div className="ols-booking-input-wrap">
                 <span className="ols-booking-search-icon" aria-hidden="true">⌕</span>
@@ -1627,6 +1593,7 @@ function LandingPage() {
 
         <div
           className={`landing-offers-row ${shouldUseInteractiveOffers ? "landing-offers-row--draggable" : "landing-offers-row--native"}`}
+          data-tour-target="offers"
           ref={shouldUseInteractiveOffers ? offersRef : null}
           onPointerDown={shouldUseInteractiveOffers ? handleOffersPointerDown : undefined}
           onPointerMove={shouldUseInteractiveOffers ? handleOffersPointerMove : undefined}
@@ -1662,7 +1629,7 @@ function LandingPage() {
           </div>
         </div>
 
-        <div className="landing-destination-panel px-6 md:px-10">
+        <div className="landing-destination-panel px-6 md:px-10" data-tour-target="collection">
           {shouldRenderCollectionGrid ? (
             <Suspense
               fallback={
