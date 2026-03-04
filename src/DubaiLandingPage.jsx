@@ -4709,9 +4709,34 @@ const applyCheckoutPromoCode = () => {
                         {(() => {
                           const availability = listingId ? sectionAvailabilityMap[listingId] : null;
                           if (availability === true) {
+                            const isReserving = sectionReserveLoadingId === listingId;
                             return (
-                              <button type="button" className="la-unit-modal__action-primary">
-                                Reserve
+                              <button
+                                type="button"
+                                className="la-unit-modal__action-primary"
+                                disabled={sectionAvailabilityLoading || isReserving}
+                                onClick={() => {
+                                  setPendingCheckout({
+                                    listingId,
+                                    listingTitle: activeListing.title,
+                                    amount: typeof totalPrice === "number" ? totalPrice : null,
+                                    currency: resolveCheckoutCurrency(priceCurrency),
+                                    breakdown: breakdown || null,
+                                    baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                                    baseBreakdown: breakdown || null,
+                                    promoCode: "",
+                                    promoDiscountRate: 0,
+                                    promoDiscountAmount: 0,
+                                  });
+                                  setCheckoutStep(1);
+                                  setCheckoutConsentAccepted(false);
+                                  setCheckoutConsentSignerName("");
+                                  setCheckoutConsentSignatureDataUrl("");
+                                  setCheckoutGuestError("");
+                                  setIsCheckoutGuestOpen(true);
+                                }}
+                              >
+                                {isReserving ? "Redirecting..." : "Reserve"}
                               </button>
                             );
                           }
@@ -7505,7 +7530,6 @@ const applyCheckoutPromoCode = () => {
     </div>
   );
 }
-
 
 
 
