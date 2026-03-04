@@ -6,6 +6,7 @@ const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 const CONSENT_STORE_NAME = "consent-proofs";
 const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
+const RESERVATIONS_COPY_EMAIL = "reservations@oneluxstay.com";
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -197,6 +198,82 @@ const toDataUrlBytes = (dataUrl) => {
   return { mime: match[1], bytes: Buffer.from(match[2], "base64") };
 };
 
+const sanitizeText = (value, max = 180) => String(value || "").trim().slice(0, max);
+
+const sanitizeImageDataUrl = (value, maxChars = 3_000_000) => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("data:image/")) return "";
+  return trimmed.slice(0, maxChars);
+};
+
+const normalizeProofImage = (value) => {
+  if (!value) return { name: "", mime: "", dataUrl: "" };
+  if (typeof value === "string") {
+    return { name: "", mime: "", dataUrl: sanitizeImageDataUrl(value) };
+  }
+  return {
+    name: sanitizeText(value.name || value.fileName || ""),
+    mime: sanitizeText(value.mime || value.type || "", 80),
+    dataUrl: sanitizeImageDataUrl(value.dataUrl || value.url || ""),
+  };
+};
+
+const normalizeVerificationPayload = (verification = {}) => ({
+  idFront: normalizeProofImage(
+    verification?.idFront || {
+      name: verification?.idFrontName,
+      mime: verification?.idFrontMime,
+      dataUrl: verification?.idFrontDataUrl,
+    },
+  ),
+  idBack: normalizeProofImage(
+    verification?.idBack || {
+      name: verification?.idBackName,
+      mime: verification?.idBackMime,
+      dataUrl: verification?.idBackDataUrl,
+    },
+  ),
+  idSelfie: normalizeProofImage(
+    verification?.idSelfie || {
+      name: verification?.idSelfieName,
+      mime: verification?.idSelfieMime,
+      dataUrl: verification?.idSelfieDataUrl,
+    },
+  ),
+  cardPhoto: normalizeProofImage(
+    verification?.cardPhoto || {
+      name: verification?.cardPhotoName,
+      mime: verification?.cardPhotoMime,
+      dataUrl: verification?.cardPhotoDataUrl,
+    },
+  ),
+  cardHolderSelfie: normalizeProofImage(
+    verification?.cardHolderSelfie || {
+      name: verification?.cardHolderSelfieName,
+      mime: verification?.cardHolderSelfieMime,
+      dataUrl: verification?.cardHolderSelfieDataUrl,
+    },
+  ),
+});
+
+const getVerificationEntries = (verification = {}) => [
+  { label: "ID front", ...normalizeProofImage(verification?.idFront) },
+  { label: "ID back", ...normalizeProofImage(verification?.idBack) },
+  { label: "Selfie with ID", ...normalizeProofImage(verification?.idSelfie) },
+  { label: "Card photo", ...normalizeProofImage(verification?.cardPhoto) },
+  { label: "Selfie with card", ...normalizeProofImage(verification?.cardHolderSelfie) },
+];
+
+const scaleToFit = (width, height, maxWidth, maxHeight) => {
+  if (!width || !height) return { width: maxWidth, height: maxHeight };
+  const ratio = Math.min(maxWidth / width, maxHeight / height);
+  return {
+    width: Math.max(1, Math.round(width * ratio)),
+    height: Math.max(1, Math.round(height * ratio)),
+  };
+};
+
 const buildConsentPdf = async ({
   confirmationId,
   reservationId,
@@ -212,9 +289,10 @@ const buildConsentPdf = async ({
   consentAcceptedAt,
   consentSignerName,
   consentSignatureDataUrl,
+  verification,
 }) => {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([612, 792]);
+  let page = pdfDoc.addPage([612, 792]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const color = rgb(0.2, 0.16, 0.12);
@@ -230,6 +308,13 @@ const buildConsentPdf = async ({
       color,
     });
     y -= 20;
+  };
+  const addPage = () => {
+    page = pdfDoc.addPage([612, 792]);
+    y = 760;
+  };
+  const ensureSpace = (requiredHeight) => {
+    if (y - requiredHeight < 48) addPage();
   };
 
   page.drawText("OneLuxStay Consent Proof", {
@@ -276,6 +361,7 @@ const buildConsentPdf = async ({
     y -= 22;
   }
 
+  ensureSpace(130);
   page.drawText("Guest signature:", { x: 52, y, size: 11, font: fontBold, color });
   y -= 12;
   const sig = toDataUrlBytes(consentSignatureDataUrl);
@@ -299,11 +385,65 @@ const buildConsentPdf = async ({
         width: Math.min(238, dims.width),
         height: Math.min(72, dims.height),
       });
+      y -= 96;
     } catch {
       page.drawText("Signature image unavailable", { x: 52, y, size: 10, font, color });
+      y -= 16;
     }
   } else {
     page.drawText("No signature image captured", { x: 52, y, size: 10, font, color });
+    y -= 16;
+  }
+
+  const verificationEntries = getVerificationEntries(verification).filter(
+    (item) => item?.dataUrl || item?.name,
+  );
+  if (verificationEntries.length) {
+    ensureSpace(34);
+    page.drawText("Verification uploads:", { x: 52, y, size: 11, font: fontBold, color });
+    y -= 18;
+    for (const entry of verificationEntries) {
+      ensureSpace(170);
+      const labelText = entry.name
+        ? `${entry.label}: ${sanitizeText(entry.name, 72)}`
+        : `${entry.label}:`;
+      page.drawText(labelText, { x: 52, y, size: 10, font: fontBold, color });
+      y -= 14;
+
+      const imageData = toDataUrlBytes(entry.dataUrl);
+      if (imageData) {
+        try {
+          const embeddedImage = imageData.mime.includes("png")
+            ? await pdfDoc.embedPng(imageData.bytes)
+            : await pdfDoc.embedJpg(imageData.bytes);
+          const fitted = scaleToFit(embeddedImage.width, embeddedImage.height, 236, 128);
+          page.drawRectangle({
+            x: 52,
+            y: y - 136,
+            width: 248,
+            height: 136,
+            borderColor: rgb(0.75, 0.7, 0.62),
+            borderWidth: 1,
+          });
+          page.drawImage(embeddedImage, {
+            x: 58 + Math.max(0, (236 - fitted.width) / 2),
+            y: y - 132 + Math.max(0, (128 - fitted.height) / 2),
+            width: fitted.width,
+            height: fitted.height,
+          });
+          y -= 146;
+          continue;
+        } catch {
+          // fall through to non-image note
+        }
+      }
+
+      const fallbackText = entry.name
+        ? "Preview unavailable for this uploaded file."
+        : "No preview image captured.";
+      page.drawText(fallbackText, { x: 52, y, size: 10, font, color });
+      y -= 22;
+    }
   }
 
   return pdfDoc.save();
@@ -312,7 +452,8 @@ const buildConsentPdf = async ({
 const sendReservationEmail = async ({ to, subject, html, attachments = [] }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from || !to) {
+  const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  if (!apiKey || !from || !recipients.length) {
     return { skipped: true };
   }
 
@@ -324,7 +465,7 @@ const sendReservationEmail = async ({ to, subject, html, attachments = [] }) => 
     },
     body: JSON.stringify({
       from,
-      to,
+      to: recipients,
       subject,
       html,
       ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
@@ -974,6 +1115,7 @@ const handleFreeCheckout = async (event) => {
     consentAcceptedAt,
     consentSignerName,
     consentSignatureDataUrl,
+    verification,
   } = body || {};
 
   if (!listingId || !checkIn || !checkOut || amount == null) {
@@ -996,6 +1138,7 @@ const handleFreeCheckout = async (event) => {
 
   const normalizedCurrency = (currency || "USD").toUpperCase();
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const normalizedVerification = normalizeVerificationPayload(verification || {});
   const resolvedPromoCode =
     (typeof promoCode === "string" && promoCode.trim()) ||
     (typeof breakdown?.promoCode === "string" && breakdown.promoCode.trim()) ||
@@ -1054,6 +1197,7 @@ const handleFreeCheckout = async (event) => {
     consentAcceptedAt: consentAcceptedAt || "",
     consentSignerName: consentSignerName || "",
     consentSignatureDataUrl: consentSignatureDataUrl || "",
+    verification: normalizedVerification,
     promoCode: resolvedPromoCode,
     promoDiscountAmount: resolvedPromoDiscountAmount,
     promoDiscountRate: resolvedPromoDiscountRate,
@@ -1082,6 +1226,7 @@ const handleFreeCheckout = async (event) => {
       consentAcceptedAt: consentAcceptedAt || "",
       consentSignerName: consentSignerName || guestName || "",
       consentSignatureDataUrl: consentSignatureDataUrl || "",
+      verification: normalizedVerification,
     });
     consentPdfToken = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`;
     const stored = await writeConsentPdf(consentPdfToken, consentPdfBytes, {
@@ -1105,8 +1250,11 @@ const handleFreeCheckout = async (event) => {
   let emailError = null;
   try {
     const formattedAmount = formatCurrencyValue(numericAmount, normalizedCurrency);
+    const recipients = Array.from(
+      new Set([guest.email, RESERVATIONS_COPY_EMAIL].filter(Boolean)),
+    );
     const emailResult = await sendReservationEmail({
-      to: guest.email,
+      to: recipients,
       subject: "OneLuxStay Booking Confirmation",
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #3f3326;">
@@ -1188,6 +1336,7 @@ const handleCheckout = async (event) => {
     consentAcceptedAt,
     consentSignerName,
     consentSignatureDataUrl,
+    verification,
     cancelPath,
   } = body || {};
 
@@ -1220,6 +1369,7 @@ const handleCheckout = async (event) => {
     cancelQuery.set("guests", String(Math.round(Number(guests))));
   }
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const normalizedVerification = normalizeVerificationPayload(verification || {});
   const resolvedPromoCode =
     (typeof promoCode === "string" && promoCode.trim()) ||
     (typeof breakdown?.promoCode === "string" && breakdown.promoCode.trim()) ||
@@ -1311,6 +1461,7 @@ const handleCheckout = async (event) => {
     consentAcceptedAt: consentAcceptedAt || "",
     consentSignerName: consentSignerName || "",
     consentSignatureDataUrl: consentSignatureDataUrl || "",
+    verification: normalizedVerification,
     promoCode: resolvedPromoCode,
     promoDiscountAmount: resolvedPromoDiscountAmount,
     promoDiscountRate: resolvedPromoDiscountRate,

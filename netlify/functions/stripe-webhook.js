@@ -10,6 +10,7 @@ const TOKEN_KEY = "access-token";
 const STRIPE_EVENT_STORE = "stripe-webhook-events";
 const CONSENT_STORE_NAME = "consent-proofs";
 const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
+const RESERVATIONS_COPY_EMAIL = "reservations@oneluxstay.com";
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
   "clp",
@@ -208,9 +209,45 @@ const toDataUrlBytes = (dataUrl) => {
   return { mime: match[1], bytes: Buffer.from(match[2], "base64") };
 };
 
+const sanitizeText = (value, max = 180) => String(value || "").trim().slice(0, max);
+
+const normalizeProofImage = (value) => {
+  if (!value) return { name: "", mime: "", dataUrl: "" };
+  if (typeof value === "string") {
+    return {
+      name: "",
+      mime: "",
+      dataUrl: value.startsWith("data:image/") ? value.slice(0, 3_000_000) : "",
+    };
+  }
+  const dataUrl = typeof value.dataUrl === "string" ? value.dataUrl : "";
+  return {
+    name: sanitizeText(value.name || value.fileName || ""),
+    mime: sanitizeText(value.mime || value.type || "", 80),
+    dataUrl: dataUrl.startsWith("data:image/") ? dataUrl.slice(0, 3_000_000) : "",
+  };
+};
+
+const getVerificationEntries = (verification = {}) => [
+  { label: "ID front", ...normalizeProofImage(verification?.idFront) },
+  { label: "ID back", ...normalizeProofImage(verification?.idBack) },
+  { label: "Selfie with ID", ...normalizeProofImage(verification?.idSelfie) },
+  { label: "Card photo", ...normalizeProofImage(verification?.cardPhoto) },
+  { label: "Selfie with card", ...normalizeProofImage(verification?.cardHolderSelfie) },
+];
+
+const scaleToFit = (width, height, maxWidth, maxHeight) => {
+  if (!width || !height) return { width: maxWidth, height: maxHeight };
+  const ratio = Math.min(maxWidth / width, maxHeight / height);
+  return {
+    width: Math.max(1, Math.round(width * ratio)),
+    height: Math.max(1, Math.round(height * ratio)),
+  };
+};
+
 const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([612, 792]);
+  let page = pdfDoc.addPage([612, 792]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const color = rgb(0.2, 0.16, 0.12);
@@ -226,6 +263,13 @@ const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
       color,
     });
     y -= 20;
+  };
+  const addPage = () => {
+    page = pdfDoc.addPage([612, 792]);
+    y = 760;
+  };
+  const ensureSpace = (requiredHeight) => {
+    if (y - requiredHeight < 48) addPage();
   };
 
   page.drawText("OneLuxStay Consent Proof", {
@@ -271,6 +315,7 @@ const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
     y -= 22;
   }
 
+  ensureSpace(130);
   page.drawText("Guest signature:", { x: 52, y, size: 11, font: fontBold, color });
   y -= 12;
 
@@ -291,6 +336,57 @@ const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
   } else {
     page.drawText("No signature image captured", { x: 52, y, size: 10, font, color });
     y -= 16;
+  }
+
+  const verificationEntries = getVerificationEntries(consent?.verification).filter(
+    (item) => item?.dataUrl || item?.name,
+  );
+  if (verificationEntries.length) {
+    ensureSpace(34);
+    page.drawText("Verification uploads:", { x: 52, y, size: 11, font: fontBold, color });
+    y -= 18;
+    for (const entry of verificationEntries) {
+      ensureSpace(170);
+      const labelText = entry.name
+        ? `${entry.label}: ${sanitizeText(entry.name, 72)}`
+        : `${entry.label}:`;
+      page.drawText(labelText, { x: 52, y, size: 10, font: fontBold, color });
+      y -= 14;
+
+      const imageData = toDataUrlBytes(entry.dataUrl);
+      if (imageData) {
+        try {
+          const embeddedImage = imageData.mime.includes("png")
+            ? await pdfDoc.embedPng(imageData.bytes)
+            : await pdfDoc.embedJpg(imageData.bytes);
+          const fitted = scaleToFit(embeddedImage.width, embeddedImage.height, 236, 128);
+          page.drawRectangle({
+            x: 52,
+            y: y - 136,
+            width: 248,
+            height: 136,
+            borderColor: rgb(0.75, 0.7, 0.62),
+            borderWidth: 1,
+          });
+          page.drawImage(embeddedImage, {
+            x: 58 + Math.max(0, (236 - fitted.width) / 2),
+            y: y - 132 + Math.max(0, (128 - fitted.height) / 2),
+            width: fitted.width,
+            height: fitted.height,
+          });
+          y -= 146;
+          continue;
+        } catch {
+          // fall through to text fallback
+        }
+      }
+
+      const fallbackText = entry.name
+        ? "Preview unavailable for this uploaded file."
+        : "No preview image captured.";
+      page.drawText(fallbackText, { x: 52, y, size: 10, font, color });
+      y -= 22;
+    }
   }
 
   return pdfDoc.save();
@@ -526,7 +622,10 @@ const updateGuestNotes = async (guestId, notes) => {
 const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = {} }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from || !to) return { skipped: true };
+  const recipients = Array.from(
+    new Set([...(Array.isArray(to) ? to : [to]), RESERVATIONS_COPY_EMAIL].filter(Boolean)),
+  );
+  if (!apiKey || !from || !recipients.length) return { skipped: true };
 
   const total =
     Number.isFinite(Number(metadata?.bd_total))
@@ -591,13 +690,14 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
       }),
     });
 
-  let response = await send(to);
+  let response = await send(recipients);
 
   let payload = await response.json();
   if (!response.ok) {
     const fallbackTo = process.env.RESEND_FALLBACK_TO || "";
     if (fallbackTo) {
-      const fallbackHtml = `${html}<p><strong>Original intended recipient:</strong> ${to}</p>`;
+      const originalRecipients = Array.isArray(to) ? to.join(", ") : String(to || "");
+      const fallbackHtml = `${html}<p><strong>Original intended recipient:</strong> ${originalRecipients}</p>`;
       response = await fetchWithTimeout("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -609,7 +709,7 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
           to: fallbackTo,
           ...(attachments.length ? { attachments } : {}),
           subject: `[Fallback] ${subject}`,
-          html: fallbackHtml,
+          html: `${fallbackHtml}<p><strong>Original intended recipient(s):</strong> ${originalRecipients}</p>`,
         }),
       });
       payload = await response.json();
@@ -790,7 +890,7 @@ export async function handler(event) {
     let emailError = null;
     try {
       await sendReceiptEmail({
-        to: session?.metadata?.guestEmail || session?.customer_email || "",
+        to: [session?.metadata?.guestEmail || session?.customer_email || ""],
         reservationId,
         metadata: session?.metadata || {},
         session,

@@ -8,8 +8,10 @@ import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import Stepper, { Step } from "./components/Stepper";
+import LottieInlineHint from "./components/LottieInlineHint";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
+import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
@@ -1992,6 +1994,15 @@ export default function DubaiLandingPage() {
     phone: "",
   });
   const [checkoutGuestError, setCheckoutGuestError] = useState("");
+  const [checkoutIdentityDocs, setCheckoutIdentityDocs] = useState({
+    idFront: null,
+    idBack: null,
+    idSelfie: null,
+  });
+  const [checkoutIdentityError, setCheckoutIdentityError] = useState("");
+  const [checkoutCardPhoto, setCheckoutCardPhoto] = useState(null);
+  const [checkoutCardHolderSelfie, setCheckoutCardHolderSelfie] = useState(null);
+  const [checkoutCardPhotoError, setCheckoutCardPhotoError] = useState("");
   const [checkoutConsentAccepted, setCheckoutConsentAccepted] = useState(false);
   const [checkoutConsentSignerName, setCheckoutConsentSignerName] = useState("");
   const [checkoutConsentSignatureDataUrl, setCheckoutConsentSignatureDataUrl] = useState("");
@@ -2265,6 +2276,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setInquiryListing(null);
       setIsCheckoutGuestOpen(false);
       setPendingCheckout(null);
+      setCheckoutIdentityDocs({
+        idFront: null,
+        idBack: null,
+        idSelfie: null,
+      });
+      setCheckoutIdentityError("");
+      setCheckoutCardPhoto(null);
+      setCheckoutCardHolderSelfie(null);
+      setCheckoutCardPhotoError("");
       setCheckoutGuestError("");
       setSectionHeroIndex(0);
       setSectionQuotes({});
@@ -3685,6 +3705,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return;
     }
 
+    const verification = await buildCheckoutVerificationPayload({
+      identityDocs: checkoutIdentityDocs,
+      cardPhoto: checkoutCardPhoto,
+      cardHolderSelfie: checkoutCardHolderSelfie,
+    });
+
     setCheckoutGuestError("");
     setSectionAvailabilityError("");
     setSectionReserveLoadingId(listingId);
@@ -3709,6 +3735,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           guest,
           consentSignerName,
           consentSignatureDataUrl,
+          verification,
           cancelPath: `${window.location.pathname}${window.location.search}`,
         }),
       });
@@ -3739,6 +3766,17 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setCheckoutGuestError("Add guest name, email, and phone to continue.");
       return;
     }
+    if (!checkoutIdentityDocs.idFront || !checkoutIdentityDocs.idBack || !checkoutIdentityDocs.idSelfie) {
+      setCheckoutIdentityError("Please upload ID front, ID back, and a selfie holding your ID.");
+      return;
+    }
+    setCheckoutIdentityError("");
+    if (!checkoutCardPhoto ||
+                                      !checkoutCardHolderSelfie) {
+      setCheckoutCardPhotoError("Please upload the credit card photo and a selfie while holding the card.");
+      return;
+    }
+    setCheckoutCardPhotoError("");
     if (!checkoutConsentSignerName.trim()) {
       setCheckoutGuestError("Please add the signer full name.");
       return;
@@ -3774,7 +3812,21 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const isCheckoutGuestValid = Boolean(
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim() && checkoutGuest.phone.trim()
   );
-  const canContinueToPayment = isCheckoutGuestValid && checkoutConsentAccepted;
+  const isCheckoutIdentityValid = Boolean(
+    checkoutIdentityDocs.idFront && checkoutIdentityDocs.idBack && checkoutIdentityDocs.idSelfie
+  );
+  const checkoutIdentityUploadedCount = [
+    checkoutIdentityDocs.idFront,
+    checkoutIdentityDocs.idBack,
+    checkoutIdentityDocs.idSelfie,
+  ].filter(Boolean).length;
+  const checkoutCardUploadedCount = [checkoutCardPhoto, checkoutCardHolderSelfie].filter(Boolean).length;
+  const isCheckoutCardPhotoValid = Boolean(checkoutCardPhoto && checkoutCardHolderSelfie);
+  const canContinueToPayment =
+    isCheckoutGuestValid &&
+    isCheckoutIdentityValid &&
+    isCheckoutCardPhotoValid &&
+    checkoutConsentAccepted;
 
 const applyCheckoutPromoCode = () => {
     const normalizedCode = checkoutPromoCode.trim().toUpperCase();
@@ -3914,6 +3966,24 @@ const applyCheckoutPromoCode = () => {
     const { value } = event.target;
     setCheckoutGuest((prev) => ({ ...prev, [field]: value }));
     if (checkoutGuestError) setCheckoutGuestError("");
+  };
+
+  const handleCheckoutIdentityChange = (field) => (event) => {
+    const file = event.target.files?.[0] || null;
+    setCheckoutIdentityDocs((prev) => ({ ...prev, [field]: file }));
+    if (checkoutIdentityError) setCheckoutIdentityError("");
+  };
+
+  const handleCheckoutCardPhotoChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setCheckoutCardPhoto(file);
+    if (checkoutCardPhotoError) setCheckoutCardPhotoError("");
+  };
+
+  const handleCheckoutCardHolderSelfieChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setCheckoutCardHolderSelfie(file);
+    if (checkoutCardPhotoError) setCheckoutCardPhotoError("");
   };
 
   const handleGuestKeyDown = (event) => {
@@ -4728,13 +4798,22 @@ const applyCheckoutPromoCode = () => {
                                     promoDiscountRate: 0,
                                     promoDiscountAmount: 0,
                                   });
-                                  setCheckoutStep(1);
-                                  setCheckoutConsentAccepted(false);
-                                  setCheckoutConsentSignerName("");
-                                  setCheckoutConsentSignatureDataUrl("");
-                                  setCheckoutGuestError("");
-                                  setIsCheckoutGuestOpen(true);
-                                }}
+                              setCheckoutStep(1);
+                              setCheckoutConsentAccepted(false);
+                              setCheckoutConsentSignerName("");
+                              setCheckoutConsentSignatureDataUrl("");
+                              setCheckoutIdentityDocs({
+                                idFront: null,
+                                idBack: null,
+                                idSelfie: null,
+                              });
+                              setCheckoutIdentityError("");
+                              setCheckoutCardPhoto(null);
+                              setCheckoutCardHolderSelfie(null);
+                              setCheckoutCardPhotoError("");
+                              setCheckoutGuestError("");
+                              setIsCheckoutGuestOpen(true);
+                            }}
                               >
                                 {isReserving ? "Redirecting..." : "Reserve"}
                               </button>
@@ -5298,11 +5377,13 @@ const applyCheckoutPromoCode = () => {
             nextButtonProps={{
               disabled:
                 (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                (checkoutStep === 2 &&
+                (checkoutStep === 2 && !isCheckoutIdentityValid) ||
+                (checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
+                (checkoutStep === 4 &&
                   (!checkoutConsentAccepted ||
                     !checkoutConsentSignerName.trim() ||
                     !checkoutConsentSignatureDataUrl)) ||
-                (checkoutStep === 4 &&
+                (checkoutStep === 6 &&
                   (!Number.isFinite(Number(pendingCheckout?.amount)) ||
                     Number(pendingCheckout?.amount) < 0 ||
                     Boolean(sectionReserveLoadingId))),
@@ -5379,16 +5460,141 @@ const applyCheckoutPromoCode = () => {
                         onChange={handleGuestInputChange("phone")}
                       />
                     </label>
-                    {checkoutGuestError && (
-                      <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
-                        {checkoutGuestError}
-                      </p>
-                    )}
-                  </div>
-                </Step>
-                <Step>
-                  <div className="la-inquiry-modal__step">
-                    <label className="la-inquiry-modal__field">
+                {checkoutGuestError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutGuestError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <div className="la-inquiry-modal__upload-head">
+                  <p className="la-inquiry-modal__upload-title">Identity verification</p>
+                  <p className="la-inquiry-modal__upload-progress" aria-live="polite">
+                    {checkoutIdentityUploadedCount} of 3 uploaded
+                  </p>
+                </div>
+                <p className="la-inquiry-modal__fineprint la-inquiry-modal__fineprint--left">
+                  Upload your ID front, ID back, and a selfie holding your ID to continue.
+                </p>
+                <div className="la-inquiry-modal__upload-grid">
+                  <label
+                    className={
+                      "la-inquiry-modal__upload" +
+                      (checkoutIdentityDocs.idFront ? " is-complete" : "")
+                    }
+                  >
+                    <span>ID front</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      aria-label="Upload front side of ID"
+                      onChange={handleCheckoutIdentityChange("idFront")}
+                    />
+                    <small>{checkoutIdentityDocs.idFront?.name || "Front side of government ID"}</small>
+                  </label>
+                  <label
+                    className={
+                      "la-inquiry-modal__upload" +
+                      (checkoutIdentityDocs.idBack ? " is-complete" : "")
+                    }
+                  >
+                    <span>ID back</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      aria-label="Upload back side of ID"
+                      onChange={handleCheckoutIdentityChange("idBack")}
+                    />
+                    <small>{checkoutIdentityDocs.idBack?.name || "Back side of government ID"}</small>
+                  </label>
+                  <label
+                    className={
+                      "la-inquiry-modal__upload" +
+                      (checkoutIdentityDocs.idSelfie ? " is-complete" : "")
+                    }
+                  >
+                    <span>Selfie with ID</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      aria-label="Upload selfie while holding ID"
+                      onChange={handleCheckoutIdentityChange("idSelfie")}
+                    />
+                    <small>
+                      {checkoutIdentityDocs.idSelfie?.name || "Clear selfie while holding your ID"}
+                    </small>
+                  </label>
+                </div>
+                {checkoutIdentityError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutIdentityError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <div className="la-inquiry-modal__upload-head">
+                  <p className="la-inquiry-modal__upload-title">Payment verification</p>
+                  <p className="la-inquiry-modal__upload-progress" aria-live="polite">
+                    {checkoutCardUploadedCount} of 2 uploaded
+                  </p>
+                </div>
+                <p className="la-inquiry-modal__fineprint la-inquiry-modal__fineprint--left">
+                  Upload the credit card photo and a selfie while holding the card.
+                </p>
+                <div className="la-inquiry-modal__payment-hint">
+                  <LottieInlineHint
+                    src="/oneluxstay-secure-payment-hint.json"
+                    className="la-inquiry-modal__payment-lottie"
+                    ariaLabel="Secure payment hint"
+                  />
+                  <p className="la-inquiry-modal__payment-note">
+                    Security tip: cover the middle card digits and CVV before uploading.
+                  </p>
+                </div>
+                <div className="la-inquiry-modal__upload-grid">
+                  <label
+                    className={
+                      "la-inquiry-modal__upload" + (checkoutCardPhoto ? " is-complete" : "")
+                    }
+                  >
+                    <span>Credit card photo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      aria-label="Upload credit card photo"
+                      onChange={handleCheckoutCardPhotoChange}
+                    />
+                    <small>{checkoutCardPhoto?.name || "Front of card, with middle digits covered"}</small>
+                  </label>
+                  <label
+                    className={
+                      "la-inquiry-modal__upload" + (checkoutCardHolderSelfie ? " is-complete" : "")
+                    }
+                  >
+                    <span>Selfie with card</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      aria-label="Upload selfie while holding card"
+                      onChange={handleCheckoutCardHolderSelfieChange}
+                    />
+                    <small>{checkoutCardHolderSelfie?.name || "Clear selfie while holding the same card"}</small>
+                  </label>
+                </div>
+                {checkoutCardPhotoError && (
+                  <p className="la-inquiry-modal__note is-error" role="status" aria-live="polite">
+                    {checkoutCardPhotoError}
+                  </p>
+                )}
+              </div>
+            </Step>
+            <Step>
+              <div className="la-inquiry-modal__step">
+                <label className="la-inquiry-modal__field">
                       <span>Signer full name</span>
                       <input
                         type="text"
@@ -5503,14 +5709,25 @@ const applyCheckoutPromoCode = () => {
                           {checkoutGuest.firstName} {checkoutGuest.lastName}
                         </span>
                       </div>
-                      <div>
-                        <strong>Email</strong>
-                        <span>{checkoutGuest.email}</span>
-                      </div>
-                      <div>
-                        <strong>Signed by</strong>
-                        <span>{checkoutConsentSignerName || "--"}</span>
-                      </div>
+                  <div>
+                    <strong>Email</strong>
+                    <span>{checkoutGuest.email}</span>
+                  </div>
+                  <div>
+                    <strong>ID verification</strong>
+                    <span>Front: {checkoutIdentityDocs.idFront?.name || "--"}</span>
+                    <span>Back: {checkoutIdentityDocs.idBack?.name || "--"}</span>
+                    <span>Selfie with ID: {checkoutIdentityDocs.idSelfie?.name || "--"}</span>
+                  </div>
+                  <div>
+                    <strong>Card verification</strong>
+                    <span>Card photo: {checkoutCardPhoto?.name || "--"}</span>
+                    <span>Selfie with card: {checkoutCardHolderSelfie?.name || "--"}</span>
+                  </div>
+                  <div>
+                    <strong>Signed by</strong>
+                    <span>{checkoutConsentSignerName || "--"}</span>
+                  </div>
                       {checkoutAppliedPromo && (
                     <div>
                       <strong>Discount code</strong>
@@ -6874,7 +7091,20 @@ const applyCheckoutPromoCode = () => {
                                   className="la-booking-table__reserve"
                                   disabled={isLoadingRates || isReserving}
                                   onClick={() => {
-                                    if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email || !checkoutGuest.phone) {
+                                    if (
+                                      !checkoutGuest.firstName ||
+                                      !checkoutGuest.lastName ||
+                                      !checkoutGuest.email ||
+                                      !checkoutGuest.phone ||
+                                      !checkoutIdentityDocs.idFront ||
+                                      !checkoutIdentityDocs.idBack ||
+                                      !checkoutIdentityDocs.idSelfie ||
+                                      !checkoutCardPhoto ||
+                                      !checkoutCardHolderSelfie ||
+                                      !checkoutConsentAccepted ||
+                                      !checkoutConsentSignerName.trim() ||
+                                      !checkoutConsentSignatureDataUrl
+                                    ) {
                                       setPendingCheckout({
                                         listingId: checkoutListingId,
                                         listingTitle: listing.title,
@@ -6891,6 +7121,15 @@ const applyCheckoutPromoCode = () => {
                                       setCheckoutConsentAccepted(false);
                                       setCheckoutConsentSignerName("");
                                       setCheckoutConsentSignatureDataUrl("");
+                                      setCheckoutIdentityDocs({
+                                        idFront: null,
+                                        idBack: null,
+                                        idSelfie: null,
+                                      });
+                                      setCheckoutIdentityError("");
+                                      setCheckoutCardPhoto(null);
+                                      setCheckoutCardHolderSelfie(null);
+                                      setCheckoutCardPhotoError("");
                                       setCheckoutGuestError("");
                                       setIsCheckoutGuestOpen(true);
                                       return;
@@ -6902,6 +7141,8 @@ const applyCheckoutPromoCode = () => {
                                       currency: resolveCheckoutCurrency(priceCurrency),
                                       breakdown: selectedPlan?.breakdown || null,
                                       guest: checkoutGuest,
+                                      consentSignerName: checkoutConsentSignerName.trim(),
+                                      consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
                                     });
                                   }}
                                 >
@@ -7264,7 +7505,20 @@ const applyCheckoutPromoCode = () => {
                                 className="la-unit-modal__action-primary"
                                 disabled={sectionAvailabilityLoading || isReserving}
                                 onClick={() => {
-                                  if (!checkoutGuest.firstName || !checkoutGuest.lastName || !checkoutGuest.email || !checkoutGuest.phone) {
+                                  if (
+                                    !checkoutGuest.firstName ||
+                                    !checkoutGuest.lastName ||
+                                    !checkoutGuest.email ||
+                                    !checkoutGuest.phone ||
+                                    !checkoutIdentityDocs.idFront ||
+                                    !checkoutIdentityDocs.idBack ||
+                                    !checkoutIdentityDocs.idSelfie ||
+                                    !checkoutCardPhoto ||
+                                      !checkoutCardHolderSelfie ||
+                                    !checkoutConsentAccepted ||
+                                    !checkoutConsentSignerName.trim() ||
+                                    !checkoutConsentSignatureDataUrl
+                                  ) {
                                     setPendingCheckout({
                                       listingId,
                                       listingTitle: activeListing.title,
@@ -7281,6 +7535,15 @@ const applyCheckoutPromoCode = () => {
                                     setCheckoutConsentAccepted(false);
                                     setCheckoutConsentSignerName("");
                                     setCheckoutConsentSignatureDataUrl("");
+                                    setCheckoutIdentityDocs({
+                                      idFront: null,
+                                      idBack: null,
+                                      idSelfie: null,
+                                    });
+                                    setCheckoutIdentityError("");
+                                    setCheckoutCardPhoto(null);
+                                    setCheckoutCardHolderSelfie(null);
+                                    setCheckoutCardPhotoError("");
                                     setCheckoutGuestError("");
                                     setIsCheckoutGuestOpen(true);
                                     return;
@@ -7292,6 +7555,8 @@ const applyCheckoutPromoCode = () => {
                                       currency: resolveCheckoutCurrency(priceCurrency),
                                     breakdown: breakdown || null,
                                     guest: checkoutGuest,
+                                    consentSignerName: checkoutConsentSignerName.trim(),
+                                    consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
                                   });
                                 }}
                               >
