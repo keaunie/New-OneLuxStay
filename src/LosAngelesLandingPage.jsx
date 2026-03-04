@@ -984,7 +984,7 @@ const EXCLUDED_CITIES = ["redondo beach", "miami", "dubai", "antwerp", "antwerpe
 const CHECKOUT_PROMO_CODES = {
   WELCOME5: { rate: 0.05, label: "Welcome offer" },
   LUXE10: { rate: 0.1, label: "Member offer" },
-  STAY10: { rate: 1.0, label: "Extended stay offer" },
+  STAY10: { rate: 0.1, label: "Extended stay offer" },
 };
 
 const sanitizeText = (value = "") => {
