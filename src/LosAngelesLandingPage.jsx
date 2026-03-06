@@ -4481,6 +4481,25 @@ const applyCheckoutPromoCode = () => {
           null;
         const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
         const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
+        const dailyRate = firstNumber(
+          selectedPlan?.nightly,
+          selectedPlan?.pricing?.nightly,
+          selectedPlan?.basePricePerNight,
+          quote?.pricing?.nightly,
+          quote?.nightly,
+          activeListing?.prices?.basePricePerNight,
+          activeListing?.prices?.nightly,
+          activeListing?.prices?.basePrice?.amount,
+          activeListing?.prices?.nightly?.amount,
+          activeListing?.basePrice
+        );
+        const dailyRateCurrency =
+          selectedPlan?.currency ||
+          quote?.currency ||
+          activeListing?.prices?.nightly?.currency ||
+          activeListing?.prices?.basePrice?.currency ||
+          activeListing?.currency ||
+          priceCurrency;
         const totalPrice =
           breakdown?.total ??
           breakdown?.subtotal ??
@@ -4658,7 +4677,7 @@ const applyCheckoutPromoCode = () => {
               </div>
               <div className="la-unit-modal__card la-unit-modal__price">
                 <span>From</span>
-                <strong>{formatCurrency(activeListing.basePrice, activeListing.currency || "USD")}</strong>
+                <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
                 <small>per night {"\u00b7"} taxes calculated at checkout</small>
                 {isListingAvailable ? (
                   <button

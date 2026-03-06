@@ -5072,9 +5072,63 @@ body {
   box-shadow: 0 30px 80px rgba(59, 49, 39, 0.22);
 }
 
-.la-listing-page {
+.la-unit-modal.la-listing-page {
+  width: min(1240px, 98vw);
   background: linear-gradient(160deg, rgba(246, 238, 226, 0.96), rgba(230, 214, 191, 0.92));
   box-shadow: 0 26px 80px rgba(35, 31, 26, 0.18);
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(95, 78, 61, 0.72) rgba(255, 255, 255, 0.38);
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar {
+  width: 10px;
+  background: transparent;
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-track {
+  margin-block: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(242, 233, 221, 0.54));
+  border-radius: 999px;
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(111, 90, 68, 0.9), rgba(83, 66, 50, 0.9));
+  border: 2px solid rgba(248, 242, 233, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(92, 74, 56, 0.96), rgba(68, 54, 41, 0.96));
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+  background: transparent;
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-button:single-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-button:vertical:start:decrement,
+.la-unit-modal.la-listing-page::-webkit-scrollbar-button:vertical:end:increment,
+.la-unit-modal.la-listing-page::-webkit-scrollbar-button:horizontal:start:decrement,
+.la-unit-modal.la-listing-page::-webkit-scrollbar-button:horizontal:end:increment {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.la-unit-modal.la-listing-page::-webkit-scrollbar-track-piece:start,
+.la-unit-modal.la-listing-page::-webkit-scrollbar-track-piece:end,
+.la-unit-modal.la-listing-page::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .la-listing-hero {
@@ -11346,6 +11400,71 @@ a[href="#redondo-city-tour"],
     padding-left: 8px;
     padding-right: 8px;
   }
+}
+
+/* Unified button semantics */
+:root {
+  --ols-btn-affirmative-bg: #3b3127;
+  --ols-btn-affirmative-bg-hover: #2f261f;
+  --ols-btn-affirmative-text: #f8f3eb;
+  --ols-btn-negative-bg: #f4b6c2;
+  --ols-btn-negative-bg-hover: #eba8b5;
+  --ols-btn-negative-text: #3b3127;
+  --ols-btn-negative-border: #de9ca9;
+}
+
+.landing-cta-primary,
+.listing-btn,
+.listing-btn-primary,
+.la-unit-modal__action-primary,
+.la-unit-modal__booking-cta,
+.la-inquiry-modal__promo-btn:not(.is-secondary),
+.rb-stepper__next,
+.ack-form button,
+.la-date-done,
+.ols-booking-search-btn,
+.ols-booking-promo__cta,
+.landing-tour-btn--primary,
+.la-facilities-cta {
+  background: var(--ols-btn-affirmative-bg);
+  color: var(--ols-btn-affirmative-text);
+  border-color: var(--ols-btn-affirmative-bg);
+}
+
+.landing-cta-primary:hover,
+.listing-btn:hover,
+.listing-btn-primary:hover,
+.la-inquiry-modal__promo-btn:hover:not(.is-secondary),
+.landing-tour-btn--primary:hover,
+.la-facilities-cta:hover {
+  background: var(--ols-btn-affirmative-bg-hover);
+  border-color: var(--ols-btn-affirmative-bg-hover);
+  color: var(--ols-btn-affirmative-text);
+  filter: none;
+}
+
+.la-facilities-cta {
+  box-shadow: 0 12px 22px rgba(59, 49, 39, 0.22);
+}
+
+.la-inquiry-modal__promo-btn.is-secondary,
+.la-inquiry-modal__signature-clear,
+.rb-stepper__back,
+.la-date-clear,
+.ols-booking-clear-btn {
+  background: var(--ols-btn-negative-bg);
+  color: var(--ols-btn-negative-text);
+  border-color: var(--ols-btn-negative-border);
+}
+
+.la-inquiry-modal__promo-btn.is-secondary:hover,
+.la-inquiry-modal__signature-clear:hover,
+.rb-stepper__back:hover,
+.la-date-clear:hover,
+.ols-booking-clear-btn:hover {
+  background: var(--ols-btn-negative-bg-hover);
+  border-color: var(--ols-btn-negative-border);
+  color: var(--ols-btn-negative-text);
 }
 
 

@@ -274,6 +274,21 @@ const scaleToFit = (width, height, maxWidth, maxHeight) => {
   };
 };
 
+const formatDateTime12h = (value) => {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+};
+
 const buildConsentPdf = async ({
   confirmationId,
   reservationId,
@@ -292,159 +307,441 @@ const buildConsentPdf = async ({
   verification,
 }) => {
   const pdfDoc = await PDFDocument.create();
-  let page = pdfDoc.addPage([612, 792]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const color = rgb(0.2, 0.16, 0.12);
-  let y = 760;
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const marginX = 42;
+  const contentWidth = pageWidth - marginX * 2;
+  const bottomLimit = 56;
+  const palette = {
+    paper: rgb(0.973, 0.957, 0.929),
+    panel: rgb(0.993, 0.987, 0.973),
+    panelAlt: rgb(0.959, 0.933, 0.878),
+    ink: rgb(0.108, 0.102, 0.11),
+    text: rgb(0.204, 0.165, 0.133),
+    muted: rgb(0.435, 0.369, 0.302),
+    gold: rgb(0.757, 0.624, 0.369),
+    border: rgb(0.835, 0.761, 0.639),
+  };
+  let page;
+  let y = 0;
 
-  const drawLine = (label, value, bold = false) => {
-    const safeValue = value || "-";
-    page.drawText(`${label}: ${safeValue}`, {
-      x: 52,
-      y,
-      size: 11,
-      font: bold ? fontBold : font,
-      color,
+  const fitText = (value, textFont, size, maxWidth) => {
+    const raw = String(value || "-").trim() || "-";
+    if (textFont.widthOfTextAtSize(raw, size) <= maxWidth) return raw;
+    let trimmed = raw;
+    while (trimmed.length > 1) {
+      const next = `${trimmed}...`;
+      if (textFont.widthOfTextAtSize(next, size) <= maxWidth) return next;
+      trimmed = trimmed.slice(0, -1);
+    }
+    return "...";
+  };
+
+  const wrapText = (value, textFont, size, maxWidth) => {
+    const words = String(value || "-").trim().split(/\s+/);
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (textFont.widthOfTextAtSize(next, size) <= maxWidth || !line) {
+        line = next;
+      } else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : ["-"];
+  };
+
+  const addPage = (subtitle = "CONSENT PROOF DOSSIER") => {
+    page = pdfDoc.addPage([pageWidth, pageHeight]);
+    page.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: palette.paper });
+    page.drawRectangle({ x: 0, y: pageHeight - 64, width: pageWidth, height: 64, color: palette.ink });
+    page.drawRectangle({ x: 0, y: pageHeight - 68, width: pageWidth, height: 4, color: palette.gold });
+    page.drawText("ONE LUX STAY", {
+      x: marginX,
+      y: pageHeight - 32,
+      size: 16,
+      font: fontBold,
+      color: palette.panel,
     });
-    y -= 20;
+    page.drawText(subtitle, {
+      x: marginX,
+      y: pageHeight - 50,
+      size: 9,
+      font,
+      color: palette.gold,
+    });
+    y = pageHeight - 92;
   };
-  const addPage = () => {
-    page = pdfDoc.addPage([612, 792]);
-    y = 760;
-  };
+
   const ensureSpace = (requiredHeight) => {
-    if (y - requiredHeight < 48) addPage();
+    if (y - requiredHeight < bottomLimit) addPage("CONSENT PROOF DOSSIER (CONTINUED)");
   };
 
-  page.drawText("OneLuxStay Consent Proof", {
-    x: 52,
-    y,
-    size: 20,
-    font: fontBold,
-    color,
-  });
-  y -= 30;
-  drawLine("Generated at", new Date().toISOString());
-  drawLine("Confirmation ID", confirmationId || "-");
-  drawLine("Reservation ID", reservationId || "-");
-  drawLine("Listing", listingTitle || "-");
-  drawLine("Guest", guestName || "-");
-  drawLine("Guest email", guestEmail || "-");
-  drawLine("Check-in", checkIn || "-");
-  drawLine("Check-out", checkOut || "-");
-  drawLine("Guests", Number.isFinite(Number(guests)) ? String(Number(guests)) : "-");
-  drawLine("Total charged", formatCurrencyValue(amount, currency));
-  drawLine("Consent accepted at", consentAcceptedAt || "-");
-  drawLine("Signed by", consentSignerName || "-", true);
-  y -= 6;
-  page.drawText("Consent text:", { x: 52, y, size: 11, font: fontBold, color });
-  y -= 18;
-
-  const text = consentText || "-";
-  const words = String(text).split(/\s+/);
-  let line = "";
-  const maxWidth = 500;
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    const w = font.widthOfTextAtSize(next, 10);
-    if (w > maxWidth) {
-      page.drawText(line, { x: 52, y, size: 10, font, color });
-      y -= 14;
-      line = word;
-    } else {
-      line = next;
-    }
-  }
-  if (line) {
-    page.drawText(line, { x: 52, y, size: 10, font, color });
+  const drawSection = (title) => {
+    ensureSpace(28);
+    page.drawText(String(title || "").toUpperCase(), {
+      x: marginX,
+      y,
+      size: 10,
+      font: fontBold,
+      color: palette.muted,
+    });
+    page.drawLine({
+      start: { x: marginX, y: y - 4 },
+      end: { x: marginX + contentWidth, y: y - 4 },
+      thickness: 1,
+      color: palette.gold,
+    });
     y -= 22;
-  }
+  };
 
-  ensureSpace(130);
-  page.drawText("Guest signature:", { x: 52, y, size: 11, font: fontBold, color });
-  y -= 12;
-  const sig = toDataUrlBytes(consentSignatureDataUrl);
-  if (sig && y > 110) {
-    try {
-      const embedded = sig.mime.includes("png")
-        ? await pdfDoc.embedPng(sig.bytes)
-        : await pdfDoc.embedJpg(sig.bytes);
-      const dims = embedded.scale(0.35);
-      page.drawRectangle({
-        x: 52,
-        y: y - 82,
-        width: 250,
-        height: 84,
-        borderColor: rgb(0.75, 0.7, 0.62),
-        borderWidth: 1,
-      });
-      page.drawImage(embedded, {
-        x: 58,
-        y: y - 76,
-        width: Math.min(238, dims.width),
-        height: Math.min(72, dims.height),
-      });
-      y -= 96;
-    } catch {
-      page.drawText("Signature image unavailable", { x: 52, y, size: 10, font, color });
-      y -= 16;
+  const drawDetailGrid = (items = []) => {
+    const rows = [];
+    for (let i = 0; i < items.length; i += 2) {
+      rows.push([items[i], items[i + 1] || null]);
     }
-  } else {
-    page.drawText("No signature image captured", { x: 52, y, size: 10, font, color });
-    y -= 16;
-  }
+    const rowHeight = 40;
+    const cardHeight = 18 + rows.length * rowHeight + 8;
+    ensureSpace(cardHeight + 8);
+
+    const cardTop = y;
+    const cardBottom = y - cardHeight;
+    const midX = marginX + contentWidth / 2;
+    const leftX = marginX + 14;
+    const rightX = midX + 14;
+    const valueWidth = contentWidth / 2 - 28;
+
+    page.drawRectangle({
+      x: marginX,
+      y: cardBottom,
+      width: contentWidth,
+      height: cardHeight,
+      color: palette.panel,
+      borderColor: palette.border,
+      borderWidth: 1,
+    });
+    page.drawLine({
+      start: { x: midX, y: cardBottom + 8 },
+      end: { x: midX, y: cardTop - 8 },
+      thickness: 1,
+      color: palette.border,
+    });
+
+    rows.forEach((row, index) => {
+      const rowTop = cardTop - 14 - index * rowHeight;
+      if (index > 0) {
+        page.drawLine({
+          start: { x: marginX + 10, y: rowTop + 8 },
+          end: { x: marginX + contentWidth - 10, y: rowTop + 8 },
+          thickness: 1,
+          color: palette.border,
+        });
+      }
+      const [left, right] = row;
+      if (left) {
+        page.drawText((left.label || "").toUpperCase(), {
+          x: leftX,
+          y: rowTop,
+          size: 7,
+          font: fontBold,
+          color: palette.gold,
+        });
+        page.drawText(fitText(left.value, font, 11, valueWidth), {
+          x: leftX,
+          y: rowTop - 14,
+          size: 11,
+          font,
+          color: palette.text,
+        });
+      }
+      if (right) {
+        page.drawText((right.label || "").toUpperCase(), {
+          x: rightX,
+          y: rowTop,
+          size: 7,
+          font: fontBold,
+          color: palette.gold,
+        });
+        page.drawText(fitText(right.value, font, 11, valueWidth), {
+          x: rightX,
+          y: rowTop - 14,
+          size: 11,
+          font,
+          color: palette.text,
+        });
+      }
+    });
+
+    y = cardBottom - 12;
+  };
+
+  const drawConsentText = (text) => {
+    const lines = wrapText(text, font, 10.5, contentWidth - 34);
+    const lineHeight = 14;
+    const cardHeight = 26 + lines.length * lineHeight + 12;
+    ensureSpace(cardHeight + 8);
+    const cardTop = y;
+    const cardBottom = y - cardHeight;
+
+    page.drawRectangle({
+      x: marginX,
+      y: cardBottom,
+      width: contentWidth,
+      height: cardHeight,
+      color: palette.panelAlt,
+      borderColor: palette.border,
+      borderWidth: 1,
+    });
+    page.drawRectangle({
+      x: marginX + 10,
+      y: cardBottom + 10,
+      width: 3,
+      height: cardHeight - 20,
+      color: palette.gold,
+    });
+
+    let textY = cardTop - 20;
+    for (const line of lines) {
+      page.drawText(line, { x: marginX + 20, y: textY, size: 10.5, font, color: palette.text });
+      textY -= lineHeight;
+    }
+    y = cardBottom - 14;
+  };
+
+  const drawSignature = async () => {
+    ensureSpace(178);
+    const cardTop = y;
+    const cardHeight = 166;
+    const cardBottom = y - cardHeight;
+    const signatureLabelY = cardTop - 22;
+    const signatureBoxX = marginX + 16;
+    const signatureBoxY = cardBottom + 22;
+    const signatureBoxWidth = 256;
+    const signatureBoxHeight = 92;
+
+    page.drawRectangle({
+      x: marginX,
+      y: cardBottom,
+      width: contentWidth,
+      height: cardHeight,
+      color: palette.panel,
+      borderColor: palette.border,
+      borderWidth: 1,
+    });
+    page.drawText("SIGNATURE RECORD", {
+      x: marginX + 16,
+      y: signatureLabelY,
+      size: 9,
+      font: fontBold,
+      color: palette.gold,
+    });
+    page.drawRectangle({
+      x: signatureBoxX,
+      y: signatureBoxY,
+      width: signatureBoxWidth,
+      height: signatureBoxHeight,
+      borderColor: palette.border,
+      borderWidth: 1,
+      color: palette.panelAlt,
+    });
+
+    const sig = toDataUrlBytes(consentSignatureDataUrl);
+    if (sig) {
+      try {
+        const embedded = sig.mime.includes("png")
+          ? await pdfDoc.embedPng(sig.bytes)
+          : await pdfDoc.embedJpg(sig.bytes);
+        const fitted = scaleToFit(embedded.width, embedded.height, signatureBoxWidth - 16, signatureBoxHeight - 16);
+        page.drawImage(embedded, {
+          x: signatureBoxX + 8 + Math.max(0, (signatureBoxWidth - 16 - fitted.width) / 2),
+          y: signatureBoxY + 8 + Math.max(0, (signatureBoxHeight - 16 - fitted.height) / 2),
+          width: fitted.width,
+          height: fitted.height,
+        });
+      } catch {
+        page.drawText("Signature image unavailable", {
+          x: signatureBoxX + 12,
+          y: signatureBoxY + signatureBoxHeight / 2 - 4,
+          size: 10,
+          font,
+          color: palette.muted,
+        });
+      }
+    } else {
+      page.drawText("No signature image captured", {
+        x: signatureBoxX + 12,
+        y: signatureBoxY + signatureBoxHeight / 2 - 4,
+        size: 10,
+        font,
+        color: palette.muted,
+      });
+    }
+
+    const infoX = signatureBoxX + signatureBoxWidth + 18;
+    const infoWidth = contentWidth - (infoX - marginX) - 16;
+    page.drawText("SIGNED BY", { x: infoX, y: signatureLabelY - 8, size: 8, font: fontBold, color: palette.gold });
+    page.drawText(fitText(consentSignerName || "-", font, 11, infoWidth), {
+      x: infoX,
+      y: signatureLabelY - 24,
+      size: 11,
+      font,
+      color: palette.text,
+    });
+    page.drawText("CONSENT ACCEPTED", { x: infoX, y: signatureLabelY - 52, size: 8, font: fontBold, color: palette.gold });
+    page.drawText(fitText(formatDateTime12h(consentAcceptedAt), font, 11, infoWidth), {
+      x: infoX,
+      y: signatureLabelY - 68,
+      size: 11,
+      font,
+      color: palette.text,
+    });
+
+    y = cardBottom - 14;
+  };
+
+  const drawVerification = async (entry) => {
+    const cardHeight = 196;
+    ensureSpace(cardHeight + 8);
+    const cardTop = y;
+    const cardBottom = y - cardHeight;
+    const boxX = marginX + 14;
+    const boxWidth = contentWidth - 28;
+    const previewX = boxX;
+    const previewWidth = boxWidth;
+    const previewHeight = 136;
+    const previewY = cardBottom + 18;
+
+    page.drawRectangle({
+      x: marginX,
+      y: cardBottom,
+      width: contentWidth,
+      height: cardHeight,
+      color: palette.panel,
+      borderColor: palette.border,
+      borderWidth: 1,
+    });
+
+    const heading = entry?.name
+      ? `${entry.label}: ${sanitizeText(entry.name, 96)}`
+      : `${entry.label}:`;
+    page.drawText(fitText(heading, fontBold, 10, boxWidth), {
+      x: boxX,
+      y: cardTop - 22,
+      size: 10,
+      font: fontBold,
+      color: palette.text,
+    });
+
+    page.drawRectangle({
+      x: previewX,
+      y: previewY,
+      width: previewWidth,
+      height: previewHeight,
+      color: palette.panelAlt,
+      borderColor: palette.border,
+      borderWidth: 1,
+    });
+
+    const imageData = toDataUrlBytes(entry?.dataUrl);
+    if (imageData) {
+      try {
+        const embeddedImage = imageData.mime.includes("png")
+          ? await pdfDoc.embedPng(imageData.bytes)
+          : await pdfDoc.embedJpg(imageData.bytes);
+        const fitted = scaleToFit(embeddedImage.width, embeddedImage.height, previewWidth - 16, previewHeight - 16);
+        page.drawImage(embeddedImage, {
+          x: previewX + 8 + Math.max(0, (previewWidth - 16 - fitted.width) / 2),
+          y: previewY + 8 + Math.max(0, (previewHeight - 16 - fitted.height) / 2),
+          width: fitted.width,
+          height: fitted.height,
+        });
+      } catch {
+        page.drawText("Preview unavailable for this uploaded file.", {
+          x: previewX + 12,
+          y: previewY + previewHeight / 2 - 4,
+          size: 10,
+          font,
+          color: palette.muted,
+        });
+      }
+    } else {
+      page.drawText("No preview image captured.", {
+        x: previewX + 12,
+        y: previewY + previewHeight / 2 - 4,
+        size: 10,
+        font,
+        color: palette.muted,
+      });
+    }
+
+    y = cardBottom - 12;
+  };
+
+  addPage();
+
+  const detailItems = [
+    { label: "Generated at", value: formatDateTime12h(new Date()) },
+    { label: "Confirmation ID", value: confirmationId || "-" },
+    { label: "Reservation ID", value: reservationId || "-" },
+    { label: "Listing", value: listingTitle || "-" },
+    { label: "Guest", value: guestName || "-" },
+    { label: "Guest email", value: guestEmail || "-" },
+    { label: "Check-in", value: checkIn || "-" },
+    { label: "Check-out", value: checkOut || "-" },
+    { label: "Guests", value: Number.isFinite(Number(guests)) ? String(Number(guests)) : "-" },
+    { label: "Total charged", value: formatCurrencyValue(amount, currency) },
+    { label: "Consent accepted", value: formatDateTime12h(consentAcceptedAt) },
+    { label: "Signed by", value: consentSignerName || "-" },
+  ];
+  drawSection("Reservation and Guest Details");
+  drawDetailGrid(detailItems);
+
+  drawSection("Consent Statement");
+  drawConsentText(consentText || "-");
+
+  drawSection("Guest Authorization");
+  await drawSignature();
 
   const verificationEntries = getVerificationEntries(verification).filter(
     (item) => item?.dataUrl || item?.name,
   );
   if (verificationEntries.length) {
-    ensureSpace(34);
-    page.drawText("Verification uploads:", { x: 52, y, size: 11, font: fontBold, color });
-    y -= 18;
+    drawSection("Verification Uploads");
     for (const entry of verificationEntries) {
-      ensureSpace(170);
-      const labelText = entry.name
-        ? `${entry.label}: ${sanitizeText(entry.name, 72)}`
-        : `${entry.label}:`;
-      page.drawText(labelText, { x: 52, y, size: 10, font: fontBold, color });
-      y -= 14;
-
-      const imageData = toDataUrlBytes(entry.dataUrl);
-      if (imageData) {
-        try {
-          const embeddedImage = imageData.mime.includes("png")
-            ? await pdfDoc.embedPng(imageData.bytes)
-            : await pdfDoc.embedJpg(imageData.bytes);
-          const fitted = scaleToFit(embeddedImage.width, embeddedImage.height, 236, 128);
-          page.drawRectangle({
-            x: 52,
-            y: y - 136,
-            width: 248,
-            height: 136,
-            borderColor: rgb(0.75, 0.7, 0.62),
-            borderWidth: 1,
-          });
-          page.drawImage(embeddedImage, {
-            x: 58 + Math.max(0, (236 - fitted.width) / 2),
-            y: y - 132 + Math.max(0, (128 - fitted.height) / 2),
-            width: fitted.width,
-            height: fitted.height,
-          });
-          y -= 146;
-          continue;
-        } catch {
-          // fall through to non-image note
-        }
-      }
-
-      const fallbackText = entry.name
-        ? "Preview unavailable for this uploaded file."
-        : "No preview image captured.";
-      page.drawText(fallbackText, { x: 52, y, size: 10, font, color });
-      y -= 22;
+      await drawVerification(entry);
     }
   }
+
+  const pages = pdfDoc.getPages();
+  pages.forEach((pdfPage, index) => {
+    pdfPage.drawLine({
+      start: { x: marginX, y: 38 },
+      end: { x: pageWidth - marginX, y: 38 },
+      thickness: 1,
+      color: palette.border,
+    });
+    pdfPage.drawText("OneLuxStay Confidential Consent Record", {
+      x: marginX,
+      y: 24,
+      size: 8,
+      font,
+      color: palette.muted,
+    });
+    const pageText = `Page ${index + 1} of ${pages.length}`;
+    const pageTextWidth = font.widthOfTextAtSize(pageText, 8);
+    pdfPage.drawText(pageText, {
+      x: pageWidth - marginX - pageTextWidth,
+      y: 24,
+      size: 8,
+      font,
+      color: palette.muted,
+    });
+  });
 
   return pdfDoc.save();
 };
@@ -690,6 +987,66 @@ const firstNumber = (...values) => {
   }
   return null;
 };
+
+const parseIntegerQueryParam = (value, { key, min = 0, max = Number.MAX_SAFE_INTEGER, fallback = 0 }) => {
+  if (value == null || String(value).trim() === "") return fallback;
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid ${key} query parameter.`);
+  }
+  if (parsed < min || parsed > max) {
+    throw new Error(`Invalid ${key} query parameter. Expected ${min}-${max}.`);
+  }
+  return parsed;
+};
+
+const parseBooleanQueryParam = (value, { key, fallback = false }) => {
+  if (value == null || String(value).trim() === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  throw new Error(`Invalid ${key} query parameter. Use true or false.`);
+};
+
+const parseJsonArrayQueryParam = (rawValue, { key }) => {
+  if (rawValue == null || String(rawValue).trim() === "") return undefined;
+  const raw = String(rawValue).trim();
+  const candidates = [raw];
+  try {
+    const decoded = decodeURIComponent(raw);
+    if (decoded !== raw) candidates.push(decoded);
+  } catch {
+    // ignore decode failures and fall back to the raw input
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // keep trying candidates
+    }
+  }
+
+  throw new Error(`Invalid ${key} query parameter. Expected a JSON array.`);
+};
+
+const normalizeReservationRows = (payload) => {
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.reservations)) return payload.reservations;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+};
+
+const getReservationTotal = (payload) =>
+  firstNumber(
+    payload?.count,
+    payload?.total,
+    payload?.totalCount,
+    payload?.pagination?.total,
+    payload?.meta?.total,
+  );
 
 const enumerateDates = (start, end) => {
   const dates = [];
@@ -1094,6 +1451,161 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   }, {});
 
   return jsonResponse(200, { results, errors: payload?.errors || [], tokenSource });
+};
+
+const fetchReservationPage = async ({
+  token,
+  filters,
+  fields,
+  sort,
+  limit,
+  skip,
+  viewId,
+}) => {
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  qs.set("skip", String(skip));
+  qs.set("sort", String(sort || "_id"));
+
+  if (typeof fields === "string" && fields.trim()) {
+    qs.set("fields", fields.trim());
+  }
+
+  if (typeof viewId === "string" && viewId.trim()) {
+    qs.set("viewId", viewId.trim());
+  }
+
+  if (filters !== undefined) {
+    qs.set("filters", JSON.stringify(filters));
+  }
+
+  const res = await fetchWithTimeout(`${OPEN_API_V1}/reservations?${qs.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 429) {
+    return {
+      rateLimited: true,
+      rows: [],
+      total: null,
+    };
+  }
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  const payload = await res.json();
+  return {
+    rateLimited: false,
+    rows: normalizeReservationRows(payload),
+    total: getReservationTotal(payload),
+  };
+};
+
+const handleReservationsSearch = async (event, token, tokenSource) => {
+  const query = event.queryStringParameters || {};
+
+  let filters;
+  let limit;
+  let skip;
+  let sort;
+  let fields;
+  let viewId;
+  let paginateAll;
+  let maxPages;
+
+  try {
+    filters = parseJsonArrayQueryParam(query.filters, { key: "filters" });
+    limit = parseIntegerQueryParam(query.limit, { key: "limit", min: 1, max: 100, fallback: 25 });
+    skip = parseIntegerQueryParam(query.skip, { key: "skip", min: 0, max: 1_000_000, fallback: 0 });
+    maxPages = parseIntegerQueryParam(query.maxPages, { key: "maxPages", min: 1, max: 100, fallback: 20 });
+    paginateAll = parseBooleanQueryParam(query.paginateAll, { key: "paginateAll", fallback: false });
+    sort = String(query.sort || "_id").trim() || "_id";
+    fields = typeof query.fields === "string" ? query.fields : "";
+    viewId = typeof query.viewId === "string" ? query.viewId : "";
+  } catch (err) {
+    return jsonResponse(400, { message: err?.message || "Invalid reservations query parameters." });
+  }
+
+  let currentSkip = skip;
+  let pagesFetched = 0;
+  let maxPagesReached = false;
+  let rateLimited = false;
+  let total = null;
+  const results = [];
+
+  try {
+    while (pagesFetched < maxPages) {
+      const page = await fetchReservationPage({
+        token,
+        filters,
+        fields,
+        sort,
+        limit,
+        skip: currentSkip,
+        viewId,
+      });
+
+      if (page.rateLimited) {
+        rateLimited = true;
+        break;
+      }
+
+      pagesFetched += 1;
+      if (Number.isFinite(page.total)) total = page.total;
+
+      const pageRows = Array.isArray(page.rows) ? page.rows : [];
+      results.push(...pageRows);
+
+      const reachedKnownTotal =
+        Number.isFinite(total) && (skip + results.length >= total);
+      const reachedPageEnd = pageRows.length < limit;
+
+      if (!paginateAll || reachedKnownTotal || reachedPageEnd) {
+        break;
+      }
+
+      currentSkip += limit;
+    }
+
+    if (paginateAll && pagesFetched >= maxPages) {
+      const noKnownTotal = !Number.isFinite(total);
+      const knownTotalNotReached = Number.isFinite(total) && skip + results.length < total;
+      maxPagesReached = noKnownTotal || knownTotalNotReached;
+    }
+  } catch (err) {
+    return jsonResponse(502, {
+      message: "Reservations search failed",
+      error: err?.message || String(err),
+    });
+  }
+
+  const hasMore = Number.isFinite(total)
+    ? skip + results.length < total
+    : rateLimited || maxPagesReached || (!paginateAll && results.length === limit);
+
+  return jsonResponse(200, {
+    results,
+    tokenSource,
+    errors: rateLimited ? [{ message: "Rate limited by Guesty" }] : [],
+    rateLimited,
+    pagination: {
+      sort,
+      limit,
+      skip,
+      returned: results.length,
+      pagesFetched,
+      paginateAll,
+      maxPagesReached,
+      total: Number.isFinite(total) ? total : null,
+      hasMore,
+      nextSkip: hasMore ? skip + results.length : null,
+    },
+  });
 };
 
 const handleFreeCheckout = async (event) => {
@@ -1528,6 +2040,10 @@ export async function handler(event) {
 
     if (path === "/reservations/quotes-bulk" && event.httpMethod === "POST") {
       return handleQuotesBulk(event, token, source);
+    }
+
+    if (path === "/reservations" && event.httpMethod === "GET") {
+      return handleReservationsSearch(event, token, source);
     }
 
     return jsonResponse(404, { message: "Not Found", path });

@@ -3,28 +3,46 @@ import { Navigate, useParams } from "react-router-dom";
 import "./RoadmapPrivatePage.css";
 
 const ROADMAP_ACCESS_KEY = "ols-roadmap-kurt-chase-2024-a91f7d3c";
+const PROGRESS_AS_OF = "March 6, 2026";
+
+const ITEM_STATUS = {
+  complete: "complete",
+  inProgress: "in-progress",
+  planned: "planned",
+};
+
+const STATUS_META = {
+  [ITEM_STATUS.complete]: { label: "Complete", weight: 1 },
+  [ITEM_STATUS.inProgress]: { label: "In Progress", weight: 0.5 },
+  [ITEM_STATUS.planned]: { label: "Planned", weight: 0 },
+};
 
 const STRATEGIC_OBJECTIVES = [
   {
     title: "Commission Reduction",
     description: "Launch proprietary direct booking ecosystem to bypass 3rd-party fees.",
+    status: ITEM_STATUS.inProgress,
   },
   {
     title: "Operational Automation",
     description: "100% automation for check-ins and WiFi delivery via WhatsApp/Email.",
+    status: ITEM_STATUS.inProgress,
   },
   {
     title: "Unified Team Platform",
     description:
       "Run cleaners, customers, and admins in one application with shared data, task visibility, and direct communication.",
+    status: ITEM_STATUS.planned,
   },
   {
     title: "Financial Integrity",
     description: "Standardize tax collection for Antwerp, Dubai, and LA through centralized modules.",
+    status: ITEM_STATUS.inProgress,
   },
   {
     title: "Growth & Reliability",
     description: "Increase direct bookings by 30% and maintain 99.9% uptime.",
+    status: ITEM_STATUS.inProgress,
   },
 ];
 
@@ -33,40 +51,88 @@ const ROADMAP_PHASES = [
     label: "Weeks 1-3",
     title: "Foundation",
     items: [
-      "High-performance listing pages (Antwerp, Dubai, LA)",
-      "Mobile-first UI and 5-step booking flow",
-      "Guesty Read-Only API integration",
-      "Unified data model for cleaners, customers, and admins",
+      {
+        label: "High-performance listing pages (Antwerp, Dubai, LA)",
+        status: ITEM_STATUS.complete,
+      },
+      {
+        label: "Mobile-first UI and 5-step booking flow",
+        status: ITEM_STATUS.complete,
+      },
+      {
+        label: "Guesty Read-Only API integration",
+        status: ITEM_STATUS.complete,
+      },
+      {
+        label: "Unified data model for cleaners, customers, and admins",
+        status: ITEM_STATUS.planned,
+      },
     ],
   },
   {
     label: "Weeks 4-6",
     title: "Admin Panel Core",
     items: [
-      "Role-based access control",
-      "Real-time operations dashboard",
-      "VAT and city tax finance module",
-      "Single app workspace with role-specific views",
+      {
+        label: "Role-based access control",
+        status: ITEM_STATUS.planned,
+      },
+      {
+        label: "Real-time operations dashboard",
+        status: ITEM_STATUS.planned,
+      },
+      {
+        label: "VAT and city tax finance module",
+        status: ITEM_STATUS.inProgress,
+      },
+      {
+        label: "Single app workspace with role-specific views",
+        status: ITEM_STATUS.planned,
+      },
     ],
   },
   {
     label: "Weeks 7-10",
     title: "Automation and Scaling",
     items: [
-      "Guest account portal",
-      "Automated WhatsApp and email triggers",
-      "Regional tax engine",
-      "In-app messaging between cleaners, customers, and admins",
+      {
+        label: "Guest account portal",
+        status: ITEM_STATUS.planned,
+      },
+      {
+        label: "Automated WhatsApp and email triggers",
+        status: ITEM_STATUS.inProgress,
+      },
+      {
+        label: "Regional tax engine",
+        status: ITEM_STATUS.inProgress,
+      },
+      {
+        label: "In-app messaging between cleaners, customers, and admins",
+        status: ITEM_STATUS.planned,
+      },
     ],
   },
   {
     label: "Weeks 11-12",
     title: "Advanced Revenue Tools",
     items: [
-      "Dynamic pricing system",
-      "Promotion and coupon engine",
-      "Upsell marketplace",
-      "Central communication hub with audit history and SLAs",
+      {
+        label: "Dynamic pricing system",
+        status: ITEM_STATUS.inProgress,
+      },
+      {
+        label: "Promotion and coupon engine",
+        status: ITEM_STATUS.inProgress,
+      },
+      {
+        label: "Upsell marketplace",
+        status: ITEM_STATUS.planned,
+      },
+      {
+        label: "Central communication hub with audit history and SLAs",
+        status: ITEM_STATUS.planned,
+      },
     ],
   },
 ];
@@ -76,21 +142,25 @@ const ALIGNMENT_ROWS = [
     milestone: "Phases 1 and 2",
     objective: "Commission Reduction",
     impact: "Shift traffic away from OTAs",
+    progress: "In Progress",
   },
   {
     milestone: "Phase 3",
     objective: "100% Automation",
     impact: "Removes manual workload",
+    progress: "In Progress",
   },
   {
     milestone: "Phase 4",
     objective: "30% Revenue Growth",
     impact: "Higher AOV and conversions",
+    progress: "Planned",
   },
   {
     milestone: "Phases 1-4",
     objective: "Unified Team Platform",
     impact: "Centralized data and direct contact across all roles",
+    progress: "Planned",
   },
 ];
 
@@ -101,8 +171,27 @@ const SectionTitle = ({ number, title }) => (
   </h2>
 );
 
+const getProgressPercent = (items = []) => {
+  if (!items.length) return 0;
+  const total = items.reduce((sum, item) => sum + (STATUS_META[item.status]?.weight ?? 0), 0);
+  return Math.round((total / items.length) * 100);
+};
+
+const getPhaseStatus = (items = []) => {
+  if (items.every((item) => item.status === ITEM_STATUS.complete)) return ITEM_STATUS.complete;
+  if (items.some((item) => item.status === ITEM_STATUS.complete || item.status === ITEM_STATUS.inProgress)) {
+    return ITEM_STATUS.inProgress;
+  }
+  return ITEM_STATUS.planned;
+};
+
 const RoadmapPrivatePage = () => {
   const { accessKey = "" } = useParams();
+  const allMilestones = ROADMAP_PHASES.flatMap((phase) => phase.items);
+  const completedCount = allMilestones.filter((item) => item.status === ITEM_STATUS.complete).length;
+  const inProgressCount = allMilestones.filter((item) => item.status === ITEM_STATUS.inProgress).length;
+  const plannedCount = allMilestones.filter((item) => item.status === ITEM_STATUS.planned).length;
+  const overallProgress = getProgressPercent(allMilestones);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -142,10 +231,42 @@ const RoadmapPrivatePage = () => {
 
       <main className="roadmap-private-main roadmap-private-container">
         <section className="roadmap-private-section">
-          <SectionTitle number="01" title="Yearly Strategic Objectives" />
+          <SectionTitle number="01" title="Progress Snapshot" />
+          <div className="roadmap-private-progress">
+            <article className="roadmap-private-card roadmap-private-progress-main">
+              <p>Overall Completion</p>
+              <strong>{overallProgress}%</strong>
+              <span>
+                {completedCount} of {allMilestones.length} roadmap milestones complete
+              </span>
+              <div className="roadmap-private-progress-bar" aria-hidden="true">
+                <div style={{ width: `${overallProgress}%` }} />
+              </div>
+              <small>As of {PROGRESS_AS_OF}</small>
+            </article>
+            <article className="roadmap-private-card roadmap-private-progress-stat">
+              <p>Complete</p>
+              <strong>{completedCount}</strong>
+            </article>
+            <article className="roadmap-private-card roadmap-private-progress-stat">
+              <p>In Progress</p>
+              <strong>{inProgressCount}</strong>
+            </article>
+            <article className="roadmap-private-card roadmap-private-progress-stat">
+              <p>Planned</p>
+              <strong>{plannedCount}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section className="roadmap-private-section">
+          <SectionTitle number="02" title="Yearly Strategic Objectives" />
           <div className="roadmap-private-grid">
             {STRATEGIC_OBJECTIVES.map((item) => (
               <article key={item.title} className="roadmap-private-card">
+                <span className={`roadmap-private-status roadmap-private-status--${item.status}`}>
+                  {STATUS_META[item.status].label}
+                </span>
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
               </article>
@@ -154,16 +275,34 @@ const RoadmapPrivatePage = () => {
         </section>
 
         <section className="roadmap-private-section">
-          <SectionTitle number="02" title="Implementation Roadmap" />
+          <SectionTitle number="03" title="Implementation Roadmap" />
           <div className="roadmap-private-phase-list">
             {ROADMAP_PHASES.map((phase) => (
               <article key={phase.title} className="roadmap-private-phase">
-                <span className="roadmap-private-phase-label">{phase.label}</span>
-                <h3>{phase.title}</h3>
+                <div className="roadmap-private-phase-head">
+                  <span className="roadmap-private-phase-label">{phase.label}</span>
+                  <span
+                    className={`roadmap-private-status roadmap-private-status--${getPhaseStatus(phase.items)}`}
+                  >
+                    {STATUS_META[getPhaseStatus(phase.items)].label}
+                  </span>
+                </div>
+                <div className="roadmap-private-phase-title-row">
+                  <h3>{phase.title}</h3>
+                  <strong>{getProgressPercent(phase.items)}%</strong>
+                </div>
+                <div className="roadmap-private-progress-bar roadmap-private-progress-bar--phase" aria-hidden="true">
+                  <div style={{ width: `${getProgressPercent(phase.items)}%` }} />
+                </div>
                 <div className="roadmap-private-card">
                   <ul>
                     {phase.items.map((item) => (
-                      <li key={item}>{item}</li>
+                      <li key={item.label} className="roadmap-private-item">
+                        <span>{item.label}</span>
+                        <span className={`roadmap-private-status roadmap-private-status--${item.status}`}>
+                          {STATUS_META[item.status].label}
+                        </span>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -173,7 +312,7 @@ const RoadmapPrivatePage = () => {
         </section>
 
         <section className="roadmap-private-section">
-          <SectionTitle number="03" title="Alignment Matrix" />
+          <SectionTitle number="04" title="Alignment Matrix" />
           <div className="roadmap-private-table-wrap">
             <table className="roadmap-private-table">
               <thead>
@@ -181,6 +320,7 @@ const RoadmapPrivatePage = () => {
                   <th>Milestone</th>
                   <th>Objective</th>
                   <th>Impact</th>
+                  <th>Progress</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +329,7 @@ const RoadmapPrivatePage = () => {
                     <td>{row.milestone}</td>
                     <td>{row.objective}</td>
                     <td>{row.impact}</td>
+                    <td>{row.progress}</td>
                   </tr>
                 ))}
               </tbody>
@@ -201,4 +342,3 @@ const RoadmapPrivatePage = () => {
 };
 
 export default RoadmapPrivatePage;
-
