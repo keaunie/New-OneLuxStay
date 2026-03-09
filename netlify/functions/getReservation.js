@@ -5,18 +5,25 @@ const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
 const TOKEN_KEY = process.env.GUESTY_TOKEN_BLOB_KEY || "access-token";
 const TOKEN_REFRESH_BUFFER_MS = Number(process.env.GUESTY_TOKEN_REFRESH_BUFFER_MS || 60_000);
 
-const headers = {
+const baseHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
+const getCorsHeaders = (event = {}) => ({
+  ...baseHeaders,
+  "Access-Control-Allow-Headers":
+    event?.headers?.["access-control-request-headers"] ||
+    event?.headers?.["Access-Control-Request-Headers"] ||
+    "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+});
+
 let blobStorePromise;
 
-const jsonResponse = (statusCode, body) => ({
+const jsonResponse = (statusCode, body, event) => ({
   statusCode,
-  headers,
+  headers: getCorsHeaders(event),
   body: JSON.stringify(body),
 });
 
@@ -242,23 +249,23 @@ const readPayload = (event = {}) => {
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers, body: "" };
+    return { statusCode: 200, headers: getCorsHeaders(event), body: "" };
   }
 
   if (event.httpMethod !== "POST" && event.httpMethod !== "GET") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return jsonResponse(405, { error: "Method not allowed" }, event);
   }
 
   let payload;
   try {
     payload = readPayload(event);
   } catch {
-    return jsonResponse(400, { error: "Invalid JSON body" });
+    return jsonResponse(400, { error: "Invalid JSON body" }, event);
   }
 
   const reservationId = String(payload?.reservationId ?? payload?.code ?? "").trim();
   if (!reservationId) {
-    return jsonResponse(400, { error: "Reservation ID is required" });
+    return jsonResponse(400, { error: "Reservation ID is required" }, event);
   }
 
   try {
@@ -278,7 +285,7 @@ export async function handler(event) {
                     field: "confirmationCode",
                     value: ids,
                   },
-                ],FContact
+                ],
                 sort: "_id",
                 skip: 0,
                 limit: 100,
@@ -362,14 +369,22 @@ export async function handler(event) {
       return jsonResponse(502, {
         error: "Guesty reservation lookup failed",
         details: errors,
-      });
+      }, event);
     }
 
-    return jsonResponse(200, { results, raw, attempted: queryStrategies.map((item) => item.name) });
+    return jsonResponse(
+      200,
+      { results, raw, attempted: queryStrategies.map((item) => item.name) },
+      event,
+    );
   } catch (error) {
-    return jsonResponse(error?.statusCode || 500, {
-      error: error?.message || "Guesty request failed",
-      details: error?.data || null,
-    });
+    return jsonResponse(
+      error?.statusCode || 500,
+      {
+        error: error?.message || "Guesty request failed",
+        details: error?.data || null,
+      },
+      event,
+    );
   }
 }
