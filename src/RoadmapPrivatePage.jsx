@@ -48,7 +48,7 @@ const STRATEGIC_OBJECTIVES = [
 
 const ROADMAP_PHASES = [
   {
-    label: "Weeks 1-3",
+    label: "Months 1-3",
     title: "Foundation",
     items: [
       {
@@ -70,7 +70,7 @@ const ROADMAP_PHASES = [
     ],
   },
   {
-    label: "Weeks 4-6",
+    label: "Months 4-6",
     title: "Admin Panel Core",
     items: [
       {
@@ -92,7 +92,7 @@ const ROADMAP_PHASES = [
     ],
   },
   {
-    label: "Weeks 7-10",
+    label: "Months 7-9",
     title: "Automation and Scaling",
     items: [
       {
@@ -114,7 +114,7 @@ const ROADMAP_PHASES = [
     ],
   },
   {
-    label: "Weeks 11-12",
+    label: "Months 10-12",
     title: "Advanced Revenue Tools",
     items: [
       {
@@ -218,13 +218,13 @@ const RoadmapPrivatePage = () => {
       <header className="roadmap-private-hero">
         <div className="roadmap-private-glow" />
         <div className="roadmap-private-container">
-          <div className="roadmap-private-pill">Development Strategy 2024</div>
+          <div className="roadmap-private-pill">Development Strategy 2026</div>
           <h1 className="roadmap-private-title">
             OneLuxStay <span>Roadmap</span>
           </h1>
           <div className="roadmap-private-subtitle">
             <span>Kurt and Chase</span>
-            <span>12-Week Launch Cycle</span>
+            <span>12-Month Build & Learning Cycle</span>
           </div>
         </div>
       </header>
