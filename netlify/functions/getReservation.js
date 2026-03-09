@@ -190,7 +190,15 @@ const buildIdVariants = (value) => {
   const trimmed = String(value || "").trim();
   if (!trimmed) return [];
   const withoutResPrefix = trimmed.replace(/^res[.\-:\s]*/i, "").trim();
-  const values = [trimmed, trimmed.toUpperCase(), withoutResPrefix, withoutResPrefix.toUpperCase()];
+  const withoutAnyPrefix = trimmed.replace(/^reservation[.\-:\s]*/i, "").trim();
+  const values = [
+    trimmed,
+    trimmed.toUpperCase(),
+    withoutResPrefix,
+    withoutResPrefix.toUpperCase(),
+    withoutAnyPrefix,
+    withoutAnyPrefix.toUpperCase(),
+  ];
   return [...new Set(values.filter(Boolean))];
 };
 
@@ -247,54 +255,105 @@ export async function handler(event) {
 
     const queryStrategies =
       payload?.query && typeof payload.query === "object"
-        ? [payload.query]
+        ? [{ name: "custom", query: payload.query }]
         : [
             {
-              fields: RESERVATION_FIELDS,
-              filters: [
-                {
-                  operator: "$in",
-                  field: "confirmationCode",
-                  value: ids,
-                },
-              ],
-              sort: "_id",
-              skip: 0,
-              limit: 100,
+              name: "confirmationCode",
+              query: {
+                fields: RESERVATION_FIELDS,
+                filters: [
+                  {
+                    operator: "$in",
+                    field: "confirmationCode",
+                    value: ids,
+                  },
+                ],
+                sort: "_id",
+                skip: 0,
+                limit: 100,
+              },
             },
             {
-              fields: RESERVATION_FIELDS,
-              filters: [
-                {
-                  operator: "$in",
-                  field: "_id",
-                  value: ids,
-                },
-              ],
-              sort: "_id",
-              skip: 0,
-              limit: 100,
+              name: "integration.airbnb2.id",
+              query: {
+                fields: RESERVATION_FIELDS,
+                filters: [
+                  {
+                    operator: "$in",
+                    field: "integration.airbnb2.id",
+                    value: ids,
+                  },
+                ],
+                sort: "_id",
+                skip: 0,
+                limit: 100,
+              },
+            },
+            {
+              name: "number",
+              query: {
+                fields: RESERVATION_FIELDS,
+                filters: [
+                  {
+                    operator: "$in",
+                    field: "number",
+                    value: ids,
+                  },
+                ],
+                sort: "_id",
+                skip: 0,
+                limit: 100,
+              },
+            },
+            {
+              name: "_id",
+              query: {
+                fields: RESERVATION_FIELDS,
+                filters: [
+                  {
+                    operator: "$in",
+                    field: "_id",
+                    value: ids,
+                  },
+                ],
+                sort: "_id",
+                skip: 0,
+                limit: 100,
+              },
             },
           ];
 
     let raw = null;
     let results = [];
+    const errors = [];
 
-    for (const query of queryStrategies) {
+    for (const strategy of queryStrategies) {
       try {
-        const response = await guestyRequest("/reservations", { query });
+        const response = await guestyRequest("/reservations", { query: strategy.query });
         const normalized = normalizeResults(response);
         raw = response;
         results = normalized;
         if (normalized.length > 0) break;
       } catch (error) {
+        errors.push({
+          strategy: strategy.name,
+          statusCode: error?.statusCode || null,
+          message: error?.message || "Unknown error",
+        });
         if (error?.statusCode === 401 || error?.statusCode === 403) {
           throw error;
         }
       }
     }
 
-    return jsonResponse(200, { results, raw });
+    if (!raw && !results.length && errors.length) {
+      return jsonResponse(502, {
+        error: "Guesty reservation lookup failed",
+        details: errors,
+      });
+    }
+
+    return jsonResponse(200, { results, raw, attempted: queryStrategies.map((item) => item.name) });
   } catch (error) {
     return jsonResponse(error?.statusCode || 500, {
       error: error?.message || "Guesty request failed",
