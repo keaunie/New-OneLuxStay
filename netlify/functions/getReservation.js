@@ -1,5 +1,6 @@
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
-const OPEN_API_V1 = process.env.GUESTY_BASE_URL || `${OPEN_API_HOST}/v1`;
+const OPEN_API_V1_RAW = process.env.GUESTY_BASE_URL || `${OPEN_API_HOST}/v1`;
+const OPEN_API_V1 = OPEN_API_V1_RAW.replace(/\/+$/, "");
 const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
 const TOKEN_KEY = process.env.GUESTY_TOKEN_BLOB_KEY || "access-token";
 const TOKEN_REFRESH_BUFFER_MS = Number(process.env.GUESTY_TOKEN_REFRESH_BUFFER_MS || 60_000);
@@ -132,18 +133,25 @@ const getGuestyToken = async () => {
   return { token: tokenData.token, source: "fresh" };
 };
 
-const guestyRequest = async (path, options = {}) => {
-  const { token } = await getGuestyToken();
-  const method = options.method || "GET";
-  const url = new URL(path, OPEN_API_V1);
+const buildGuestyUrl = (path, query) => {
+  const cleanedPath = String(path || "").replace(/^\/+/, "");
+  const url = new URL(`${OPEN_API_V1}/${cleanedPath}`);
 
-  if (options.query && typeof options.query === "object") {
-    Object.entries(options.query).forEach(([key, value]) => {
+  if (query && typeof query === "object") {
+    Object.entries(query).forEach(([key, value]) => {
       if (value == null || value === "") return;
       if (typeof value === "object") url.searchParams.set(key, JSON.stringify(value));
       else url.searchParams.set(key, String(value));
     });
   }
+
+  return url;
+};
+
+const guestyRequest = async (path, options = {}) => {
+  const { token } = await getGuestyToken();
+  const method = options.method || "GET";
+  const url = buildGuestyUrl(path, options.query);
 
   const requestHeaders = {
     Authorization: `Bearer ${token}`,
@@ -168,9 +176,12 @@ const guestyRequest = async (path, options = {}) => {
   }
 
   if (!response.ok) {
-    const error = new Error(`Guesty request failed (${response.status}): ${text}`);
+    const error = new Error(
+      `Guesty request failed (${response.status}) for ${method} ${url.toString()}: ${text}`,
+    );
     error.statusCode = response.status;
     error.data = data;
+    error.requestUrl = url.toString();
     throw error;
   }
 
@@ -267,7 +278,7 @@ export async function handler(event) {
                     field: "confirmationCode",
                     value: ids,
                   },
-                ],
+                ],FContact
                 sort: "_id",
                 skip: 0,
                 limit: 100,
@@ -339,6 +350,7 @@ export async function handler(event) {
           strategy: strategy.name,
           statusCode: error?.statusCode || null,
           message: error?.message || "Unknown error",
+          requestUrl: error?.requestUrl || null,
         });
         if (error?.statusCode === 401 || error?.statusCode === 403) {
           throw error;

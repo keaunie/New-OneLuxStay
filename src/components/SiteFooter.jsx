@@ -28,7 +28,6 @@ function SiteFooter() {
           <ul>
             <li>About One Lux Stay</li>
             <li><Link to="/global">One Lux Stay Global</Link></li>
-            <li>Contact and inquiries</li>
           </ul>
         </div>
         <div className="policy-footer-col">
