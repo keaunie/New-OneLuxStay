@@ -16,6 +16,8 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
+const UNIT_MARKER_ICON =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
 const PROPERTY_ADDRESS = "Antwerp, Belgium";
 const PROPERTY_COORDS = { lat: 51.2194, lng: 4.4025 };
 const LANDMARKS = [
@@ -2177,7 +2179,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const geocodeInFlightRef = useRef(new Set());
   const mapLoadedRef = useRef(false);
   const losAngelesListingsRef = useRef([]);
-  const [isMapEnabled, setIsMapEnabled] = useState(false);
+  const [isMapEnabled, setIsMapEnabled] = useState(true);
   const [mapError, setMapError] = useState("");
 
   const activeAmenityList = useMemo(() => {
@@ -2638,33 +2640,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
               }
             });
 
-            const transitLayer = new maps.TransitLayer();
-            transitLayer.setMap(map);
-
-            const placesService = new maps.places.PlacesService(map);
-            LANDMARKS.forEach((name) => {
-              placesService.textSearch(
-                {
-                  query: name,
-                  location: map.getCenter(),
-                  radius: 2500,
-                },
-                (results, status) => {
-                  if (status !== maps.places.PlacesServiceStatus.OK || !results?.length) return;
-                  const place = results[0];
-                  const marker = new maps.Marker({
-                    map,
-                    position: place.geometry?.location,
-                    title: place.name,
-                  });
-                  marker.addListener("click", () => {
-                    infoWindow.setContent(`<strong>${place.name}</strong>`);
-                    infoWindow.open(map, marker);
-                  });
-                }
-              );
-            });
-
             if (losAngelesListingsRef.current.length) {
               syncListingMarkers(losAngelesListingsRef.current);
             }
@@ -2717,17 +2692,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
 
     const listingMarkerIcon = {
-      path: maps.SymbolPath.CIRCLE,
-      scale: 26,
-      fillColor: "#1f1c19",
-      fillOpacity: 1,
-      strokeColor: "#c9b59c",
-      strokeWeight: 2,
-    };
-    const listingLogoIcon = {
-      url: LOGO_URL,
-      scaledSize: new maps.Size(26, 26),
-      anchor: new maps.Point(13, 13),
+      url: UNIT_MARKER_ICON,
+      scaledSize: new maps.Size(34, 34),
+      anchor: new maps.Point(17, 17),
     };
 
     const bounds = new maps.LatLngBounds();
@@ -2818,31 +2785,22 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       const primary = uniqueParents[0] || clusterListings[0];
       const title = resolveGroupTitle(primary);
-      const isCluster = clusterListings.length > 1;
-      const backgroundMarker = new maps.Marker({
-        map,
-        position: coords,
-        icon: listingMarkerIcon,
-        zIndex: 10,
-      });
       const marker = new maps.Marker({
         map,
         position: coords,
         title,
-        icon: listingLogoIcon,
-        zIndex: 11,
+        icon: listingMarkerIcon,
+        zIndex: 10,
       });
-      const clickTarget = marker || backgroundMarker;
-      clickTarget.addListener("click", () => {
+      marker.addListener("click", () => {
         const content = `
           <div>
             <strong>${escapeHtml(title)}</strong>
           </div>`;
         infoWindow.setContent(content);
-        infoWindow.open(map, clickTarget);
+        infoWindow.open(map, marker);
       });
-      listingMarkersRef.current.push(backgroundMarker);
-      if (marker) listingMarkersRef.current.push(marker);
+      listingMarkersRef.current.push(marker);
       bounds.extend(coords);
       hasBounds = true;
     });
@@ -4139,6 +4097,21 @@ const applyCheckoutPromoCode = () => {
   const inquiryTitle = inquiryListing?.title ? sanitizeText(inquiryListing.title) : "this unit";
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
+  const cityDateRangeLabel =
+    sectionCheckIn && sectionCheckOut
+      ? `${formatDisplayDate(sectionCheckIn)} - ${formatDisplayDate(sectionCheckOut)}`
+      : sectionCheckIn
+        ? `Check-in ${formatDisplayDate(sectionCheckIn)}`
+        : sectionCheckOut
+          ? `Check-out ${formatDisplayDate(sectionCheckOut)}`
+          : "No dates selected yet";
+  const cityDateNightCount =
+    sectionCheckIn && sectionCheckOut ? diffNights(sectionCheckIn, sectionCheckOut) : 0;
+  const cityDateParams = new URLSearchParams();
+  if (sectionCheckIn) cityDateParams.set("checkIn", sectionCheckIn);
+  if (sectionCheckOut) cityDateParams.set("checkOut", sectionCheckOut);
+  if (sectionGuests) cityDateParams.set("guests", sectionGuests);
+  const editDatesHref = `/${cityDateParams.toString() ? `?${cityDateParams.toString()}` : ""}`;
   const buildListingPath = (listingId) => {
     if (!listingId) return "/antwerp";
     if (sectionCheckIn && sectionCheckOut && sectionGuests) {
@@ -5868,6 +5841,7 @@ const applyCheckoutPromoCode = () => {
       {listingMapModal}
       {zoomModal}
       {tourModal}
+      <div className="city-viewport-shell">
       {/* <section className="la-bounce-section" aria-label="Antwerp highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
@@ -5899,192 +5873,32 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
-      <header className="antwerp-hero">
-        <div className="antwerp-hero__content">
+            <section className="city-date-band" aria-label="Selected stay dates">
+        <div className="city-date-band__top">
           <nav className="city-breadcrumbs" aria-label="Breadcrumb">
             <Link to="/" className="city-breadcrumbs__link">
               Home
             </Link>
-            <span className="city-breadcrumbs__sep" aria-hidden="true">
-              ›
-            </span>
+            <span className="city-breadcrumbs__sep" aria-hidden="true">&gt;</span>
             <span className="city-breadcrumbs__current" aria-current="page">
               Antwerp
             </span>
           </nav>
-          <span className="antwerp-kicker">OneLuxStay / Antwerp, Belgium</span>
-          <h1 className="antwerp-title">Antwerp collection</h1>
-          <p className="antwerp-lede">
-            A curated landing page built directly from live listing data. Every detail below mirrors what is available
-            right now for Antwerp units.
+          <Link to={editDatesHref} className="city-date-band__edit">
+            Edit dates
+          </Link>
+        </div>
+        <p className="city-date-band__kicker">Selected dates from home</p>
+        <div className="city-date-band__row">
+          <h1 className="city-date-band__title">Antwerp collection</h1>
+          <p className="city-date-band__range" aria-live="polite">
+            {cityDateRangeLabel}
+            {cityDateNightCount > 0
+              ? ` - ${cityDateNightCount} ${cityDateNightCount === 1 ? "night" : "nights"}`
+              : ""}
           </p>
-          <div className="la-hero-reviews-card">
-            <div className="antwerp-hero__actions">
-              <a href="#la-city-tour" className="antwerp-cta">
-                Browse tours
-              </a>
-              <a href="#antwerp-units" className="antwerp-ghost">
-                Explore units
-              </a>
-            </div>
-            <div className="la-review-ticker" aria-label="Guest review highlights">
-              <div className="la-review-ticker__track" ref={reviewCarouselRef}>
-                {[...REVIEW_TICKER, ...REVIEW_TICKER].map((review, index) => (
-                  <article className="la-review-ticker__item" key={`${review.name}-${index}`}>
-                    <div className="la-review-ticker__stars" aria-label={`${review.rating} out of 5 stars`}>
-                      {Array.from({ length: STAR_TOTAL }).map((_, starIndex) => (
-                        <span
-                          key={`${review.name}-${index}-star-${starIndex}`}
-                          className={
-                            starIndex < review.rating
-                              ? "la-review-ticker__star is-on"
-                              : "la-review-ticker__star"
-                          }
-                          aria-hidden="true"
-                        >
-                          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                            <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6z" />
-                          </svg>
-                        </span>
-                      ))}
-                    </div>
-                    <p>"{review.quote}"</p>
-                    <span className="la-review-ticker__meta">
-                      {review.name} | {review.source}
-                    </span>
-                  </article>
-                ))}
-              </div>
-              <div className="la-review-ticker__controls" aria-hidden="false">
-                <button
-                  type="button"
-                  className="la-review-ticker__btn"
-                  onClick={() => scrollReviewCarousel(-1)}
-                  aria-label="Previous review"
-                >
-                  {"<"}
-                </button>
-                <button
-                  type="button"
-                  className="la-review-ticker__btn"
-                  onClick={() => scrollReviewCarousel(1)}
-                  aria-label="Next review"
-                >
-                  {">"}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
-        <div className="antwerp-hero__media">
-          <div className="la-hero-card-swap">
-            <div className="la-hero-card-swap__frame">
-              <CardSwap
-                ref={cardSwapRef}
-                width="100%"
-                height="100%"
-                cardDistance={64}
-                verticalDistance={70}
-                delay={2000}
-                skewAmount={5}
-                pauseOnHover
-              >
-                {heroCards.length ? (
-                  heroCards.map((card, idx) => (
-                    <Card key={`${card.image}-${idx}`} customClass="la-hero-swap-card">
-                      {card.id ? (
-                        <button
-                          type="button"
-                          className="la-hero-swap-link"
-                          onClick={() =>
-                            navigate(buildListingPath(card.id))
-                          }
-                          aria-label={`View ${card.title}`}
-                        >
-                          <img
-                            src={card.image}
-                            alt={card.title}
-                            className="la-hero-swap-img"
-                            loading={idx === 0 ? "eager" : "lazy"}
-                            onError={handleImageError}
-                          />
-                          <span className="la-hero-swap-caption">{card.title}</span>
-                        </button>
-                      ) : (
-                        <>
-                          <img
-                            src={card.image}
-                            alt={card.title}
-                            className="la-hero-swap-img"
-                            loading={idx === 0 ? "eager" : "lazy"}
-                            onError={handleImageError}
-                          />
-                          <span className="la-hero-swap-caption">{card.title}</span>
-                        </>
-                      )}
-                    </Card>
-                  ))
-                ) : (
-                  <Card className="la-hero-swap-card la-hero-swap-card--empty" />
-                )}
-              </CardSwap>
-            </div>
-            <div className="la-hero-swap-controls">
-              <button
-                type="button"
-                className="la-hero-swap-btn"
-                onClick={() => cardSwapRef.current?.next?.()}
-                aria-label="Show next featured stay"
-              >
-                Next stay
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="antwerp-hero__carousel" aria-label="Antwerp hero images">
-          <div className="antwerp-hero__carousel-track" ref={heroCarouselRef}>
-            {heroCards.length ? (
-              heroCards.map((card, idx) => (
-                <button
-                  key={`${card.image}-mobile-${idx}`}
-                  type="button"
-                  className="antwerp-hero__carousel-card"
-                  style={{ backgroundImage: `url(${card.image})` }}
-                  role="group"
-                  aria-roledescription="slide"
-                  aria-label={`View ${card.title}`}
-                  onClick={() => {
-                    if (!card.id) return;
-                    navigate(buildListingPath(card.id));
-                  }}
-                />
-              ))
-            ) : (
-              <div className="antwerp-hero__carousel-card antwerp-hero__image--empty">
-                Antwerp imagery loading
-              </div>
-            )}
-          </div>
-          <div className="antwerp-hero__carousel-controls">
-            <button
-              type="button"
-              className="antwerp-hero__carousel-btn"
-              onClick={() => scrollHeroCarousel(-1)}
-              aria-label="Previous hero image"
-            >
-              Prev
-            </button>
-            <button
-              type="button"
-              className="antwerp-hero__carousel-btn"
-              onClick={() => scrollHeroCarousel(1)}
-              aria-label="Next hero image"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </header>
+      </section>
 
       <main className="antwerp-main">
         <section id="la-city-tour" className="la-city-tour" aria-label="Antwerp city tours">
@@ -6173,34 +5987,13 @@ const applyCheckoutPromoCode = () => {
           </div>
         </section>
 
-        <section className="antwerp-section" id="antwerp-units">
-          <div className="la-units-layout">
-            <div className="la-units-main">
-              <div className="antwerp-section__head">
-                <div>
-                  <p className="antwerp-kicker">Available now</p>
-                  <h2>Antwerp buildings</h2>
-                  <p className="antwerp-muted">
-                    Every card below is derived from the live Guesty listing response, including pricing, capacity, and
-                    amenities metadata.
-                  </p>
-                </div>
-                <div className="la-stats-row">
-                  <div className="la-stat-card">
-                    <span className="la-stat-label">Property types</span>
-                    <strong className="la-stat-value">{stats.propertyTypeLabel}</strong>
-                  </div>
-                  <div className="la-stat-card">
-                    <span className="la-stat-label">Listings</span>
-                    <strong className="la-stat-value">{stats.units || "--"}</strong>
-                  </div>
-                  <div className="la-stat-card">
-                    <span className="la-stat-label">Currency</span>
-                    <strong className="la-stat-value">{stats.currency}</strong>
-                  </div>
-                </div>
+        <section className="antwerp-section antwerp-section--split" id="antwerp-units">
+          <div className="la-units-layout la-units-layout--split">
+            <div className="la-units-main la-units-main--cards" aria-label="Available Antwerp units">
+              <div className="la-unit-listing-toolbar">
+                <h2>Antwerp stays</h2>
+                <p>{losAngelesParentListings.length} available</p>
               </div>
-
               {loading && (
                 <div className="antwerp-loading">
                   <div className="antwerp-skeleton" />
@@ -6220,221 +6013,89 @@ const applyCheckoutPromoCode = () => {
                 </div>
               )}
 
-              {groupedListingsDisplay.map((group) => {
-                const story = SECTION_STORIES[group.key] || SECTION_STORIES.other;
-                const storyImages = [];
-                const seenStoryImages = new Set();
-                const pushStoryImage = (value) => {
-                  const url = extractImageUrl(value) || getImageUrl(value);
-                  if (!url || url === FALLBACK_IMAGE) return;
-                  const key = getImageKey(url) || url;
-                  if (seenStoryImages.has(key)) return;
-                  seenStoryImages.add(key);
-                  storyImages.push(url);
-                };
-                group.listings.forEach((listing) => {
-                  const hasPictures = Array.isArray(listing.pictures) && listing.pictures.length > 0;
-                  if (!hasPictures) pushStoryImage(listing.picture);
-                  if (hasPictures) listing.pictures.forEach(pushStoryImage);
-                });
-                storyImages.splice(1);
-                const groupStats = getGroupStats(group.listings);
-                const buildingPrice = buildingPrices[group.key];
-                const latestPrice = buildingPrice
-                  ? formatCurrency(buildingPrice.total, buildingPrice.currency)
-                  : null;
-                const sectionTitle = (() => {
-                  switch (group.key) {
-                    case "antwerp-diamond":
-                      return "One Lux Stay Diamond District";
-                    case "antwerp-fashion":
-                      return "One Lux Stay Fashion District";
-                    case "antwerp-central":
-                      return "One Lux Stay Antwerp Central";
-                    case "antwerp-city-centre":
-                      return "One Lux Stay City Centre";
-                    case "antwerp-near-central":
-                      return "One Lux Stay Near Central Station";
-                    case "other":
-                      return "One Lux Stay City Centre";
-                    default:
-                      return "One Lux Stay City Centre";
-                  }
-                })();
-                return (
-                  <section key={group.key} className="antwerp-building">
-                    <div className="antwerp-building__head">
-                      <div>
-                        <p className="antwerp-kicker">{group.label}</p>
-                        <h3>{sectionTitle}</h3>
+              {!loading &&
+                !error &&
+                losAngelesParentListings.map((listing) => {
+                  const listingId = getListingId(listing);
+                  const listingPath = listingId ? buildListingPath(listingId) : "/antwerp";
+                  const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
+                  const basePrice = firstNumber(
+                    listing?.basePrice,
+                    listing?.prices?.basePrice,
+                    listing?.prices?.basePricePerNight,
+                    listing?.prices?.nightly,
+                    listing?.prices?.nightly?.amount,
+                    listing?.prices?.basePrice?.amount
+                  );
+                  const currency =
+                    listing?.currency ||
+                    listing?.prices?.currency ||
+                    listing?.prices?.nightly?.currency ||
+                    listing?.prices?.basePrice?.currency ||
+                    "EUR";
+                  const bedrooms = firstNumber(listing?.bedrooms, listing?.beds);
+                  const bathrooms = firstNumber(listing?.bathrooms);
+                  const accommodates = firstNumber(listing?.accommodates);
+                  return (
+                    <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
+                      <div className="la-unit-listing-card__media">
+                        <img
+                          src={imageUrl || FALLBACK_IMAGE}
+                          alt={sanitizeText(listing?.title || "One Lux Stay Antwerp")}
+                          loading="lazy"
+                          onError={handleImageError}
+                        />
                       </div>
-                    </div>
-                    {(() => {
-                      const openSection = () => {
-                        const groupListingIds = group.listings
-                          .map((listing) => getListingId(listing))
-                          .filter(Boolean);
-                        const matchedGroup = groupedListingsAll.find((candidate) =>
-                          candidate.listings.some((listing) => groupListingIds.includes(getListingId(listing)))
-                        );
-                        const sectionKey = matchedGroup?.key || group.key;
-                        navigate(buildSectionRoute(sectionKey));
-                      };
-                      return (
-                        <div
-                          className="la-story"
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`View units in ${group.label}`}
-                          onClick={openSection}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              openSection();
-                            }
-                          }}
-                        >
-                          <div className="la-story__media" aria-hidden="true">
-                            {storyImages.length ? (
-                              storyImages.map((src, idx) => (
-                                <div
-                                  key={`${group.key}-story-${idx}`}
-                                  className="la-story__image"
-                                  style={{ backgroundImage: `url(${src})` }}
-                                />
-                              ))
-                            ) : (
-                              <div className="la-story__image la-story__image--empty">Image loading</div>
-                            )}
-                          </div>
-                          <div className="la-story__content">
-                            <p className="la-story__tag">{story.title}</p>
-                            <h4>{story.tagline}</h4>
-                            <p className="la-story__copy">{story.copy}</p>
-                            <div className="la-story__row" aria-label="Landmarks and transit near this area">
-                              <div className="la-story__track">
-                                {[...story.landmarks, ...story.transit].map((item, idx) => (
-                                  <span key={`${group.key}-story-${idx}`} className="la-story__pill">
-                                    {item}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              className="antwerp-card__ghost"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openSection();
-                              }}
-                            >
-                              View units in {group.label}
-                            </button>
-                            <p className="la-story__price" aria-live="polite">
-                              {latestPrice ? (
-                                <>
-                                  <span className="la-story__price-amount">From {latestPrice}</span>
-                                  <span className="la-story__price-note">
-                                    total (accommodation + cleaning + tax)
-                                  </span>
-                                </>
-                              ) : (
-                                "Pricing updates when quotes load."
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </section>
-                );
-              })}
+                      <div className="la-unit-listing-card__body">
+                        <p className="la-unit-listing-card__area">{resolveGroupTitle(listing)}</p>
+                        <h3 className="la-unit-listing-card__title">
+                          {sanitizeText(listing?.title || "One Lux Stay Antwerp")}
+                        </h3>
+                        <p className="la-unit-listing-card__meta">
+                          {[bedrooms ? `${bedrooms} bd` : null, bathrooms ? `${bathrooms} ba` : null, accommodates ? `${accommodates} guests` : null]
+                            .filter(Boolean)
+                            .join(" · ") || "Details available"}
+                        </p>
+                        <p className="la-unit-listing-card__address">{formatAddress(listing)}</p>
+                        <p className="la-unit-listing-card__price">
+                          {typeof basePrice === "number" ? `From ${formatCurrency(basePrice, currency)}/mo` : "Check price"}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
             </div>
-            <aside className="la-units-aside">
-              <div className="la-units-map-card">
-                <p className="antwerp-kicker">Neighborhood map</p>
-                <h3>Walkable highlights</h3>
-                <p className="antwerp-muted">
-                  See nearby landmarks and public transport around Antwerp neighborhoods.
-                </p>
-                {!isMapEnabled ? (
-                  <div
-                    className="la-units-map la-units-map--placeholder"
-                    style={{
-                      "--map-placeholder-image": mapPlaceholderImage ? `url(${mapPlaceholderImage})` : "none",
+            <aside className="la-units-aside la-units-aside--map" aria-label="Map with Antwerp unit locations">
+              {mapError ? (
+                <div className="la-units-map la-units-map--panel is-error">
+                  <p className="antwerp-muted" style={{ margin: 0 }}>
+                    {mapError}
+                  </p>
+                  <button
+                    type="button"
+                    className="antwerp-card__ghost"
+                    onClick={() => {
+                      setMapError("");
+                      mapLoadedRef.current = false;
+                      setIsMapEnabled(false);
+                      setTimeout(() => setIsMapEnabled(true), 0);
                     }}
                   >
-                    <div className="la-units-map__placeholder-content">
-                      <p className="antwerp-muted" style={{ margin: 0 }}>
-                        Map loads on demand to keep the page fast.
-                      </p>
-                      <button
-                        type="button"
-                        className="antwerp-card__ghost"
-                        onClick={() => {
-                          mapLoadedRef.current = false;
-                          setMapError("");
-                          setIsMapEnabled(true);
-                        }}
-                      >
-                        Enable map
-                      </button>
-                    </div>
-                  </div>
-                ) : mapError ? (
-                  <div
-                    className="la-units-map"
-                    style={{
-                      width: "100%",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(201, 181, 156, 0.6)",
-                      overflow: "hidden",
-                      background: "rgba(249, 248, 246, 0.8)",
-                      minHeight: "260px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "10px",
-                      textAlign: "center",
-                      padding: "24px",
-                    }}
-                  >
-                    <p className="antwerp-muted" style={{ margin: 0 }}>
-                      {mapError}
-                    </p>
-                    <button
-                      type="button"
-                      className="antwerp-card__ghost"
-                      onClick={() => {
-                        setMapError("");
-                        mapLoadedRef.current = false;
-                        setIsMapEnabled(false);
-                        setTimeout(() => setIsMapEnabled(true), 0);
-                      }}
-                    >
-                      Retry map
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    ref={mapRef}
-                    aria-label="Map showing Antwerp with nearby landmarks and public transport"
-                    className="la-units-map"
-                    style={{
-                      width: "100%",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(201, 181, 156, 0.6)",
-                      overflow: "hidden",
-                      background: "rgba(249, 248, 246, 0.8)",
-                    }}
-                  />
-                )}
-              </div>
+                    Retry map
+                  </button>
+                </div>
+              ) : (
+                <div
+                  ref={mapRef}
+                  aria-label="Map showing Antwerp unit locations"
+                  className="la-units-map la-units-map--panel"
+                />
+              )}
             </aside>
           </div>
         </section>
       </main>
+      </div>
 
       {activeSection && (
         <div className="antwerp-modal__overlay" role="dialog" aria-modal="true" aria-label="Listings modal">

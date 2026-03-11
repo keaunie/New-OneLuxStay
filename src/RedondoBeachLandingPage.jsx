@@ -1921,7 +1921,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const geocodeInFlightRef = useRef(new Set());
   const mapLoadedRef = useRef(false);
   const redondoBeachListingsRef = useRef([]);
-  const [isMapEnabled, setIsMapEnabled] = useState(false);
+  const [isMapEnabled, setIsMapEnabled] = useState(true);
   const [mapError, setMapError] = useState("");
 
   const activeAmenityList = useMemo(() => {
@@ -3869,6 +3869,21 @@ const applyCheckoutPromoCode = () => {
   const inquiryTitle = inquiryListing?.title ? sanitizeText(inquiryListing.title) : "this unit";
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
+  const cityDateRangeLabel =
+    sectionCheckIn && sectionCheckOut
+      ? `${formatDisplayDate(sectionCheckIn)} - ${formatDisplayDate(sectionCheckOut)}`
+      : sectionCheckIn
+        ? `Check-in ${formatDisplayDate(sectionCheckIn)}`
+        : sectionCheckOut
+          ? `Check-out ${formatDisplayDate(sectionCheckOut)}`
+          : "No dates selected yet";
+  const cityDateNightCount =
+    sectionCheckIn && sectionCheckOut ? diffNights(sectionCheckIn, sectionCheckOut) : 0;
+  const cityDateParams = new URLSearchParams();
+  if (sectionCheckIn) cityDateParams.set("checkIn", sectionCheckIn);
+  if (sectionCheckOut) cityDateParams.set("checkOut", sectionCheckOut);
+  if (sectionGuests) cityDateParams.set("guests", sectionGuests);
+  const editDatesHref = `/${cityDateParams.toString() ? `?${cityDateParams.toString()}` : ""}`;
   const buildSectionRoute = (sectionKey) => {
     const lowerPath = location.pathname.toLowerCase();
     const basePath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
@@ -5621,6 +5636,7 @@ const applyCheckoutPromoCode = () => {
       {listingMapModal}
       {zoomModal}
       {tourModal}
+      <div className="city-viewport-shell">
       {/* <section className="la-bounce-section" aria-label="Redondo Beach highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
@@ -5652,192 +5668,32 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
-      <header className="antwerp-hero">
-        <div className="antwerp-hero__content">
+            <section className="city-date-band" aria-label="Selected stay dates">
+        <div className="city-date-band__top">
           <nav className="city-breadcrumbs" aria-label="Breadcrumb">
             <Link to="/" className="city-breadcrumbs__link">
               Home
             </Link>
-            <span className="city-breadcrumbs__sep" aria-hidden="true">
-              ›
-            </span>
+            <span className="city-breadcrumbs__sep" aria-hidden="true">&gt;</span>
             <span className="city-breadcrumbs__current" aria-current="page">
               Redondo Beach
             </span>
           </nav>
-          <span className="antwerp-kicker">OneLuxStay / Redondo Beach, California</span>
-          <h1 className="antwerp-title">Redondo Beach collection</h1>
-          <p className="antwerp-lede">
-            A curated landing page built directly from live listing data. Every detail below mirrors what is available
-            right now for Redondo Beach units.
+          <Link to={editDatesHref} className="city-date-band__edit">
+            Edit dates
+          </Link>
+        </div>
+        <p className="city-date-band__kicker">Selected dates from home</p>
+        <div className="city-date-band__row">
+          <h1 className="city-date-band__title">Redondo Beach collection</h1>
+          <p className="city-date-band__range" aria-live="polite">
+            {cityDateRangeLabel}
+            {cityDateNightCount > 0
+              ? ` - ${cityDateNightCount} ${cityDateNightCount === 1 ? "night" : "nights"}`
+              : ""}
           </p>
-          <div className="la-hero-reviews-card">
-            <div className="antwerp-hero__actions">
-            <a href="#redondo-city-tour" className="antwerp-cta">
-              Browse tours
-            </a>
-            <a href="#redondo-beach-units" className="antwerp-ghost">
-              Explore units
-            </a>
-          </div>
-          <div className="la-review-ticker" aria-label="Guest review highlights">
-            <div className="la-review-ticker__track" ref={reviewCarouselRef}>
-              {[...REVIEW_TICKER, ...REVIEW_TICKER].map((review, index) => (
-                <article className="la-review-ticker__item" key={`${review.name}-${index}`}>
-                  <div className="la-review-ticker__stars" aria-label={`${review.rating} out of 5 stars`}>
-                    {Array.from({ length: STAR_TOTAL }).map((_, starIndex) => (
-                      <span
-                        key={`${review.name}-${index}-star-${starIndex}`}
-                        className={
-                          starIndex < review.rating
-                            ? "la-review-ticker__star is-on"
-                            : "la-review-ticker__star"
-                        }
-                        aria-hidden="true"
-                      >
-                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                          <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.6z" />
-                        </svg>
-                      </span>
-                    ))}
-                  </div>
-                  <p>"{review.quote}"</p>
-                  <span className="la-review-ticker__meta">
-                    {review.name} · {review.source}
-                  </span>
-                </article>
-              ))}
-            </div>
-            <div className="la-review-ticker__controls" aria-hidden="false">
-              <button
-                type="button"
-                className="la-review-ticker__btn"
-                onClick={() => scrollReviewCarousel(-1)}
-                aria-label="Previous review"
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="la-review-ticker__btn"
-                onClick={() => scrollReviewCarousel(1)}
-                aria-label="Next review"
-              >
-                →
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
-        <div className="antwerp-hero__media">
-          <div className="la-hero-card-swap">
-            <div className="la-hero-card-swap__frame">
-              <CardSwap
-                ref={cardSwapRef}
-                width="100%"
-                height="100%"
-                cardDistance={64}
-                verticalDistance={70}
-                delay={2000}
-                skewAmount={5}
-                pauseOnHover
-              >
-                {heroCards.length ? (
-                  heroCards.map((card, idx) => (
-                    <Card key={`${card.image}-${idx}`} customClass="la-hero-swap-card">
-                      {card.id ? (
-                        <button
-                          type="button"
-                          className="la-hero-swap-link"
-                          onClick={() =>
-                            navigate(buildListingPath(card.id))
-                          }
-                          aria-label={`View ${card.title}`}
-                        >
-                          <img
-                            src={card.image}
-                            alt={card.title}
-                            className="la-hero-swap-img"
-                            loading={idx === 0 ? "eager" : "lazy"}
-                            onError={handleImageError}
-                          />
-                          <span className="la-hero-swap-caption">{card.title}</span>
-                        </button>
-                      ) : (
-                        <>
-                          <img
-                            src={card.image}
-                            alt={card.title}
-                            className="la-hero-swap-img"
-                            loading={idx === 0 ? "eager" : "lazy"}
-                            onError={handleImageError}
-                          />
-                          <span className="la-hero-swap-caption">{card.title}</span>
-                        </>
-                      )}
-                    </Card>
-                  ))
-                ) : (
-                  <Card className="la-hero-swap-card la-hero-swap-card--empty" />
-                )}
-              </CardSwap>
-            </div>
-            <div className="la-hero-swap-controls">
-              <button
-                type="button"
-                className="la-hero-swap-btn"
-                onClick={() => cardSwapRef.current?.next?.()}
-                aria-label="Show next featured stay"
-              >
-                Next stay
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="antwerp-hero__carousel" aria-label="Redondo Beach hero images">
-          <div className="antwerp-hero__carousel-track" ref={heroCarouselRef}>
-            {heroCards.length ? (
-              heroCards.map((card, idx) => (
-                <button
-                  key={`${card.image}-mobile-${idx}`}
-                  type="button"
-                  className="antwerp-hero__carousel-card"
-                  style={{ backgroundImage: `url(${card.image})` }}
-                  role="group"
-                  aria-roledescription="slide"
-                  aria-label={`View ${card.title}`}
-                  onClick={() => {
-                    if (!card.id) return;
-                    navigate(buildListingPath(card.id));
-                  }}
-                />
-              ))
-            ) : (
-              <div className="antwerp-hero__carousel-card antwerp-hero__image--empty">
-                Redondo Beach imagery loading
-              </div>
-            )}
-          </div>
-          <div className="antwerp-hero__carousel-controls">
-            <button
-              type="button"
-              className="antwerp-hero__carousel-btn"
-              onClick={() => scrollHeroCarousel(-1)}
-              aria-label="Previous hero image"
-            >
-              Prev
-            </button>
-            <button
-              type="button"
-              className="antwerp-hero__carousel-btn"
-              onClick={() => scrollHeroCarousel(1)}
-              aria-label="Next hero image"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </header>
+      </section>
 
       <main className="antwerp-main">
         <section id="redondo-city-tour" className="la-city-tour" aria-label="Redondo Beach city tours">
@@ -5928,7 +5784,16 @@ const applyCheckoutPromoCode = () => {
 
         <section className="antwerp-section" id="redondo-beach-units">
           <div className="la-units-layout">
+            <div className="la-units-shell-bar" role="group" aria-label="Listing controls">
+              <span className="la-shell-chip is-search">Map area</span>
+              <span className="la-shell-chip">{cityDateRangeLabel}</span>
+              <span className="la-shell-chip">{`${sectionGuests || "2"} guests`}</span>
+              <Link to={editDatesHref} className="la-shell-chip is-action">
+                Edit dates
+              </Link>
+            </div>
             <div className="la-units-main">
+              <p className="la-units-notice">Prices shown may exclude taxes and one-time fees.</p>
               <div className="antwerp-section__head">
                 <div>
                   <p className="antwerp-kicker">Available now</p>
@@ -6193,6 +6058,7 @@ const applyCheckoutPromoCode = () => {
           </div>
         </section>
       </main>
+      </div>
 
       {activeSection && (
         <div className="antwerp-modal__overlay" role="dialog" aria-modal="true" aria-label="Listings modal">
