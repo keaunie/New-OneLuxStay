@@ -164,6 +164,20 @@ const writeStripeEvent = async (eventId, payload) => {
   return true;
 };
 
+const normalizeEmail = (value) => String(value || "").trim();
+
+const uniqueEmails = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .map((entry) => normalizeEmail(entry))
+        .filter(Boolean),
+    ),
+  );
+
+const getGuestReceiptEmail = (session = {}) =>
+  uniqueEmails([session?.metadata?.guestEmail, session?.customer_email])[0] || "";
+
 const getConsentStore = async () => getBlobStore(CONSENT_STORE_NAME);
 const getConsentPdfStore = async () => getBlobStore(CONSENT_PDF_STORE_NAME);
 
@@ -941,9 +955,10 @@ const updateGuestNotes = async (guestId, notes) => {
 const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = {} }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  const recipients = Array.from(
-    new Set([...(Array.isArray(to) ? to : [to]), RESERVATIONS_COPY_EMAIL].filter(Boolean)),
-  );
+  const recipients = uniqueEmails([
+    ...(Array.isArray(to) ? to : [to]),
+    RESERVATIONS_COPY_EMAIL,
+  ]);
   if (!apiKey || !from || !recipients.length) return { skipped: true };
 
   const total =
@@ -992,7 +1007,7 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
         </div>
       `;
 
-  const send = async (recipient) =>
+  const send = async ({ recipient, emailAttachments = attachments, emailBcc = bcc }) =>
     fetchWithTimeout("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -1002,20 +1017,25 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
       body: JSON.stringify({
         from,
         to: recipient,
-        ...(bcc ? { bcc } : {}),
-        ...(attachments.length ? { attachments } : {}),
+        ...(emailBcc ? { bcc: emailBcc } : {}),
+        ...(emailAttachments.length ? { attachments: emailAttachments } : {}),
         subject,
         html,
       }),
     });
 
-  let response = await send(recipients);
-
+  let response = await send({ recipient: recipients });
   let payload = await response.json();
+
+  if (!response.ok && attachments.length) {
+    response = await send({ recipient: recipients, emailAttachments: [] });
+    payload = await response.json();
+  }
+
   if (!response.ok) {
-    const fallbackTo = process.env.RESEND_FALLBACK_TO || "";
-    if (fallbackTo) {
-      const originalRecipients = Array.isArray(to) ? to.join(", ") : String(to || "");
+    const fallbackTo = uniqueEmails([process.env.RESEND_FALLBACK_TO || ""]);
+    if (fallbackTo.length) {
+      const originalRecipients = recipients.join(", ");
       const fallbackHtml = `${html}<p><strong>Original intended recipient:</strong> ${originalRecipients}</p>`;
       response = await fetchWithTimeout("https://api.resend.com/emails", {
         method: "POST",
@@ -1026,7 +1046,6 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
         body: JSON.stringify({
           from,
           to: fallbackTo,
-          ...(attachments.length ? { attachments } : {}),
           subject: `[Fallback] ${subject}`,
           html: `${fallbackHtml}<p><strong>Original intended recipient(s):</strong> ${originalRecipients}</p>`,
         }),
@@ -1120,12 +1139,61 @@ export async function handler(event) {
     return jsonResponse(200, { received: true });
   }
 
+  const session = stripeEvent.data.object;
   const existing = await readStripeEvent(stripeEvent.id);
   if (existing) {
+    if (existing?.emailError) {
+      const proof = await getSessionReceiptDetails(session);
+      const retryAt = Date.now();
+      const emailRetryCount = Number(existing?.emailRetryCount || 0) + 1;
+      let emailRetryError = null;
+      try {
+        const emailResult = await sendReceiptEmail({
+          to: [getGuestReceiptEmail(session)],
+          reservationId: existing?.reservationId || null,
+          metadata: session?.metadata || {},
+          session,
+          proof: {
+            sessionId: session?.id || existing?.sessionId || null,
+            proofUrl: existing?.consentPdfUrl || null,
+            receiptUrl: proof?.receiptUrl || existing?.receiptUrl || null,
+          },
+        });
+        if (emailResult?.skipped) {
+          emailRetryError = "Receipt email skipped due to missing email configuration or recipient.";
+        }
+      } catch (err) {
+        emailRetryError = err?.message || "Unable to send receipt email.";
+      }
+
+      await writeStripeEvent(stripeEvent.id, {
+        ...existing,
+        emailRetryCount,
+        emailRetriedAt: retryAt,
+        emailError: emailRetryError,
+        ...(emailRetryError ? {} : { emailSentAt: retryAt }),
+        receiptUrl: proof?.receiptUrl || existing?.receiptUrl || null,
+        paymentIntentId: proof?.paymentIntentId || existing?.paymentIntentId || null,
+      });
+
+      if (emailRetryError) {
+        return jsonResponse(500, {
+          received: true,
+          duplicate: true,
+          retryable: true,
+          emailError: emailRetryError,
+        });
+      }
+
+      return jsonResponse(200, {
+        received: true,
+        duplicate: true,
+        emailRetried: true,
+      });
+    }
     return jsonResponse(200, { received: true, duplicate: true });
   }
 
-  const session = stripeEvent.data.object;
   if (session.payment_status && session.payment_status !== "paid") {
     return jsonResponse(200, { received: true, unpaid: true });
   }
@@ -1207,9 +1275,10 @@ export async function handler(event) {
       }
     }
     let emailError = null;
+    let emailSentAt = null;
     try {
-      await sendReceiptEmail({
-        to: [session?.metadata?.guestEmail || session?.customer_email || ""],
+      const emailResult = await sendReceiptEmail({
+        to: [getGuestReceiptEmail(session)],
         reservationId,
         metadata: session?.metadata || {},
         session,
@@ -1220,10 +1289,15 @@ export async function handler(event) {
           pdfBytes: consentPdfBytes,
         },
       });
+      if (emailResult?.skipped) {
+        emailError = "Receipt email skipped due to missing email configuration or recipient.";
+      } else {
+        emailSentAt = Date.now();
+      }
     } catch (err) {
       emailError = err.message;
     }
-    await writeStripeEvent(stripeEvent.id, {
+    const stored = await writeStripeEvent(stripeEvent.id, {
       processedAt: Date.now(),
       reservationId,
       guestId,
@@ -1236,8 +1310,31 @@ export async function handler(event) {
       paymentError,
       noteError,
       guestNoteError,
+      emailRetryCount: 0,
       emailError,
+      ...(emailSentAt ? { emailSentAt } : {}),
     });
+    if (emailError && stored) {
+      return jsonResponse(500, {
+        message: "Receipt delivery failed; retry scheduled via Stripe webhook retries.",
+        received: true,
+        retryable: true,
+        reservationId,
+        emailError,
+        paymentError,
+        noteError,
+        guestNoteError,
+        consentPdfUrl,
+        consentPdfError,
+      });
+    }
+    if (emailError && !stored) {
+      console.error("[stripe-webhook] Receipt delivery failed, but webhook event storage is unavailable", {
+        eventId: stripeEvent.id,
+        reservationId,
+        emailError,
+      });
+    }
     return jsonResponse(200, {
       received: true,
       reservationId,
