@@ -1819,9 +1819,9 @@ const CITY_TOUR_SLIDES = {
   "Fashion District": [
     {
       title: "Grote Markt + Nationalestraat",
-      subtitle: "Begin at the square, then follow Antwerp’s fashion artery.",
+      subtitle: "Begin at the square, then follow AntwerpÃ¢â‚¬â„¢s fashion artery.",
       copy:
-        "Start at Grote Markt, then head down Nationalestraat toward MoMu and the Royal Academy for the city’s fashion pulse.",
+        "Start at Grote Markt, then head down Nationalestraat toward MoMu and the Royal Academy for the cityÃ¢â‚¬â„¢s fashion pulse.",
       highlights: ["Grote Markt", "Nationalestraat", "MoMu"],
       image:
         "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
@@ -1839,7 +1839,7 @@ const CITY_TOUR_SLIDES = {
       title: "Hidden Alleys + Heritage",
       subtitle: "Quiet passages and UNESCO history.",
       copy:
-        "Slip into Vlaeykensgang, then tour Plantin-Moretus Museum for Antwerp’s printing legacy.",
+        "Slip into Vlaeykensgang, then tour Plantin-Moretus Museum for AntwerpÃ¢â‚¬â„¢s printing legacy.",
       highlights: ["Vlaeykensgang", "Plantin-Moretus Museum", "Historic alleys"],
       image:
         "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=2000&q=80",
@@ -1857,7 +1857,7 @@ const CITY_TOUR_SLIDES = {
   "Antwerp Central": [
     {
       title: "Railway Cathedral Start",
-      subtitle: "Antwerp Central and the city’s main boulevard.",
+      subtitle: "Antwerp Central and the cityÃ¢â‚¬â„¢s main boulevard.",
       copy:
         "Begin at Antwerp Central Station, then walk Meir toward the historic center.",
       highlights: ["Antwerp Central Station", "Meir Shopping Street", "City Hall"],
@@ -1877,7 +1877,7 @@ const CITY_TOUR_SLIDES = {
       title: "Rubens + Plantin-Moretus",
       subtitle: "Golden Age art and printing history.",
       copy:
-        "Tour Rubenshuis and the Plantin-Moretus Museum for a deep dive into Antwerp’s heritage.",
+        "Tour Rubenshuis and the Plantin-Moretus Museum for a deep dive into AntwerpÃ¢â‚¬â„¢s heritage.",
       highlights: ["Rubenshuis", "Plantin-Moretus Museum", "Historic streets"],
       image:
         "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=2000&q=80",
@@ -1895,7 +1895,7 @@ const CITY_TOUR_SLIDES = {
   "City Centre": [
     {
       title: "Central Station + Meir",
-      subtitle: "Railway cathedral to the city’s main boulevard.",
+      subtitle: "Railway cathedral to the cityÃ¢â‚¬â„¢s main boulevard.",
       copy:
         "Begin at Antwerp Central Station, then walk Meir toward the historic center.",
       highlights: ["Antwerp Central Station", "Meir", "City Hall"],
@@ -1915,7 +1915,7 @@ const CITY_TOUR_SLIDES = {
       title: "Rubens + Plantin-Moretus",
       subtitle: "Art history and printing heritage.",
       copy:
-        "Tour Rubenshuis and Plantin-Moretus Museum for Antwerp’s Golden Age story.",
+        "Tour Rubenshuis and Plantin-Moretus Museum for AntwerpÃ¢â‚¬â„¢s Golden Age story.",
       highlights: ["Rubenshuis", "Plantin-Moretus Museum", "Vlaeykensgang"],
       image:
         "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=2000&q=80",
@@ -5990,10 +5990,6 @@ const applyCheckoutPromoCode = () => {
         <section className="antwerp-section antwerp-section--split" id="antwerp-units">
           <div className="la-units-layout la-units-layout--split">
             <div className="la-units-main la-units-main--cards" aria-label="Available Antwerp units">
-              <div className="la-unit-listing-toolbar">
-                <h2>Antwerp stays</h2>
-                <p>{losAngelesParentListings.length} available</p>
-              </div>
               {loading && (
                 <div className="antwerp-loading">
                   <div className="antwerp-skeleton" />
@@ -6014,56 +6010,91 @@ const applyCheckoutPromoCode = () => {
               )}
 
               {!loading &&
-                !error &&
-                losAngelesParentListings.map((listing) => {
-                  const listingId = getListingId(listing);
-                  const listingPath = listingId ? buildListingPath(listingId) : "/antwerp";
-                  const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
-                  const basePrice = firstNumber(
-                    listing?.basePrice,
-                    listing?.prices?.basePrice,
-                    listing?.prices?.basePricePerNight,
-                    listing?.prices?.nightly,
-                    listing?.prices?.nightly?.amount,
-                    listing?.prices?.basePrice?.amount
-                  );
-                  const currency =
-                    listing?.currency ||
-                    listing?.prices?.currency ||
-                    listing?.prices?.nightly?.currency ||
-                    listing?.prices?.basePrice?.currency ||
-                    "EUR";
-                  const bedrooms = firstNumber(listing?.bedrooms, listing?.beds);
-                  const bathrooms = firstNumber(listing?.bathrooms);
-                  const accommodates = firstNumber(listing?.accommodates);
-                  return (
-                    <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
-                      <div className="la-unit-listing-card__media">
-                        <img
-                          src={imageUrl || FALLBACK_IMAGE}
-                          alt={sanitizeText(listing?.title || "One Lux Stay Antwerp")}
-                          loading="lazy"
-                          onError={handleImageError}
-                        />
-                      </div>
-                      <div className="la-unit-listing-card__body">
-                        <p className="la-unit-listing-card__area">{resolveGroupTitle(listing)}</p>
-                        <h3 className="la-unit-listing-card__title">
-                          {sanitizeText(listing?.title || "One Lux Stay Antwerp")}
-                        </h3>
-                        <p className="la-unit-listing-card__meta">
-                          {[bedrooms ? `${bedrooms} bd` : null, bathrooms ? `${bathrooms} ba` : null, accommodates ? `${accommodates} guests` : null]
-                            .filter(Boolean)
-                            .join(" · ") || "Details available"}
-                        </p>
-                        <p className="la-unit-listing-card__address">{formatAddress(listing)}</p>
-                        <p className="la-unit-listing-card__price">
-                          {typeof basePrice === "number" ? `From ${formatCurrency(basePrice, currency)}/mo` : "Check price"}
-                        </p>
-                      </div>
-                    </Link>
-                  );
-                })}
+                !error && (
+                  <div className="la-unit-listing-grid">
+                    {losAngelesParentListings.map((listing) => {
+                    const listingId = getListingId(listing);
+                    const listingPath = listingId ? buildListingPath(listingId) : "/antwerp";
+                    const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
+                    const basePrice = firstNumber(
+                      listing?.basePrice,
+                      listing?.prices?.basePrice,
+                      listing?.prices?.basePricePerNight,
+                      listing?.prices?.nightly,
+                      listing?.prices?.nightly?.amount,
+                      listing?.prices?.basePrice?.amount
+                    );
+                    const originalPrice = firstNumber(
+                      listing?.prices?.originalBasePrice,
+                      listing?.prices?.monthly?.original,
+                      listing?.pricing?.originalPrice,
+                      listing?.originalPrice
+                    );
+                    const currency =
+                      listing?.currency ||
+                      listing?.prices?.currency ||
+                      listing?.prices?.nightly?.currency ||
+                      listing?.prices?.basePrice?.currency ||
+                      "EUR";
+                    const bedrooms = firstNumber(listing?.bedrooms, listing?.beds);
+                    const bathrooms = firstNumber(listing?.bathrooms);
+                    const accommodates = firstNumber(listing?.accommodates);
+                    const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+                    const hasStrikePrice =
+                      typeof originalPrice === "number" &&
+                      typeof basePrice === "number" &&
+                      originalPrice > basePrice;
+
+                    return (
+                      <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
+                        <div className="la-unit-listing-card__media">
+                          <img
+                            src={imageUrl || FALLBACK_IMAGE}
+                            alt={sanitizeText(listing?.title || "One Lux Stay Antwerp")}
+                            loading="lazy"
+                            onError={handleImageError}
+                          />
+                          <span className="la-unit-listing-card__badge">Available now</span>
+                          <span className="la-unit-listing-card__fav" aria-hidden="true">
+                            &#9825;
+                          </span>
+                        </div>
+                        <div className="la-unit-listing-card__body">
+                          <p className="la-unit-listing-card__area">{resolveGroupTitle(listing)}</p>
+                          <h3 className="la-unit-listing-card__title">
+                            {sanitizeText(listing?.title || "One Lux Stay Antwerp")}
+                          </h3>
+                          <p className="la-unit-listing-card__price">
+                            {hasStrikePrice ? (
+                              <span className="la-unit-listing-card__price-strike">
+                                {formatCurrency(originalPrice, currency)}
+                              </span>
+                            ) : null}
+                            <span className="la-unit-listing-card__price-main">
+                              {typeof basePrice === "number"
+                                ? `${formatCurrency(basePrice, currency)} rent/mo`
+                                : "Check price"}
+                            </span>
+                          </p>
+                          <p className="la-unit-listing-card__meta">
+                            {[
+                              bedrooms ? `${bedrooms} bd` : null,
+                              bathrooms ? `${bathrooms} ba` : null,
+                              accommodates ? `${accommodates} guests` : null,
+                              areaSqft ? `${areaSqft} ft2` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" | ") || "Details available"}
+                          </p>
+                          <p className="la-unit-listing-card__address">
+                            {`${listingId ? `#${listingId} | ` : ""}${formatAddress(listing)}`}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                    })}
+                  </div>
+                )}
             </div>
             <aside className="la-units-aside la-units-aside--map" aria-label="Map with Antwerp unit locations">
               {mapError ? (

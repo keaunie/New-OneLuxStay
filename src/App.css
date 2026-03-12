@@ -4677,33 +4677,38 @@ body {
   font-weight: 700;
 }
 
-.la-unit-listing-card {
+.la-unit-listing-grid {
   display: grid;
-  grid-template-columns: minmax(200px, 36%) minmax(0, 1fr);
-  gap: 14px;
-  margin-bottom: 14px;
-  padding: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.la-unit-listing-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border-radius: 18px;
-  border: 1px solid rgba(201, 181, 156, 0.45);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(201, 181, 156, 0.42);
+  background: rgba(255, 255, 255, 0.94);
   text-decoration: none;
   color: inherit;
-  box-shadow: 0 10px 24px rgba(62, 50, 37, 0.08);
+  box-shadow: 0 10px 20px rgba(62, 50, 37, 0.08);
+  overflow: hidden;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .la-unit-listing-card:hover,
 .la-unit-listing-card:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(120, 99, 79, 0.5);
-  box-shadow: 0 16px 28px rgba(62, 50, 37, 0.12);
+  transform: translateY(-2px);
+  border-color: rgba(96, 80, 64, 0.45);
+  box-shadow: 0 16px 28px rgba(62, 50, 37, 0.14);
 }
 
 .la-unit-listing-card__media {
-  border-radius: 14px;
-  overflow: hidden;
-  min-height: 180px;
+  position: relative;
+  aspect-ratio: 16 / 10;
   background: #e9e2d7;
+  overflow: hidden;
 }
 
 .la-unit-listing-card__media img {
@@ -4713,49 +4718,94 @@ body {
   object-fit: cover;
 }
 
+.la-unit-listing-card__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 152, 107, 0.45);
+  background: rgba(246, 234, 206, 0.95);
+  color: #926125;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 5px 11px;
+  letter-spacing: 0.02em;
+}
+
+.la-unit-listing-card__fav {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(35, 31, 26, 0.42);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .la-unit-listing-card__body {
   min-width: 0;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
+  padding: 12px 14px 14px;
 }
 
 .la-unit-listing-card__area {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.69rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(112, 90, 69, 0.82);
+  color: rgba(112, 90, 69, 0.84);
   font-weight: 700;
 }
 
 .la-unit-listing-card__title {
   margin: 0;
-  font-size: clamp(1.1rem, 1.25vw, 1.42rem);
-  line-height: 1.35;
+  font-size: clamp(1rem, 0.7vw + 0.75rem, 1.22rem);
+  line-height: 1.32;
   color: #2f2116;
-}
-
-.la-unit-listing-card__meta {
-  margin: 0;
-  font-size: 0.92rem;
-  color: rgba(74, 60, 48, 0.86);
-}
-
-.la-unit-listing-card__address {
-  margin: 0;
-  font-size: 0.88rem;
-  color: rgba(92, 72, 54, 0.84);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .la-unit-listing-card__price {
   margin: 2px 0 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #2c2118;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.la-unit-listing-card__price-strike {
+  color: rgba(34, 125, 94, 0.9);
+  font-size: 0.88rem;
+  text-decoration: line-through;
+}
+
+.la-unit-listing-card__price-main {
+  color: #143d6d;
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.la-unit-listing-card__meta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(66, 54, 44, 0.9);
+}
+
+.la-unit-listing-card__address {
+  margin: 1px 0 0;
+  font-size: 0.9rem;
+  color: rgba(92, 72, 54, 0.86);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .la-units-aside--map {
@@ -4813,13 +4863,12 @@ body {
     padding-bottom: 8px;
   }
 
-  .la-unit-listing-card {
+  .la-unit-listing-grid {
     grid-template-columns: 1fr;
-    gap: 10px;
   }
 
   .la-unit-listing-card__media {
-    min-height: 210px;
+    min-height: 0;
   }
 
   .la-unit-listing-card__address {
