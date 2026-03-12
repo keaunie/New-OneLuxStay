@@ -2786,7 +2786,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       listing?.prices?.basePrice?.currency ||
       "EUR";
     const priceLabel =
-      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} rent/mo` : "Check price";
+      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} / night` : "Check price";
     const bedrooms = getListingBedrooms(listing);
     const bathrooms = firstNumber(listing?.bathrooms);
     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
@@ -6281,7 +6281,7 @@ const applyCheckoutPromoCode = () => {
             <span className="city-search-toggle__track" aria-hidden="true">
               <span className="city-search-toggle__thumb" />
             </span>
-            <span>Total monthly cost</span>
+            <span>Total stay cost</span>
           </label>
           <button
             type="button"
@@ -6464,17 +6464,13 @@ const applyCheckoutPromoCode = () => {
                     const priceMain = showMonthlyTotal
                       ? stayTotal
                         ? `${formatCurrency(stayTotal, currency)} total`
-                        : typeof basePrice === "number"
-                          ? `${formatCurrency(basePrice, currency)} total monthly`
-                          : "Check price"
+                        : "Select dates"
                       : typeof basePrice === "number"
-                        ? `${formatCurrency(basePrice, currency)} rent/mo`
+                        ? `${formatCurrency(basePrice, currency)} / night`
                         : "Check price";
                     const priceSub = showMonthlyTotal && stayTotal
-                      ? `${stayNights} ${stayNights === 1 ? "night" : "nights"} total`
-                      : showMonthlyTotal && typeof basePrice === "number"
-                        ? "Total monthly cost"
-                        : "";
+                      ? `${formatCurrency(nightlyPrice, currency)} / night · ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
                       typeof basePrice === "number" &&
