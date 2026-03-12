@@ -6165,33 +6165,6 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
-      <section className="city-date-band" aria-label="Selected stay dates">
-        <div className="city-date-band__top">
-          <nav className="city-breadcrumbs" aria-label="Breadcrumb">
-            <Link to="/" className="city-breadcrumbs__link">
-              Home
-            </Link>
-            <span className="city-breadcrumbs__sep" aria-hidden="true">&gt;</span>
-            <span className="city-breadcrumbs__current" aria-current="page">
-              Antwerp
-            </span>
-          </nav>
-          <Link to={editDatesHref} className="city-date-band__edit">
-            Edit dates
-          </Link>
-        </div>
-        <p className="city-date-band__kicker">Selected dates from home</p>
-        <div className="city-date-band__row">
-          <h1 className="city-date-band__title"></h1>
-          <p className="city-date-band__range" aria-live="polite">
-            {cityDateRangeLabel}
-            {cityDateNightCount > 0
-              ? ` - ${cityDateNightCount} ${cityDateNightCount === 1 ? "night" : "nights"}`
-              : ""}
-          </p>
-        </div>
-      </section>
-
       <section className="city-search-shell" aria-label="Search Antwerp stays">
         <div className={`city-search-bar${filtersOpen ? " is-filters-open" : ""}`}>
           <label className="city-search-field city-search-field--location">
@@ -6361,6 +6334,35 @@ const applyCheckoutPromoCode = () => {
           Showing {filteredParentListings.length} of {losAngelesParentListings.length} units.
         </p>
       </section>
+
+<section className="city-date-band" aria-label="Selected stay dates">
+        <div className="city-date-band__top">
+          <nav className="city-breadcrumbs" aria-label="Breadcrumb">
+            <Link to="/" className="city-breadcrumbs__link">
+              Home
+            </Link>
+            <span className="city-breadcrumbs__sep" aria-hidden="true">&gt;</span>
+            <span className="city-breadcrumbs__current" aria-current="page">
+              Antwerp
+            </span>
+          </nav>
+          <Link to={editDatesHref} className="city-date-band__edit">
+            Edit dates
+          </Link>
+        </div>
+        <p className="city-date-band__kicker">Selected dates from home</p>
+        <div className="city-date-band__row">
+          <h1 className="city-date-band__title"></h1>
+          <p className="city-date-band__range" aria-live="polite">
+            {cityDateRangeLabel}
+            {cityDateNightCount > 0
+              ? ` - ${cityDateNightCount} ${cityDateNightCount === 1 ? "night" : "nights"}`
+              : ""}
+          </p>
+        </div>
+      </section>
+
+      
 
       <main className="antwerp-main">
         <section id="la-city-tour" className="la-city-tour" aria-label="Antwerp city tours">

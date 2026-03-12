@@ -4009,13 +4009,13 @@ body {
 
 .city-search-shell {
   position: sticky;
-  top: calc(var(--city-nav-height) - 30px);
+  top: 0;
   z-index: 130;
   padding: 6px 8vw 6px;
   background: rgba(248, 244, 239, 0.94);
   border-bottom: 1px solid rgba(125, 104, 83, 0.18);
   backdrop-filter: blur(8px);
-  margin: 0;
+  margin: calc(var(--city-nav-height) * -1) 0 0;
 }
 
 .city-search-bar {
@@ -4517,7 +4517,7 @@ body {
 
   .city-search-shell {
     padding: 6px 10px 4px;
-    margin-top: 6px;
+    margin-top: calc(var(--city-nav-height) * -1);
   }
 
   .city-search-bar {
@@ -4610,7 +4610,7 @@ body {
 @media (min-width: 521px) and (max-width: 981px) {
   .city-search-shell {
     padding: 8px 6vw 6px;
-    margin-top: 2px;
+    margin-top: calc(var(--city-nav-height) * -1);
   }
 
   .city-search-bar {
@@ -5853,6 +5853,16 @@ body {
 
   .la-unit-listing-card__address {
     white-space: normal;
+  }
+}
+
+@media (max-width: 900px) {
+  .city-viewport-shell {
+    --city-nav-height: 96px;
+  }
+
+  .city-search-shell {
+    margin-top: 4px;
   }
 }
 
