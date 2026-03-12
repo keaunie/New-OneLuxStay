@@ -2079,6 +2079,7 @@ export default function AntwerpLandingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
+  const [isMobileMapOpen, setIsMobileMapOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -2107,6 +2108,7 @@ export default function AntwerpLandingPage() {
     const paramCheckIn = params.get("checkIn") || "";
     const paramCheckOut = params.get("checkOut") || "";
     const paramGuests = params.get("guests") || "";
+    const paramQuery = params.get("q") || "";
     const bundle = parseRouteBookingBundle(routeBookingBundle);
     const routeCheckIn = normalizeRouteDate(routeCheckInParam) || bundle.checkIn;
     const routeCheckOut = normalizeRouteDate(routeCheckOutParam) || bundle.checkOut;
@@ -2118,6 +2120,10 @@ export default function AntwerpLandingPage() {
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
+    if (paramQuery && paramQuery !== searchQuery) {
+      setSearchQuery(paramQuery);
+      setAppliedSearch(paramQuery);
+    }
   }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
 
   useEffect(() => {
@@ -4330,6 +4336,7 @@ const applyCheckoutPromoCode = () => {
           : "No dates selected yet";
   const cityDateNightCount =
     sectionCheckIn && sectionCheckOut ? diffNights(sectionCheckIn, sectionCheckOut) : 0;
+  const hasStayDates = cityDateNightCount > 0;
   const cityDateParams = new URLSearchParams();
   if (sectionCheckIn) cityDateParams.set("checkIn", sectionCheckIn);
   if (sectionCheckOut) cityDateParams.set("checkOut", sectionCheckOut);
@@ -4373,14 +4380,67 @@ const applyCheckoutPromoCode = () => {
     style: { cursor: "pointer" },
   };
 
-  const handleSearchSubmit = () => {
-    const trimmed = searchQuery.trim();
+  useEffect(() => {
+    if (hasStayDates) {
+      setShowMonthlyTotal(true);
+    } else {
+      setShowMonthlyTotal(false);
+    }
+  }, [hasStayDates]);
+
+  useEffect(() => {
+    syncListingMarkers(filteredListings);
+  }, [filteredListings]);
+
+  const applySearchQuery = (value, { scrollToListings = true } = {}) => {
+    const trimmed = value.trim();
     setSearchQuery(trimmed);
     setAppliedSearch(trimmed);
     setIsSearchFocused(false);
-    const target = document.getElementById("antwerp-units");
-    if (target) target.scrollIntoView({ behavior: "smooth" });
+    const params = new URLSearchParams(location.search);
+    if (trimmed) {
+      params.set("q", trimmed);
+    } else {
+      params.delete("q");
+    }
+    if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
+    else params.delete("checkIn");
+    if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
+    else params.delete("checkOut");
+    if (sectionGuests) params.set("guests", sectionGuests);
+    else params.delete("guests");
+    const search = params.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ""}`, {
+      replace: true,
+      state: { skipCityLoader: true },
+    });
+    if (scrollToListings) {
+      const target = document.getElementById("antwerp-units");
+      if (target) target.scrollIntoView({ behavior: "smooth" });
+    }
   };
+
+  const handleSearchSubmit = () => {
+    applySearchQuery(searchQuery);
+  };
+
+  const resetMapView = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    try {
+      syncListingMarkers(filteredListings);
+    } catch {
+      map.setCenter(PROPERTY_COORDS);
+    }
+  };
+
+  useEffect(() => {
+    if (!isMobileMapOpen) return;
+    const map = mapInstanceRef.current;
+    if (map?.__leafletMap?.invalidateSize) {
+      requestAnimationFrame(() => map.__leafletMap.invalidateSize());
+    }
+  }, [isMobileMapOpen]);
 
   const scrollHeroCarousel = (direction) => {
     if (!heroCarouselRef.current) return;
@@ -6122,7 +6182,7 @@ const applyCheckoutPromoCode = () => {
         </div>
         <p className="city-date-band__kicker">Selected dates from home</p>
         <div className="city-date-band__row">
-          <h1 className="city-date-band__title">Antwerp collection</h1>
+          <h1 className="city-date-band__title"></h1>
           <p className="city-date-band__range" aria-live="polite">
             {cityDateRangeLabel}
             {cityDateNightCount > 0
@@ -6164,8 +6224,7 @@ const applyCheckoutPromoCode = () => {
                 className="city-search-clear-btn"
                 aria-label="Clear search"
                 onClick={() => {
-                  setSearchQuery("");
-                  setAppliedSearch("");
+                  applySearchQuery("", { scrollToListings: false });
                 }}
               >
                 &times;
@@ -6186,9 +6245,7 @@ const applyCheckoutPromoCode = () => {
                   className="city-search-dropdown__item"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    setSearchQuery(item.label);
-                    setAppliedSearch(item.label);
-                    setIsSearchFocused(false);
+                    applySearchQuery(item.label, { scrollToListings: false });
                   }}
                 >
                   <span className="city-search-dropdown__icon" aria-hidden="true">
@@ -6275,8 +6332,12 @@ const applyCheckoutPromoCode = () => {
           <label className="city-search-toggle">
             <input
               type="checkbox"
-              checked={showMonthlyTotal}
-              onChange={(event) => setShowMonthlyTotal(event.target.checked)}
+              checked={hasStayDates && showMonthlyTotal}
+              disabled={!hasStayDates}
+              onChange={(event) => {
+                if (!hasStayDates) return;
+                setShowMonthlyTotal(event.target.checked);
+              }}
             />
             <span className="city-search-toggle__track" aria-hidden="true">
               <span className="city-search-toggle__thumb" />
@@ -6459,16 +6520,15 @@ const applyCheckoutPromoCode = () => {
                     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
                     const nightlyPrice = getListingNightlyPrice(listing);
                     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-                    const stayTotal =
-                      stayNights > 0 && typeof nightlyPrice === "number" ? nightlyPrice * stayNights : null;
-                    const priceMain = showMonthlyTotal
-                      ? stayTotal
-                        ? `${formatCurrency(stayTotal, currency)} total`
-                        : "Select dates"
+                    const canShowStayTotal =
+                      showMonthlyTotal && stayNights > 0 && typeof nightlyPrice === "number";
+                    const stayTotal = canShowStayTotal ? nightlyPrice * stayNights : null;
+                    const priceMain = canShowStayTotal
+                      ? `${formatCurrency(stayTotal, currency)} total`
                       : typeof basePrice === "number"
                         ? `${formatCurrency(basePrice, currency)} / night`
                         : "Check price";
-                    const priceSub = showMonthlyTotal && stayTotal
+                    const priceSub = canShowStayTotal
                       ? `${formatCurrency(nightlyPrice, currency)} / night · ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";
                     const hasStrikePrice =
@@ -6530,7 +6590,16 @@ const applyCheckoutPromoCode = () => {
                   </div>
                 )}
             </div>
-            <aside className="la-units-aside la-units-aside--map" aria-label="Map with Antwerp unit locations">
+            <aside
+              className={`la-units-aside la-units-aside--map${isMobileMapOpen ? " is-mobile-open" : ""}`}
+              aria-label="Map with Antwerp unit locations"
+            >
+              <div className="la-mobile-map-header">
+                <strong>Antwerp map</strong>
+                <button type="button" onClick={() => setIsMobileMapOpen(false)} aria-label="Close map">
+                  ✕
+                </button>
+              </div>
               {mapError ? (
                 <div className="la-units-map la-units-map--panel is-error">
                   <p className="antwerp-muted" style={{ margin: 0 }}>
@@ -6560,6 +6629,17 @@ const applyCheckoutPromoCode = () => {
           </div>
         </section>
       </main>
+      <div
+        className={`la-mobile-map-actions${isMobileMapOpen ? " is-hidden" : ""}`}
+        aria-label="Mobile map controls"
+      >
+        <button type="button" className="la-mobile-map-btn" onClick={() => setIsMobileMapOpen(true)}>
+          View map
+        </button>
+        <button type="button" className="la-mobile-map-btn is-secondary" onClick={resetMapView}>
+          Reset map
+        </button>
+      </div>
       </div>
 
       {activeSection && (
