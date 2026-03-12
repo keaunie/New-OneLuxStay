@@ -151,6 +151,33 @@ const firstNumber = (...values) => {
   return null;
 };
 
+const getListingBedrooms = (listing) =>
+  firstNumber(
+    listing?.bedrooms,
+    listing?.beds,
+    listing?.bedroomCount,
+    listing?.roomCount,
+    listing?.rooms
+  );
+
+const getListingAccommodates = (listing) =>
+  firstNumber(
+    listing?.accommodates,
+    listing?.personCapacity,
+    listing?.maxGuests,
+    listing?.maxOccupancy,
+    listing?.guests
+  );
+
+const getListingNightlyPrice = (listing) =>
+  firstNumber(
+    listing?.prices?.nightly?.amount,
+    listing?.prices?.nightly,
+    listing?.prices?.basePricePerNight,
+    listing?.prices?.basePrice?.amount,
+    listing?.basePricePerNight
+  );
+
 const buildCalendarMonth = (baseDate) => {
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth();
@@ -967,6 +994,15 @@ const KNOWN_CITIES = [
   "nieuw zuid",
 ];
 
+const CITY_SUGGESTIONS = [
+  "Antwerp, Belgium",
+  "Antwerpen, Antwerp, Belgium",
+  "Klein-Antwerpen, Antwerp, Belgium",
+  "Antwerp Central Station, Antwerp, Belgium",
+  "Diamond District, Antwerp, Belgium",
+  "Fashion District, Antwerp, Belgium",
+];
+
 const FEATURED_LISTING_IDS = {
   "Diamond District": "66e849a74149880013d1be34",
   "Antwerp Central": "6811675405d52b0010c3fae5",
@@ -1006,6 +1042,27 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
 };
 
 const BOOKING_STORAGE_KEY = "antwerpBookingFilters";
+const LISTINGS_CACHE_KEY = "antwerpListingsCache";
+const readCachedListings = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(LISTINGS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+const writeCachedListings = (payload = []) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (!Array.isArray(payload) || !payload.length) return;
+    window.sessionStorage.setItem(LISTINGS_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore storage failures.
+  }
+};
 const readPersistedBooking = () => {
   if (typeof window === "undefined") return null;
   try {
@@ -2021,6 +2078,14 @@ export default function AntwerpLandingPage() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [minBedrooms, setMinBedrooms] = useState(1);
+  const [showMonthlyTotal, setShowMonthlyTotal] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const filtersPanelId = useId();
   const [activeListing, setActiveListing] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
@@ -2526,16 +2591,44 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     let active = true;
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
-        const json = await res.json();
+        setLoading(true);
+        const fetchListings = async (baseUrl) => {
+          const res = await fetch(`${baseUrl}/listings`, { cache: "no-store" });
+          if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
+          return res.json();
+        };
+        const remoteBase = "https://oneluxstayprop.netlify.app/.netlify/functions";
+        const basesToTry = [apiBase, remoteBase].filter(
+          (value, idx, arr) => value && arr.indexOf(value) === idx
+        );
+        let json = null;
+        let lastError = null;
+        for (const base of basesToTry) {
+          try {
+            json = await fetchListings(base);
+            if (json?.results) break;
+          } catch (err) {
+            lastError = err;
+          }
+        }
         if (!active) return;
+        if (!json?.results) {
+          throw lastError || new Error("Listings failed: 500");
+        }
         const results = Array.isArray(json.results)
           ? json.results.map((listing) => normalizeListingPricing(listing))
           : [];
         setListings(results);
+        writeCachedListings(results);
+        setError("");
       } catch (err) {
         if (!active) return;
+        const cached = readCachedListings();
+        if (cached?.length) {
+          setListings(cached);
+          setError("");
+          return;
+        }
         setError(err.message || "Unable to load listings.");
       } finally {
         if (active) setLoading(false);
@@ -2545,7 +2638,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadTick]);
 
   useEffect(() => {
     if (!routeListingId) {
@@ -2674,6 +2767,140 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
   }, [losAngelesListings]);
 
+  const buildMapPopupContent = (listing) => {
+    if (!listing) return "";
+    const title = escapeHtml(resolveGroupTitle(listing) || listing?.title || "One Lux Stay");
+    const image = escapeHtml(getListingImageUrls(listing)[0] || FALLBACK_IMAGE);
+    const basePrice = firstNumber(
+      listing?.basePrice,
+      listing?.prices?.basePrice,
+      listing?.prices?.basePricePerNight,
+      listing?.prices?.nightly,
+      listing?.prices?.nightly?.amount,
+      listing?.prices?.basePrice?.amount
+    );
+    const currency =
+      listing?.currency ||
+      listing?.prices?.currency ||
+      listing?.prices?.nightly?.currency ||
+      listing?.prices?.basePrice?.currency ||
+      "EUR";
+    const priceLabel =
+      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} rent/mo` : "Check price";
+    const bedrooms = getListingBedrooms(listing);
+    const bathrooms = firstNumber(listing?.bathrooms);
+    const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+    const meta = [
+      bedrooms ? `${bedrooms} bd` : null,
+      bathrooms ? `${bathrooms} ba` : null,
+      areaSqft ? `${areaSqft} ft2` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const address = escapeHtml(formatAddress(listing));
+    const listingId = getListingId(listing);
+    const idLine = listingId ? `#${escapeHtml(listingId)}` : "";
+    const listingPath = listingId ? `/antwerp/listing/${encodeURIComponent(listingId)}` : "/antwerp";
+
+    return `
+      <div class="ols-map-popup">
+        <div class="ols-map-popup__header">
+          <span class="ols-map-popup__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M12 4 3 11h2v8h5v-5h4v5h5v-8h2z" fill="currentColor" />
+            </svg>
+          </span>
+          <div class="ols-map-popup__title">${title}</div>
+        </div>
+        <a class="ols-map-popup__card" href="${listingPath}">
+          <div class="ols-map-popup__media">
+            <img src="${image}" alt="${title}" loading="lazy" />
+            <span class="ols-map-popup__badge">Popular home</span>
+            <span class="ols-map-popup__fav" aria-hidden="true">&#9825;</span>
+          </div>
+          <div class="ols-map-popup__body">
+            <div class="ols-map-popup__price">${escapeHtml(priceLabel)}</div>
+            ${meta ? `<div class="ols-map-popup__meta">${escapeHtml(meta)}</div>` : ""}
+            <div class="ols-map-popup__address">
+              ${idLine ? `${idLine} &#183; ` : ""}${address}
+            </div>
+          </div>
+        </a>
+      </div>
+    `;
+  };
+
+  const filteredListings = useMemo(() => {
+    const query = sanitizeText(appliedSearch).toLowerCase();
+    const minBeds = Number(minBedrooms) || 1;
+    const guestCount = Number.parseInt(sectionGuests, 10);
+    const hasGuestFilter = Number.isFinite(guestCount) && guestCount > 0;
+    if (!query && minBeds <= 1 && !hasGuestFilter) return losAngelesListings;
+    const tokens = query
+      .split(/[,\n]/)
+      .flatMap((part) => part.split(/\s+/))
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 2);
+    return losAngelesListings.filter((listing) => {
+      const bedrooms = getListingBedrooms(listing);
+      if (minBeds > 1 && typeof bedrooms === "number" && bedrooms < minBeds) return false;
+      const accommodates = getListingAccommodates(listing);
+      if (hasGuestFilter && typeof accommodates === "number" && accommodates < guestCount) return false;
+      if (!query) return true;
+      const haystack = [
+        listing?.title,
+        listing?.nickname,
+        resolveGroupTitle(listing),
+        formatAddress(listing),
+        listing?.propertyType,
+        listing?.roomType,
+        listing?.address?.city,
+        listing?.address?.full,
+        listing?.location,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (haystack.includes(query)) return true;
+      if (!tokens.length) return true;
+      return tokens.some((token) => haystack.includes(token));
+    });
+  }, [losAngelesListings, minBedrooms, appliedSearch, sectionGuests]);
+
+  const filteredParentListings = useMemo(() => {
+    if (!filteredListings.length) return [];
+    const parentGroups = groupListingsByParent(filteredListings);
+    return Object.values(parentGroups)
+      .map((group) => group.parent || group.children?.[0])
+      .filter(Boolean);
+  }, [filteredListings]);
+
+  const citySuggestions = useMemo(() => {
+    const items = [];
+    const seen = new Set();
+    CITY_SUGGESTIONS.forEach((label) => {
+      const key = label.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ label, key });
+    });
+    losAngelesListings.forEach((listing) => {
+      const label = formatListingLocationLabel(listing, "Antwerp");
+      if (!label) return;
+      const key = label.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ label, key });
+    });
+    return items;
+  }, [losAngelesListings]);
+
+  const filteredCitySuggestions = useMemo(() => {
+    const query = sanitizeText(searchQuery).toLowerCase();
+    if (!query) return citySuggestions.slice(0, 6);
+    return citySuggestions.filter((item) => item.key.includes(query)).slice(0, 6);
+  }, [citySuggestions, searchQuery]);
+
   const syncListingMarkers = (
     listingsToUse = losAngelesListingsRef.current,
     { fitBounds = true } = {}
@@ -2793,11 +3020,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         zIndex: 10,
       });
       marker.addListener("click", () => {
-        const content = `
-          <div>
-            <strong>${escapeHtml(title)}</strong>
-          </div>`;
-        infoWindow.setContent(content);
+        infoWindow.setContent(buildMapPopupContent(primary));
         infoWindow.open(map, marker);
       });
       listingMarkersRef.current.push(marker);
@@ -4148,6 +4371,15 @@ const applyCheckoutPromoCode = () => {
       }
     },
     style: { cursor: "pointer" },
+  };
+
+  const handleSearchSubmit = () => {
+    const trimmed = searchQuery.trim();
+    setSearchQuery(trimmed);
+    setAppliedSearch(trimmed);
+    setIsSearchFocused(false);
+    const target = document.getElementById("antwerp-units");
+    if (target) target.scrollIntoView({ behavior: "smooth" });
   };
 
   const scrollHeroCarousel = (direction) => {
@@ -5873,7 +6105,7 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
-            <section className="city-date-band" aria-label="Selected stay dates">
+      <section className="city-date-band" aria-label="Selected stay dates">
         <div className="city-date-band__top">
           <nav className="city-breadcrumbs" aria-label="Breadcrumb">
             <Link to="/" className="city-breadcrumbs__link">
@@ -5898,6 +6130,175 @@ const applyCheckoutPromoCode = () => {
               : ""}
           </p>
         </div>
+      </section>
+
+      <section className="city-search-shell" aria-label="Search Antwerp stays">
+        <div className={`city-search-bar${filtersOpen ? " is-filters-open" : ""}`}>
+          <label className="city-search-field city-search-field--location">
+            <span className="city-search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path
+                  d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleSearchSubmit();
+                }
+              }}
+              placeholder="Search by address or place"
+              aria-label="Search by address or place"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                className="city-search-clear-btn"
+                aria-label="Clear search"
+                onClick={() => {
+                  setSearchQuery("");
+                  setAppliedSearch("");
+                }}
+              >
+                &times;
+              </button>
+            ) : null}
+            <div
+              className={`city-search-dropdown${
+                isSearchFocused && filteredCitySuggestions.length && !filtersOpen ? " is-open" : ""
+              }`}
+              role="listbox"
+              aria-label="Available cities"
+            >
+              {filteredCitySuggestions.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="option"
+                  className="city-search-dropdown__item"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setSearchQuery(item.label);
+                    setAppliedSearch(item.label);
+                    setIsSearchFocused(false);
+                  }}
+                >
+                  <span className="city-search-dropdown__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M12 3a6.5 6.5 0 0 0-6.5 6.5c0 4.47 5.85 10.73 6.1 11a1 1 0 0 0 1.4 0c.25-.27 6.1-6.53 6.1-11A6.5 6.5 0 0 0 12 3zm0 9.2a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </label>
+          <span className="city-search-divider" aria-hidden="true" />
+          <div className="city-search-field city-search-field--dates">
+            <DateRangePicker
+              value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              onChange={({ checkIn, checkOut }) => {
+                setSectionCheckIn(checkIn);
+                setSectionCheckOut(checkOut);
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="city-search-filters"
+            aria-expanded={filtersOpen}
+            aria-controls={filtersPanelId}
+            onClick={() => {
+              setFiltersOpen((prev) => !prev);
+              setIsSearchFocused(false);
+            }}
+          >
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path
+                d="M4 7h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2zm0 6h3a2 2 0 0 0 4 0h9v-2h-9a2 2 0 0 0-4 0H4v2zm0 6h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2z"
+                fill="currentColor"
+              />
+            </svg>
+            Filters
+          </button>
+          <button type="button" className="city-search-submit" onClick={handleSearchSubmit}>
+            <span className="city-search-submit__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path
+                  d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            Search
+          </button>
+        </div>
+        <div id={filtersPanelId} className={`city-search-panel${filtersOpen ? " is-open" : ""}`}>
+          <label className="city-search-panel__field">
+            <span>Guests</span>
+            <select
+              value={sectionGuests}
+              onChange={(event) => setSectionGuests(event.target.value)}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
+                <option key={guestCount} value={String(guestCount)}>
+                  {guestCount}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="city-search-panel__field">
+            <span>Bedrooms</span>
+            <select
+              value={minBedrooms}
+              onChange={(event) => setMinBedrooms(Number(event.target.value) || 1)}
+            >
+              <option value={1}>Any</option>
+              {[2, 3, 4, 5, 6].map((count) => (
+                <option key={count} value={count}>
+                  {count}+
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="city-search-toggle">
+            <input
+              type="checkbox"
+              checked={showMonthlyTotal}
+              onChange={(event) => setShowMonthlyTotal(event.target.checked)}
+            />
+            <span className="city-search-toggle__track" aria-hidden="true">
+              <span className="city-search-toggle__thumb" />
+            </span>
+            <span>Total monthly cost</span>
+          </label>
+          <button
+            type="button"
+            className="city-search-clear"
+            onClick={() => {
+              setSearchQuery("");
+              setAppliedSearch("");
+              setMinBedrooms(1);
+              setShowMonthlyTotal(false);
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+        <p className="city-search-summary" aria-live="polite">
+          Showing {filteredParentListings.length} of {losAngelesParentListings.length} units.
+        </p>
       </section>
 
       <main className="antwerp-main">
@@ -5999,7 +6400,17 @@ const applyCheckoutPromoCode = () => {
 
               {error && (
                 <div role="alert" className="antwerp-error">
-                  {error}
+                  <span>{error}</span>
+                  <button
+                    type="button"
+                    className="antwerp-card__ghost"
+                    onClick={() => {
+                      setError("");
+                      setReloadTick((prev) => prev + 1);
+                    }}
+                  >
+                    Retry listings
+                  </button>
                 </div>
               )}
 
@@ -6009,10 +6420,16 @@ const applyCheckoutPromoCode = () => {
                 </div>
               )}
 
+              {!loading && !error && losAngelesParentListings.length > 0 && filteredParentListings.length === 0 && (
+                <div className="antwerp-empty">
+                  No units match your filters.
+                </div>
+              )}
+
               {!loading &&
-                !error && (
+                !error && filteredParentListings.length > 0 && (
                   <div className="la-unit-listing-grid">
-                    {losAngelesParentListings.map((listing) => {
+                    {filteredParentListings.map((listing) => {
                     const listingId = getListingId(listing);
                     const listingPath = listingId ? buildListingPath(listingId) : "/antwerp";
                     const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
@@ -6040,6 +6457,24 @@ const applyCheckoutPromoCode = () => {
                     const bathrooms = firstNumber(listing?.bathrooms);
                     const accommodates = firstNumber(listing?.accommodates);
                     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+                    const nightlyPrice = getListingNightlyPrice(listing);
+                    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+                    const stayTotal =
+                      stayNights > 0 && typeof nightlyPrice === "number" ? nightlyPrice * stayNights : null;
+                    const priceMain = showMonthlyTotal
+                      ? stayTotal
+                        ? `${formatCurrency(stayTotal, currency)} total`
+                        : typeof basePrice === "number"
+                          ? `${formatCurrency(basePrice, currency)} total monthly`
+                          : "Check price"
+                      : typeof basePrice === "number"
+                        ? `${formatCurrency(basePrice, currency)} rent/mo`
+                        : "Check price";
+                    const priceSub = showMonthlyTotal && stayTotal
+                      ? `${stayNights} ${stayNights === 1 ? "night" : "nights"} total`
+                      : showMonthlyTotal && typeof basePrice === "number"
+                        ? "Total monthly cost"
+                        : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
                       typeof basePrice === "number" &&
@@ -6071,10 +6506,13 @@ const applyCheckoutPromoCode = () => {
                               </span>
                             ) : null}
                             <span className="la-unit-listing-card__price-main">
-                              {typeof basePrice === "number"
-                                ? `${formatCurrency(basePrice, currency)} rent/mo`
-                                : "Check price"}
+                              {priceMain}
                             </span>
+                            {priceSub ? (
+                              <span className="la-unit-listing-card__price-sub">
+                                {priceSub}
+                              </span>
+                            ) : null}
                           </p>
                           <p className="la-unit-listing-card__meta">
                             {[
@@ -7544,10 +7982,3 @@ const applyCheckoutPromoCode = () => {
     </div>
   );
 }
-
-
-
-
-
-
-

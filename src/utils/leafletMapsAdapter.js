@@ -347,7 +347,7 @@ class InfoWindowAdapter {
       leafletMap.getCenter().lat,
       leafletMap.getCenter().lng,
     ]);
-    L.popup({ maxWidth: 280 })
+    L.popup({ maxWidth: 360, closeButton: true, className: "ols-map-popup-shell" })
       .setLatLng([lat, lng])
       .setContent(this._content || "")
       .openOn(leafletMap);
