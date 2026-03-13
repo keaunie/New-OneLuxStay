@@ -2846,7 +2846,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </div>
         <a class="ols-map-popup__card" href="${listingPath}">
           <div class="ols-map-popup__media">
-            <img src="${image}" alt="${title}" loading="lazy" />
+            <img src="${image}" alt="${title}" loading="lazy" width="420" height="280" />
             <span class="ols-map-popup__badge">Popular home</span>
             <span class="ols-map-popup__fav" aria-hidden="true">&#9825;</span>
           </div>
@@ -4696,7 +4696,15 @@ const applyCheckoutPromoCode = () => {
             <span aria-hidden="true">{"\u2039"}</span>
           </button>
           <div className="la-listing-hero__logo-mobile">
-            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+            <img
+              {...logoHomeProps}
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              onError={handleImageError}
+              width="120"
+              height="32"
+            />
           </div>
         </div>
         <div className="la-listing-hero__intro">
@@ -4720,7 +4728,15 @@ const applyCheckoutPromoCode = () => {
             })()}
           </div>
           <div className="la-listing-hero__logo">
-            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+            <img
+              {...logoHomeProps}
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              onError={handleImageError}
+              width="120"
+              height="32"
+            />
           </div>
         </div>
       </section>
@@ -4839,6 +4855,8 @@ const applyCheckoutPromoCode = () => {
                         alt={sanitizeText(activeListing.title)}
                         loading="eager"
                         onError={handleImageError}
+                        width="1200"
+                        height="800"
                       />
                     </button>
                   ) : (
@@ -4860,6 +4878,8 @@ const applyCheckoutPromoCode = () => {
                           alt=""
                           loading="lazy"
                           onError={handleImageError}
+                          width="600"
+                          height="400"
                         />
                       </button>
                     ))
@@ -4914,6 +4934,8 @@ const applyCheckoutPromoCode = () => {
                           alt=""
                           loading={idx === 0 ? "eager" : "lazy"}
                           onError={handleImageError}
+                          width="160"
+                          height="120"
                         />
                       </button>
                     ))}
@@ -5059,7 +5081,13 @@ const applyCheckoutPromoCode = () => {
                       allowFullScreen
                     />
                   ) : mapUrl ? (
-                    <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
+                    <img
+                      src={mapUrl}
+                      alt="Map showing the unit location"
+                      loading="lazy"
+                      width="520"
+                      height="320"
+                    />
                   ) : (
                     <div className="la-unit-modal__placeholder">Map loading</div>
                   )}
@@ -5449,6 +5477,8 @@ const applyCheckoutPromoCode = () => {
                 ref={zoomImageRef}
                 src={zoomImageUrl}
                 alt="Listing preview"
+                width="1200"
+                height="800"
                 onLoad={() => {
                   setZoomLevel((value) => clampZoom(value));
                   setZoomPan((prev) => clampZoomPan(prev));
@@ -5649,6 +5679,8 @@ const applyCheckoutPromoCode = () => {
                   loading="lazy"
                   className="la-inquiry-modal__logo"
                   onError={handleImageError}
+                  width="120"
+                  height="32"
                 />
                 <div>
                   <p className="la-inquiry-modal__kicker">Contact OneLuxStay</p>
@@ -5703,6 +5735,8 @@ const applyCheckoutPromoCode = () => {
                   loading="lazy"
                   className="la-inquiry-modal__logo"
                   onError={handleImageError}
+                  width="120"
+                  height="32"
                 />
                 <div>
                   <p className="la-inquiry-modal__kicker">Guest details</p>
@@ -6159,7 +6193,7 @@ const applyCheckoutPromoCode = () => {
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      <div className="city-viewport-shell">
+      <div className="city-viewport-shell city-viewport-shell--dubai">
       {/* <section className="la-bounce-section" aria-label="Antwerp highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
@@ -6192,9 +6226,19 @@ const applyCheckoutPromoCode = () => {
         </div>
       </section> */}
       
-
-<section className="city-date-band" aria-label="Selected stay dates">
-        <div className="city-date-band__top">
+      <section className="city-search-shell city-search-shell--dubai" aria-label="Search Antwerp stays">
+        <div className="city-search-topline city-search-topline--breadcrumbs" aria-label="Location breadcrumb">
+          <Link to="/" className="city-search-brand" aria-label="OneLuxStay home">
+            <img
+              src={LOGO_URL}
+              alt="OneLuxStay logo"
+              loading="lazy"
+              onError={handleImageError}
+              width="120"
+              height="32"
+            />
+            <span className="city-search-brand__name">OneLuxStay</span>
+          </Link>
           <nav className="city-breadcrumbs" aria-label="Breadcrumb">
             <Link to="/" className="city-breadcrumbs__link">
               Home
@@ -6205,17 +6249,6 @@ const applyCheckoutPromoCode = () => {
             </span>
           </nav>
         </div>
-        <p className="city-date-band__kicker">Selected dates from home</p>
-        <div className="city-date-band__row">
-          <h1 className="city-date-band__title"></h1>
-          <p className="city-date-band__range" aria-live="polite">
-            {cityDateRangeLabel}
-            {cityDateNightCount > 0
-              ? ` - ${cityDateNightCount} ${cityDateNightCount === 1 ? "night" : "nights"}`
-              : ""}
-          </p>
-        </div>
-      <div className="city-search-shell city-search-shell--taskbar" aria-label="Search Antwerp stays">
         <div className={`city-search-bar${filtersOpen ? " is-filters-open" : ""}`}>
           <label className="city-search-field city-search-field--location">
             <span className="city-search-icon" aria-hidden="true">
@@ -6380,12 +6413,10 @@ const applyCheckoutPromoCode = () => {
             Clear filters
           </button>
         </div>
-        
-      </div>
-</section>
         <p className="city-search-summary" aria-live="polite">
           Showing {filteredParentListings.length} of {losAngelesParentListings.length} units.
         </p>
+      </section>
 
 
       
@@ -6572,6 +6603,8 @@ const applyCheckoutPromoCode = () => {
                             alt={sanitizeText(listing?.title || "One Lux Stay Antwerp")}
                             loading="lazy"
                             onError={handleImageError}
+                            width="800"
+                            height="600"
                           />
                           <span className="la-unit-listing-card__badge">Available now</span>
                           <span className="la-unit-listing-card__fav" aria-hidden="true">
@@ -6782,7 +6815,13 @@ const applyCheckoutPromoCode = () => {
                           className="la-section-hero__button"
                           onClick={() => setSectionHeroIndex(safeIndex)}
                         >
-                          <img src={mainImage} alt={`${activeSection.label} featured`} loading="eager" />
+                          <img
+                            src={mainImage}
+                            alt={`${activeSection.label} featured`}
+                            loading="eager"
+                            width="1200"
+                            height="800"
+                          />
                         </button>
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
@@ -6797,7 +6836,13 @@ const applyCheckoutPromoCode = () => {
                             className="la-section-hero__button"
                             onClick={() => setSectionHeroIndex((safeIndex + idx + 1) % images.length)}
                           >
-                            <img src={src} alt="" loading={idx === 0 ? "eager" : "lazy"} />
+                            <img
+                              src={src}
+                              alt=""
+                              loading={idx === 0 ? "eager" : "lazy"}
+                              width="600"
+                              height="400"
+                            />
                           </button>
                         ) : (
                           <div key={`side-${idx}`} className="la-unit-modal__placeholder">
@@ -6845,7 +6890,13 @@ const applyCheckoutPromoCode = () => {
                             onClick={() => setSectionHeroIndex(idx)}
                             aria-label={`View image ${idx + 1}`}
                           >
-                            <img src={src} alt="" loading={idx === 0 ? "eager" : "lazy"} />
+                            <img
+                              src={src}
+                              alt=""
+                              loading={idx === 0 ? "eager" : "lazy"}
+                              width="160"
+                              height="120"
+                            />
                           </button>
                         ))}
                       </div>
@@ -6940,7 +6991,13 @@ const applyCheckoutPromoCode = () => {
                           allowFullScreen
                         />
                       ) : mapUrl ? (
-                        <img src={mapUrl} alt="Map showing the building location" loading="lazy" />
+                        <img
+                          src={mapUrl}
+                          alt="Map showing the building location"
+                          loading="lazy"
+                          width="520"
+                          height="320"
+                        />
                       ) : (
                         <div className="la-unit-modal__placeholder">Map loading</div>
                       )}
@@ -7186,7 +7243,13 @@ const applyCheckoutPromoCode = () => {
                           <div className="la-booking-table__cell" role="cell">
                             <div className="la-booking-table__title">
                               {image ? (
-                                <img src={image} alt="" loading={index === 0 ? "eager" : "lazy"} />
+                                <img
+                                  src={image}
+                                  alt=""
+                                  loading={index === 0 ? "eager" : "lazy"}
+                                  width="120"
+                                  height="90"
+                                />
                               ) : (
                                 <div className="la-booking-table__placeholder" aria-hidden="true" />
                               )}
@@ -7614,6 +7677,8 @@ const applyCheckoutPromoCode = () => {
                             alt={sanitizeText(activeListing.title)}
                             loading="eager"
                             onError={handleImageError}
+                            width="1200"
+                            height="800"
                           />
                         </button>
                       ) : (
@@ -7629,7 +7694,14 @@ const applyCheckoutPromoCode = () => {
                           onClick={() => setActiveImageIndex(entry.idx)}
                           aria-label="Select image"
                         >
-                          <img src={entry.src} alt="" loading="lazy" onError={handleImageError} />
+                          <img
+                            src={entry.src}
+                            alt=""
+                            loading="lazy"
+                            onError={handleImageError}
+                            width="600"
+                            height="400"
+                          />
                         </button>
                       ))}
                       {sideEntries.length < 2 &&
@@ -7683,6 +7755,8 @@ const applyCheckoutPromoCode = () => {
                               alt=""
                               loading={idx === 0 ? "eager" : "lazy"}
                               onError={handleImageError}
+                              width="160"
+                              height="120"
                             />
                           </button>
                         ))}
@@ -7713,6 +7787,8 @@ const applyCheckoutPromoCode = () => {
                           alt="Map showing the unit location"
                           loading="lazy"
                           onError={handleImageError}
+                          width="520"
+                          height="320"
                         />
                       ) : (
                         <div className="la-unit-modal__placeholder">Map loading</div>
