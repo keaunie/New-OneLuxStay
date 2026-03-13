@@ -5464,7 +5464,10 @@ body {
   right: 0;
   z-index: 260;
   margin: 0;
-  padding: 10px 8vw 8px;
+  padding: 10px 8vw 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 8px;
   border-bottom: 1px solid rgba(125, 104, 83, 0.2);
   box-shadow: 0 8px 18px rgba(62, 50, 37, 0.08);
 }
@@ -5473,7 +5476,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 0 4px 6px;
+  margin: 0 4px;
 }
 
 .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand {
@@ -5504,12 +5507,71 @@ body {
   margin: 0;
 }
 
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-bar {
+  margin: 0;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--guests-inline {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-guests-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(63, 44, 30, 0.72);
+  white-space: nowrap;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-guests-select {
+  border-radius: 999px;
+  border: 1px solid rgba(201, 181, 156, 0.62);
+  background: rgba(255, 255, 255, 0.95);
+  color: #2f2116;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 7px 28px 7px 12px;
+  min-width: 72px;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-clear--inline {
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-panel {
+  margin-top: 0;
+  padding: 0 4px;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-panel.is-open {
+  margin-top: 2px;
+}
+
 .city-viewport-shell--dubai .city-search-shell--dubai .city-search-summary {
-  margin: 8px 4px 4px;
+  margin: 0 4px 2px;
 }
 
 .dubai-units-section .la-units-layout.la-units-layout--split {
-  margin-top: 8px;
+  margin-top: 12px;
+}
+
+@media (min-width: 982px) {
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--dates {
+    flex: 0 0 320px;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .la-date-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    justify-content: flex-start;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .la-date-input {
+    width: 100%;
+  }
 }
 
 @media (max-width: 981px) {
@@ -5520,11 +5582,12 @@ body {
   .city-viewport-shell--dubai .city-search-shell--dubai {
     top: 0;
     margin: 0;
-    padding: 8px 6vw 6px;
+    padding: 8px 6vw 8px;
+    row-gap: 6px;
   }
 
   .city-viewport-shell--dubai .city-search-topline--breadcrumbs {
-    margin: 0 2px 6px;
+    margin: 0 2px;
   }
 
   .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand img {
@@ -5534,6 +5597,42 @@ body {
   .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand__name {
     font-size: 0.88rem;
   }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "search guests clear searchbtn"
+      "dates dates dates dates";
+    gap: 4px 10px;
+    align-items: center;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--location {
+    grid-area: search;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--dates {
+    grid-area: dates;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--guests-inline {
+    grid-area: guests;
+    justify-self: end;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-clear--inline {
+    grid-area: clear;
+    justify-self: end;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-submit {
+    grid-area: searchbtn;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-divider {
+    display: none;
+  }
 }
 
 @media (max-width: 520px) {
@@ -5542,11 +5641,12 @@ body {
   }
 
   .city-viewport-shell--dubai .city-search-shell--dubai {
-    padding: 8px 10px 6px;
+    padding: 8px 10px 8px;
+    row-gap: 6px;
   }
 
   .city-viewport-shell--dubai .city-search-topline--breadcrumbs {
-    margin: 0 2px 4px;
+    margin: 0 2px;
     gap: 8px;
   }
 
@@ -5557,6 +5657,34 @@ body {
   .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand__name {
     font-size: 0.78rem;
     letter-spacing: 0.14em;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-bar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "search search search"
+      "dates dates dates"
+      "guests clear searchbtn";
+    gap: 6px 8px;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--guests-inline {
+    justify-self: start;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-guests-label {
+    display: none;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-guests-select {
+    min-width: 62px;
+    padding: 5px 20px 5px 10px;
+    font-size: 0.82rem;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-clear--inline {
+    padding: 5px 10px;
+    font-size: 0.74rem;
   }
 }
 
@@ -5649,6 +5777,10 @@ body {
   object-fit: cover;
 }
 
+.la-unit-listing-card__media-image {
+  animation: laUnitCardImageEnter 0.34s ease both;
+}
+
 .la-unit-listing-card__badge {
   position: absolute;
   top: 10px;
@@ -5678,6 +5810,74 @@ body {
   font-size: 0.9rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.la-unit-listing-card__carousel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(25, 22, 18, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(5px);
+}
+
+.la-unit-listing-card__carousel-btn {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.la-unit-listing-card__carousel-btn:hover,
+.la-unit-listing-card__carousel-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.32);
+  outline: none;
+}
+
+.la-unit-listing-card__carousel-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.la-unit-listing-card__carousel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  transition: width 0.2s ease, height 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
+  opacity: 0.75;
+}
+
+.la-unit-listing-card__carousel-dot.is-active {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  opacity: 1;
+}
+
+@keyframes laUnitCardImageEnter {
+  from {
+    opacity: 0.45;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .la-unit-listing-card__body {
@@ -5818,6 +6018,11 @@ body {
   font-weight: 600;
 }
 
+.ols-map-popup__title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .ols-map-popup__icon {
   width: 30px;
   height: 30px;
@@ -5836,6 +6041,51 @@ body {
 .ols-map-popup__title {
   font-size: 0.95rem;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ols-map-popup__title-sub {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: rgba(70, 58, 46, 0.72);
+}
+
+.ols-map-popup__unit-nav-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.ols-map-popup__unit-nav {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(75, 62, 50, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2f2116;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.ols-map-popup__unit-nav:hover,
+.ols-map-popup__unit-nav:focus-visible {
+  background: #fff;
+  border-color: rgba(75, 62, 50, 0.44);
+  outline: none;
+}
+
+.ols-map-popup__unit-count {
+  min-width: 42px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(62, 51, 40, 0.8);
 }
 
 .ols-map-popup__card {
@@ -5852,6 +6102,9 @@ body {
   overflow: hidden;
   aspect-ratio: 16 / 10;
   background: #eee7dd;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .ols-map-popup__media img {
@@ -5886,6 +6139,39 @@ body {
   background: rgba(47, 33, 22, 0.65);
   color: #fff;
   font-size: 0.9rem;
+}
+
+.ols-map-popup__media-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(28, 24, 19, 0.46);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+  z-index: 3;
+}
+
+.ols-map-popup__media-nav--prev {
+  left: 10px;
+}
+
+.ols-map-popup__media-nav--next {
+  right: 10px;
+}
+
+.ols-map-popup__media-nav:hover,
+.ols-map-popup__media-nav:focus-visible {
+  background: rgba(28, 24, 19, 0.66);
+  border-color: rgba(255, 255, 255, 0.9);
+  outline: none;
 }
 
 .ols-map-popup__body {

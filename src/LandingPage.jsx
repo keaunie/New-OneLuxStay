@@ -21,6 +21,16 @@ const KNOWN_CITIES = [
   "miami beach",
 ];
 
+const CITY_DISPLAY_LABELS = {
+  Antwerp: "Antwerp, Belgium",
+  Dubai: "Dubai, UAE",
+  "Los Angeles": "Los Angeles, CA",
+  "Redondo Beach": "Redondo Beach, CA",
+  Miami: "Miami, FL",
+};
+
+const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami"];
+
 const citySlugFromName = (value) => {
   if (!value) return "";
   const lower = value.toLowerCase();
@@ -818,6 +828,7 @@ function LandingPage() {
     "Redondo Beach": "/redondo-beach",
     Dubai: "/dubai",
   };
+  const formatCityLabel = (city) => CITY_DISPLAY_LABELS[city] || city;
   const prefetchCityByName = (city) => {
     const route = cityRoutes[city];
     if (!route) return;
@@ -1339,13 +1350,13 @@ function LandingPage() {
             Experience Timeless Elevated Living
           </h1>
           <p className="landing-hero-lead">
-            Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Dubai, Los Angeles, Miami,
-            and Redondo Beach.
+            Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Belgium; Dubai, UAE; Los
+            Angeles, CA; Miami, FL; and Redondo Beach, CA.
           </p>
           
 
           <div className="landing-chip-row" data-tour-target="destination-shortcuts">
-            {["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami"].map((city) => (
+            {HERO_CITY_SHORTCUTS.map((city) => (
               <button
                 key={city}
                 type="button"
@@ -1354,7 +1365,7 @@ function LandingPage() {
                 onMouseEnter={() => prefetchCityByName(city)}
                 onFocus={() => prefetchCityByName(city)}
               >
-                {city.toUpperCase()}
+                {formatCityLabel(city)}
               </button>
             ))}
           </div>
@@ -1377,7 +1388,9 @@ function LandingPage() {
                 }}
               >
                 {["All", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami"].map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>
+                    {c === "All" ? "All destinations" : formatCityLabel(c)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -1475,11 +1488,11 @@ function LandingPage() {
                   }}
                 >
                   <option value="All">{mobileDestinationLabel}</option>
-                  <option value="Redondo Beach">Redondo Beach</option>
-                  <option value="Los Angeles">Los Angeles</option>
-                  <option value="Dubai">Dubai</option>
-                  <option value="Antwerp">Antwerp</option>
-                  <option value="Miami">Miami</option>
+                  <option value="Redondo Beach">{formatCityLabel("Redondo Beach")}</option>
+                  <option value="Los Angeles">{formatCityLabel("Los Angeles")}</option>
+                  <option value="Dubai">{formatCityLabel("Dubai")}</option>
+                  <option value="Antwerp">{formatCityLabel("Antwerp")}</option>
+                  <option value="Miami">{formatCityLabel("Miami")}</option>
                 </select>
                 {destination !== "All" && (
                   <button

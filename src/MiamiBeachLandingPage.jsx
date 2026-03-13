@@ -1916,6 +1916,20 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const miamiBeachListingsRef = useRef([]);
   const [isMapEnabled, setIsMapEnabled] = useState(true);
   const [mapError, setMapError] = useState("");
+  const teardownMainMap = () => {
+    listingMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
+    listingMarkersRef.current = [];
+    listingInfoRef.current = null;
+    geocoderRef.current = null;
+    const currentMap = mapInstanceRef.current;
+    if (currentMap?.__leafletMap?.remove) {
+      currentMap.__leafletMap.remove();
+    } else if (typeof currentMap?.destroy === "function") {
+      currentMap.destroy();
+    }
+    mapInstanceRef.current = null;
+    mapLoadedRef.current = false;
+  };
 
   const activeAmenityList = useMemo(() => {
     if (!activeListing) return [];
@@ -2314,6 +2328,17 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [isListingRoute, routeListingId]);
 
   useEffect(() => {
+    if (!isListingRoute) return;
+    teardownMainMap();
+  }, [isListingRoute]);
+
+  useEffect(() => {
+    return () => {
+      teardownMainMap();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!listings.length) return;
     const targetId = "66e1e3875a1f6300d736f28e";
     const match = listings.find((listing) => (listing.id || listing._id) === targetId);
@@ -2325,6 +2350,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [listings]);
 
   useEffect(() => {
+    if (isListingRoute) return;
     if (!isMapEnabled) return;
     if (!mapsApiKey) {
       setMapError("Map service is unavailable.");
@@ -2417,7 +2443,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [isMapEnabled, mapsApiKey]);
+  }, [isMapEnabled, mapsApiKey, isListingRoute]);
 
   const miamiBeachListings = useMemo(() => {
     return listings.filter((listing) => {

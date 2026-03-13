@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useId } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
@@ -23,6 +23,12 @@ const MAX_GUESTS = 8;
 const GUEST_OPTIONS = Array.from({ length: MAX_GUESTS }, (_, idx) => String(idx + 1));
 const PROPERTY_ADDRESS = "Dubai, United Arab Emirates";
 const PROPERTY_COORDS = { lat: 25.2048, lng: 55.2708 };
+const MANUAL_LISTING_COORD_OVERRIDES = [
+  {
+    match: /grande?\s+signature\s+residence/i,
+    coords: { lat: 25.1948029, lng: 55.2716395 },
+  },
+];
 const MAP_DEFAULT_ZOOM = 13;
 const MAP_SINGLE_MARKER_ZOOM = 13;
 const MAP_FIT_BOUNDS_MAX_ZOOM = 15;
@@ -351,6 +357,8 @@ const enumerateDateRange = (start, end) => {
 const getCalendarEntryId = (entry) =>
   entry?.listingId || entry?.id || entry?._id || null;
 
+const toLookupKey = (value) => (value === null || value === undefined ? "" : String(value));
+
 const getCalendarDayKey = (day) =>
   day?.date ||
   day?.dateLocalized ||
@@ -365,6 +373,14 @@ const isCalendarDayAvailable = (day) => {
   if (typeof day.status === "string") return day.status === "available";
   return false;
 };
+
+const hasCalendarDayAvailabilitySignal = (day) =>
+  Boolean(
+    typeof day?.allotment === "number" ||
+    typeof day?.available === "boolean" ||
+    typeof day?.isAvailable === "boolean" ||
+    typeof day?.status === "string"
+  );
 
 const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
   const date = getCalendarDayKey(day);
@@ -403,10 +419,12 @@ const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
     day?.restrictions?.maxNights,
     day?.restrictions?.maxStay
   );
+  const hasAvailabilitySignal = hasCalendarDayAvailabilitySignal(day);
   return {
     date,
     price,
     currency,
+    available: hasAvailabilitySignal ? isCalendarDayAvailable(day) : null,
     restrictions: {
       minNights,
       maxNights,
@@ -414,6 +432,118 @@ const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
       closedToDeparture: Boolean(day?.closedToDeparture ?? day?.ctd ?? day?.restrictions?.ctd),
     },
   };
+};
+
+const getCalendarEntries = (payload) =>
+  Array.isArray(payload?.calendars)
+    ? payload.calendars
+    : Array.isArray(payload?.listings)
+      ? payload.listings
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.results) && payload.results.some((item) => item?.days || item?.calendar)
+          ? payload.results
+          : [];
+
+const getCalendarEntryDays = (entry) => {
+  if (!entry) return [];
+  if (Array.isArray(entry?.days)) return entry.days;
+  if (Array.isArray(entry?.calendar)) return entry.calendar;
+  if (Array.isArray(entry?.data)) return entry.data;
+  return [];
+};
+
+const getCalendarLookupIdsForListings = (listings = []) => {
+  const childIds = listings
+    .filter((listing) => isChildListing(listing))
+    .map((listing) => listing?.id || listing?._id || listing?.unitTypeId)
+    .map(toLookupKey)
+    .filter(Boolean);
+  if (childIds.length) return [...new Set(childIds)];
+  return [
+    ...new Set(
+      listings
+        .map((listing) => listing?.id || listing?._id || listing?.unitTypeId)
+        .map(toLookupKey)
+        .filter(Boolean)
+    ),
+  ];
+};
+
+const getListingCurrencyLookup = (listings = []) => {
+  const lookup = {};
+  listings.forEach((listing) => {
+    const currency = listing?.currency || listing?.prices?.currency || null;
+    if (!currency) return;
+    [listing?.id, listing?._id, listing?.unitTypeId].forEach((idValue) => {
+      const key = toLookupKey(idValue);
+      if (key && !lookup[key]) lookup[key] = currency;
+    });
+  });
+  return lookup;
+};
+
+const buildNormalizedCalendarDaysByListing = (
+  payload,
+  listingIds = [],
+  fallbackCurrencyByListingId = {}
+) => {
+  if (!payload || !Array.isArray(listingIds) || !listingIds.length) return {};
+  const normalizedCalendars =
+    payload?.normalizedCalendars && typeof payload.normalizedCalendars === "object"
+      ? payload.normalizedCalendars
+      : {};
+  const entries = getCalendarEntries(payload);
+  const entryMap = new Map();
+  entries.forEach((entry) => {
+    const entryId = toLookupKey(getCalendarEntryId(entry));
+    if (entryId) entryMap.set(entryId, entry);
+  });
+  const normalizedIds = [...new Set(listingIds.map(toLookupKey).filter(Boolean))];
+  const daysByListing = {};
+  normalizedIds.forEach((listingId, index) => {
+    let rawDays = [];
+    if (Array.isArray(normalizedCalendars?.[listingId])) {
+      rawDays = normalizedCalendars[listingId];
+    } else {
+      const entry = entryMap.get(listingId);
+      if (entry) {
+        rawDays = getCalendarEntryDays(entry);
+      } else if (normalizedIds.length === 1 && Array.isArray(payload?.data?.days)) {
+        rawDays = payload.data.days;
+      }
+    }
+    const fallbackCurrency =
+      fallbackCurrencyByListingId[listingId] ||
+      fallbackCurrencyByListingId[toLookupKey(listingIds[index])] ||
+      null;
+    daysByListing[listingId] = rawDays
+      .map((day) => normalizeCalendarDayForUi(day, fallbackCurrency))
+      .filter(Boolean);
+  });
+  return daysByListing;
+};
+
+const buildDateAvailabilityMapFromCalendars = (daysByListing = {}) => {
+  const aggregate = {};
+  Object.values(daysByListing).forEach((days) => {
+    if (!Array.isArray(days)) return;
+    days.forEach((day) => {
+      if (!day?.date) return;
+      if (!aggregate[day.date]) {
+        aggregate[day.date] = { hasSignal: false, anyAvailable: false };
+      }
+      if (typeof day.available === "boolean") {
+        aggregate[day.date].hasSignal = true;
+        if (day.available) aggregate[day.date].anyAvailable = true;
+      }
+    });
+  });
+  const availabilityByDate = {};
+  Object.entries(aggregate).forEach(([date, info]) => {
+    if (info.hasSignal) availabilityByDate[date] = info.anyAvailable;
+  });
+  return availabilityByDate;
 };
 
 const getListingId = (listing) => listing?.id || listing?._id || null;
@@ -615,6 +745,7 @@ const DateRangePicker = ({
   value,
   onChange,
   dayPrices,
+  dayAvailability,
   onMonthChange,
   onOpenChange,
   isLoading = false,
@@ -704,8 +835,24 @@ const DateRangePicker = ({
     return isSameDay(day, startDate);
   };
 
+  const getDayAvailability = (isoDate, priceInfo = null) => {
+    if (!isoDate) return null;
+    if (dayAvailability instanceof Map && dayAvailability.has(isoDate)) {
+      const value = dayAvailability.get(isoDate);
+      if (typeof value === "boolean") return value;
+    }
+    if (priceInfo && typeof priceInfo.available === "boolean") {
+      return priceInfo.available;
+    }
+    return null;
+  };
+
   const handleDayClick = (day) => {
     if (!day || day < today) return;
+    const iso = toISODate(day);
+    const priceInfo = dayPrices?.get(iso) || null;
+    const dayAvailable = getDayAvailability(iso, priceInfo);
+    if (dayAvailable === false) return;
     let nextStart = startDate;
     let nextEnd = endDate;
     if (!startDate || (startDate && endDate)) {
@@ -864,13 +1011,15 @@ const DateRangePicker = ({
                   </div>
                   <div className="la-date-days" role="grid">
                     {monthObj.cells.map((day, idx) => {
-                      const disabled = !day || day < today;
+                      const isoDate = day ? toISODate(day) : "";
+                      const priceInfo = dayPrices && day ? dayPrices.get(isoDate) : null;
+                      const dayAvailable = day ? getDayAvailability(isoDate, priceInfo) : null;
+                      const isUnavailable = Boolean(day && dayAvailable === false);
+                      const disabled = !day || day < today || isUnavailable;
                       const isPast = Boolean(day && day < today);
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
                       const between = inRange(day) && !selected;
-                      const isoDate = day ? toISODate(day) : "";
-                      const priceInfo = dayPrices && day ? dayPrices.get(isoDate) : null;
-                      const priceLabel = !isPast
+                      const priceLabel = !isPast && !isUnavailable
                         ? priceInfo
                           ? formatCalendarPrice(priceInfo.price, priceInfo.currency)
                           : typeof fallbackPrice === "number"
@@ -891,7 +1040,11 @@ const DateRangePicker = ({
                           year: "numeric",
                         })
                         : "";
-                      const dayAria = priceLabel ? `${dayLabel}. ${priceLabel} per night.` : dayLabel;
+                      const dayAria = isUnavailable
+                        ? `${dayLabel}. Unavailable.`
+                        : priceLabel
+                          ? `${dayLabel}. ${priceLabel} per night.`
+                          : dayLabel;
                       const stateClass = disabled
                         ? "is-disabled"
                         : selected
@@ -1196,8 +1349,43 @@ const sanitizeText = (value = "") => {
     .trim();
 };
 
+const USA_CONTACT_PHONE = { e164: "12138663589", label: "+1 213 866 3589" };
+const DEFAULT_CONTACT_PHONE = { e164: "971588858935", label: "+971 58 885 8935" };
+const DUBAI_WHATSAPP_PHONE_E164 = "971588858935";
+
+const getContactLocationHint = (unit) => {
+  if (!unit) return "";
+  if (typeof unit === "string") return unit.toLowerCase();
+  return [
+    unit?.title,
+    unit?.city,
+    unit?.location,
+    unit?.country,
+    unit?.address?.city,
+    unit?.address?.state,
+    unit?.address?.country,
+  ]
+    .filter((value) => typeof value === "string" && value.trim())
+    .join(" ")
+    .toLowerCase();
+};
+
+const isUsaUnit = (unit) =>
+  /\b(united states|united states of america|usa|california|los angeles|hollywood|redondo|miami|florida)\b/i.test(
+    getContactLocationHint(unit)
+  );
+
+const resolveReservationContactPhone = (unit) => (isUsaUnit(unit) ? USA_CONTACT_PHONE : DEFAULT_CONTACT_PHONE);
+const resolveWhatsAppPhoneE164 = (unit) =>
+  isUsaUnit(unit) ? USA_CONTACT_PHONE.e164 : DUBAI_WHATSAPP_PHONE_E164;
+
 const buildWhatsAppLink = (title, checkIn, checkOut) => {
-  const unitName = title ? sanitizeText(title) : "a OneLuxStay stay";
+  const unitData = typeof title === "object" && title ? title : null;
+  const unitName = unitData?.title
+    ? sanitizeText(unitData.title)
+    : title
+      ? sanitizeText(title)
+      : "a OneLuxStay stay";
   const checkInDate = parseDateValue(checkIn);
   const checkOutDate = parseDateValue(checkOut);
   const dateLine =
@@ -1205,7 +1393,8 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
       ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
       : "";
   const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
-  return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
+  const phone = resolveWhatsAppPhoneE164(unitData || title);
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 };
 
 const BOOKING_STORAGE_KEY = "dubaiBookingFilters";
@@ -1637,6 +1826,18 @@ const getListingCoords = (listing) => {
         if (arrayCoords) return arrayCoords;
       }
     }
+  }
+  const overrideHaystack = [
+    listing?.title,
+    listing?.address?.full,
+    listing?.location,
+  ]
+    .filter((value) => typeof value === "string" && value.trim())
+    .join(" ")
+    .toLowerCase();
+  if (overrideHaystack) {
+    const override = MANUAL_LISTING_COORD_OVERRIDES.find((entry) => entry.match.test(overrideHaystack));
+    if (override?.coords) return { ...override.coords };
   }
   return null;
 };
@@ -2109,11 +2310,12 @@ export default function DubaiLandingPage() {
   const [isMobileMapOpen, setIsMobileMapOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cardImageIndexes, setCardImageIndexes] = useState({});
   const [minBedrooms, setMinBedrooms] = useState(1);
   const [showMonthlyTotal, setShowMonthlyTotal] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const filtersPanelId = useId();
+  const viewportShellRef = useRef(null);
+  const stickySearchShellRef = useRef(null);
   const [activeListing, setActiveListing] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
@@ -2129,6 +2331,43 @@ export default function DubaiLandingPage() {
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
+
+  useEffect(() => {
+    if (isListingRoute) return undefined;
+    const viewportNode = viewportShellRef.current;
+    const stickyNode = stickySearchShellRef.current;
+    if (!viewportNode || !stickyNode) return undefined;
+
+    let rafId = null;
+    const applyStickyOffset = () => {
+      const nextHeight = Math.ceil(stickyNode.getBoundingClientRect().height || 0);
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+      viewportNode.style.setProperty("--dubai-sticky-nav-height", `${nextHeight}px`);
+    };
+    const scheduleApplyStickyOffset = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        applyStickyOffset();
+      });
+    };
+
+    applyStickyOffset();
+    window.addEventListener("resize", scheduleApplyStickyOffset);
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(scheduleApplyStickyOffset);
+      resizeObserver.observe(stickyNode);
+    }
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", scheduleApplyStickyOffset);
+      resizeObserver?.disconnect();
+      viewportNode.style.removeProperty("--dubai-sticky-nav-height");
+    };
+  }, [isListingRoute]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -2239,8 +2478,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   });
   const sectionCalendarCacheRef = useRef({});
   const sectionCalendarDaysRef = useRef({});
+  const sectionCalendarAvailabilityRef = useRef({});
+  const [sectionCalendarAvailability, setSectionCalendarAvailability] = useState({});
   const [isSectionCalendarOpen, setIsSectionCalendarOpen] = useState(false);
   const sectionCalendarInflightRef = useRef({});
+  const [cityCalendarAvailability, setCityCalendarAvailability] = useState({});
+  const [cityCalendarLoading, setCityCalendarLoading] = useState(false);
+  const cityCalendarCacheRef = useRef({});
+  const cityCalendarInflightRef = useRef({});
+  const [isCityCalendarOpen, setIsCityCalendarOpen] = useState(false);
   const [tourCity, setTourCity] = useState(TOUR_CITIES[0]);
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
@@ -2272,6 +2518,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const mapsApiRef = useRef(null);
   const listingMarkersRef = useRef([]);
   const listingInfoRef = useRef(null);
+  const mapPopupClustersRef = useRef(new Map());
   const geocoderRef = useRef(null);
   const geocodeCacheRef = useRef(new Map());
   const geocodeInFlightRef = useRef(new Set());
@@ -2279,6 +2526,21 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const losAngelesListingsRef = useRef([]);
   const [isMapEnabled, setIsMapEnabled] = useState(true);
   const [mapError, setMapError] = useState("");
+  const teardownMainMap = () => {
+    listingMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
+    listingMarkersRef.current = [];
+    mapPopupClustersRef.current.clear();
+    listingInfoRef.current = null;
+    geocoderRef.current = null;
+    const currentMap = mapInstanceRef.current;
+    if (currentMap?.__leafletMap?.remove) {
+      currentMap.__leafletMap.remove();
+    } else if (typeof currentMap?.destroy === "function") {
+      currentMap.destroy();
+    }
+    mapInstanceRef.current = null;
+    mapLoadedRef.current = false;
+  };
 
   const activeAmenityList = useMemo(() => {
     if (!activeListing) return [];
@@ -2334,6 +2596,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (!Array.isArray(sectionCalendarPrices?.days)) return new Map();
     return new Map(sectionCalendarPrices.days.map((day) => [day.date, day]));
   }, [sectionCalendarPrices]);
+
+  const sectionCalendarAvailabilityMap = useMemo(
+    () => new Map(Object.entries(sectionCalendarAvailability || {})),
+    [sectionCalendarAvailability]
+  );
+
+  const cityCalendarAvailabilityMap = useMemo(
+    () => new Map(Object.entries(cityCalendarAvailability || {})),
+    [cityCalendarAvailability]
+  );
 
   const sectionCalendarCurrentMonth = useMemo(() => {
     const base = new Date(sectionCalendarStartDate);
@@ -2475,6 +2747,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionCalendarError("");
       setSectionCalendarMonthIndex(0);
       setSectionCalendarMinNightsOverride(null);
+      setSectionCalendarAvailability({});
       setIsReviewExpanded(false);
       setShowAllAmenities(false);
     }
@@ -2708,6 +2981,19 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [isListingRoute, routeListingId]);
 
   useEffect(() => {
+    if (!isListingRoute) return;
+    // Listing route swaps out the split-view map DOM; reset map so it can
+    // initialize again when returning to /dubai.
+    teardownMainMap();
+  }, [isListingRoute]);
+
+  useEffect(() => {
+    return () => {
+      teardownMainMap();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!listings.length) return;
     const targetId = "66e1e3875a1f6300d736f28e";
     const match = listings.find((listing) => (listing.id || listing._id) === targetId);
@@ -2719,6 +3005,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [listings]);
 
   useEffect(() => {
+    if (isListingRoute) return;
     if (!isMapEnabled) return;
     if (!mapsApiKey) {
       setMapError("Map service is unavailable.");
@@ -2784,7 +3071,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [isMapEnabled, mapsApiKey]);
+  }, [isMapEnabled, mapsApiKey, isListingRoute]);
 
   const losAngelesListings = useMemo(() => {
     return listings.filter((listing) => {
@@ -2800,8 +3087,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
   }, [losAngelesListings]);
 
-  const buildMapPopupContent = (listing) => {
-    if (!listing) return "";
+  const buildMapPopupContent = useCallback((popupListings = [], activeIndex = 0, popupKey = "") => {
+    const listings = (Array.isArray(popupListings) ? popupListings : [popupListings]).filter(Boolean);
+    if (!listings.length) return "";
+
+    const safeIndex =
+      ((Number(activeIndex) || 0) % listings.length + listings.length) % listings.length;
+    const listing = listings[safeIndex];
+    const totalUnits = listings.length;
     const title = escapeHtml(resolveGroupTitle(listing) || listing?.title || "One Lux Stay");
     const image = escapeHtml(getListingImageUrls(listing)[0] || FALLBACK_IMAGE);
     const basePrice = firstNumber(
@@ -2833,22 +3126,77 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const address = escapeHtml(formatAddress(listing));
     const listingId = getListingId(listing);
     const listingPath = listingId ? `/dubai/listing/${encodeURIComponent(listingId)}` : "/dubai";
+    const safePopupKey = escapeHtml(String(popupKey || ""));
+    const unitNav =
+      totalUnits > 1
+        ? `
+          <div class="ols-map-popup__unit-nav-wrap">
+            <button
+              type="button"
+              class="ols-map-popup__unit-nav"
+              data-popup-key="${safePopupKey}"
+              data-popup-direction="prev"
+              aria-label="Previous unit"
+            >
+              &#8249;
+            </button>
+            <span class="ols-map-popup__unit-count">${safeIndex + 1} / ${totalUnits}</span>
+            <button
+              type="button"
+              class="ols-map-popup__unit-nav"
+              data-popup-key="${safePopupKey}"
+              data-popup-direction="next"
+              aria-label="Next unit"
+            >
+              &#8250;
+            </button>
+          </div>
+        `
+        : "";
+    const mediaNav =
+      totalUnits > 1
+        ? `
+          <button
+            type="button"
+            class="ols-map-popup__media-nav ols-map-popup__media-nav--prev"
+            data-popup-key="${safePopupKey}"
+            data-popup-direction="prev"
+            aria-label="Previous listing"
+          >
+            &#8249;
+          </button>
+          <button
+            type="button"
+            class="ols-map-popup__media-nav ols-map-popup__media-nav--next"
+            data-popup-key="${safePopupKey}"
+            data-popup-direction="next"
+            aria-label="Next listing"
+          >
+            &#8250;
+          </button>
+        `
+        : "";
 
     return `
-      <div class="ols-map-popup">
+      <div class="ols-map-popup" data-popup-key="${safePopupKey}">
         <div class="ols-map-popup__header">
           <span class="ols-map-popup__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
               <path d="M12 4 3 11h2v8h5v-5h4v5h5v-8h2z" fill="currentColor" />
             </svg>
           </span>
-          <div class="ols-map-popup__title">${title}</div>
+          <div class="ols-map-popup__title-block">
+            <div class="ols-map-popup__title">${title}</div>
+            ${totalUnits > 1 ? `<div class="ols-map-popup__title-sub">${totalUnits} units here</div>` : ""}
+          </div>
+          ${unitNav}
         </div>
         <a class="ols-map-popup__card" href="${listingPath}">
-          <div class="ols-map-popup__media">
+          <div class="ols-map-popup__media" data-popup-key="${safePopupKey}">
             <img src="${image}" alt="${title}" loading="lazy" />
             <span class="ols-map-popup__badge">Popular home</span>
             <span class="ols-map-popup__fav" aria-hidden="true">&#9825;</span>
+            ${mediaNav}
           </div>
           <div class="ols-map-popup__body">
             <div class="ols-map-popup__price">${escapeHtml(priceLabel)}</div>
@@ -2860,7 +3208,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </a>
       </div>
     `;
-  };
+  }, []);
 
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
@@ -2907,6 +3255,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
   }, [filteredListings]);
 
+  const cityCalendarListingIds = useMemo(
+    () => getCalendarLookupIdsForListings(filteredListings),
+    [filteredListings]
+  );
+
+  const cityCalendarCurrencyByListingId = useMemo(
+    () => getListingCurrencyLookup(filteredListings),
+    [filteredListings]
+  );
+
   const citySuggestions = useMemo(() => {
     const items = [];
     const seen = new Set();
@@ -2933,6 +3291,93 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return citySuggestions.filter((item) => item.key.includes(query)).slice(0, 6);
   }, [citySuggestions, searchQuery]);
 
+  const navigatePopupUnit = useCallback(
+    (popupKey = "", direction = "next") => {
+      const popupState = mapPopupClustersRef.current.get(popupKey);
+      if (!popupState?.listings?.length || !popupState.marker) return;
+
+      const total = popupState.listings.length;
+      const delta = direction === "prev" ? -1 : 1;
+      const nextIndex = ((popupState.activeIndex + delta) % total + total) % total;
+      popupState.activeIndex = nextIndex;
+
+      const infoWindow = listingInfoRef.current;
+      const map = mapInstanceRef.current;
+      if (!infoWindow || !map) return;
+      infoWindow.setContent(buildMapPopupContent(popupState.listings, nextIndex, popupKey));
+      infoWindow.open(map, popupState.marker);
+    },
+    [buildMapPopupContent]
+  );
+
+  useEffect(() => {
+    const handlePopupUnitNavigation = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const trigger = target.closest(".ols-map-popup__unit-nav, .ols-map-popup__media-nav");
+      if (!trigger) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const popupKey = trigger.getAttribute("data-popup-key") || "";
+      const direction = trigger.getAttribute("data-popup-direction") || "next";
+      navigatePopupUnit(popupKey, direction);
+    };
+
+    const touchSession = {
+      popupKey: "",
+      startX: 0,
+      startY: 0,
+      active: false,
+    };
+
+    const handlePopupTouchStart = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const media = target.closest(".ols-map-popup__media[data-popup-key]");
+      if (!media) return;
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      touchSession.popupKey = media.getAttribute("data-popup-key") || "";
+      touchSession.startX = touch.clientX;
+      touchSession.startY = touch.clientY;
+      touchSession.active = Boolean(touchSession.popupKey);
+    };
+
+    const handlePopupTouchEnd = (event) => {
+      if (!touchSession.active || !touchSession.popupKey) return;
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+      const deltaX = touch.clientX - touchSession.startX;
+      const deltaY = touch.clientY - touchSession.startY;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      const minSwipePx = 38;
+      if (absX >= minSwipePx && absX > absY) {
+        event.preventDefault();
+        event.stopPropagation();
+        navigatePopupUnit(touchSession.popupKey, deltaX < 0 ? "next" : "prev");
+      }
+      touchSession.active = false;
+      touchSession.popupKey = "";
+    };
+
+    document.addEventListener("click", handlePopupUnitNavigation, true);
+    document.addEventListener("touchstart", handlePopupTouchStart, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("touchend", handlePopupTouchEnd, {
+      capture: true,
+      passive: false,
+    });
+    return () => {
+      document.removeEventListener("click", handlePopupUnitNavigation, true);
+      document.removeEventListener("touchstart", handlePopupTouchStart, true);
+      document.removeEventListener("touchend", handlePopupTouchEnd, true);
+    };
+  }, [navigatePopupUnit]);
+
   const syncListingMarkers = (
     listingsToUse = losAngelesListingsRef.current,
     { fitBounds = true } = {}
@@ -2943,6 +3388,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
     listingMarkersRef.current.forEach((marker) => marker.setMap(null));
     listingMarkersRef.current = [];
+    mapPopupClustersRef.current.clear();
 
     let infoWindow = listingInfoRef.current;
     if (!infoWindow) {
@@ -2973,21 +3419,31 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       if (zoom <= 18) return 0.015;
       return 0.008;
     };
+    const getPopupClusterKey = (listing, coords) => {
+      const normalizedTitle = sanitizeText(listing?.title || "")
+        .toLowerCase()
+        .replace(/\b\d+\s*br\b/g, "")
+        .replace(/\bstudio\b/g, "")
+        .replace(/\s*-\s*.*/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (normalizedTitle) return `title:${normalizedTitle}`;
+
+      const normalizedAddress = formatAddress(listing)
+        .toLowerCase()
+        .replace(/,?\s*(apt|apartment|unit|suite|ste|#)\s*[^,]*/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (normalizedAddress) return `addr:${normalizedAddress}`;
+
+      const step = getClusterStep();
+      const latBucket = Math.round(coords.lat / step);
+      const lngBucket = Math.round(coords.lng / step);
+      return `coord:${latBucket}:${lngBucket}`;
+    };
     const addToCluster = (coords, listing) => {
-      const groupKey = getBuildingKey(listing);
-      const groupOffsets = {
-        "la-downtown": { lat: 0.0012, lng: 0.0 },
-        "la-hwh": { lat: -0.0012, lng: 0.0 },
-        "la-hollywood": { lat: 0.0, lng: 0.0012 },
-        other: { lat: 0.0, lng: -0.0012 },
-      };
-      const offset = groupOffsets[groupKey] || groupOffsets.other;
-      const adjusted = {
-        lat: coords.lat + offset.lat,
-        lng: coords.lng + offset.lng,
-      };
-      const listingKey = getListingId(listing) || formatAddress(listing) || `${adjusted.lat},${adjusted.lng}`;
-      const key = `${listingKey}`;
+      const adjusted = { lat: coords.lat, lng: coords.lng };
+      const key = getPopupClusterKey(listing, adjusted);
       if (!clusters.has(key)) {
         clusters.set(key, { coords: adjusted, listings: [] });
       }
@@ -3032,6 +3488,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return parent || listing;
     };
 
+    let popupKeyIndex = 0;
     clusters.forEach(({ coords, listings: clusterListings }) => {
       const parents = clusterListings.map(toParentListing);
       const uniqueParents = [];
@@ -3051,8 +3508,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         icon: listingMarkerIcon,
         zIndex: 10,
       });
+      const popupKey = `cluster-${popupKeyIndex++}`;
       marker.addListener("click", () => {
-        infoWindow.setContent(buildMapPopupContent(primary));
+        const popupListings = uniqueParents.length ? uniqueParents : [primary];
+        mapPopupClustersRef.current.set(popupKey, {
+          marker,
+          listings: popupListings,
+          activeIndex: 0,
+        });
+        infoWindow.setContent(buildMapPopupContent(popupListings, 0, popupKey));
         infoWindow.open(map, marker);
       });
       listingMarkersRef.current.push(marker);
@@ -3287,19 +3751,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       if (!res.ok) return;
       const data = await res.json();
       let days = null;
-      if (data?.normalizedCalendars?.[listingId]) {
-        days = data.normalizedCalendars[listingId];
+      const listingKey = toLookupKey(listingId);
+      if (data?.normalizedCalendars?.[listingKey]) {
+        days = data.normalizedCalendars[listingKey];
       } else {
-        const calendarEntries = Array.isArray(data?.calendars)
-          ? data.calendars
-          : Array.isArray(data?.listings)
-            ? data.listings
-            : Array.isArray(data?.data)
-              ? data.data
-              : [];
-        const entry = calendarEntries.find((item) => getCalendarEntryId(item) === listingId);
+        const calendarEntries = getCalendarEntries(data);
+        const entry = calendarEntries.find((item) => toLookupKey(getCalendarEntryId(item)) === listingKey);
         if (entry) {
-          const rawDays = entry?.days || entry?.calendar || entry?.data || [];
+          const rawDays = getCalendarEntryDays(entry);
           days = rawDays
             .map((day) => normalizeCalendarDayForUi(day, entry?.currency))
             .filter(Boolean);
@@ -3325,6 +3784,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             date: day.date,
             price: typeof day.price === "number" ? day.price : existing.price ?? null,
             currency: day.currency || existing.currency || null,
+            available:
+              typeof day.available === "boolean"
+                ? day.available
+                : typeof existing.available === "boolean"
+                  ? existing.available
+                  : null,
             restrictions: {
               ...existing.restrictions,
               minNights: day?.restrictions?.minNights ?? existing?.restrictions?.minNights ?? null,
@@ -3350,7 +3815,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const primaryId = getPrimaryListingId(activeSection?.listings || []);
     if (!primaryId) return;
     const key = `${primaryId}-${monthKey(targetDate)}`;
-    if (sectionCalendarCacheRef.current[key]) return;
+    if (sectionCalendarCacheRef.current[key]) {
+      const cachedDays = sectionCalendarDaysRef.current[primaryId];
+      if (cachedDays) setSectionCalendarPrices(buildCalendarPayload(cachedDays));
+      setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[primaryId] || {});
+      return;
+    }
 
     setSectionCalendarLoading(true);
     setSectionCalendarError("");
@@ -3358,10 +3828,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     try {
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
       const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 12, 1);
+      const calendarListingIds = [...new Set(listingIds.map(toLookupKey).filter(Boolean))];
+      if (!calendarListingIds.length) {
+        setSectionCalendarAvailability({});
+        return;
+      }
+      const currencyByListingId = getListingCurrencyLookup(activeSection?.listings || []);
       const pricingListing = getLowestPriceListing(activeSection?.listings || []);
-      const pricingListingId = getListingId(pricingListing) || listingIds[0];
+      const pricingListingId = toLookupKey(getListingId(pricingListing) || calendarListingIds[0]);
       const qs = new URLSearchParams({
-        listingIds: pricingListingId,
+        listingIds: calendarListingIds.join(","),
         startDate: toISODate(monthStart),
         endDate: toISODate(monthEnd),
         includeAllotment: "true",
@@ -3375,41 +3851,30 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         throw new Error(data?.message || "Calendar pricing failed");
       }
 
-      const calendarEntries = Array.isArray(data?.calendars)
-        ? data.calendars
-        : Array.isArray(data?.listings)
-          ? data.listings
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
-      const currencyFallback =
-        pricingListing?.currency || activeSection?.listings?.[0]?.currency || "USD";
-      let days = [];
-
-      if (data?.normalizedCalendars?.[pricingListingId]) {
-        days = data.normalizedCalendars[pricingListingId];
-      } else if (Array.isArray(data?.data?.days)) {
-        days = data.data.days;
-      } else {
-        const entry = calendarEntries.find(
-          (item) => getCalendarEntryId(item) === pricingListingId
+      const daysByListing = buildNormalizedCalendarDaysByListing(
+        data,
+        calendarListingIds,
+        currencyByListingId
+      );
+      const availabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
+      let pricingDays = daysByListing[pricingListingId] || [];
+      if (!pricingDays.length) {
+        const fallbackPricingId = calendarListingIds.find(
+          (id) => Array.isArray(daysByListing[id]) && daysByListing[id].length
         );
-        if (entry) {
-          days = entry?.days || entry?.calendar || entry?.data || [];
-        }
+        pricingDays = fallbackPricingId ? daysByListing[fallbackPricingId] : [];
       }
 
       const dayMap = {};
-      days
-        .map((day) => normalizeCalendarDayForUi(day, currencyFallback))
-        .filter(Boolean)
-        .forEach((day) => {
-          dayMap[day.date] = day;
-        });
+      pricingDays.forEach((day) => {
+        dayMap[day.date] = day;
+      });
 
       sectionCalendarDaysRef.current[primaryId] = dayMap;
+      sectionCalendarAvailabilityRef.current[primaryId] = availabilityByDate;
       sectionCalendarCacheRef.current[key] = true;
       setSectionCalendarPrices(buildCalendarPayload(dayMap));
+      setSectionCalendarAvailability(availabilityByDate);
       const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
       if (typeof minNightsOverride === "number") {
         setSectionCalendarMinNightsOverride(minNightsOverride);
@@ -3420,6 +3885,54 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionCalendarLoading(false);
     }
   };
+
+  const fetchCityCalendarAvailability = useCallback(
+    async (targetDate, { force = false } = {}) => {
+      if (!targetDate) return;
+      const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const listingIds = cityCalendarListingIds;
+      if (!listingIds.length) {
+        setCityCalendarAvailability({});
+        return;
+      }
+      const key = `${monthKey(monthStart)}-${listingIds.join(",")}`;
+      if (!force && cityCalendarCacheRef.current[key]) {
+        setCityCalendarAvailability(cityCalendarCacheRef.current[key]);
+        return;
+      }
+      if (cityCalendarInflightRef.current[key]) return;
+      cityCalendarInflightRef.current[key] = true;
+      setCityCalendarLoading(true);
+      try {
+        const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 12, 1);
+        const qs = new URLSearchParams({
+          listingIds: listingIds.join(","),
+          startDate: toISODate(monthStart),
+          endDate: toISODate(monthEnd),
+          includeAllotment: "true",
+        }).toString();
+        const res = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const daysByListing = buildNormalizedCalendarDaysByListing(
+          data,
+          listingIds,
+          cityCalendarCurrencyByListingId
+        );
+        const availabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
+        cityCalendarCacheRef.current[key] = availabilityByDate;
+        setCityCalendarAvailability(availabilityByDate);
+      } catch {
+        // keep dates selectable if calendar availability is temporarily unavailable
+      } finally {
+        cityCalendarInflightRef.current[key] = false;
+        setCityCalendarLoading(false);
+      }
+    },
+    [cityCalendarListingIds, cityCalendarCurrencyByListingId]
+  );
 
   const handleSectionCalendarOpen = (open) => {
     setIsSectionCalendarOpen(open);
@@ -3433,6 +3946,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
     if (!listingIds.length) return;
     fetchSectionCalendarMultiMonth(listingIds, baseDate);
+  };
+
+  const handleCityCalendarOpen = (open) => {
+    setIsCityCalendarOpen(open);
+    if (!open) return;
+    const baseDate = parseDateValue(sectionCheckIn) || new Date();
+    baseDate.setDate(1);
+    baseDate.setHours(0, 0, 0, 0);
+    fetchCityCalendarAvailability(baseDate);
   };
 
   const handleListingCalendarOpen = (open) => {
@@ -3456,6 +3978,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setCalendarPrices
     );
   };
+
+  useEffect(() => {
+    cityCalendarCacheRef.current = {};
+    setCityCalendarAvailability({});
+    if (!isCityCalendarOpen) return;
+    const baseDate = new Date();
+    baseDate.setDate(1);
+    baseDate.setHours(0, 0, 0, 0);
+    fetchCityCalendarAvailability(baseDate, { force: true });
+  }, [cityCalendarListingIds, isCityCalendarOpen, fetchCityCalendarAvailability]);
 
   const openInquiry = (listing) => {
     if (!listing) return;
@@ -3487,11 +4019,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   useEffect(() => {
     if (!activeSection) return;
-    const listingId =
-      activeSection.listings[0]?.unitTypeId ||
-      activeSection.listings[0]?.id ||
-      activeSection.listings[0]?._id;
-    if (!listingId) return;
+    const listingId = getPrimaryListingId(activeSection.listings || []);
+    if (!listingId) {
+      setSectionCalendarAvailability({});
+      return;
+    }
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
@@ -3504,6 +4036,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     } else {
       setSectionCalendarPrices(null);
     }
+    setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[listingId] || {});
   }, [activeSection]);
 
   useEffect(() => {
@@ -3775,16 +4308,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         throw new Error(errText || "Availability failed");
       }
       const bulkJson = await bulkRes.json();
-      const normalizedCalendars = bulkJson?.normalizedCalendars || null;
-      const calendarEntries = Array.isArray(bulkJson?.calendars)
-        ? bulkJson.calendars
-        : Array.isArray(bulkJson?.listings)
-          ? bulkJson.listings
-          : Array.isArray(bulkJson?.data)
-            ? bulkJson.data
-            : Array.isArray(bulkJson?.results) && bulkJson.results.some((item) => item?.days || item?.calendar)
-              ? bulkJson.results
-              : [];
+      const lookupIds = [...new Set(items.map(toLookupKey).filter(Boolean))];
+      const currencyByListingId = getListingCurrencyLookup(listingPool);
+      const daysByListing = buildNormalizedCalendarDaysByListing(
+        bulkJson,
+        lookupIds,
+        currencyByListingId
+      );
+      const aggregatedCalendarAvailability = buildDateAvailabilityMapFromCalendars(daysByListing);
 
       // availability is driven by availability-query results (child-only)
 
@@ -3810,43 +4341,29 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionAvailabilityMap(parentAvailabilityMap);
       setSectionAvailabilityActive(true);
 
-      const calendarListingId = listingId || getPrimaryListingId(listingPool);
+      const calendarListingId = toLookupKey(listingId || getPrimaryListingId(listingPool));
+      const sectionCalendarId = toLookupKey(getPrimaryListingId(listingPool) || calendarListingId);
+      if (sectionCalendarId) {
+        const mergedAvailability = {
+          ...(sectionCalendarAvailabilityRef.current[sectionCalendarId] || {}),
+          ...aggregatedCalendarAvailability,
+        };
+        sectionCalendarAvailabilityRef.current[sectionCalendarId] = mergedAvailability;
+        setSectionCalendarAvailability(mergedAvailability);
+      }
       if (calendarListingId) {
-        if (normalizedCalendars?.[calendarListingId]) {
+        const days = daysByListing[calendarListingId] || [];
+        if (days.length) {
           const dayMap = {};
-          normalizedCalendars[calendarListingId]
-            .map((day) => normalizeCalendarDayForUi(day, listingPool?.[0]?.currency))
-            .filter(Boolean)
-            .forEach((day) => {
-              dayMap[day.date] = day;
-            });
+          days.forEach((day) => {
+            dayMap[day.date] = day;
+          });
           sectionCalendarDaysRef.current[calendarListingId] = dayMap;
           setSectionCalendarPrices(buildCalendarPayload(dayMap));
           calendarMultiLoaded = true;
           const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
           if (typeof minNightsOverride === "number") {
             setSectionCalendarMinNightsOverride(minNightsOverride);
-          }
-        } else if (calendarEntries.length) {
-          const calendarEntry = calendarEntries.find(
-            (entry) => getCalendarEntryId(entry) === calendarListingId
-          );
-          if (calendarEntry) {
-            const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
-            const dayMap = {};
-            days
-              .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
-              .filter(Boolean)
-              .forEach((day) => {
-                dayMap[day.date] = day;
-              });
-            sectionCalendarDaysRef.current[calendarListingId] = dayMap;
-            setSectionCalendarPrices(buildCalendarPayload(dayMap));
-            calendarMultiLoaded = true;
-            const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
-            if (typeof minNightsOverride === "number") {
-              setSectionCalendarMinNightsOverride(minNightsOverride);
-            }
           }
         }
       }
@@ -4376,6 +4893,7 @@ const applyCheckoutPromoCode = () => {
   const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
     inquiryBody
   )}`;
+  const activeListingContactPhone = resolveReservationContactPhone(activeListing);
   const logoHomeProps = {
     role: "button",
     tabIndex: 0,
@@ -4965,13 +5483,13 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Dubai</strong>
-                <a href="tel:+32493813441">+32 493 81 34 41</a>
+                <a href={`tel:+${activeListingContactPhone.e164}`}>{activeListingContactPhone.label}</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
                 </a>
                 <a
-                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                  href={buildWhatsAppLink(activeListing, sectionCheckIn, sectionCheckOut)}
                   className="la-unit-modal__contact-cta"
                   target="_blank"
                   rel="noreferrer"
@@ -6147,7 +6665,7 @@ const applyCheckoutPromoCode = () => {
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      <div className="city-viewport-shell city-viewport-shell--dubai">
+      <div className="city-viewport-shell city-viewport-shell--dubai" ref={viewportShellRef}>
       {/* <section className="la-bounce-section" aria-label="Dubai highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
@@ -6179,7 +6697,11 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
-      <section className="city-search-shell city-search-shell--dubai" aria-label="Search Dubai stays">
+      <section
+        className="city-search-shell city-search-shell--dubai"
+        aria-label="Search Dubai stays"
+        ref={stickySearchShellRef}
+      >
         <div className="city-search-topline city-search-topline--breadcrumbs" aria-label="Location breadcrumb">
           <Link to="/" className="city-search-brand" aria-label="OneLuxStay home">
             <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
@@ -6195,7 +6717,7 @@ const applyCheckoutPromoCode = () => {
             </span>
           </nav>
         </div>
-        <div className={`city-search-bar${filtersOpen ? " is-filters-open" : ""}`}>
+        <div className="city-search-bar">
           <label className="city-search-field city-search-field--location">
             <span className="city-search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -6234,7 +6756,7 @@ const applyCheckoutPromoCode = () => {
             ) : null}
             <div
               className={`city-search-dropdown${
-                isSearchFocused && filteredCitySuggestions.length && !filtersOpen ? " is-open" : ""
+                isSearchFocused && filteredCitySuggestions.length ? " is-open" : ""
               }`}
               role="listbox"
               aria-label="Available cities"
@@ -6267,29 +6789,49 @@ const applyCheckoutPromoCode = () => {
           <div className="city-search-field city-search-field--dates">
             <DateRangePicker
               value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              dayAvailability={cityCalendarAvailabilityMap}
+              isLoading={cityCalendarLoading}
+              onMonthChange={(month) => {
+                const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+                fetchCityCalendarAvailability(monthStart);
+              }}
+              onOpenChange={handleCityCalendarOpen}
               onChange={({ checkIn, checkOut }) => {
                 setSectionCheckIn(checkIn);
                 setSectionCheckOut(checkOut);
               }}
             />
           </div>
+          <span className="city-search-divider" aria-hidden="true" />
+          <label className="city-search-field city-search-field--guests-inline">
+            <span className="city-search-guests-label">Guests</span>
+            <select
+              className="city-search-guests-select"
+              value={sectionGuests}
+              onChange={(event) => setSectionGuests(event.target.value)}
+              aria-label="Guests"
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
+                <option key={guestCount} value={String(guestCount)}>
+                  {guestCount}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
-            className="city-search-filters"
-            aria-expanded={filtersOpen}
-            aria-controls={filtersPanelId}
+            className="city-search-clear city-search-clear--inline"
             onClick={() => {
-              setFiltersOpen((prev) => !prev);
-              setIsSearchFocused(false);
+              setSearchQuery("");
+              setAppliedSearch("");
+              setSectionCheckIn("");
+              setSectionCheckOut("");
+              setSectionGuests("2");
+              setMinBedrooms(1);
+              setShowMonthlyTotal(false);
             }}
           >
-            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-              <path
-                d="M4 7h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2zm0 6h3a2 2 0 0 0 4 0h9v-2h-9a2 2 0 0 0-4 0H4v2zm0 6h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2z"
-                fill="currentColor"
-              />
-            </svg>
-            Filters
+            Clear filters
           </button>
           <button type="button" className="city-search-submit" onClick={handleSearchSubmit}>
             <span className="city-search-submit__icon" aria-hidden="true">
@@ -6301,62 +6843,6 @@ const applyCheckoutPromoCode = () => {
               </svg>
             </span>
             Search
-          </button>
-        </div>
-        <div id={filtersPanelId} className={`city-search-panel${filtersOpen ? " is-open" : ""}`}>
-          <label className="city-search-panel__field">
-            <span>Guests</span>
-            <select
-              value={sectionGuests}
-              onChange={(event) => setSectionGuests(event.target.value)}
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
-                <option key={guestCount} value={String(guestCount)}>
-                  {guestCount}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="city-search-panel__field">
-            <span>Bedrooms</span>
-            <select
-              value={minBedrooms}
-              onChange={(event) => setMinBedrooms(Number(event.target.value) || 1)}
-            >
-              <option value={1}>Any</option>
-              {[2, 3, 4, 5, 6].map((count) => (
-                <option key={count} value={count}>
-                  {count}+
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="city-search-toggle">
-            <input
-              type="checkbox"
-              checked={hasStayDates && showMonthlyTotal}
-              disabled={!hasStayDates}
-              onChange={(event) => {
-                if (!hasStayDates) return;
-                setShowMonthlyTotal(event.target.checked);
-              }}
-            />
-            <span className="city-search-toggle__track" aria-hidden="true">
-              <span className="city-search-toggle__thumb" />
-            </span>
-            <span>Total stay cost</span>
-          </label>
-          <button
-            type="button"
-            className="city-search-clear"
-            onClick={() => {
-              setSearchQuery("");
-              setAppliedSearch("");
-              setMinBedrooms(1);
-              setShowMonthlyTotal(false);
-            }}
-          >
-            Clear filters
           </button>
         </div>
         <p className="city-search-summary" aria-live="polite">
@@ -6497,7 +6983,31 @@ const applyCheckoutPromoCode = () => {
                     {filteredParentListings.map((listing) => {
                     const listingId = getListingId(listing);
                     const listingPath = listingId ? buildListingPath(listingId) : "/dubai";
-                    const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
+                    const listingKey = listingId || listingPath;
+                    const listingImages = getListingImageUrls(listing);
+                    const cardImageSources = listingImages.length
+                      ? listingImages
+                      : [getImageUrl(listing?.picture) || FALLBACK_IMAGE];
+                    const rawCardImageIndex = cardImageIndexes[listingKey] || 0;
+                    const safeCardImageIndex =
+                      ((rawCardImageIndex % cardImageSources.length) + cardImageSources.length) %
+                      cardImageSources.length;
+                    const dotWindowSize = 3;
+                    const carouselDotIndexes =
+                      cardImageSources.length <= dotWindowSize
+                        ? cardImageSources.map((_, idx) => idx)
+                        : (() => {
+                            const maxStart = cardImageSources.length - dotWindowSize;
+                            const start = Math.min(
+                              Math.max(safeCardImageIndex - 1, 0),
+                              maxStart
+                            );
+                            return Array.from(
+                              { length: dotWindowSize },
+                              (_, offset) => start + offset
+                            );
+                          })();
+                    const imageUrl = cardImageSources[safeCardImageIndex] || FALLBACK_IMAGE;
                     const basePrice = firstNumber(
                       listing?.basePrice,
                       listing?.prices?.basePrice,
@@ -6544,11 +7054,65 @@ const applyCheckoutPromoCode = () => {
                       <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
                         <div className="la-unit-listing-card__media">
                           <img
+                            key={`${listingKey}-image-${safeCardImageIndex}`}
+                            className="la-unit-listing-card__media-image"
                             src={imageUrl || FALLBACK_IMAGE}
                             alt={sanitizeText(listing?.title || "One Lux Stay Dubai")}
                             loading="lazy"
                             onError={handleImageError}
                           />
+                          {cardImageSources.length > 1 ? (
+                            <div
+                              className="la-unit-listing-card__carousel"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="la-unit-listing-card__carousel-btn"
+                                aria-label="Previous image"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setCardImageIndexes((prev) => ({
+                                    ...prev,
+                                    [listingKey]:
+                                      (safeCardImageIndex - 1 + cardImageSources.length) %
+                                      cardImageSources.length,
+                                  }));
+                                }}
+                              >
+                                &#8249;
+                              </button>
+                              <div className="la-unit-listing-card__carousel-dots" aria-hidden="true">
+                                {carouselDotIndexes.map((idx) => (
+                                  <span
+                                    key={`${listingKey}-dot-${idx}`}
+                                    className={`la-unit-listing-card__carousel-dot${
+                                      idx === safeCardImageIndex ? " is-active" : ""
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <button
+                                type="button"
+                                className="la-unit-listing-card__carousel-btn"
+                                aria-label="Next image"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setCardImageIndexes((prev) => ({
+                                    ...prev,
+                                    [listingKey]: (safeCardImageIndex + 1) % cardImageSources.length,
+                                  }));
+                                }}
+                              >
+                                &#8250;
+                              </button>
+                            </div>
+                          ) : null}
                           <span className="la-unit-listing-card__badge">Available now</span>
                           <span className="la-unit-listing-card__fav" aria-hidden="true">
                             &#9825;
@@ -6743,6 +7307,7 @@ const applyCheckoutPromoCode = () => {
               const coords = sectionParent ? getListingCoords(sectionParent) : null;
               const addressQuery = sectionParent ? formatAddress(sectionParent) : "";
               const sectionLabel = sectionParent ? resolveGroupTitle(sectionParent) : "OneLuxStay";
+              const sectionContactPhone = resolveReservationContactPhone(sectionParent || sectionLabel);
               const mapCoords = coords || PROPERTY_COORDS;
               const mapUrl = buildStaticMapUrl(mapCoords, "520x320", 13);
               const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 14);
@@ -6829,13 +7394,13 @@ const applyCheckoutPromoCode = () => {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Dubai</strong>
-                      <a href="tel:+32493813441">+32 493 81 34 41</a>
+                      <a href={`tel:+${sectionContactPhone.e164}`}>{sectionContactPhone.label}</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
                       </a>
                       <a
-                        href={buildWhatsAppLink(sectionParent?.title || sectionLabel, sectionCheckIn, sectionCheckOut)}
+                        href={buildWhatsAppLink(sectionParent || sectionLabel, sectionCheckIn, sectionCheckOut)}
                         className="la-unit-modal__contact-cta"
                         target="_blank"
                         rel="noreferrer"
@@ -6950,6 +7515,7 @@ const applyCheckoutPromoCode = () => {
                     <DateRangePicker
                       value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                       dayPrices={sectionCalendarDayMap}
+                      dayAvailability={sectionCalendarAvailabilityMap}
                       isLoading={sectionCalendarLoading}
                       fallbackPrice={fallbackListing?.basePrice}
                       fallbackCurrency={fallbackListing?.currency || "USD"}
@@ -7453,13 +8019,13 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Dubai</strong>
-                <a href="tel:+32493813441">+32 493 81 34 41</a>
+                <a href={`tel:+${activeListingContactPhone.e164}`}>{activeListingContactPhone.label}</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
                 </a>
                 <a
-                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                  href={buildWhatsAppLink(activeListing, sectionCheckIn, sectionCheckOut)}
                   className="la-unit-modal__contact-cta"
                   target="_blank"
                   rel="noreferrer"
@@ -7850,6 +8416,7 @@ const applyCheckoutPromoCode = () => {
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                 dayPrices={sectionCalendarDayMap}
+                dayAvailability={sectionCalendarAvailabilityMap}
                 isLoading={sectionCalendarLoading}
                 fallbackPrice={activeSection?.listings?.[0]?.basePrice}
                 fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
