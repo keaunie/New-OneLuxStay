@@ -3928,21 +3928,22 @@ body {
 
 .city-date-band {
   margin: 0;
-  padding: 10px 8vw;
+  padding: 4px 16px;
   border: 0;
-  border-bottom: 1px solid rgba(125, 104, 83, 0.28);
-  background: rgba(248, 244, 239, 0.95);
-  box-shadow: 0 8px 18px rgba(92, 71, 51, 0.08);
-  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(28, 34, 51, 0.12);
+  background: #fff;
+  box-shadow: none;
+  backdrop-filter: none;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 140;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(320px, 1fr) auto;
   align-items: center;
-  gap: 10px 14px;
+  gap: 6px 10px;
+  min-height: 52px;
 }
 
 .city-date-band__top {
@@ -3953,28 +3954,14 @@ body {
   margin-bottom: 0;
   order: 1;
   white-space: nowrap;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  grid-column: 1;
 }
 
 .city-date-band__edit {
-  order: 4;
-  justify-self: end;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(78, 91, 74, 0.35);
-  background: rgba(255, 255, 255, 0.62);
-  color: var(--antwerp-olive);
-  text-decoration: none;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.city-date-band__edit:hover,
-.city-date-band__edit:focus-visible {
-  background: rgba(255, 255, 255, 0.9);
+  display: none;
 }
 
 .city-date-band__kicker {
@@ -3982,26 +3969,24 @@ body {
 }
 
 .city-date-band__row {
-  display: contents;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  grid-column: 3;
 }
 
 .city-date-band__title {
-  order: 2;
-  margin: 0;
-  font-size: clamp(1.15rem, 1.1vw + 0.82rem, 1.55rem);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #2f2116;
-  white-space: nowrap;
+  display: none;
 }
 
 .city-date-band__range {
-  order: 3;
   margin: 0;
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: rgba(63, 44, 30, 0.85);
-  text-align: left;
+  color: #1f2b3a;
+  text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4048,6 +4033,44 @@ body {
   border-bottom: 1px solid rgba(125, 104, 83, 0.18);
   backdrop-filter: blur(8px);
   margin: calc(var(--city-nav-height) * -1) 0 0;
+}
+
+.city-search-shell--taskbar {
+  position: static;
+  top: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-bottom: 0;
+  backdrop-filter: none;
+  grid-column: 1 / -1;
+}
+
+.city-date-band .city-search-shell--taskbar {
+  grid-column: 2;
+  justify-self: center;
+  width: min(760px, 100%);
+}
+
+.city-search-shell--taskbar .city-search-bar {
+  width: 100%;
+  padding: 2px 8px;
+  min-height: 36px;
+}
+
+.city-search-shell--taskbar .city-search-field input {
+  padding: 2px 0;
+  font-size: 0.9rem;
+}
+
+.city-search-shell--taskbar .city-search-divider {
+  height: 24px;
+}
+
+.city-search-shell--taskbar .city-search-filters,
+.city-search-shell--taskbar .city-search-submit {
+  padding: 6px 12px;
+  height: 32px;
 }
 
 .city-search-bar {
@@ -4467,27 +4490,27 @@ body {
 
 @media (max-width: 980px) {
   .city-viewport-shell {
-    --city-nav-height: 78px;
+    --city-nav-height: 72px;
   }
 
   .city-date-band {
-    padding: 10px 6vw;
-    display: block;
+    padding: 6px 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .city-date-band__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 4px;
+    display: contents;
   }
 
   .city-date-band__row {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
     gap: 4px;
+    grid-column: 1;
   }
 
   .city-date-band__range {
@@ -4497,6 +4520,13 @@ body {
 
   .city-search-shell {
     padding: 12px 6vw 10px;
+  }
+
+  .city-date-band .city-search-shell--taskbar {
+    grid-column: 1;
+    padding: 0;
+    width: 100%;
+    justify-self: stretch;
   }
 
   .city-search-bar {
@@ -4544,7 +4574,7 @@ body {
 
 @media (max-width: 520px) {
   .city-viewport-shell {
-    --city-nav-height: 108px;
+    --city-nav-height: 72px;
   }
 
   .city-search-shell {
@@ -4734,21 +4764,20 @@ body {
 
 @media (max-width: 640px) {
   .city-viewport-shell {
-    --city-nav-height: 74px;
+    --city-nav-height: 72px;
   }
 
   .city-date-band {
-    padding: 9px 14px;
+    padding: 6px 12px;
   }
 
   .city-date-band__edit {
-    font-size: 0.68rem;
-    padding: 7px 11px;
+    display: none;
   }
 }
 
 .city-viewport-shell {
-  --city-nav-height: 62px;
+  --city-nav-height: 60px;
   min-height: 100vh;
   min-height: 100svh;
   display: flex;
@@ -5999,7 +6028,7 @@ body {
 
 @media (max-width: 900px) {
   .city-viewport-shell {
-    --city-nav-height: 96px;
+    --city-nav-height: 72px;
   }
 
   .city-search-shell {
@@ -13147,4 +13176,14 @@ a[href="#redondo-city-tour"],
   background: var(--ols-btn-negative-bg-hover);
   border-color: var(--ols-btn-negative-border);
   color: var(--ols-btn-negative-text);
+}
+
+.city-search-shell.city-search-shell--taskbar {
+  position: static;
+  top: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-bottom: 0;
+  backdrop-filter: none;
 }
