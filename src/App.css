@@ -4007,6 +4007,38 @@ body {
   text-overflow: ellipsis;
 }
 
+.city-date-band--dubai {
+  position: static;
+  left: auto;
+  right: auto;
+  top: auto;
+  z-index: auto;
+  box-shadow: none;
+  backdrop-filter: none;
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 8px 8vw 10px;
+}
+
+.city-date-band--dubai .city-date-band__top,
+.city-date-band--dubai .city-date-band__row {
+  display: contents;
+}
+
+.city-date-band--dubai .city-date-band__kicker,
+.city-date-band--dubai .city-date-band__title,
+.city-date-band--dubai .city-date-band__edit {
+  display: none;
+}
+
+.city-date-band--dubai .city-date-band__range {
+  order: 2;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .city-search-shell {
   position: sticky;
   top: 0;
@@ -5388,6 +5420,115 @@ body {
   margin-top: 0;
   height: 100%;
   min-height: 0;
+}
+
+.city-viewport-shell--dubai {
+  --city-nav-height: 0px;
+  --dubai-sticky-nav-height: 136px;
+  padding-top: var(--dubai-sticky-nav-height);
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 260;
+  margin: 0;
+  padding: 10px 8vw 8px;
+  border-bottom: 1px solid rgba(125, 104, 83, 0.2);
+  box-shadow: 0 8px 18px rgba(62, 50, 37, 0.08);
+}
+
+.city-viewport-shell--dubai .city-search-topline--breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 4px 6px;
+}
+
+.city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex: 0 0 auto;
+  text-decoration: none;
+  color: #2f2116;
+}
+
+.city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand img {
+  display: block;
+  height: 30px;
+  width: auto;
+}
+
+.city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand__name {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-breadcrumbs {
+  margin: 0;
+}
+
+.city-viewport-shell--dubai .city-search-shell--dubai .city-search-summary {
+  margin: 8px 4px 4px;
+}
+
+.dubai-units-section .la-units-layout.la-units-layout--split {
+  margin-top: 8px;
+}
+
+@media (max-width: 981px) {
+  .city-viewport-shell--dubai {
+    --dubai-sticky-nav-height: 126px;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai {
+    top: 0;
+    margin: 0;
+    padding: 8px 6vw 6px;
+  }
+
+  .city-viewport-shell--dubai .city-search-topline--breadcrumbs {
+    margin: 0 2px 6px;
+  }
+
+  .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand img {
+    height: 26px;
+  }
+
+  .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand__name {
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .city-viewport-shell--dubai {
+    --dubai-sticky-nav-height: 112px;
+  }
+
+  .city-viewport-shell--dubai .city-search-shell--dubai {
+    padding: 8px 10px 6px;
+  }
+
+  .city-viewport-shell--dubai .city-search-topline--breadcrumbs {
+    margin: 0 2px 4px;
+    gap: 8px;
+  }
+
+  .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand img {
+    height: 24px;
+  }
+
+  .city-viewport-shell--dubai .city-search-topline--breadcrumbs .city-search-brand__name {
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+  }
 }
 
 .la-units-layout.la-units-layout--split {

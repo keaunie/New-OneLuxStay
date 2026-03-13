@@ -16,11 +16,17 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
+const UNIT_MARKER_ICON =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
 const AED_SYMBOL = "AED";
 const MAX_GUESTS = 8;
 const GUEST_OPTIONS = Array.from({ length: MAX_GUESTS }, (_, idx) => String(idx + 1));
 const PROPERTY_ADDRESS = "Dubai, United Arab Emirates";
 const PROPERTY_COORDS = { lat: 25.2048, lng: 55.2708 };
+const MAP_DEFAULT_ZOOM = 13;
+const MAP_SINGLE_MARKER_ZOOM = 13;
+const MAP_FIT_BOUNDS_MAX_ZOOM = 15;
+const MAP_MAX_ZOOM = 19;
 const LANDMARKS = [
   "Burj Khalifa",
   "Dubai Mall",
@@ -99,6 +105,24 @@ const computeTaxes = (amount, listing) => {
   if (!Number.isFinite(amount)) return 0;
   const rate = getTaxRateForListing(listing);
   return roundCurrency(amount * rate);
+};
+
+const getMapZoomLevel = (map) => {
+  if (!map) return null;
+  if (typeof map.getZoom === "function") return map.getZoom();
+  if (typeof map?.__leafletMap?.getZoom === "function") return map.__leafletMap.getZoom();
+  return null;
+};
+
+const setMapZoomLevel = (map, zoom) => {
+  if (!map || !Number.isFinite(zoom)) return;
+  if (typeof map.setZoom === "function") {
+    map.setZoom(zoom);
+    return;
+  }
+  if (typeof map?.__leafletMap?.setZoom === "function") {
+    map.__leafletMap.setZoom(zoom);
+  }
 };
 
 const BedIcon = () => (
@@ -236,6 +260,33 @@ const firstNumber = (...values) => {
   }
   return null;
 };
+
+const getListingBedrooms = (listing) =>
+  firstNumber(
+    listing?.bedrooms,
+    listing?.beds,
+    listing?.bedroomCount,
+    listing?.roomCount,
+    listing?.rooms
+  );
+
+const getListingAccommodates = (listing) =>
+  firstNumber(
+    listing?.accommodates,
+    listing?.personCapacity,
+    listing?.maxGuests,
+    listing?.maxOccupancy,
+    listing?.guests
+  );
+
+const getListingNightlyPrice = (listing) =>
+  firstNumber(
+    listing?.prices?.nightly?.amount,
+    listing?.prices?.nightly,
+    listing?.prices?.basePricePerNight,
+    listing?.prices?.basePrice?.amount,
+    listing?.basePricePerNight
+  );
 
 const buildCalendarMonth = (baseDate) => {
   const year = baseDate.getFullYear();
@@ -1108,6 +1159,23 @@ const KNOWN_CITIES = [
   "palm jumeirah",
   "difc",
 ];
+
+const CITY_SUGGESTIONS = [
+  "Downtown Dubai, Dubai, United Arab Emirates",
+  "Dubai Marina, Dubai, United Arab Emirates",
+  "Business Bay, Dubai, United Arab Emirates",
+  "Palm Jumeirah, Dubai, United Arab Emirates",
+  "Burj Khalifa, Dubai, United Arab Emirates",
+  "Dubai Mall, Dubai, United Arab Emirates",
+];
+
+const FEATURED_LISTING_IDS = {
+  "Downtown Dubai": "66e876b98cb1f00010ea8ad5",
+  "Dubai Marina": "67250a7e6cafcb0013e9cb18",
+  "Business Bay": "66e468a543cd83001318d31a",
+  "Palm Jumeirah": "66e1e3875a1f6300d736f28e",
+};
+
 const EXCLUDED_CITIES = ["los angeles", "hollywood", "west hollywood", "redondo beach", "miami", "antwerp", "antwerpen"];
 const CHECKOUT_PROMO_CODES = {
   WELCOME5: { rate: 0.05, label: "Welcome offer" },
@@ -1141,6 +1209,27 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
 };
 
 const BOOKING_STORAGE_KEY = "dubaiBookingFilters";
+const LISTINGS_CACHE_KEY = "dubaiListingsCache";
+const readCachedListings = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(LISTINGS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+const writeCachedListings = (payload = []) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (!Array.isArray(payload) || !payload.length) return;
+    window.sessionStorage.setItem(LISTINGS_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore storage failures.
+  }
+};
 const readPersistedBooking = () => {
   if (typeof window === "undefined") return null;
   try {
@@ -1254,13 +1343,21 @@ const formatListingLocationLabel = (listing, fallbackCity = "OneLuxStay") => {
   return fallbackCity;
 };
 
+const normalizeAddressDisplay = (value = "") =>
+  sanitizeText(value)
+    .replace(/^#?[a-f0-9]{20,28}\s*[|·-]\s*/i, "")
+    .replace(/^#?[a-f0-9]{20,28}\s+/i, "")
+    .replace(/\s*[|·]\s*/g, ", ")
+    .replace(/,\s*,+/g, ", ")
+    .trim();
+
 const formatAddress = (listing) => {
   const address = listing.address || {};
   const full = typeof address.full === "string" ? address.full.trim() : "";
-  if (full) return sanitizeText(full);
+  if (full) return normalizeAddressDisplay(full);
   const parts = [address.city, address.country].filter(Boolean);
-  if (parts.length) return sanitizeText(parts.join(", "));
-  if (typeof listing.location === "string") return sanitizeText(listing.location);
+  if (parts.length) return normalizeAddressDisplay(parts.join(", "));
+  if (typeof listing.location === "string") return normalizeAddressDisplay(listing.location);
   return "Dubai";
 };
 
@@ -1784,6 +1881,14 @@ const getBuildingKey = (listing) => {
   return "other";
 };
 
+const matchListingById = (listings, targetId) => {
+  if (!targetId) return null;
+  const target = String(targetId);
+  return (
+    listings.find((listing) => String(listing?.id || listing?._id || listing?.unitTypeId || "") === target) || null
+  );
+};
+
 const getBuildingDisplayKey = (listing) => {
   const key = getBuildingKey(listing);
   if (key && key !== "other") return key;
@@ -1958,6 +2063,36 @@ export default function DubaiLandingPage() {
   } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const buildSectionRoute = (sectionKey) => {
+    const basePath = location.pathname.toLowerCase().startsWith("/dubai")
+      ? "/dubai"
+      : "/dubai";
+    const areaSlug = SECTION_SLUG_BY_KEY[sectionKey] || "citycentre";
+    const params = new URLSearchParams(location.search);
+    const checkIn = sectionCheckIn || params.get("checkIn") || "";
+    const checkOut = sectionCheckOut || params.get("checkOut") || "";
+    const guests = sectionGuests || params.get("guests") || "";
+    if (checkIn && checkOut && guests) {
+      return `${basePath}/${areaSlug}/${encodeURIComponent(checkIn)}&${encodeURIComponent(
+        checkOut
+      )}&${encodeURIComponent(guests)}`;
+    }
+    return `${basePath}/${areaSlug}`;
+  };
+  const closeActiveSection = () => {
+    setActiveSectionKey(null);
+    setSectionCheckIn("");
+    setSectionCheckOut("");
+    setSectionGuests("2");
+    writePersistedBooking(null);
+    const basePath = location.pathname.toLowerCase().startsWith("/dubai")
+      ? "/dubai"
+      : "/dubai";
+    navigate(basePath, {
+      replace: true,
+      state: { skipCityLoader: true },
+    });
+  };
   const isListingRoute = Boolean(routeListingId);  // listing-route-scroll-lock
   useEffect(() => {
     if (!isListingRoute) return;
@@ -1970,6 +2105,15 @@ export default function DubaiLandingPage() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+  const [isMobileMapOpen, setIsMobileMapOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [minBedrooms, setMinBedrooms] = useState(1);
+  const [showMonthlyTotal, setShowMonthlyTotal] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const filtersPanelId = useId();
   const [activeListing, setActiveListing] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
@@ -1990,23 +2134,27 @@ export default function DubaiLandingPage() {
     const params = new URLSearchParams(location.search);
     const paramCheckIn = params.get("checkIn") || "";
     const paramCheckOut = params.get("checkOut") || "";
-    const paramGuests = normalizeRouteGuests(params.get("guests") || "");
+    const paramGuests = params.get("guests") || "";
+    const paramQuery = params.get("q") || "";
     const bundle = parseRouteBookingBundle(routeBookingBundle);
     const routeCheckIn = normalizeRouteDate(routeCheckInParam) || bundle.checkIn;
     const routeCheckOut = normalizeRouteDate(routeCheckOutParam) || bundle.checkOut;
     const routeGuests = normalizeRouteGuests(routeGuestsParam) || bundle.guests;
     const persisted = readPersistedBooking();
-    const persistedGuests = normalizeRouteGuests(persisted?.guests || "");
     const nextCheckIn = paramCheckIn || routeCheckIn || persisted?.checkIn || "";
     const nextCheckOut = paramCheckOut || routeCheckOut || persisted?.checkOut || "";
-    const nextGuests = paramGuests || routeGuests || persistedGuests || "2";
+    const nextGuests = paramGuests || routeGuests || persisted?.guests || "2";
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
+    if (paramQuery && paramQuery !== searchQuery) {
+      setSearchQuery(paramQuery);
+      setAppliedSearch(paramQuery);
+    }
   }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
 
   useEffect(() => {
-    const normalizedGuests = normalizeRouteGuests(sectionGuests) || "2";
+    const normalizedGuests = sectionGuests || "2";
     const hasDateFilters = Boolean(sectionCheckIn || sectionCheckOut);
     const hasNonDefaultGuests = normalizedGuests !== "2";
     if (!hasDateFilters && !hasNonDefaultGuests) {
@@ -2476,16 +2624,44 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     let active = true;
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
-        const json = await res.json();
+        setLoading(true);
+        const fetchListings = async (baseUrl) => {
+          const res = await fetch(`${baseUrl}/listings`, { cache: "no-store" });
+          if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
+          return res.json();
+        };
+        const remoteBase = "https://oneluxstayprop.netlify.app/.netlify/functions";
+        const basesToTry = [apiBase, remoteBase].filter(
+          (value, idx, arr) => value && arr.indexOf(value) === idx
+        );
+        let json = null;
+        let lastError = null;
+        for (const base of basesToTry) {
+          try {
+            json = await fetchListings(base);
+            if (json?.results) break;
+          } catch (err) {
+            lastError = err;
+          }
+        }
         if (!active) return;
+        if (!json?.results) {
+          throw lastError || new Error("Listings failed: 500");
+        }
         const results = Array.isArray(json.results)
           ? json.results.map((listing) => normalizeListingPricing(listing))
           : [];
         setListings(results);
+        writeCachedListings(results);
+        setError("");
       } catch (err) {
         if (!active) return;
+        const cached = readCachedListings();
+        if (cached?.length) {
+          setListings(cached);
+          setError("");
+          return;
+        }
         setError(err.message || "Unable to load listings.");
       } finally {
         if (active) setLoading(false);
@@ -2495,7 +2671,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadTick]);
 
   useEffect(() => {
     if (!routeListingId) {
@@ -2560,9 +2736,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           .then((maps) => {
             const map = new maps.Map(target, {
               center: PROPERTY_COORDS,
-              zoom: 14,
+              zoom: MAP_DEFAULT_ZOOM,
               minZoom: 3,
-              maxZoom: 21,
+              maxZoom: MAP_MAX_ZOOM,
               gestureHandling: "greedy",
               scrollwheel: true,
               draggable: true,
@@ -2588,33 +2764,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
               if (status === "OK" && results?.[0]?.geometry?.location) {
                 map.setCenter(results[0].geometry.location);
               }
-            });
-
-            const transitLayer = new maps.TransitLayer();
-            transitLayer.setMap(map);
-
-            const placesService = new maps.places.PlacesService(map);
-            LANDMARKS.forEach((name) => {
-              placesService.textSearch(
-                {
-                  query: name,
-                  location: map.getCenter(),
-                  radius: 2500,
-                },
-                (results, status) => {
-                  if (status !== maps.places.PlacesServiceStatus.OK || !results?.length) return;
-                  const place = results[0];
-                  const marker = new maps.Marker({
-                    map,
-                    position: place.geometry?.location,
-                    title: place.name,
-                  });
-                  marker.addListener("click", () => {
-                    infoWindow.setContent(`<strong>${place.name}</strong>`);
-                    infoWindow.open(map, marker);
-                  });
-                }
-              );
             });
 
             if (losAngelesListingsRef.current.length) {
@@ -2651,6 +2800,139 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
   }, [losAngelesListings]);
 
+  const buildMapPopupContent = (listing) => {
+    if (!listing) return "";
+    const title = escapeHtml(resolveGroupTitle(listing) || listing?.title || "One Lux Stay");
+    const image = escapeHtml(getListingImageUrls(listing)[0] || FALLBACK_IMAGE);
+    const basePrice = firstNumber(
+      listing?.basePrice,
+      listing?.prices?.basePrice,
+      listing?.prices?.basePricePerNight,
+      listing?.prices?.nightly,
+      listing?.prices?.nightly?.amount,
+      listing?.prices?.basePrice?.amount
+    );
+    const currency =
+      listing?.currency ||
+      listing?.prices?.currency ||
+      listing?.prices?.nightly?.currency ||
+      listing?.prices?.basePrice?.currency ||
+      "EUR";
+    const priceLabel =
+      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} / night` : "Check price";
+    const bedrooms = getListingBedrooms(listing);
+    const bathrooms = firstNumber(listing?.bathrooms);
+    const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+    const meta = [
+      bedrooms ? `${bedrooms} bd` : null,
+      bathrooms ? `${bathrooms} ba` : null,
+      areaSqft ? `${areaSqft} ft2` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    const address = escapeHtml(formatAddress(listing));
+    const listingId = getListingId(listing);
+    const listingPath = listingId ? `/dubai/listing/${encodeURIComponent(listingId)}` : "/dubai";
+
+    return `
+      <div class="ols-map-popup">
+        <div class="ols-map-popup__header">
+          <span class="ols-map-popup__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M12 4 3 11h2v8h5v-5h4v5h5v-8h2z" fill="currentColor" />
+            </svg>
+          </span>
+          <div class="ols-map-popup__title">${title}</div>
+        </div>
+        <a class="ols-map-popup__card" href="${listingPath}">
+          <div class="ols-map-popup__media">
+            <img src="${image}" alt="${title}" loading="lazy" />
+            <span class="ols-map-popup__badge">Popular home</span>
+            <span class="ols-map-popup__fav" aria-hidden="true">&#9825;</span>
+          </div>
+          <div class="ols-map-popup__body">
+            <div class="ols-map-popup__price">${escapeHtml(priceLabel)}</div>
+            ${meta ? `<div class="ols-map-popup__meta">${escapeHtml(meta)}</div>` : ""}
+            <div class="ols-map-popup__address">
+              ${address}
+            </div>
+          </div>
+        </a>
+      </div>
+    `;
+  };
+
+  const filteredListings = useMemo(() => {
+    const query = sanitizeText(appliedSearch).toLowerCase();
+    const minBeds = Number(minBedrooms) || 1;
+    const guestCount = Number.parseInt(sectionGuests, 10);
+    const hasGuestFilter = Number.isFinite(guestCount) && guestCount > 0;
+    if (!query && minBeds <= 1 && !hasGuestFilter) return losAngelesListings;
+    const tokens = query
+      .split(/[,\n]/)
+      .flatMap((part) => part.split(/\s+/))
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 2);
+    return losAngelesListings.filter((listing) => {
+      const bedrooms = getListingBedrooms(listing);
+      if (minBeds > 1 && typeof bedrooms === "number" && bedrooms < minBeds) return false;
+      const accommodates = getListingAccommodates(listing);
+      if (hasGuestFilter && typeof accommodates === "number" && accommodates < guestCount) return false;
+      if (!query) return true;
+      const haystack = [
+        listing?.title,
+        listing?.nickname,
+        resolveGroupTitle(listing),
+        formatAddress(listing),
+        listing?.propertyType,
+        listing?.roomType,
+        listing?.address?.city,
+        listing?.address?.full,
+        listing?.location,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (haystack.includes(query)) return true;
+      if (!tokens.length) return true;
+      return tokens.some((token) => haystack.includes(token));
+    });
+  }, [losAngelesListings, minBedrooms, appliedSearch, sectionGuests]);
+
+  const filteredParentListings = useMemo(() => {
+    if (!filteredListings.length) return [];
+    const parentGroups = groupListingsByParent(filteredListings);
+    return Object.values(parentGroups)
+      .map((group) => group.parent || group.children?.[0])
+      .filter(Boolean);
+  }, [filteredListings]);
+
+  const citySuggestions = useMemo(() => {
+    const items = [];
+    const seen = new Set();
+    CITY_SUGGESTIONS.forEach((label) => {
+      const key = label.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ label, key });
+    });
+    losAngelesListings.forEach((listing) => {
+      const label = formatListingLocationLabel(listing, "Dubai");
+      if (!label) return;
+      const key = label.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ label, key });
+    });
+    return items;
+  }, [losAngelesListings]);
+
+  const filteredCitySuggestions = useMemo(() => {
+    const query = sanitizeText(searchQuery).toLowerCase();
+    if (!query) return citySuggestions.slice(0, 6);
+    return citySuggestions.filter((item) => item.key.includes(query)).slice(0, 6);
+  }, [citySuggestions, searchQuery]);
+
   const syncListingMarkers = (
     listingsToUse = losAngelesListingsRef.current,
     { fitBounds = true } = {}
@@ -2669,17 +2951,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
 
     const listingMarkerIcon = {
-      path: maps.SymbolPath.CIRCLE,
-      scale: 26,
-      fillColor: "#1f1c19",
-      fillOpacity: 1,
-      strokeColor: "#c9b59c",
-      strokeWeight: 2,
-    };
-    const listingLogoIcon = {
-      url: LOGO_URL,
-      scaledSize: new maps.Size(26, 26),
-      anchor: new maps.Point(13, 13),
+      url: UNIT_MARKER_ICON,
+      scaledSize: new maps.Size(34, 34),
+      anchor: new maps.Point(17, 17),
     };
 
     const bounds = new maps.LatLngBounds();
@@ -2691,7 +2965,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
     const clusters = new Map();
     const getClusterStep = () => {
-      const zoom = typeof map.getZoom === "function" ? map.getZoom() : 13;
+      const zoom = getMapZoomLevel(map) ?? MAP_DEFAULT_ZOOM;
       if (zoom <= 10) return 0.25;
       if (zoom <= 12) return 0.12;
       if (zoom <= 14) return 0.06;
@@ -2770,37 +3044,30 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       const primary = uniqueParents[0] || clusterListings[0];
       const title = resolveGroupTitle(primary);
-      const isCluster = clusterListings.length > 1;
-      const backgroundMarker = new maps.Marker({
-        map,
-        position: coords,
-        icon: listingMarkerIcon,
-        zIndex: 10,
-      });
       const marker = new maps.Marker({
         map,
         position: coords,
         title,
-        icon: listingLogoIcon,
-        zIndex: 11,
+        icon: listingMarkerIcon,
+        zIndex: 10,
       });
-      const clickTarget = marker || backgroundMarker;
-      clickTarget.addListener("click", () => {
-        const content = `
-          <div>
-            <strong>${escapeHtml(title)}</strong>
-          </div>`;
-        infoWindow.setContent(content);
-        infoWindow.open(map, clickTarget);
+      marker.addListener("click", () => {
+        infoWindow.setContent(buildMapPopupContent(primary));
+        infoWindow.open(map, marker);
       });
-      listingMarkersRef.current.push(backgroundMarker);
-      if (marker) listingMarkersRef.current.push(marker);
+      listingMarkersRef.current.push(marker);
       bounds.extend(coords);
       hasBounds = true;
     });
 
     if (hasBounds && fitBounds) {
       map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
+      const currentZoom = getMapZoomLevel(map);
+      const maxAllowedZoom =
+        listingMarkersRef.current.length <= 1 ? MAP_SINGLE_MARKER_ZOOM : MAP_FIT_BOUNDS_MAX_ZOOM;
+      if (Number.isFinite(currentZoom) && currentZoom > maxAllowedZoom) {
+        setMapZoomLevel(map, maxAllowedZoom);
+      }
       const westlake = new maps.LatLng(PROPERTY_COORDS.lat, PROPERTY_COORDS.lng);
       if (bounds.contains(westlake)) {
         map.panTo(westlake);
@@ -2829,9 +3096,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       label: group.label,
       listings: groups[group.key].listings,
     }));
-    if (other.length) {
-      ordered.push({ key: "other", label: "Dubai Core", listings: other });
-    }
+    if (other.length) ordered.push({ key: "other", label: "Dubai Core", listings: other });
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesListings]);
 
@@ -2851,9 +3116,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       label: group.label,
       listings: groups[group.key].listings,
     }));
-    if (other.length) {
-      ordered.push({ key: "other", label: "Dubai Core", listings: other });
-    }
+    if (other.length) ordered.push({ key: "other", label: "Dubai Core", listings: other });
     return ordered.filter((group) => group.listings.length);
   }, [losAngelesParentListings]);
 
@@ -3535,16 +3798,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           const hasAvailable = hasAvailableChild || hasAvailableParent;
           parentAvailabilityMap[group.parentId] = hasAvailable;
           if (displayListing) {
-            const groupListings = [displayListing, ...group.children];
-            const accommodates = resolveListingAccommodates(displayListing, groupListings);
-            const displayWithCapacity =
-              accommodates && accommodates !== displayListing.accommodates
-                ? { ...displayListing, accommodates }
-                : displayListing;
             const displayId = getListingId(displayListing);
             if (displayId) parentAvailabilityMap[displayId] = hasAvailable;
             if (displayListing.unitTypeId) parentAvailabilityMap[displayListing.unitTypeId] = hasAvailable;
-            return displayWithCapacity;
           }
           return displayListing;
         })
@@ -3763,7 +4019,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           listingTitle,
           checkIn: sectionCheckIn,
           checkOut: sectionCheckOut,
-          guests: Math.max(1, Math.min(Number(sectionGuests) || 1, MAX_GUESTS)),
+          guests: Number(sectionGuests) || 1,
           amount: numericAmount,
           currency,
           breakdown,
@@ -4043,6 +4299,13 @@ const applyCheckoutPromoCode = () => {
     const sourceListings = losAngelesParentListings.length
       ? losAngelesParentListings
       : losAngelesListings;
+    const featuredIds = Object.values(FEATURED_LISTING_IDS).filter(Boolean);
+    const featuredListings = featuredIds
+      .map((id) => matchListingById(sourceListings, id))
+      .filter(Boolean);
+    if (featuredListings.length) {
+      return featuredListings;
+    }
     return pickOnePerBuilding(sourceListings);
   }, [losAngelesParentListings, losAngelesListings]);
 
@@ -4052,7 +4315,7 @@ const applyCheckoutPromoCode = () => {
       return heroImages.map((src, idx) => ({
         id: null,
         image: src,
-        title: `Dubai unit ${idx + 1}`,
+        title: `Dubai stay ${idx + 1}`,
         price: "",
       }));
     }
@@ -4076,87 +4339,29 @@ const applyCheckoutPromoCode = () => {
   }, [heroImages, heroUnits]);
   const heroCards = useMemo(() => {
     if (!bounceListings.length) return [];
-    const baseCards = bounceListings.map((listing, idx) => ({
+    return bounceListings.map((listing, idx) => ({
       id: listing?.id ?? null,
       image: listing?.image || heroImages[idx % heroImages.length],
-      title: listing?.title || `Dubai unit ${idx + 1}`,
+      title: listing?.title || `Dubai stay ${idx + 1}`,
     }));
-    const minCards = 3;
-    const dubaiFallbackImages = [
-      "https://assets.guesty.com/image/upload/v1769008394/production/666b3af27fc6d5653142b0af/r2dvri9pd36zgmdynwb0.jpg",
-      "https://assets.guesty.com/image/upload/v1769007002/production/666b3af27fc6d5653142b0af/bjkevw2xrjo3rdczelqt.jpg",
-      ...heroImages,
-    ];
-    if (baseCards.length >= minCards) return baseCards;
-    const used = new Set(baseCards.map((card) => getImageKey(card.image)));
-    const padded = [...baseCards];
-    for (const src of dubaiFallbackImages) {
-      if (padded.length >= minCards) break;
-      const key = getImageKey(src);
-      if (key && used.has(key)) continue;
-      used.add(key);
-      const nextIndex = padded.length + 1;
-      const fallbackTitle =
-        nextIndex === 2 || nextIndex === 3
-          ? "Grand Signature Residences"
-          : `Dubai unit ${nextIndex}`;
-      padded.push({
-        id: null,
-        image: src,
-        title: fallbackTitle,
-      });
-    }
-    return padded;
   }, [heroImages, bounceListings]);
   const inquiryTitle = inquiryListing?.title ? sanitizeText(inquiryListing.title) : "this unit";
   const inquiryDates =
     sectionCheckIn && sectionCheckOut ? `${sectionCheckIn} to ${sectionCheckOut}` : "";
-  const cityDateRangeLabel =
-    sectionCheckIn && sectionCheckOut
-      ? `${formatDisplayDate(sectionCheckIn)} - ${formatDisplayDate(sectionCheckOut)}`
-      : sectionCheckIn
-        ? `Check-in ${formatDisplayDate(sectionCheckIn)}`
-        : sectionCheckOut
-          ? `Check-out ${formatDisplayDate(sectionCheckOut)}`
-          : "No dates selected yet";
   const cityDateNightCount =
     sectionCheckIn && sectionCheckOut ? diffNights(sectionCheckIn, sectionCheckOut) : 0;
-  const cityDateParams = new URLSearchParams();
-  if (sectionCheckIn) cityDateParams.set("checkIn", sectionCheckIn);
-  if (sectionCheckOut) cityDateParams.set("checkOut", sectionCheckOut);
-  if (sectionGuests) cityDateParams.set("guests", sectionGuests);
-  const editDatesHref = `/${cityDateParams.toString() ? `?${cityDateParams.toString()}` : ""}`;
-  const buildSectionRoute = (sectionKey) => {
-    const basePath = "/dubai";
-    const areaSlug = SECTION_SLUG_BY_KEY[sectionKey] || "downtowndubai";
-    const params = new URLSearchParams(location.search);
-    const checkIn = sectionCheckIn || params.get("checkIn") || "";
-    const checkOut = sectionCheckOut || params.get("checkOut") || "";
-    const guests = normalizeRouteGuests(sectionGuests || params.get("guests") || "");
-    if (checkIn && checkOut && guests) {
-      return `${basePath}/${areaSlug}/${encodeURIComponent(checkIn)}&${encodeURIComponent(
-        checkOut
-      )}&${encodeURIComponent(guests)}`;
-    }
-    return `${basePath}/${areaSlug}`;
-  };
-  const closeActiveSection = () => {
-    setActiveSectionKey(null);
-    setSectionCheckIn("");
-    setSectionCheckOut("");
-    setSectionGuests("2");
-    writePersistedBooking(null);
-    navigate("/dubai", {
-      replace: true,
-      state: { skipCityLoader: true },
-    });
-  };
+  const hasStayDates = cityDateNightCount > 0;
   const buildListingPath = (listingId) => {
     if (!listingId) return "/dubai";
+    if (sectionCheckIn && sectionCheckOut && sectionGuests) {
+      return `/dubai/listing/${encodeURIComponent(listingId)}/${encodeURIComponent(
+        sectionCheckIn
+      )}/${encodeURIComponent(sectionCheckOut)}/${encodeURIComponent(sectionGuests)}`;
+    }
     const params = new URLSearchParams();
     if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
     if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
-    if (sectionGuests) params.set("guests", normalizeRouteGuests(sectionGuests) || "2");
+    if (sectionGuests) params.set("guests", sectionGuests);
     const query = params.toString();
     return `/dubai/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
@@ -4183,6 +4388,73 @@ const applyCheckoutPromoCode = () => {
     },
     style: { cursor: "pointer" },
   };
+
+  useEffect(() => {
+    if (hasStayDates) {
+      setShowMonthlyTotal(true);
+    } else {
+      setShowMonthlyTotal(false);
+    }
+  }, [hasStayDates]);
+
+  useEffect(() => {
+    syncListingMarkers(filteredListings);
+  }, [filteredListings]);
+
+  const applySearchQuery = (value, { scrollToListings = true } = {}) => {
+    const trimmed = value.trim();
+    setSearchQuery(trimmed);
+    setAppliedSearch(trimmed);
+    setIsSearchFocused(false);
+    const params = new URLSearchParams(location.search);
+    if (trimmed) {
+      params.set("q", trimmed);
+    } else {
+      params.delete("q");
+    }
+    if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
+    else params.delete("checkIn");
+    if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
+    else params.delete("checkOut");
+    if (sectionGuests) params.set("guests", sectionGuests);
+    else params.delete("guests");
+    const search = params.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ""}`, {
+      replace: true,
+      state: { skipCityLoader: true },
+    });
+    if (scrollToListings) {
+      const target = document.getElementById("dubai-units");
+      if (target) target.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    applySearchQuery(searchQuery);
+  };
+
+  const resetMapView = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    try {
+      syncListingMarkers(filteredListings);
+      if (!listingMarkersRef.current.length) {
+        map.setCenter(PROPERTY_COORDS);
+        setMapZoomLevel(map, MAP_DEFAULT_ZOOM);
+      }
+    } catch {
+      map.setCenter(PROPERTY_COORDS);
+      setMapZoomLevel(map, MAP_DEFAULT_ZOOM);
+    }
+  };
+
+  useEffect(() => {
+    if (!isMobileMapOpen) return;
+    const map = mapInstanceRef.current;
+    if (map?.__leafletMap?.invalidateSize) {
+      requestAnimationFrame(() => map.__leafletMap.invalidateSize());
+    }
+  }, [isMobileMapOpen]);
 
   const scrollHeroCarousel = (direction) => {
     if (!heroCarouselRef.current) return;
@@ -4289,7 +4561,7 @@ const applyCheckoutPromoCode = () => {
           center: initialCenter,
           zoom: 15,
           minZoom: 3,
-          maxZoom: 21,
+          maxZoom: MAP_MAX_ZOOM,
           gestureHandling: "greedy",
           scrollwheel: true,
           draggable: true,
@@ -4345,7 +4617,7 @@ const applyCheckoutPromoCode = () => {
           center: initialCenter,
           zoom: 15,
           minZoom: 3,
-          maxZoom: 21,
+          maxZoom: MAP_MAX_ZOOM,
           gestureHandling: "greedy",
           scrollwheel: true,
           draggable: true,
@@ -4395,478 +4667,479 @@ const applyCheckoutPromoCode = () => {
     <div className="la-listing-shell">
       <div className="la-listing-shell__content">
         <div className="la-unit-modal la-listing-page">
-          <section className="la-listing-hero la-listing-hero--mobile-top-logo">
-            <div className="la-listing-hero__top">
-              <button
-                type="button"
-                className="la-unit-modal__back"
-                aria-label="Back to listings"
-                onClick={() => {
-                  setActiveListing(null);
-                  setActiveImageIndex(0);
-                  if (isListingRoute) {
-                    navigate("/dubai");
-                  }
-                }}
-              >
-                <span aria-hidden="true">‹</span>
-              </button>
-              <div className="la-listing-hero__logo-mobile">
-                <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
-              </div>
-            </div>
-            <div className="la-listing-hero__intro">
-              <div>
-                <p className="la-listing-hero__kicker">Dubai private stay</p>
-                <h3>{formatListingLocationLabel(activeListing, "Dubai")}</h3>
-                <div className="la-unit-modal__chips">
-                  <span>Exceptional location</span>
-                  <span>Fast arrival</span>
-                  <span>Design-forward suites</span>
-                </div>
-                <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>
-                {(() => {
-                  const { rating, count } = getReviewStats(getListingReviews(activeListing));
-                  if (!rating && !count) return null;
-                  return (
-                    <p className="la-unit-modal__rating">
-                      Rating: {rating ? `${rating} / 5` : "--"}{count ? ` (${count} reviews)` : ""}
-                    </p>
-                  );
-                })()}
-              </div>
-              <div className="la-listing-hero__logo">
-                <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
-              </div>
-            </div>
-          </section>
-          <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
-            <button
-              type="button"
-              className={listingTab === "overview" ? "is-active" : ""}
-              onClick={() => handleListingTabClick("overview")}
-            >
-              Overview
-            </button>
-            <button
-              type="button"
-              className={listingTab === "facilities" ? "is-active" : ""}
-              onClick={() => handleListingTabClick("facilities")}
-            >
-              Facilities
-            </button>
-            <button
-              type="button"
-              className={listingTab === "guest-reviews" ? "is-active" : ""}
-              onClick={() => handleListingTabClick("guest-reviews")}
-            >
-              Guest reviews
-            </button>
-            <button
-              type="button"
-              className={listingTab === "house-rules" ? "is-active" : ""}
-              onClick={() => handleListingTabClick("house-rules")}
-            >
-              House rules
-            </button>
+      <section className="la-listing-hero la-listing-hero--mobile-top-logo">
+        <div className="la-listing-hero__top">
+          <button
+            type="button"
+            className="la-unit-modal__back"
+            aria-label="Back to listings"
+            onClick={() => {
+              setActiveListing(null);
+              setActiveImageIndex(0);
+              if (isListingRoute) {
+                navigate("/dubai");
+              }
+            }}
+          >
+            <span aria-hidden="true">{"\u2039"}</span>
+          </button>
+          <div className="la-listing-hero__logo-mobile">
+            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
           </div>
-          {(() => {
-            const galleryListing = getGalleryListing(activeListing, listings);
-            const images = getListingImageUrls(galleryListing);
-            const safeIndex = Math.min(activeImageIndex, Math.max(images.length - 1, 0));
-            const imageEntries = images
-              .map((src, idx) => ({ src, idx }))
-              .filter((entry) => entry.src);
-            const mainEntry = imageEntries.find((entry) => entry.idx === safeIndex) || imageEntries[0];
-            const mainImage = mainEntry?.src || images[0];
-            const mainKey = getImageKey(mainImage);
-            const uniqueEntries = imageEntries
-              .filter((entry) => entry.src && getImageKey(entry.src) !== mainKey)
-              .filter((entry, idx, arr) => (
-                arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
-              ));
-            const sideImages = uniqueEntries.slice(0, 2);
-            const thumbImages = uniqueEntries.slice(0, 24);
-            const coords = getListingCoords(activeListing);
-            const addressQuery = getListingAddressQuery(activeListing);
-            const mapCoords = coords || PROPERTY_COORDS;
-            const mapUrl = buildStaticMapUrl(mapCoords, "400x280", 14);
-            const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
-            const amenityListRaw = Array.isArray(activeListing.amenities)
-              ? activeListing.amenities
-              : [];
-            const amenityList = amenityListRaw
-              .filter((item) => typeof item === "string")
-              ;
-            const aboutText = formatFullDescription(activeListing);
-            const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
-            const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-            const availabilityStatus = sectionAvailabilityActive
-              ? availability === false
-                ? "Unavailable"
-                : availability === true
-                  ? "Available"
-                  : "Checking..."
-              : "Select dates";
-            const quote = listingId ? sectionQuotes[listingId] : null;
-            const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-            const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-            const priceCurrency = quote?.currency || activeListing.currency || "USD";
-            const dailyRate = firstNumber(
-              plan?.nightly,
-              plan?.pricing?.nightly,
-              plan?.basePricePerNight,
-              quote?.pricing?.nightly,
-              quote?.nightly,
-              activeListing?.prices?.basePricePerNight,
-              activeListing?.prices?.nightly,
-              activeListing?.prices?.basePrice?.amount,
-              activeListing?.prices?.nightly?.amount,
-              activeListing?.basePrice
-            );
-            const dailyRateCurrency =
-              plan?.currency ||
-              quote?.currency ||
-              activeListing?.prices?.nightly?.currency ||
-              activeListing?.prices?.basePrice?.currency ||
-              activeListing?.currency ||
-              priceCurrency;
-            const totalPrice =
-              breakdown?.total ??
-              breakdown?.subtotal ??
-              plan?.total ??
-              quote?.total ??
-              null;
-            return (
-              <>
-                <div className="la-unit-modal__grid" id="la-overview">
-                  <div className="la-unit-modal__gallery">
-                    <div className="la-unit-modal__main">
-                      {mainImage ? (
-                        <button
-                          type="button"
-                          className="la-unit-modal__image-button"
-                          onClick={(event) => handleImagePreview(event, mainImage)}
-                          aria-label="Open image preview"
-                        >
-                          <img
-                            src={mainImage}
-                            alt={sanitizeText(activeListing.title)}
-                            loading="eager"
-                            onError={handleImageError}
-                          />
-                        </button>
-                      ) : (
-                        <div className="la-unit-modal__placeholder">Image loading</div>
-                      )}
-                    </div>
-                    <div className="la-unit-modal__side">
-                      {sideImages.length ? (
-                        sideImages.map((entry) => (
-                          <button
-                            key={`side-${entry.idx}`}
-                            type="button"
-                            className="la-unit-modal__image-button"
-                            onClick={() => setActiveImageIndex(entry.idx)}
-                            aria-label="Select image"
-                          >
-                            <img
-                              src={entry.src}
-                              alt=""
-                              loading="lazy"
-                              onError={handleImageError}
-                            />
-                          </button>
-                        ))
-                      ) : (
-                        [0, 1].map((idx) => (
-                          <div key={`side-${idx}`} className="la-unit-modal__placeholder">
-                            Image loading
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    {thumbImages.length > 1 && (
-                      <div
-                        className="la-unit-modal__thumbs"
-                        role="list"
-                        ref={thumbsRef}
-                        onMouseEnter={(event) => {
-                          hoveredThumbsRef.current = thumbsRef.current;
-                          handleThumbsMove(event, thumbsRef);
-                        }}
-                        onMouseMove={handleThumbsMove}
-                        onMouseLeave={() => {
-                          hoveredThumbsRef.current = null;
-                          stopAutoScroll();
-                        }}
-                      >
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover left zone");
-                            startAutoScroll(thumbsRef.current, -1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover right zone");
-                            startAutoScroll(thumbsRef.current, 1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        {thumbImages.map((entry, idx) => (
-                          <button
-                            key={`${entry.src}-${entry.idx}`}
-                            type="button"
-                            className={entry.idx === safeIndex ? "is-active" : ""}
-                            onClick={() => setActiveImageIndex(entry.idx)}
-                          >
-                            <img
-                              src={entry.src}
-                              alt=""
-                              loading={idx === 0 ? "eager" : "lazy"}
-                              onError={handleImageError}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
-                      <DateRangePicker
-                        value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                        dayPrices={calendarDayMap}
-                        onChange={({ checkIn, checkOut }) => {
-                          setSectionCheckIn(checkIn);
-                          setSectionCheckOut(checkOut);
-                        }}
-                        onMonthChange={(nextMonth) => {
-                          const listingId = getCalendarListingId(activeListing, losAngelesListings);
-                          if (!listingId) return;
-                          const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                          setCalendarStartDate(monthStart);
-                          setCalendarMonthIndex(0);
-                          fetchCalendarMonth(
-                            listingId,
-                            monthStart,
-                            calendarCacheRef,
-                            calendarDaysRef,
-                            calendarInflightRef,
-                            setCalendarLoading,
-                            setCalendarError,
-                            setCalendarPrices
-                          );
-                        }}
-                        onOpenChange={handleListingCalendarOpen}
-                        isLoading={calendarLoading}
-                        fallbackPrice={activeListing.basePrice}
-                        fallbackCurrency={activeListing.currency}
-                        fallbackMinNights={listingMinNightsFallback}
+        </div>
+        <div className="la-listing-hero__intro">
+          <div>
+            <p className="la-listing-hero__kicker">Dubai private stay</p>
+            <h3>{formatListingLocationLabel(activeListing, "Dubai")}</h3>
+            <div className="la-unit-modal__chips">
+              <span>Exceptional location</span>
+              <span>Fast arrival</span>
+              <span>Design-forward suites</span>
+            </div>
+            <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>
+            {(() => {
+              const { rating, count } = getReviewStats(getListingReviews(activeListing));
+              if (!rating && !count) return null;
+              return (
+                <p className="la-unit-modal__rating">
+                  Rating: {rating ? `${rating} / 5` : "--"}{count ? ` (${count} reviews)` : ""}
+                </p>
+              );
+            })()}
+          </div>
+          <div className="la-listing-hero__logo">
+            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+          </div>
+        </div>
+      </section>
+      <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
+        <button
+          type="button"
+          className={listingTab === "overview" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("overview")}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          className={listingTab === "facilities" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("facilities")}
+        >
+          Facilities
+        </button>
+        <button
+          type="button"
+          className={listingTab === "guest-reviews" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("guest-reviews")}
+        >
+          Guest reviews
+        </button>
+        <button
+          type="button"
+          className={listingTab === "house-rules" ? "is-active" : ""}
+          onClick={() => handleListingTabClick("house-rules")}
+        >
+          House rules
+        </button>
+      </div>
+      {(() => {
+        const galleryListing = getGalleryListing(activeListing, listings);
+        const images = getListingImageUrls(galleryListing);
+        const safeIndex = Math.min(activeImageIndex, Math.max(images.length - 1, 0));
+        const imageEntries = images
+          .map((src, idx) => ({ src, idx }))
+          .filter((entry) => entry.src);
+        const mainEntry = imageEntries.find((entry) => entry.idx === safeIndex) || imageEntries[0];
+        const mainImage = mainEntry?.src || images[0];
+        const mainKey = getImageKey(mainImage);
+        const uniqueEntries = imageEntries
+          .filter((entry) => entry.src && getImageKey(entry.src) !== mainKey)
+          .filter((entry, idx, arr) => (
+            arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
+          ));
+        const sideImages = uniqueEntries.slice(0, 2);
+        const thumbImages = uniqueEntries.slice(0, 24);
+        const coords = getListingCoords(activeListing);
+        const addressQuery = getListingAddressQuery(activeListing);
+        const mapCoords = coords || PROPERTY_COORDS;
+        const mapUrl = buildStaticMapUrl(mapCoords, "400x280", 14);
+        const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
+        const amenityListRaw = Array.isArray(activeListing.amenities)
+          ? activeListing.amenities
+          : [];
+        const amenityList = amenityListRaw
+          .filter((item) => typeof item === "string")
+          ;
+        const aboutText = formatFullDescription(activeListing);
+        const isHollywoodUnit = getBuildingKey(activeListing) === "la-hollywood";
+        const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
+        const availability = listingId ? sectionAvailabilityMap[listingId] : null;
+        const availabilityStatus = sectionAvailabilityActive
+          ? availability === false
+            ? "Unavailable"
+            : availability === true
+              ? "Available"
+              : "Checking..."
+          : "Select dates";
+        const quote = listingId ? sectionQuotes[listingId] : null;
+        const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
+        const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+        const priceCurrency = quote?.currency || activeListing.currency || "USD";
+        const dailyRate = firstNumber(
+          plan?.nightly,
+          plan?.pricing?.nightly,
+          plan?.basePricePerNight,
+          quote?.pricing?.nightly,
+          quote?.nightly,
+          activeListing?.prices?.basePricePerNight,
+          activeListing?.prices?.nightly,
+          activeListing?.prices?.basePrice?.amount,
+          activeListing?.prices?.nightly?.amount,
+          activeListing?.basePrice
+        );
+        const dailyRateCurrency =
+          plan?.currency ||
+          quote?.currency ||
+          activeListing?.prices?.nightly?.currency ||
+          activeListing?.prices?.basePrice?.currency ||
+          activeListing?.currency ||
+          priceCurrency;
+        const totalPrice =
+          breakdown?.total ??
+          breakdown?.subtotal ??
+          plan?.total ??
+          quote?.total ??
+          null;
+        return (
+          <>
+            <div className="la-unit-modal__grid" id="la-overview">
+              <div className="la-unit-modal__gallery">
+                <div className="la-unit-modal__main">
+                  {mainImage ? (
+                    <button
+                      type="button"
+                      className="la-unit-modal__image-button"
+                      onClick={(event) => handleImagePreview(event, mainImage)}
+                      aria-label="Open image preview"
+                    >
+                      <img
+                        src={mainImage}
+                        alt={sanitizeText(activeListing.title)}
+                        loading="eager"
+                        onError={handleImageError}
                       />
-                      <div>
-                        <label htmlFor="la-section-guests">Guests</label>
-                        <select
-                          id="la-section-guests"
-                          value={sectionGuests}
-                          onChange={(event) => setSectionGuests(event.target.value)}
-                        >
-                          {GUEST_OPTIONS.map((guestCount) => (
-                            <option key={guestCount} value={guestCount}>
-                              {guestCount}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    </button>
+                  ) : (
+                    <div className="la-unit-modal__placeholder">Image loading</div>
+                  )}
+                </div>
+                <div className="la-unit-modal__side">
+                  {sideImages.length ? (
+                    sideImages.map((entry) => (
                       <button
+                        key={`side-${entry.idx}`}
                         type="button"
-                        className="la-unit-modal__booking-cta"
-                        onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                        className="la-unit-modal__image-button"
+                        onClick={() => setActiveImageIndex(entry.idx)}
+                        aria-label="Select image"
                       >
-                        {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                        <img
+                          src={entry.src}
+                          alt=""
+                          loading="lazy"
+                          onError={handleImageError}
+                        />
                       </button>
-                    </div>
+                    ))
+                  ) : (
+                    [0, 1].map((idx) => (
+                      <div key={`side-${idx}`} className="la-unit-modal__placeholder">
+                        Image loading
+                      </div>
+                    ))
+                  )}
+                </div>
+                {thumbImages.length > 1 && (
+                  <div
+                    className="la-unit-modal__thumbs"
+                    role="list"
+                    ref={thumbsRef}
+                    onMouseEnter={(event) => {
+                      hoveredThumbsRef.current = thumbsRef.current;
+                      handleThumbsMove(event, thumbsRef);
+                    }}
+                    onMouseMove={handleThumbsMove}
+                    onMouseLeave={() => {
+                      hoveredThumbsRef.current = null;
+                      stopAutoScroll();
+                    }}
+                  >
+                    <div
+                      className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
+                      onMouseEnter={() => {
+                        console.log("[Thumbs] hover left zone");
+                        startAutoScroll(thumbsRef.current, -1);
+                      }}
+                      onMouseLeave={stopAutoScroll}
+                    />
+                    <div
+                      className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
+                      onMouseEnter={() => {
+                        console.log("[Thumbs] hover right zone");
+                        startAutoScroll(thumbsRef.current, 1);
+                      }}
+                      onMouseLeave={stopAutoScroll}
+                    />
+                    {thumbImages.map((entry, idx) => (
+                      <button
+                        key={`${entry.src}-${entry.idx}`}
+                        type="button"
+                        className={entry.idx === safeIndex ? "is-active" : ""}
+                        onClick={() => setActiveImageIndex(entry.idx)}
+                      >
+                        <img
+                          src={entry.src}
+                          alt=""
+                          loading={idx === 0 ? "eager" : "lazy"}
+                          onError={handleImageError}
+                        />
+                      </button>
+                    ))}
                   </div>
-                  <div className="la-unit-modal__sidebar">
-                    <div className="la-unit-modal__contact" aria-label="Reservation contact">
-                      <p>For Reservation Contact</p>
-                      <strong>OneLuxStay Dubai</strong>
-                      <a href="tel:+971557277059">+971 55 727 7059</a>
-                      <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                      <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
-                        Message concierge
-                      </a>
+                )}
+                <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
+                  <DateRangePicker
+                    value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                    dayPrices={calendarDayMap}
+                    onChange={({ checkIn, checkOut }) => {
+                      setSectionCheckIn(checkIn);
+                      setSectionCheckOut(checkOut);
+                    }}
+                    onMonthChange={(nextMonth) => {
+                      const listingId = getCalendarListingId(activeListing, losAngelesListings);
+                      if (!listingId) return;
+                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                      setCalendarStartDate(monthStart);
+                      setCalendarMonthIndex(0);
+                      fetchCalendarMonth(
+                        listingId,
+                        monthStart,
+                        calendarCacheRef,
+                        calendarDaysRef,
+                        calendarInflightRef,
+                        setCalendarLoading,
+                        setCalendarError,
+                        setCalendarPrices
+                      );
+                    }}
+                    onOpenChange={handleListingCalendarOpen}
+                    isLoading={calendarLoading}
+                    fallbackPrice={activeListing.basePrice}
+                    fallbackCurrency={activeListing.currency}
+                    fallbackMinNights={listingMinNightsFallback}
+                  />
+                  <div>
+                    <label htmlFor="la-section-guests">Guests</label>
+                    <select
+                      id="la-section-guests"
+                      value={sectionGuests}
+                      onChange={(event) => setSectionGuests(event.target.value)}
+                    >
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                      <option value="5">5</option>
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="la-unit-modal__booking-cta"
+                    onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                  >
+                    {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                  </button>
+                </div>
+              </div>
+            <div className="la-unit-modal__sidebar">
+              <div className="la-unit-modal__contact" aria-label="Reservation contact">
+                <p>For Reservation Contact</p>
+                <strong>OneLuxStay Dubai</strong>
+                <a href="tel:+32493813441">+32 493 81 34 41</a>
+                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
+                  Message concierge
+                </a>
+                <a
+                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                  className="la-unit-modal__contact-cta"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WhatsApp us
+                </a>
+              </div>
+              <div className="la-unit-modal__card la-unit-modal__price">
+                <span>From</span>
+                <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
+                <small>per night {"\u00b7"} taxes calculated at checkout</small>
+                {isListingAvailable ? (
+                  <button
+                    type="button"
+                    className="la-listing-hero__reserve"
+                    onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                  >
+                    Reserve your dates
+                  </button>
+                ) : null}
+              </div>
+              <div className="la-unit-modal__card" id="la-guest-reviews">
+                {(() => {
+                  const listingReviews = getListingReviews(activeListing);
+                  const quote =
+                    listingReviews.find((review) => review?.quote && review.quote.trim())?.quote ||
+                    "No review details yet.";
+                  const shouldTruncate = quote.length > 160;
+                  const displayQuote = shouldTruncate && !isReviewExpanded
+                    ? `${quote.slice(0, 160).trim()}...`
+                    : quote;
+                  const reviewLink = getReviewLink(activeListing);
+                  return (
+                    <>
+                <div className="la-unit-modal__card-head">
+                  <strong>{getReviewLabel(getListingReviews(activeListing))}</strong>
+                  {(() => {
+                    const { count } = getReviewStats(getListingReviews(activeListing));
+                    const label = count ? `${count} reviews` : "No reviews";
+                    return reviewLink ? (
                       <a
-                        href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
-                        className="la-unit-modal__contact-cta"
+                        href={reviewLink}
+                        className="la-unit-modal__review-link"
                         target="_blank"
                         rel="noreferrer"
                       >
-                        WhatsApp us
+                        {label}
                       </a>
-                    </div>
-                    <div className="la-unit-modal__card la-unit-modal__price">
-                      <span>From</span>
-                      <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
-                      <small>per night · taxes calculated at checkout</small>
-                      {isListingAvailable ? (
-                        <button
-                          type="button"
-                          className="la-listing-hero__reserve"
-                          onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
-                        >
-                          Reserve your dates
-                        </button>
-                      ) : null}
-                    </div>
-                    <div className="la-unit-modal__card" id="la-guest-reviews">
-                      {(() => {
-                        const listingReviews = getListingReviews(activeListing);
-                        const quote =
-                          listingReviews.find((review) => review?.quote && review.quote.trim())?.quote ||
-                          "No review details yet.";
-                        const shouldTruncate = quote.length > 160;
-                        const displayQuote = shouldTruncate && !isReviewExpanded
-                          ? `${quote.slice(0, 160).trim()}...`
-                          : quote;
-                        const reviewLink = getReviewLink(activeListing);
-                        return (
-                          <>
-                            <div className="la-unit-modal__card-head">
-                              <strong>{getReviewLabel(getListingReviews(activeListing))}</strong>
-                              {(() => {
-                                const { count } = getReviewStats(getListingReviews(activeListing));
-                                const label = count ? `${count} reviews` : "No reviews";
-                                return reviewLink ? (
-                                  <a
-                                    href={reviewLink}
-                                    className="la-unit-modal__review-link"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    {label}
-                                  </a>
-                                ) : (
-                                  <span>{label}</span>
-                                );
-                              })()}
-                            </div>
-                            <div className="la-unit-modal__review">
-                              <p>{displayQuote}</p>
-                              {shouldTruncate && (
-                                <button type="button" onClick={() => setIsReviewExpanded((prev) => !prev)}>
-                                  {isReviewExpanded ? "See less" : "See more"}
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
-                      {mapEmbedUrl ? (
-                        <iframe
-                          title="Unit location map"
-                          src={mapEmbedUrl}
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                          allowFullScreen
-                        />
-                      ) : mapUrl ? (
-                        <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
-                      ) : (
-                        <div className="la-unit-modal__placeholder">Map loading</div>
-                      )}
-                      <button
-                        type="button"
-                        className="la-unit-modal__map-overlay"
-                        aria-label="View larger map"
-                        onClick={() => {
-                          setListingMapTarget({
-                            coords: getListingCoords(activeListing),
-                            address: getListingAddressQuery(activeListing),
-                            label: activeListing.title || "OneLuxStay",
-                          });
-                          setIsListingMapOpen(true);
-                        }}
-                      >
-                        <span className="la-unit-modal__map-cta">View larger map</span>
-                      </button>
-                    </div>
-                    <div className="la-unit-modal__card la-unit-modal__availability">
-                      <div className="la-unit-modal__card-head">
-                        <strong>Availability</strong>
-                        <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                          {availabilityStatus}
-                        </span>
-                      </div>
-                      <div className="la-unit-modal__availability-details">
-                        {availability === false ? (
-                          <p>Unavailable for the selected dates.</p>
-                        ) : breakdown ? (
-                          <>
-                            <div>
-                              <span>Accommodation</span>
-                              <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                            </div>
-                            {breakdown.discountAmount > 0 && (
-                              <div>
-                                <span>
-                                  Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                                </span>
-                                <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                              </div>
-                            )}
-                            <div>
-                              <span>Cleaning</span>
-                              <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                            </div>
-                            <div>
-                              <span>Taxes</span>
-                              <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                            </div>
-                            <div>
-                              <span>Fees</span>
-                              <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
-                            </div>
-                            <div className="la-unit-modal__total">
-                              <span>Total</span>
-                              <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                            </div>
-                          </>
-                        ) : totalPrice ? (
-                          <div className="la-unit-modal__total">
-                            <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                            <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
+                    ) : (
+                      <span>{label}</span>
+                    );
+                  })()}
+                  </div>
+                <div className="la-unit-modal__review">
+                  <p>{displayQuote}</p>
+                  {shouldTruncate && (
+                    <button type="button" onClick={() => setIsReviewExpanded((prev) => !prev)}>
+                      {isReviewExpanded ? "See less" : "See more"}
+                    </button>
+                  )}
+                </div>
+                    </>
+                  );
+                })()}
+                </div>
+                <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
+                  {mapEmbedUrl ? (
+                    <iframe
+                      title="Unit location map"
+                      src={mapEmbedUrl}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      allowFullScreen
+                    />
+                  ) : mapUrl ? (
+                    <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
+                  ) : (
+                    <div className="la-unit-modal__placeholder">Map loading</div>
+                  )}
+                  <button
+                    type="button"
+                    className="la-unit-modal__map-overlay"
+                    aria-label="View larger map"
+                    onClick={() => {
+                      setListingMapTarget({
+                        coords: getListingCoords(activeListing),
+                        address: getListingAddressQuery(activeListing),
+                        label: activeListing.title || "OneLuxStay",
+                      });
+                      setIsListingMapOpen(true);
+                    }}
+                  >
+                    <span className="la-unit-modal__map-cta">View larger map</span>
+                  </button>
+                </div>
+                <div className="la-unit-modal__card la-unit-modal__availability">
+                  <div className="la-unit-modal__card-head">
+                    <strong>Availability</strong>
+                    <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
+                      {availabilityStatus}
+                    </span>
+                  </div>
+                  <div className="la-unit-modal__availability-details">
+                    {availability === false ? (
+                      <p>Unavailable for the selected dates.</p>
+                    ) : breakdown ? (
+                      <>
+                        <div>
+                          <span>Accommodation</span>
+                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
+                        </div>
+                        {breakdown.discountAmount > 0 && (
+                          <div>
+                            <span>
+                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                            </span>
+                            <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
                           </div>
-                        ) : (
-                          <p>Check availability to view pricing breakdown.</p>
                         )}
+                        <div>
+                          <span>Cleaning</span>
+                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
+                        </div>
+                        <div>
+                          <span>Taxes</span>
+                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                        </div>
+                        <div>
+                          <span>Fees</span>
+                          <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                        </div>
+                        <div className="la-unit-modal__total">
+                          <span>Total</span>
+                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                        </div>
+                      </>
+                    ) : totalPrice ? (
+                      <div className="la-unit-modal__total">
+                        <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
+                        <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
                       </div>
-                      <div className="la-unit-modal__actions">
-                        {(() => {
-                          const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                          if (availability === true) {
-                            const isReserving = sectionReserveLoadingId === listingId;
-                            return (
-                              <button
-                                type="button"
-                                className="la-unit-modal__action-primary"
-                                disabled={sectionAvailabilityLoading || isReserving}
-                                onClick={() => {
-                                  setPendingCheckout({
-                                    listingId,
-                                    listingTitle: activeListing.title,
-                                    amount: typeof totalPrice === "number" ? totalPrice : null,
-                                    currency: resolveCheckoutCurrency(priceCurrency),
-                                    breakdown: breakdown || null,
-                                    baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                                    baseBreakdown: breakdown || null,
-                                    promoCode: "",
-                                    promoDiscountRate: 0,
-                                    promoDiscountAmount: 0,
-                                  });
+                    ) : (
+                      <p>Check availability to view pricing breakdown.</p>
+                    )}
+                  </div>
+                  <div className="la-unit-modal__actions">
+                    {(() => {
+                      const availability = listingId ? sectionAvailabilityMap[listingId] : null;
+                      if (availability === true) {
+                        const isReserving = sectionReserveLoadingId === listingId;
+                        return (
+                          <button
+                            type="button"
+                            className="la-unit-modal__action-primary"
+                            disabled={sectionAvailabilityLoading || isReserving}
+                            onClick={() => {
+                              setPendingCheckout({
+                                listingId,
+                                listingTitle: activeListing.title,
+                                amount: typeof totalPrice === "number" ? totalPrice : null,
+                                currency: resolveCheckoutCurrency(priceCurrency),
+                                breakdown: breakdown || null,
+                                baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                                baseBreakdown: breakdown || null,
+                                promoCode: "",
+                                promoDiscountRate: 0,
+                                promoDiscountAmount: 0,
+                              });
                               setCheckoutStep(1);
                               setCheckoutConsentAccepted(false);
                               setCheckoutConsentSignerName("");
@@ -4883,216 +5156,218 @@ const applyCheckoutPromoCode = () => {
                               setCheckoutGuestError("");
                               setIsCheckoutGuestOpen(true);
                             }}
-                              >
-                                {isReserving ? "Redirecting..." : "Reserve"}
-                              </button>
-                            );
-                          }
-                          if (availability === false) {
-                            return (
-                              <button
-                                type="button"
-                                className="la-unit-modal__action-primary"
-                                onClick={() => openInquiry(activeListing)}
-                              >
-                                Inquire
-                              </button>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {sectionAvailabilityError && (
-                  <div role="alert" className="la-section-hero__notice">
-                    {sectionAvailabilityError}
-                  </div>
-                )}
-                <div className="la-unit-modal__section">
-                  <div className="la-unit-modal__rooms">
-                    <div>
-                      <p>
-                        Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
-                        {activeListing.accommodates || "--"}
-                      </p>
-                      {(() => {
-                        const direct = getBedDetails(activeListing);
-                        const bedDetails = (() => {
-                          if (direct.length) return direct;
-                          if (activeListing.bedDetails && activeListing.bedDetails.length) {
-                            return activeListing.bedDetails;
-                          }
-                          const groupKey = getListingGroupKey(activeListing);
-                          if (!groupKey || !Array.isArray(listings)) return [];
-                          const fallback = listings.find((entry) => {
-                            if (getListingGroupKey(entry) !== groupKey) return false;
-                            if (entry.bedDetails && entry.bedDetails.length) return true;
-                            return getBedDetails(entry).length > 0;
-                          });
-                          if (!fallback) return [];
-                          const fallbackDirect = getBedDetails(fallback);
-                          return fallbackDirect.length ? fallbackDirect : (fallback.bedDetails || []);
-                        })();
-                        const bedLines = buildDubaiBedLines(bedDetails);
-                        if (!bedLines.length) return null;
-                        return (
-                          <div className="la-booking-table__bed-details">
-                            {bedLines.map((line, idx) => (
-                              <div
-                                key={`listing-bed-${idx}`}
-                                className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
-                              >
-                                {line.label ? (
-                                  <span className="la-booking-table__bed-room">{line.label}</span>
-                                ) : null}
-                                <span className="la-booking-table__bed-desc">
-                                  {line.detail}
-                                  <span className="la-booking-table__bed-icon">
-                                    <BedIcon />
-                                  </span>
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                          >
+                            {isReserving ? "Redirecting..." : "Reserve"}
+                          </button>
                         );
-                      })()}
-                    </div>
+                      }
+                      if (availability === false) {
+                        return (
+                          <button
+                            type="button"
+                            className="la-unit-modal__action-primary"
+                            onClick={() => openInquiry(activeListing)}
+                          >
+                            Inquire
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
-                <div className="la-unit-modal__section">
-                  <h4>About this property</h4>
-                  <p>
-                    A calm base with quick access to the neighborhood's best corners. Expect bright spaces, effortless
-                    arrivals, and a stay that keeps everything close - landmarks, transit, and the city's rhythm.
-                  </p>
-                </div>
-              </>
-            );
-          })()}
-          <div className="la-unit-modal__section" id="la-facilities">
-            <div className="la-facilities-head">
-              <div>
-                <h4>Facilities of {sanitizeText(activeListing?.title || "OneLuxStay")}</h4>
-                <p>Great facilities. Review score, 9.6</p>
               </div>
             </div>
-            <div className="la-unit-modal__facilities">
-              {activeListing?.amenities?.length ? (
-                <div className="la-facilities-layout">
-                  <div className="la-facilities-grid">
-                    {groupAmenities(activeListing.amenities).map((group) => (
-                      <div key={group.key} className="la-facilities-group">
-                        <div className="la-facilities-group__head">
-                          <span className="la-facilities-group__icon">✓</span>
-                          <h5>{group.label}</h5>
-                        </div>
-                        <ul>
-                          {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
-                            <li key={`${group.key}-${idx}-${item}`}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="la-facilities-more">
-                    <a className="la-facilities-cta" href="#la-rooms">
-                      See availability
-                    </a>
-                    <button
-                      type="button"
-                      className="la-unit-modal__amenities-toggle"
-                      onClick={() => setShowAllAmenities((prev) => !prev)}
-                    >
-                      {showAllAmenities ? "See less" : "See more"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p>Contact us for full amenities list.</p>
-              )}
-            </div>
-          </div>
-          <div className="la-unit-modal__section" id="la-house-rules">
-            <h4>House rules</h4>
-            {(() => {
-              const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
-              const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
-              if (houseRulesLoading && !rules) {
-                return <p>Loading house rulesâ€¦</p>;
-              }
-              if (houseRulesError && !rules) {
-                return <p>{houseRulesError}</p>;
-              }
-              if (!rules) {
-                return (
+            {sectionAvailabilityError && (
+              <div role="alert" className="la-section-hero__notice">
+                {sectionAvailabilityError}
+              </div>
+            )}
+            <div className="la-unit-modal__section">
+              <div className="la-unit-modal__rooms">
+                <div>
                   <p>
-                    House rules are shared at booking and upon request. Contact the concierge for specific policies.
+                    Bedrooms: {activeListing.bedrooms || "--"} | Bathrooms: {activeListing.bathrooms || "--"} | Sleeps{" "}
+                    {activeListing.accommodates || "--"}
                   </p>
-                );
-              }
-              const houseRules = rules.houseRules || rules;
-              const childrenRules = houseRules.childrenRules || {};
-              const petsAllowed = houseRules.petsAllowed;
-              const smokingAllowed = houseRules.smokingAllowed;
-              const quietBetween = houseRules.quietBetween;
-              const eventsAllowed = houseRules.suitableForEvents;
-              const ruleItems = [
-                {
-                  label: "Suitable for children",
-                  value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
-                },
-                {
-                  label: "Suitable for infants",
-                  value: formatRuleValue(childrenRules.suitableForInfants ?? houseRules.suitableForInfants),
-                },
-                {
-                  label: "Pets allowed",
-                  value: formatRuleValue(
-                    typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
-                  ),
-                },
-                {
-                  label: "Pets charged",
-                  value: formatRuleValue(
-                    typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
-                  ),
-                },
-                {
-                  label: "Smoking allowed",
-                  value: formatRuleValue(
-                    typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
-                  ),
-                },
-                {
-                  label: "Parties allowed",
-                  value: formatRuleValue(
-                    typeof eventsAllowed === "object" ? eventsAllowed.enabled : eventsAllowed ?? houseRules.partiesAllowed
-                  ),
-                },
-                {
-                  label: "Quiet hours",
-                  value: quietBetween?.enabled
-                    ? formatQuietHours({ set: true, start: quietBetween.hours?.start, end: quietBetween.hours?.end })
-                    : formatQuietHours(houseRules.quietHours),
-                },
-                { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
-              ];
-              return (
-                <div className="la-house-rules">
-                  <ul>
-                    {ruleItems.map((item) => (
-                      <li key={item.label}>
-                        <strong>{item.label}</strong>
-                        <span>{item.value}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {(() => {
+                    const direct = getBedDetails(activeListing);
+                    const bedDetails = (() => {
+                      if (direct.length) return direct;
+                      if (activeListing.bedDetails && activeListing.bedDetails.length) {
+                        return activeListing.bedDetails;
+                      }
+                      const groupKey = getListingGroupKey(activeListing);
+                      if (!groupKey || !Array.isArray(listings)) return [];
+                      const fallback = listings.find((entry) => {
+                        if (getListingGroupKey(entry) !== groupKey) return false;
+                        if (entry.bedDetails && entry.bedDetails.length) return true;
+                        return getBedDetails(entry).length > 0;
+                      });
+                      if (!fallback) return [];
+                      const fallbackDirect = getBedDetails(fallback);
+                      return fallbackDirect.length ? fallbackDirect : (fallback.bedDetails || []);
+                    })();
+                    const bedLines = bedDetails
+                      .map(splitBedDetailLine)
+                      .filter((line) => line.detail);
+                    if (!bedLines.length) return null;
+                    return (
+                      <div className="la-booking-table__bed-details">
+                        {bedLines.map((line, idx) => (
+                          <div
+                            key={`listing-bed-${idx}`}
+                            className={`la-booking-table__bed-row${line.label ? "" : " is-single"}`}
+                          >
+                            {line.label ? (
+                              <span className="la-booking-table__bed-room">{line.label}</span>
+                            ) : null}
+                            <span className="la-booking-table__bed-desc">
+                              {line.detail}
+                              <span className="la-booking-table__bed-icon">
+                                <BedIcon />
+                              </span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
-              );
-            })()}
+              </div>
+            </div>
+            <div className="la-unit-modal__section">
+              <h4>About this property</h4>
+              <p>
+                A calm base with quick access to the neighborhood's best corners. Expect bright spaces, effortless
+                arrivals, and a stay that keeps everything close - landmarks, transit, and the city's rhythm.
+              </p>
+            </div>
+          </>
+        );
+      })()}
+      <div className="la-unit-modal__section" id="la-facilities">
+        <div className="la-facilities-head">
+          <div>
+            <h4>Facilities of {sanitizeText(activeListing?.title || "OneLuxStay")}</h4>
+            <p>Great facilities. Review score, 9.6</p>
           </div>
+        </div>
+        <div className="la-unit-modal__facilities">
+          {activeListing?.amenities?.length ? (
+            <div className="la-facilities-layout">
+              <div className="la-facilities-grid">
+                {groupAmenities(activeListing.amenities).map((group) => (
+                  <div key={group.key} className="la-facilities-group">
+                    <div className="la-facilities-group__head">
+                      <span className="la-facilities-group__icon">{"\u2713"}</span>
+                      <h5>{group.label}</h5>
+                    </div>
+                    <ul>
+                      {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
+                        <li key={`${group.key}-${idx}-${item}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <div className="la-facilities-more">
+                <a className="la-facilities-cta" href="#la-rooms">
+                  See availability
+                </a>
+                <button
+                  type="button"
+                  className="la-unit-modal__amenities-toggle"
+                  onClick={() => setShowAllAmenities((prev) => !prev)}
+                >
+                  {showAllAmenities ? "See less" : "See more"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p>Contact us for full amenities list.</p>
+          )}
+        </div>
+      </div>
+      <div className="la-unit-modal__section" id="la-house-rules">
+        <h4>House rules</h4>
+        {(() => {
+          const unitTypeId = activeListing?.unitTypeId || activeListing?.id || activeListing?._id;
+          const rules = unitTypeId ? houseRulesByUnit[unitTypeId] : null;
+          if (houseRulesLoading && !rules) {
+            return <p>Loading house rules{"\u2026"}</p>;
+          }
+          if (houseRulesError && !rules) {
+            return <p>{houseRulesError}</p>;
+          }
+          if (!rules) {
+            return (
+              <p>
+                House rules are shared at booking and upon request. Contact the concierge for specific policies.
+              </p>
+            );
+          }
+          const houseRules = rules.houseRules || rules;
+          const childrenRules = houseRules.childrenRules || {};
+          const petsAllowed = houseRules.petsAllowed;
+          const smokingAllowed = houseRules.smokingAllowed;
+          const quietBetween = houseRules.quietBetween;
+          const eventsAllowed = houseRules.suitableForEvents;
+          const ruleItems = [
+            {
+              label: "Suitable for children",
+              value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
+            },
+            {
+              label: "Suitable for infants",
+              value: formatRuleValue(childrenRules.suitableForInfants ?? houseRules.suitableForInfants),
+            },
+            {
+              label: "Pets allowed",
+              value: formatRuleValue(
+                typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
+              ),
+            },
+            {
+              label: "Pets charged",
+              value: formatRuleValue(
+                typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
+              ),
+            },
+            {
+              label: "Smoking allowed",
+              value: formatRuleValue(
+                typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
+              ),
+            },
+            {
+              label: "Parties allowed",
+              value: formatRuleValue(
+                typeof eventsAllowed === "object" ? eventsAllowed.enabled : eventsAllowed ?? houseRules.partiesAllowed
+              ),
+            },
+            {
+              label: "Quiet hours",
+              value: quietBetween?.enabled
+                ? formatQuietHours({ set: true, start: quietBetween.hours?.start, end: quietBetween.hours?.end })
+                : formatQuietHours(houseRules.quietHours),
+            },
+            { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
+          ];
+          return (
+            <div className="la-house-rules">
+              <ul>
+                {ruleItems.map((item) => (
+                  <li key={item.label}>
+                    <strong>{item.label}</strong>
+                    <span>{item.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+      </div>
         </div>
       </div>
     </div>
@@ -5102,79 +5377,79 @@ const applyCheckoutPromoCode = () => {
   const mapPortalTarget = typeof document !== "undefined" ? document.body : null;
   const zoomModal = zoomImageUrl && zoomPortalTarget
     ? createPortal(
-      <div
-        className="la-zoom-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Image preview"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setZoomImageUrl("");
-        }}
-      >
-        <div className="la-zoom-modal__inner">
-          <button
-            type="button"
-            className="la-zoom-modal__close"
-            onClick={() => setZoomImageUrl("")}
-            aria-label="Close image preview"
-          >
-            Close
-          </button>
-          <div className="la-zoom-modal__controls" aria-label="Zoom controls">
-            <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value - 0.2))}>
-              -
+        <div
+          className="la-zoom-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setZoomImageUrl("");
+          }}
+        >
+          <div className="la-zoom-modal__inner">
+            <button
+              type="button"
+              className="la-zoom-modal__close"
+              onClick={() => setZoomImageUrl("")}
+              aria-label="Close image preview"
+            >
+              Close
             </button>
-            <span>{Math.round(zoomLevel * 100)}%</span>
-            <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value + 0.2))}>
-              +
-            </button>
-            <button type="button" onClick={() => setZoomLevel(1)}>
-              Reset
-            </button>
-          </div>
-          <div
-            ref={zoomCanvasRef}
-            className={`la-zoom-modal__canvas${zoomLevel > 1 ? " is-zoomed" : ""}`}
-            onPointerDown={(event) => {
-              if (zoomLevel <= 1 || event.button !== 0) return;
-              isPanningRef.current = true;
-              panStartRef.current = { x: event.clientX, y: event.clientY };
-              panOriginRef.current = { x: zoomPan.x, y: zoomPan.y };
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={(event) => {
-              if (!isPanningRef.current) return;
-              const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
-              const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
-              setZoomPan(clampZoomPan({ x: nextX, y: nextY }));
-            }}
-            onPointerUp={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }
-              isPanningRef.current = false;
-            }}
-            onPointerLeave={() => {
-              isPanningRef.current = false;
-            }}
-          >
-            <img
-              ref={zoomImageRef}
-              src={zoomImageUrl}
-              alt="Listing preview"
-              onLoad={() => {
-                setZoomLevel((value) => clampZoom(value));
-                setZoomPan((prev) => clampZoomPan(prev));
+            <div className="la-zoom-modal__controls" aria-label="Zoom controls">
+              <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value - 0.2))}>
+                -
+              </button>
+              <span>{Math.round(zoomLevel * 100)}%</span>
+              <button type="button" onClick={() => setZoomLevel((value) => clampZoom(value + 0.2))}>
+                +
+              </button>
+              <button type="button" onClick={() => setZoomLevel(1)}>
+                Reset
+              </button>
+            </div>
+            <div
+              ref={zoomCanvasRef}
+              className={`la-zoom-modal__canvas${zoomLevel > 1 ? " is-zoomed" : ""}`}
+              onPointerDown={(event) => {
+                if (zoomLevel <= 1 || event.button !== 0) return;
+                isPanningRef.current = true;
+                panStartRef.current = { x: event.clientX, y: event.clientY };
+                panOriginRef.current = { x: zoomPan.x, y: zoomPan.y };
+                event.currentTarget.setPointerCapture(event.pointerId);
               }}
-              style={{
-                transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
+              onPointerMove={(event) => {
+                if (!isPanningRef.current) return;
+                const nextX = panOriginRef.current.x + (event.clientX - panStartRef.current.x);
+                const nextY = panOriginRef.current.y + (event.clientY - panStartRef.current.y);
+                setZoomPan(clampZoomPan({ x: nextX, y: nextY }));
               }}
-            />
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                isPanningRef.current = false;
+              }}
+              onPointerLeave={() => {
+                isPanningRef.current = false;
+              }}
+            >
+              <img
+                ref={zoomImageRef}
+                src={zoomImageUrl}
+                alt="Listing preview"
+                onLoad={() => {
+                  setZoomLevel((value) => clampZoom(value));
+                  setZoomPan((prev) => clampZoomPan(prev));
+                }}
+                style={{
+                  transform: `translate(${zoomPan.x}px, ${zoomPan.y}px) scale(${zoomLevel})`,
+                }}
+              />
+            </div>
           </div>
-        </div>
-      </div>,
-      zoomPortalTarget
-    )
+        </div>,
+        zoomPortalTarget
+      )
     : null;
 
   const tourPortalTarget = typeof document !== "undefined" ? document.body : null;
@@ -5182,164 +5457,164 @@ const applyCheckoutPromoCode = () => {
   const tourModal =
     showCityTour && tourCount > 0 && tourPortalTarget
       ? createPortal(
-        <div
-          className="la-tour-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="la-tour-title"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setShowCityTour(false);
-            }
-          }}
-        >
-          <div className="la-tour-modal">
-            <div className="la-tour-intro" aria-hidden="true">
-              <span>One Lux Stay</span>
-            </div>
-            <div className="la-tour-header">
-              <div className="la-tour-brand">OneLuxStay</div>
-              <div className="la-tour-controls">
+          <div
+            className="la-tour-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="la-tour-title"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setShowCityTour(false);
+              }
+            }}
+          >
+            <div className="la-tour-modal">
+              <div className="la-tour-intro" aria-hidden="true">
+                <span>One Lux Stay</span>
+              </div>
+              <div className="la-tour-header">
+                <div className="la-tour-brand">OneLuxStay</div>
+                <div className="la-tour-controls">
+                  <button
+                    type="button"
+                    className="la-tour-btn"
+                    onClick={() => setShowCityTour(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="la-tour-stage">
                 <button
                   type="button"
-                  className="la-tour-btn"
-                  onClick={() => setShowCityTour(false)}
+                  className="la-tour-chevron la-tour-chevron--prev"
+                  aria-label="Previous scene"
+                  onClick={() => goToTour(tourIndex - 1)}
                 >
-                  Close
+                  {"<"}
                 </button>
-              </div>
-            </div>
-            <div className="la-tour-stage">
-              <button
-                type="button"
-                className="la-tour-chevron la-tour-chevron--prev"
-                aria-label="Previous scene"
-                onClick={() => goToTour(tourIndex - 1)}
-              >
-                {"<"}
-              </button>
-              <button
-                type="button"
-                className="la-tour-chevron la-tour-chevron--next"
-                aria-label="Next scene"
-                onClick={() => goToTour(tourIndex + 1)}
-              >
-                {">"}
-              </button>
-              <div
-                key={tourIndex}
-                className="la-tour-slide"
-                style={{ backgroundImage: `url(${activeTourSlide.image || ""})` }}
-              >
-                <div className="la-tour-gradient" aria-hidden="true" />
-                <div className="la-tour-content" aria-live="polite">
-                  <p className="la-tour-kicker">{tourCity}</p>
-                  <h2 className="la-tour-title" id="la-tour-title">
-                    {activeTourSlide.title || "City tour"}
-                  </h2>
-                  <p className="la-tour-subtitle">
-                    {activeTourSlide.subtitle || "Enter a cinematic sequence curated for your stay."}
-                  </p>
-                  {activeTourSlide.copy ? (
-                    <p className="la-tour-copy">{activeTourSlide.copy}</p>
-                  ) : null}
-                  {tourHighlights.length ? (
-                    <div className="la-tour-highlights">
-                      {tourHighlights.map((item) => (
-                        <span key={item} className="la-tour-chip">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
+                <button
+                  type="button"
+                  className="la-tour-chevron la-tour-chevron--next"
+                  aria-label="Next scene"
+                  onClick={() => goToTour(tourIndex + 1)}
+                >
+                  {">"}
+                </button>
+                <div
+                  key={tourIndex}
+                  className="la-tour-slide"
+                  style={{ backgroundImage: `url(${activeTourSlide.image || ""})` }}
+                >
+                  <div className="la-tour-gradient" aria-hidden="true" />
+                  <div className="la-tour-content" aria-live="polite">
+                    <p className="la-tour-kicker">{tourCity}</p>
+                    <h2 className="la-tour-title" id="la-tour-title">
+                      {activeTourSlide.title || "City tour"}
+                    </h2>
+                    <p className="la-tour-subtitle">
+                      {activeTourSlide.subtitle || "Enter a cinematic sequence curated for your stay."}
+                    </p>
+                    {activeTourSlide.copy ? (
+                      <p className="la-tour-copy">{activeTourSlide.copy}</p>
+                    ) : null}
+                    {tourHighlights.length ? (
+                      <div className="la-tour-highlights">
+                        {tourHighlights.map((item) => (
+                          <span key={item} className="la-tour-chip">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              <div className="la-tour-progress" aria-hidden="true">
-                <span style={{ width: `${((tourIndex + 1) / tourCount) * 100}%` }} />
-              </div>
-              <div className="la-tour-nav">
-                <div className="la-tour-dots" role="tablist" aria-label={`${tourCity} tour scenes`}>
-                  {tourSlides.map((slide, index) => (
-                    <button
-                      key={slide.title || `${tourCity}-scene-${index}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={index === tourIndex}
-                      className={index === tourIndex ? "la-tour-dot is-active" : "la-tour-dot"}
-                      onClick={() => goToTour(index)}
-                    >
-                      <span className="sr-only">Scene {index + 1}</span>
-                    </button>
-                  ))}
+                <div className="la-tour-progress" aria-hidden="true">
+                  <span style={{ width: `${((tourIndex + 1) / tourCount) * 100}%` }} />
+                </div>
+                <div className="la-tour-nav">
+                  <div className="la-tour-dots" role="tablist" aria-label={`${tourCity} tour scenes`}>
+                    {tourSlides.map((slide, index) => (
+                      <button
+                        key={slide.title || `${tourCity}-scene-${index}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={index === tourIndex}
+                        className={index === tourIndex ? "la-tour-dot is-active" : "la-tour-dot"}
+                        onClick={() => goToTour(index)}
+                      >
+                        <span className="sr-only">Scene {index + 1}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>,
-        tourPortalTarget
-      )
+          </div>,
+          tourPortalTarget
+        )
       : null;
 
   const listingMapModal = isListingMapOpen && mapPortalTarget
     ? createPortal(
-      <div
-        className="la-map-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Interactive map"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setIsListingMapOpen(false);
-        }}
-      >
-        <div className="la-map-modal__inner">
-          <button
-            type="button"
-            className="la-map-modal__close"
-            onClick={() => setIsListingMapOpen(false)}
-            aria-label="Close map"
-          >
-            Close
-          </button>
-          <div
-            ref={listingMapRef}
-            className="la-map-modal__canvas"
-            aria-label="Interactive map"
-          />
-        </div>
-      </div>,
-      mapPortalTarget
-    )
+        <div
+          className="la-map-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Interactive map"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsListingMapOpen(false);
+          }}
+        >
+          <div className="la-map-modal__inner">
+            <button
+              type="button"
+              className="la-map-modal__close"
+              onClick={() => setIsListingMapOpen(false)}
+              aria-label="Close map"
+            >
+              Close
+            </button>
+                        <div
+              ref={listingMapRef}
+              className="la-map-modal__canvas"
+              aria-label="Interactive map"
+            />
+          </div>
+        </div>,
+        mapPortalTarget
+      )
     : null;
 
   const sectionMapModal = isSectionMapOpen && mapPortalTarget
     ? createPortal(
-      <div
-        className="la-map-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Interactive map"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setIsSectionMapOpen(false);
-        }}
-      >
-        <div className="la-map-modal__inner">
-          <button
-            type="button"
-            className="la-map-modal__close"
-            onClick={() => setIsSectionMapOpen(false)}
-            aria-label="Close map"
-          >
-            Close
-          </button>
-          <div
-            ref={sectionMapRef}
-            className="la-map-modal__canvas"
-            aria-label="Interactive map"
-          />
-        </div>
-      </div>,
-      mapPortalTarget
-    )
+        <div
+          className="la-map-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Interactive map"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsSectionMapOpen(false);
+          }}
+        >
+          <div className="la-map-modal__inner">
+            <button
+              type="button"
+              className="la-map-modal__close"
+              onClick={() => setIsSectionMapOpen(false)}
+              aria-label="Close map"
+            >
+              Close
+            </button>
+            <div
+              ref={sectionMapRef}
+              className="la-map-modal__canvas"
+              aria-label="Interactive map"
+            />
+          </div>
+        </div>,
+        mapPortalTarget
+      )
     : null;
 
   const inquiryModal = isInquiryOpen ? (
@@ -5443,20 +5718,20 @@ const applyCheckoutPromoCode = () => {
                 finalButtonText={sectionReserveLoadingId ? "Redirecting..." : "Continue to payment"}
                 advanceOnFinalStep={false}
                 backButtonProps={{ disabled: Boolean(sectionReserveLoadingId) }}
-            nextButtonProps={{
-              disabled:
-                (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                (checkoutStep === 2 && !isCheckoutIdentityValid) ||
-                (checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
-                (checkoutStep === 4 &&
+                nextButtonProps={{
+                  disabled:
+                    (checkoutStep === 1 && !isCheckoutGuestValid) ||
+                    (checkoutStep === 2 && !isCheckoutIdentityValid) ||
+                    (checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
+                    (checkoutStep === 4 &&
                   (!checkoutConsentAccepted ||
                     !checkoutConsentSignerName.trim() ||
                     !checkoutConsentSignatureDataUrl)) ||
-                (checkoutStep === 6 &&
-                  (!Number.isFinite(Number(pendingCheckout?.amount)) ||
-                    Number(pendingCheckout?.amount) < 0 ||
-                    Boolean(sectionReserveLoadingId))),
-            }}
+                    (checkoutStep === 6 &&
+                      (!Number.isFinite(Number(pendingCheckout?.amount)) ||
+                        Number(pendingCheckout?.amount) < 0 ||
+                        Boolean(sectionReserveLoadingId))),
+                }}
               >
                 <Step>
                   <div className="la-inquiry-modal__step">
@@ -5849,7 +6124,7 @@ const applyCheckoutPromoCode = () => {
   ) : null;
   if (isListingRoute) {
     return (
-      <div className="antwerp-page has-silk dubai-page">
+      <div className="antwerp-page has-silk">
         <div className="antwerp-silk">
           <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
         </div>
@@ -5868,11 +6143,11 @@ const applyCheckoutPromoCode = () => {
   }
 
   return (
-    <div className="antwerp-page has-silk dubai-page">
+    <div className="antwerp-page has-silk">
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      <div className="city-viewport-shell">
+      <div className="city-viewport-shell city-viewport-shell--dubai">
       {/* <section className="la-bounce-section" aria-label="Dubai highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
@@ -5904,8 +6179,12 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
-            <section className="city-date-band" aria-label="Selected stay dates">
-        <div className="city-date-band__top">
+      <section className="city-search-shell city-search-shell--dubai" aria-label="Search Dubai stays">
+        <div className="city-search-topline city-search-topline--breadcrumbs" aria-label="Location breadcrumb">
+          <Link to="/" className="city-search-brand" aria-label="OneLuxStay home">
+            <img src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+            <span className="city-search-brand__name">OneLuxStay</span>
+          </Link>
           <nav className="city-breadcrumbs" aria-label="Breadcrumb">
             <Link to="/" className="city-breadcrumbs__link">
               Home
@@ -5915,24 +6194,180 @@ const applyCheckoutPromoCode = () => {
               Dubai
             </span>
           </nav>
-          <Link to={editDatesHref} className="city-date-band__edit">
-            Edit dates
-          </Link>
         </div>
-        <p className="city-date-band__kicker">Selected dates from home</p>
-        <div className="city-date-band__row">
-          <h1 className="city-date-band__title">Dubai collection</h1>
-          <p className="city-date-band__range" aria-live="polite">
-            {cityDateRangeLabel}
-            {cityDateNightCount > 0
-              ? ` - ${cityDateNightCount} ${cityDateNightCount === 1 ? "night" : "nights"}`
-              : ""}
-          </p>
+        <div className={`city-search-bar${filtersOpen ? " is-filters-open" : ""}`}>
+          <label className="city-search-field city-search-field--location">
+            <span className="city-search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path
+                  d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleSearchSubmit();
+                }
+              }}
+              placeholder="Search by address or place"
+              aria-label="Search by address or place"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                className="city-search-clear-btn"
+                aria-label="Clear search"
+                onClick={() => {
+                  applySearchQuery("", { scrollToListings: false });
+                }}
+              >
+                &times;
+              </button>
+            ) : null}
+            <div
+              className={`city-search-dropdown${
+                isSearchFocused && filteredCitySuggestions.length && !filtersOpen ? " is-open" : ""
+              }`}
+              role="listbox"
+              aria-label="Available cities"
+            >
+              {filteredCitySuggestions.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="option"
+                  className="city-search-dropdown__item"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    applySearchQuery(item.label, { scrollToListings: false });
+                  }}
+                >
+                  <span className="city-search-dropdown__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M12 3a6.5 6.5 0 0 0-6.5 6.5c0 4.47 5.85 10.73 6.1 11a1 1 0 0 0 1.4 0c.25-.27 6.1-6.53 6.1-11A6.5 6.5 0 0 0 12 3zm0 9.2a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </label>
+          <span className="city-search-divider" aria-hidden="true" />
+          <div className="city-search-field city-search-field--dates">
+            <DateRangePicker
+              value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              onChange={({ checkIn, checkOut }) => {
+                setSectionCheckIn(checkIn);
+                setSectionCheckOut(checkOut);
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="city-search-filters"
+            aria-expanded={filtersOpen}
+            aria-controls={filtersPanelId}
+            onClick={() => {
+              setFiltersOpen((prev) => !prev);
+              setIsSearchFocused(false);
+            }}
+          >
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path
+                d="M4 7h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2zm0 6h3a2 2 0 0 0 4 0h9v-2h-9a2 2 0 0 0-4 0H4v2zm0 6h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2z"
+                fill="currentColor"
+              />
+            </svg>
+            Filters
+          </button>
+          <button type="button" className="city-search-submit" onClick={handleSearchSubmit}>
+            <span className="city-search-submit__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path
+                  d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            Search
+          </button>
         </div>
+        <div id={filtersPanelId} className={`city-search-panel${filtersOpen ? " is-open" : ""}`}>
+          <label className="city-search-panel__field">
+            <span>Guests</span>
+            <select
+              value={sectionGuests}
+              onChange={(event) => setSectionGuests(event.target.value)}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
+                <option key={guestCount} value={String(guestCount)}>
+                  {guestCount}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="city-search-panel__field">
+            <span>Bedrooms</span>
+            <select
+              value={minBedrooms}
+              onChange={(event) => setMinBedrooms(Number(event.target.value) || 1)}
+            >
+              <option value={1}>Any</option>
+              {[2, 3, 4, 5, 6].map((count) => (
+                <option key={count} value={count}>
+                  {count}+
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="city-search-toggle">
+            <input
+              type="checkbox"
+              checked={hasStayDates && showMonthlyTotal}
+              disabled={!hasStayDates}
+              onChange={(event) => {
+                if (!hasStayDates) return;
+                setShowMonthlyTotal(event.target.checked);
+              }}
+            />
+            <span className="city-search-toggle__track" aria-hidden="true">
+              <span className="city-search-toggle__thumb" />
+            </span>
+            <span>Total stay cost</span>
+          </label>
+          <button
+            type="button"
+            className="city-search-clear"
+            onClick={() => {
+              setSearchQuery("");
+              setAppliedSearch("");
+              setMinBedrooms(1);
+              setShowMonthlyTotal(false);
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+        <p className="city-search-summary" aria-live="polite">
+          Showing {filteredParentListings.length} of {losAngelesParentListings.length} units.
+        </p>
       </section>
 
+      
+
       <main className="antwerp-main">
-        <section id="la-city-tour" className="la-city-tour" aria-label="USA city tours">
+        <section id="la-city-tour" className="la-city-tour" aria-label="Dubai city tours">
           <div
             key={tourCity}
             className="la-city-tour__bg"
@@ -6018,43 +6453,9 @@ const applyCheckoutPromoCode = () => {
           </div>
         </section>
 
-        <section className="antwerp-section" id="dubai-units">
-          <div className="la-units-layout">
-            <div className="la-units-shell-bar" role="group" aria-label="Listing controls">
-              <span className="la-shell-chip is-search">Map area</span>
-              <span className="la-shell-chip">{cityDateRangeLabel}</span>
-              <span className="la-shell-chip">{`${sectionGuests || "2"} guests`}</span>
-              <Link to={editDatesHref} className="la-shell-chip is-action">
-                Edit dates
-              </Link>
-            </div>
-            <div className="la-units-main">
-              <p className="la-units-notice">Prices shown may exclude taxes and one-time fees.</p>
-              <div className="antwerp-section__head">
-                <div>
-                  <p className="antwerp-kicker">Available now</p>
-                  <h2>Dubai buildings</h2>
-                  <p className="antwerp-muted">
-                    Every card below is derived from the live Guesty listing response, including pricing, capacity, and
-                    amenities metadata.
-                  </p>
-                </div>
-                <div className="la-stats-row">
-                  <div className="la-stat-card">
-                    <span className="la-stat-label">Property types</span>
-                    <strong className="la-stat-value">{stats.propertyTypeLabel}</strong>
-                  </div>
-                  <div className="la-stat-card">
-                    <span className="la-stat-label">Listings</span>
-                    <strong className="la-stat-value">{stats.units || "--"}</strong>
-                  </div>
-                  <div className="la-stat-card">
-                    <span className="la-stat-label">Currency</span>
-                    <strong className="la-stat-value">{stats.currency}</strong>
-                  </div>
-                </div>
-              </div>
-
+        <section className="antwerp-section antwerp-section--split dubai-units-section" id="dubai-units">
+          <div className="la-units-layout la-units-layout--split">
+            <div className="la-units-main la-units-main--cards" aria-label="Available Dubai units">
               {loading && (
                 <div className="antwerp-loading">
                   <div className="antwerp-skeleton" />
@@ -6064,7 +6465,17 @@ const applyCheckoutPromoCode = () => {
 
               {error && (
                 <div role="alert" className="antwerp-error">
-                  {error}
+                  <span>{error}</span>
+                  <button
+                    type="button"
+                    className="antwerp-card__ghost"
+                    onClick={() => {
+                      setError("");
+                      setReloadTick((prev) => prev + 1);
+                    }}
+                  >
+                    Retry listings
+                  </button>
                 </div>
               )}
 
@@ -6074,228 +6485,165 @@ const applyCheckoutPromoCode = () => {
                 </div>
               )}
 
-              {groupedListingsDisplay.map((group) => {
-                const story = SECTION_STORIES[group.key] || SECTION_STORIES.other;
-                const storyImages = [];
-                const seenStoryImages = new Set();
-                const pushStoryImage = (value) => {
-                  const url = extractImageUrl(value) || getImageUrl(value);
-                  if (!url || url === FALLBACK_IMAGE) return;
-                  const key = getImageKey(url) || url;
-                  if (seenStoryImages.has(key)) return;
-                  seenStoryImages.add(key);
-                  storyImages.push(url);
-                };
-                group.listings.forEach((listing) => {
-                  const hasPictures = Array.isArray(listing.pictures) && listing.pictures.length > 0;
-                  if (!hasPictures) pushStoryImage(listing.picture);
-                  if (hasPictures) listing.pictures.forEach(pushStoryImage);
-                });
-                storyImages.splice(1);
-                const groupStats = getGroupStats(group.listings);
-                const buildingPrice = buildingPrices[group.key];
-                const latestPrice = buildingPrice
-                  ? formatCurrency(buildingPrice.total, buildingPrice.currency)
-                  : null;
-                const sectionTitle = (() => {
-                  switch (group.key) {
-                    case "dubai-downtown":
-                      return "One Lux Stay Downtown Dubai";
-                    case "dubai-marina":
-                      return "One Lux Stay Dubai Marina";
-                    case "dubai-business":
-                      return "One Lux Stay Business Bay";
-                    case "dubai-palm":
-                      return "One Lux Stay Palm Jumeirah";
-                    default:
-                      return "One Lux Stay Dubai";
-                  }
-                })();
-                return (
-                  <section key={group.key} className="antwerp-building">
-                    <div className="antwerp-building__head">
-                      <div>
-                        <p className="antwerp-kicker">{group.label}</p>
-                        <h3>{sectionTitle}</h3>
-                      </div>
-                    </div>
-                    {(() => {
-                      const openSection = () => {
-                        const groupListingIds = group.listings
-                          .map((listing) => getListingId(listing))
-                          .filter(Boolean);
-                        const matchedGroup = groupedListingsAll.find((candidate) =>
-                          candidate.listings.some((listing) => groupListingIds.includes(getListingId(listing)))
-                        );
-                        const sectionKey = matchedGroup?.key || group.key;
-                        const sectionListings = matchedGroup?.listings?.length
-                          ? matchedGroup.listings
-                          : group.listings;
-                        setActiveSectionKey(sectionKey);
-                        navigate(buildSectionRoute(sectionKey));
-                        const listingIds = sectionListings
-                          .map((listing) => getListingId(listing))
-                          .filter(Boolean);
-                        const listingId = getPrimaryListingId(sectionListings);
-                        if (listingIds.length) {
-                          fetchAvailabilityListings({ listingIds, listingId });
-                        }
-                      };
-                      return (
-                        <div
-                          className="la-story"
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`View units in ${group.label}`}
-                          onClick={openSection}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              openSection();
-                            }
-                          }}
-                        >
-                          <div className="la-story__media" aria-hidden="true">
-                            {storyImages.length ? (
-                              storyImages.map((src, idx) => (
-                                <div
-                                  key={`${group.key}-story-${idx}`}
-                                  className="la-story__image"
-                                  style={{ backgroundImage: `url(${src})` }}
-                                />
-                              ))
-                            ) : (
-                              <div className="la-story__image la-story__image--empty">Image loading</div>
-                            )}
-                          </div>
-                          <div className="la-story__content">
-                            <p className="la-story__tag">{story.title}</p>
-                            <h4>{story.tagline}</h4>
-                            <p className="la-story__copy">{story.copy}</p>
-                            <div className="la-story__row" aria-label="Landmarks and transit near this area">
-                              <div className="la-story__track">
-                                {[...story.landmarks, ...story.transit].map((item, idx) => (
-                                  <span key={`${group.key}-story-${idx}`} className="la-story__pill">
-                                    {item}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              className="antwerp-card__ghost"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openSection();
-                              }}
-                            >
-                              View units in {group.label}
-                            </button>
-                            <p className="la-story__price" aria-live="polite">
-                              {latestPrice ? (
-                                <>
-                                  <span className="la-story__price-amount">From {latestPrice}</span>
-                                  <span className="la-story__price-note">
-                                    total (accommodation + cleaning + tax)
-                                  </span>
-                                </>
-                              ) : (
-                                "Pricing updates when quotes load."
-                              )}
-                            </p>
-                          </div>
+              {!loading && !error && losAngelesParentListings.length > 0 && filteredParentListings.length === 0 && (
+                <div className="antwerp-empty">
+                  No units match your filters.
+                </div>
+              )}
+
+              {!loading &&
+                !error && filteredParentListings.length > 0 && (
+                  <div className="la-unit-listing-grid">
+                    {filteredParentListings.map((listing) => {
+                    const listingId = getListingId(listing);
+                    const listingPath = listingId ? buildListingPath(listingId) : "/dubai";
+                    const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
+                    const basePrice = firstNumber(
+                      listing?.basePrice,
+                      listing?.prices?.basePrice,
+                      listing?.prices?.basePricePerNight,
+                      listing?.prices?.nightly,
+                      listing?.prices?.nightly?.amount,
+                      listing?.prices?.basePrice?.amount
+                    );
+                    const originalPrice = firstNumber(
+                      listing?.prices?.originalBasePrice,
+                      listing?.prices?.monthly?.original,
+                      listing?.pricing?.originalPrice,
+                      listing?.originalPrice
+                    );
+                    const currency =
+                      listing?.currency ||
+                      listing?.prices?.currency ||
+                      listing?.prices?.nightly?.currency ||
+                      listing?.prices?.basePrice?.currency ||
+                      "EUR";
+                    const bedrooms = firstNumber(listing?.bedrooms, listing?.beds);
+                    const bathrooms = firstNumber(listing?.bathrooms);
+                    const accommodates = firstNumber(listing?.accommodates);
+                    const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+                    const nightlyPrice = getListingNightlyPrice(listing);
+                    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+                    const canShowStayTotal =
+                      showMonthlyTotal && stayNights > 0 && typeof nightlyPrice === "number";
+                    const stayTotal = canShowStayTotal ? nightlyPrice * stayNights : null;
+                    const priceMain = canShowStayTotal
+                      ? `${formatCurrency(stayTotal, currency)} total`
+                      : typeof basePrice === "number"
+                        ? `${formatCurrency(basePrice, currency)} / night`
+                        : "Check price";
+                    const priceSub = canShowStayTotal
+                      ? `${formatCurrency(nightlyPrice, currency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      : "";
+                    const hasStrikePrice =
+                      typeof originalPrice === "number" &&
+                      typeof basePrice === "number" &&
+                      originalPrice > basePrice;
+
+                    return (
+                      <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
+                        <div className="la-unit-listing-card__media">
+                          <img
+                            src={imageUrl || FALLBACK_IMAGE}
+                            alt={sanitizeText(listing?.title || "One Lux Stay Dubai")}
+                            loading="lazy"
+                            onError={handleImageError}
+                          />
+                          <span className="la-unit-listing-card__badge">Available now</span>
+                          <span className="la-unit-listing-card__fav" aria-hidden="true">
+                            &#9825;
+                          </span>
                         </div>
-                      );
-                    })()}
-                  </section>
-                );
-              })}
-            </div>
-            <aside className="la-units-aside">
-              <div className="la-units-map-card">
-                <p className="antwerp-kicker">Neighborhood map</p>
-                <h3>Walkable highlights</h3>
-                <p className="antwerp-muted">
-                  See nearby landmarks and public transport around Dubai neighborhoods.
-                </p>
-                {!isMapEnabled ? (
-                  <div
-                    className="la-units-map la-units-map--placeholder"
-                    style={{
-                      "--map-placeholder-image": mapPlaceholderImage ? `url(${mapPlaceholderImage})` : "none",
-                    }}
-                  >
-                    <div className="la-units-map__placeholder-content">
-                      <p className="antwerp-muted" style={{ margin: 0 }}>
-                        Map loads on demand to keep the page fast.
-                      </p>
-                      <button
-                        type="button"
-                        className="antwerp-card__ghost"
-                        onClick={() => {
-                          mapLoadedRef.current = false;
-                          setMapError("");
-                          setIsMapEnabled(true);
-                        }}
-                      >
-                        Enable map
-                      </button>
-                    </div>
+                        <div className="la-unit-listing-card__body">
+                          <p className="la-unit-listing-card__area">{resolveGroupTitle(listing)}</p>
+                          <h3 className="la-unit-listing-card__title">
+                            {sanitizeText(listing?.title || "One Lux Stay Dubai")}
+                          </h3>
+                          <p className="la-unit-listing-card__price">
+                            {hasStrikePrice ? (
+                              <span className="la-unit-listing-card__price-strike">
+                                {formatCurrency(originalPrice, currency)}
+                              </span>
+                            ) : null}
+                            <span className="la-unit-listing-card__price-main">
+                              {priceMain}
+                            </span>
+                            {priceSub ? (
+                              <span className="la-unit-listing-card__price-sub">
+                                {priceSub}
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="la-unit-listing-card__meta">
+                            {[
+                              bedrooms ? `${bedrooms} bd` : null,
+                              bathrooms ? `${bathrooms} ba` : null,
+                              accommodates ? `${accommodates} guests` : null,
+                              areaSqft ? `${areaSqft} ft2` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" | ") || "Details available"}
+                          </p>
+                          <p className="la-unit-listing-card__address">
+                            {formatAddress(listing)}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                    })}
                   </div>
-                ) : mapError ? (
-                  <div
-                    className="la-units-map"
-                    style={{
-                      width: "100%",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(201, 181, 156, 0.6)",
-                      overflow: "hidden",
-                      background: "rgba(249, 248, 246, 0.8)",
-                      minHeight: "260px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "10px",
-                      textAlign: "center",
-                      padding: "24px",
-                    }}
-                  >
-                    <p className="antwerp-muted" style={{ margin: 0 }}>
-                      {mapError}
-                    </p>
-                    <button
-                      type="button"
-                      className="antwerp-card__ghost"
-                      onClick={() => {
-                        setMapError("");
-                        mapLoadedRef.current = false;
-                        setIsMapEnabled(false);
-                        setTimeout(() => setIsMapEnabled(true), 0);
-                      }}
-                    >
-                      Retry map
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    ref={mapRef}
-                    aria-label="Map showing Dubai with nearby landmarks and public transport"
-                    className="la-units-map"
-                    style={{
-                      width: "100%",
-                      borderRadius: "20px",
-                      border: "1px solid rgba(201, 181, 156, 0.6)",
-                      overflow: "hidden",
-                      background: "rgba(249, 248, 246, 0.8)",
-                    }}
-                  />
                 )}
+            </div>
+            <aside
+              className={`la-units-aside la-units-aside--map${isMobileMapOpen ? " is-mobile-open" : ""}`}
+              aria-label="Map with Dubai unit locations"
+            >
+              <div className="la-mobile-map-header">
+                <strong>Dubai map</strong>
+                <button type="button" onClick={() => setIsMobileMapOpen(false)} aria-label="Close map">
+                  &times;
+                </button>
               </div>
+              {mapError ? (
+                <div className="la-units-map la-units-map--panel is-error">
+                  <p className="antwerp-muted" style={{ margin: 0 }}>
+                    {mapError}
+                  </p>
+                  <button
+                    type="button"
+                    className="antwerp-card__ghost"
+                    onClick={() => {
+                      setMapError("");
+                      mapLoadedRef.current = false;
+                      setIsMapEnabled(false);
+                      setTimeout(() => setIsMapEnabled(true), 0);
+                    }}
+                  >
+                    Retry map
+                  </button>
+                </div>
+              ) : (
+                <div
+                  ref={mapRef}
+                  aria-label="Map showing Dubai unit locations"
+                  className="la-units-map la-units-map--panel"
+                />
+              )}
             </aside>
           </div>
         </section>
       </main>
+      <div
+        className={`la-mobile-map-actions${isMobileMapOpen ? " is-hidden" : ""}`}
+        aria-label="Mobile map controls"
+      >
+        <button type="button" className="la-mobile-map-btn" onClick={() => setIsMobileMapOpen(true)}>
+          View map
+        </button>
+        <button type="button" className="la-mobile-map-btn is-secondary" onClick={resetMapView}>
+          Reset map
+        </button>
+      </div>
       </div>
 
       {activeSection && (
@@ -6481,7 +6829,7 @@ const applyCheckoutPromoCode = () => {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Dubai</strong>
-                      <a href="tel:+971557277059">+971 55 727 7059</a>
+                      <a href="tel:+32493813441">+32 493 81 34 41</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                       <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                         Message concierge
@@ -6623,11 +6971,11 @@ const applyCheckoutPromoCode = () => {
                         value={sectionGuests}
                         onChange={(event) => setSectionGuests(event.target.value)}
                       >
-                        {GUEST_OPTIONS.map((guestCount) => (
-                          <option key={guestCount} value={guestCount}>
-                            {guestCount}
-                          </option>
-                        ))}
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
                       </select>
                     </div>
                     <button
@@ -6804,9 +7152,9 @@ const applyCheckoutPromoCode = () => {
                         const fallbackDirect = getBedDetails(fallback);
                         return fallbackDirect.length ? fallbackDirect : (fallback.bedDetails || []);
                       })();
-                      const listingAccommodates = resolveListingAccommodates(listing, bedLookupList);
-                      const sleepsLabel = listingAccommodates || "--";
-                      const bedLines = buildDubaiBedLines(bedDetails);
+                      const bedLines = bedDetails
+                        .map(splitBedDetailLine)
+                        .filter((line) => line.detail);
                       return (
                         <article key={listingId} className="la-booking-table__row" role="row">
                           <div className="la-booking-table__cell" role="cell">
@@ -6859,20 +7207,15 @@ const applyCheckoutPromoCode = () => {
                             </div>
                           </div>
                           <div className="la-booking-table__cell" role="cell">
-                            <div className="la-booking-table__guests" aria-label={`Sleeps ${sleepsLabel}`}>
+                            <div className="la-booking-table__guests" aria-label={`Sleeps ${listing.accommodates || "--"}`}>
                               <div className="la-booking-table__guest-icons" aria-hidden="true">
-                                {Array.from({
-                                  length: Math.max(
-                                    1,
-                                    Math.min(listingAccommodates || 1, MAX_GUESTS)
-                                  ),
-                                }).map((_, idx) => (
+                                {Array.from({ length: Math.min(Number(listing.accommodates) || 1, 5) }).map((_, idx) => (
                                   <svg key={`${listingId}-guest-${idx}`} viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                                     <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z" />
                                   </svg>
                                 ))}
                               </div>
-                              <span className="sr-only">Sleeps {sleepsLabel}</span>
+                              <span className="sr-only">Sleeps {listing.accommodates || "--"}</span>
                             </div>
                           </div>
                           <div className="la-booking-table__cell" role="cell">
@@ -7110,7 +7453,7 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Dubai</strong>
-                <a href="tel:+971557277059">+971 55 727 7059</a>
+                <a href="tel:+32493813441">+32 493 81 34 41</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                 <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
                   Message concierge
@@ -7533,11 +7876,11 @@ const applyCheckoutPromoCode = () => {
                   value={sectionGuests}
                   onChange={(event) => setSectionGuests(event.target.value)}
                 >
-                  {GUEST_OPTIONS.map((guestCount) => (
-                    <option key={guestCount} value={guestCount}>
-                      {guestCount}
-                    </option>
-                  ))}
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
                 </select>
               </div>
               <button type="button" onClick={() => fetchAvailabilityListings({ shouldScroll: true })}>
@@ -7556,7 +7899,7 @@ const applyCheckoutPromoCode = () => {
                       disabled={calendarMonthIndex <= 0}
                       aria-label="Previous month"
                     >
-                      â†
+                      {"<"}
                     </button>
                     <span className="la-price-calendar__label">
                       {calendarCurrentMonth.toLocaleDateString(undefined, {
@@ -7575,7 +7918,7 @@ const applyCheckoutPromoCode = () => {
                       disabled={calendarMonthIndex >= (calendarPrices?.months || 24) - 1}
                       aria-label="Next month"
                     >
-                      â†’
+                      {">"}
                     </button>
                   </div>
                 </div>
@@ -7675,7 +8018,9 @@ const applyCheckoutPromoCode = () => {
                         ? fallback.bedDetails
                         : getBedDetails(fallback);
                     })();
-                    const bedLines = buildDubaiBedLines(bedDetails);
+                    const bedLines = bedDetails
+                      .map(splitBedDetailLine)
+                      .filter((line) => line.detail);
                     if (!bedLines.length) return null;
                     return (
                       <div className="la-booking-table__bed-details">
@@ -7715,9 +8060,6 @@ const applyCheckoutPromoCode = () => {
     </div>
   );
 }
-
-
-
 
 
 
