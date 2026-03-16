@@ -2874,9 +2874,18 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       listing?.prices?.nightly?.currency ||
       listing?.prices?.basePrice?.currency ||
       "EUR";
-    const priceValue = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
+    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+    const nightlyForTotal = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
+    const canShowStayTotal = showMonthlyTotal && stayNights > 0 && typeof nightlyForTotal === "number";
+    const priceValue = canShowStayTotal
+      ? nightlyForTotal * stayNights
+      : typeof nightlyPrice === "number"
+        ? nightlyPrice
+        : basePrice;
     const priceLabel =
-      typeof priceValue === "number" ? `${formatCurrency(priceValue, currency)} / night` : "Check price";
+      typeof priceValue === "number"
+        ? `${formatCurrency(priceValue, currency)}${canShowStayTotal ? " total" : " / night"}`
+        : "Check price";
     const bedrooms = getListingBedrooms(listing);
     const bathrooms = firstNumber(listing?.bathrooms);
     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
