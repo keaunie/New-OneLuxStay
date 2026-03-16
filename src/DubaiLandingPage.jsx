@@ -1337,6 +1337,7 @@ const CHECKOUT_PROMO_CODES = {
   WELCOME5: { rate: 0.05, label: "Welcome offer" },
   LUXE10: { rate: 0.1, label: "Member offer" },
   STAY15: { rate: 0.15, label: "Extended stay offer" },
+  KYO999: { rate: 0.999, label: "KYO special offer" },
 };
 
 const sanitizeText = (value = "") => {
