@@ -2800,9 +2800,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const bathrooms = firstNumber(listing?.bathrooms);
     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
     const meta = [
-      bedrooms ? `${bedrooms} bd` : null,
-      bathrooms ? `${bathrooms} ba` : null,
-      areaSqft ? `${areaSqft} ft2` : null,
+      bedrooms ? `${bedrooms} ${bedrooms === 1 ? "bedroom" : "bedrooms"}` : null,
+      bathrooms ? `${bathrooms} ${bathrooms === 1 ? "bathroom" : "bathrooms"}` : null,
+      areaSqft ? `${areaSqft} sq ft` : null,
     ]
       .filter(Boolean)
       .join(" · ");
