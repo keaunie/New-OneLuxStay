@@ -4128,18 +4128,30 @@ const applyCheckoutPromoCode = () => {
     }
     setPendingCheckout((prev) => {
       if (!prev) return prev;
+      const baseBreakdown = prev?.baseBreakdown && typeof prev.baseBreakdown === "object"
+        ? prev.baseBreakdown
+        : null;
       const baseAmountValue = Number.isFinite(Number(prev.baseAmount))
         ? Number(prev.baseAmount)
         : Number(prev?.baseBreakdown?.total ?? prev?.baseBreakdown?.subtotal ?? prev.amount);
       if (!Number.isFinite(baseAmountValue) || baseAmountValue <= 0) return prev;
-      const promoDiscountAmount = Number((baseAmountValue * promo.rate).toFixed(2));
+      const accommodationBaseValue = Number(baseBreakdown?.accommodation);
+      const promoBaseValue =
+        Number.isFinite(accommodationBaseValue) && accommodationBaseValue > 0
+          ? accommodationBaseValue
+          : baseAmountValue;
+      const promoDiscountAmount = Number((promoBaseValue * promo.rate).toFixed(2));
       const discountedTotal = Number(Math.max(baseAmountValue - promoDiscountAmount, 0).toFixed(2));
-      const baseBreakdown = prev?.baseBreakdown && typeof prev.baseBreakdown === "object"
-        ? prev.baseBreakdown
-        : null;
       const nextBreakdown = baseBreakdown
         ? {
             ...baseBreakdown,
+            ...(Number.isFinite(accommodationBaseValue)
+              ? {
+                  accommodation: Number(
+                    Math.max(accommodationBaseValue - promoDiscountAmount, 0).toFixed(2)
+                  ),
+                }
+              : {}),
             promoCode: normalizedCode,
             promoDiscountRate: promo.rate,
             promoDiscountAmount,
