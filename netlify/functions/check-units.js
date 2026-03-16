@@ -1997,7 +1997,24 @@ export async function handler(event) {
       try {
         return await handleCheckout(event);
       } catch (err) {
-        return jsonResponse(500, { message: "Checkout failed", error: err.message });
+        const rawMessage =
+          err?.raw?.message ||
+          err?.message ||
+          "Checkout failed";
+        const message = String(rawMessage);
+        const lower = message.toLowerCase();
+        const isClientError =
+          lower.includes("minimum") ||
+          lower.includes("amount") ||
+          lower.includes("invalid") ||
+          lower.includes("currency") ||
+          lower.includes("email") ||
+          lower.includes("missing stripe_secret_key") ||
+          lower.includes("api key");
+        return jsonResponse(isClientError ? 400 : 500, {
+          message,
+          error: message,
+        });
       }
     }
 
