@@ -151,6 +151,13 @@ const firstNumber = (...values) => {
   return null;
 };
 
+const GLOBAL_MIN_NIGHTS = 2;
+const normalizeMinNights = (value) => {
+  const num = toNumber(value);
+  if (!Number.isFinite(num)) return GLOBAL_MIN_NIGHTS;
+  return Math.max(GLOBAL_MIN_NIGHTS, num);
+};
+
 const getListingBedrooms = (listing) =>
   firstNumber(
     listing?.bedrooms,
@@ -205,7 +212,7 @@ const formatCalendarPrice = (value, currency) => {
 };
 
 const extractMinNightsFromDays = (days = []) => {
-  if (!Array.isArray(days) || !days.length) return null;
+  if (!Array.isArray(days) || !days.length) return GLOBAL_MIN_NIGHTS;
   const values = days
     .map((day) => {
       if (!day) return null;
@@ -217,8 +224,13 @@ const extractMinNightsFromDays = (days = []) => {
         day?.minStayLength
       );
     })
-    .filter((value) => typeof value === "number" && value > 1);
-  return values.length ? Math.max(...values) : null;
+    .map((value) => {
+      const num = toNumber(value);
+      if (!Number.isFinite(num)) return null;
+      return Math.max(GLOBAL_MIN_NIGHTS, num);
+    })
+    .filter((value) => typeof value === "number");
+  return values.length ? Math.max(...values) : GLOBAL_MIN_NIGHTS;
 };
 
 const enumerateDateRange = (start, end) => {
@@ -271,13 +283,15 @@ const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
     day?.money?.money?.currency ||
     fallbackCurrency ||
     "USD";
-  const minNights = firstNumber(
-    day?.minNights,
-    day?.minimumStay,
-    day?.minStay,
-    day?.minStayLength,
-    day?.restrictions?.minNights,
-    day?.restrictions?.minStay
+  const minNights = normalizeMinNights(
+    firstNumber(
+      day?.minNights,
+      day?.minimumStay,
+      day?.minStay,
+      day?.minStayLength,
+      day?.restrictions?.minNights,
+      day?.restrictions?.minStay
+    )
   );
   const maxNights = firstNumber(
     day?.maxNights,
@@ -436,7 +450,7 @@ const getListingMinNights = (listing) => {
     listing?.prices?.minStay,
     listing?.calendarRules?.minNights
   );
-  return typeof minNights === "number" && minNights > 1 ? minNights : null;
+  return normalizeMinNights(minNights);
 };
 
 const getListingMinNightsWithParent = (listing, listings = []) => {
@@ -591,11 +605,10 @@ const DateRangePicker = ({
       if (!showMinNights) {
         setOpenState(false);
       } else {
-        const minNights = toNumber(
+        const minNights = normalizeMinNights(
           dayPrices?.get(toISODate(nextStart))?.restrictions?.minNights ?? fallbackMinNights ?? null
         );
-        const violatesMin =
-          typeof minNights === "number" && minNights > 1 && nights > 0 && nights < minNights;
+        const violatesMin = nights > 0 && nights < minNights;
         if (!violatesMin) setOpenState(false);
       }
     }
@@ -605,11 +618,11 @@ const DateRangePicker = ({
   const hasSameDayStay = Boolean(value.checkIn && value.checkOut && selectedNights === 0);
   const selectedMinNights = useMemo(() => {
     if (!showMinNights) return null;
-    if (!dayPrices || !startDate) return fallbackMinNights ?? null;
+    if (!dayPrices || !startDate) return normalizeMinNights(fallbackMinNights ?? null);
     const iso = toISODate(startDate);
     const info = dayPrices.get(iso);
-    const minNights = toNumber(info?.restrictions?.minNights ?? fallbackMinNights ?? null);
-    return typeof minNights === "number" && minNights > 1 ? minNights : null;
+    const minNights = normalizeMinNights(info?.restrictions?.minNights ?? fallbackMinNights ?? null);
+    return minNights;
   }, [dayPrices, startDate, fallbackMinNights, showMinNights]);
 
   const primaryMonth = buildMonth(view);
@@ -742,11 +755,10 @@ const DateRangePicker = ({
                             : ""
                         : "";
                       const isFallbackPrice = !priceInfo && typeof fallbackPrice === "number";
-                      const minNights = toNumber(
+                      const minNights = normalizeMinNights(
                         priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null
                       );
-                      const showMinNightsCell =
-                        showMinNights && typeof minNights === "number" && minNights > 1;
+                      const showMinNightsCell = showMinNights && minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
                           weekday: "long",
@@ -4293,12 +4305,30 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     consentSignatureDataUrl,
   }) => {
     if (!listingId) return;
+    const resolveRequiredMinNights = () => {
+      const listing = listings.find(
+        (entry) =>
+          String(getListingId(entry) || entry?.unitTypeId || "") === String(listingId)
+      );
+      if (listing) {
+        return normalizeMinNights(getListingMinNightsWithParent(listing, listings));
+      }
+      return GLOBAL_MIN_NIGHTS;
+    };
     if (!sectionCheckIn || !sectionCheckOut) {
       setSectionAvailabilityError("Select check-in and check-out dates first.");
       return;
     }
-    if (diffNights(sectionCheckIn, sectionCheckOut) === 0) {
+    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+    if (stayNights === 0) {
       setSectionAvailabilityError("Please change the check-out date.");
+      return;
+    }
+    const requiredMinNights = resolveRequiredMinNights();
+    if (stayNights < requiredMinNights) {
+      const message = `Minimum stay is ${requiredMinNights} nights.`;
+      setSectionAvailabilityError(message);
+      setCheckoutGuestError(message);
       return;
     }
     const numericAmount = Number(amount);
@@ -8394,9 +8424,10 @@ const applyCheckoutPromoCode = () => {
                         }
                         const iso = toISODate(day);
                         const price = calendarDayMap.get(iso);
-                        const minNights =
-                          price?.restrictions?.minNights ?? listingMinNightsFallback ?? null;
-                        const showMinNights = typeof minNights === "number" && minNights > 1;
+                        const minNights = normalizeMinNights(
+                          price?.restrictions?.minNights ?? listingMinNightsFallback ?? null
+                        );
+                        const showMinNights = minNights > 1;
                         return (
                           <span
                             key={iso}
