@@ -164,19 +164,33 @@ const writeStripeEvent = async (eventId, payload) => {
   return true;
 };
 
-const normalizeEmail = (value) => String(value || "").trim();
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const isLikelyEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const toEmailCandidates = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") return value.split(/[,\s;]+/);
+  return [value];
+};
 
 const uniqueEmails = (values = []) =>
   Array.from(
     new Set(
       values
+        .flatMap((entry) => toEmailCandidates(entry))
         .map((entry) => normalizeEmail(entry))
+        .filter((entry) => isLikelyEmail(entry))
         .filter(Boolean),
     ),
   );
 
 const getGuestReceiptEmail = (session = {}) =>
-  uniqueEmails([session?.metadata?.guestEmail, session?.customer_email])[0] || "";
+  uniqueEmails([
+    session?.metadata?.guestEmail,
+    session?.metadata?.guest_email,
+    session?.metadata?.email,
+    session?.customer_email,
+    session?.customer_details?.email,
+  ])[0] || "";
 
 const getConsentStore = async () => getBlobStore(CONSENT_STORE_NAME);
 const getConsentPdfStore = async () => getBlobStore(CONSENT_PDF_STORE_NAME);
@@ -959,7 +973,17 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
     ...(Array.isArray(to) ? to : [to]),
     RESERVATIONS_COPY_EMAIL,
   ]);
-  if (!apiKey || !from || !recipients.length) return { skipped: true };
+  if (!apiKey || !from || !recipients.length) {
+    const missing = [];
+    if (!apiKey) missing.push("RESEND_API_KEY");
+    if (!from) missing.push("RESEND_FROM_EMAIL");
+    if (!recipients.length) missing.push("recipient email");
+    return {
+      skipped: true,
+      reason: `Receipt email skipped due to missing ${missing.join(", ")}.`,
+      recipients,
+    };
+  }
 
   const total =
     Number.isFinite(Number(metadata?.bd_total))
@@ -979,7 +1003,7 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
     [metadata?.guestFirstName, metadata?.guestLastName].filter(Boolean).join(" ").trim() ||
     metadata?.guestName ||
     "Guest";
-  const bcc = process.env.RESEND_RECEIPT_BCC || "";
+  const bccRecipients = uniqueEmails([process.env.RESEND_RECEIPT_BCC || ""]);
   const attachments = [];
   if (proof?.pdfBytes?.length) {
     attachments.push({
@@ -1007,7 +1031,12 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
         </div>
       `;
 
-  const send = async ({ recipient, emailAttachments = attachments, emailBcc = bcc }) =>
+  const send = async ({
+    recipient,
+    emailAttachments = attachments,
+    emailBcc = bccRecipients,
+    timeout = 45000,
+  }) =>
     fetchWithTimeout("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -1017,46 +1046,78 @@ const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = 
       body: JSON.stringify({
         from,
         to: recipient,
-        ...(emailBcc ? { bcc: emailBcc } : {}),
+        ...(emailBcc?.length ? { bcc: emailBcc } : {}),
         ...(emailAttachments.length ? { attachments: emailAttachments } : {}),
         subject,
         html,
       }),
-    });
+    }, timeout);
 
-  let response = await send({ recipient: recipients });
-  let payload = await response.json();
+  const attempts = [
+    { name: "full", emailAttachments: attachments, emailBcc: bccRecipients },
+    { name: "no_attachments", emailAttachments: [], emailBcc: bccRecipients },
+    { name: "no_bcc", emailAttachments: attachments, emailBcc: [] },
+    { name: "minimal", emailAttachments: [], emailBcc: [] },
+  ];
 
-  if (!response.ok && attachments.length) {
-    response = await send({ recipient: recipients, emailAttachments: [] });
-    payload = await response.json();
+  const seenAttemptSignatures = new Set();
+  let response = null;
+  let payload = null;
+  let lastSendError = "";
+
+  for (const attempt of attempts) {
+    const signature = `${attempt.emailAttachments.length}:${attempt.emailBcc.join(",")}`;
+    if (seenAttemptSignatures.has(signature)) continue;
+    seenAttemptSignatures.add(signature);
+    try {
+      response = await send({
+        recipient: recipients,
+        emailAttachments: attempt.emailAttachments,
+        emailBcc: attempt.emailBcc,
+      });
+      payload = await response.json().catch(() => ({}));
+      if (response.ok) {
+        return { ...payload, recipients };
+      }
+      lastSendError = payload?.message || `Unable to send receipt email (${attempt.name}).`;
+    } catch (err) {
+      lastSendError = err?.message || `Unable to send receipt email (${attempt.name}).`;
+    }
   }
 
-  if (!response.ok) {
+  if (!response?.ok) {
     const fallbackTo = uniqueEmails([process.env.RESEND_FALLBACK_TO || ""]);
     if (fallbackTo.length) {
       const originalRecipients = recipients.join(", ");
       const fallbackHtml = `${html}<p><strong>Original intended recipient:</strong> ${originalRecipients}</p>`;
-      response = await fetchWithTimeout("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: fallbackTo,
-          subject: `[Fallback] ${subject}`,
-          html: `${fallbackHtml}<p><strong>Original intended recipient(s):</strong> ${originalRecipients}</p>`,
-        }),
-      });
-      payload = await response.json();
+      try {
+        response = await fetchWithTimeout("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from,
+            to: fallbackTo,
+            subject: `[Fallback] ${subject}`,
+            html: `${fallbackHtml}<p><strong>Original intended recipient(s):</strong> ${originalRecipients}</p>`,
+          }),
+        }, 30000);
+        payload = await response.json().catch(() => ({}));
+      } catch (err) {
+        lastSendError = err?.message || "Unable to send fallback receipt email.";
+      }
     }
-    if (!response.ok) {
-      throw new Error(payload.message || "Unable to send receipt email.");
+    if (!response?.ok) {
+      throw new Error(
+        payload?.message ||
+          lastSendError ||
+          "Unable to send receipt email."
+      );
     }
   }
-  return payload;
+  return { ...payload, recipients };
 };
 
 const buildReservationNotes = (metadata, proof = {}) => {
@@ -1147,9 +1208,10 @@ export async function handler(event) {
       const retryAt = Date.now();
       const emailRetryCount = Number(existing?.emailRetryCount || 0) + 1;
       let emailRetryError = null;
+      const guestReceiptEmail = getGuestReceiptEmail(session);
       try {
         const emailResult = await sendReceiptEmail({
-          to: [getGuestReceiptEmail(session)],
+          to: [guestReceiptEmail],
           reservationId: existing?.reservationId || null,
           metadata: session?.metadata || {},
           session,
@@ -1160,7 +1222,9 @@ export async function handler(event) {
           },
         });
         if (emailResult?.skipped) {
-          emailRetryError = "Receipt email skipped due to missing email configuration or recipient.";
+          emailRetryError =
+            emailResult?.reason ||
+            "Receipt email skipped due to missing email configuration or recipient.";
         }
       } catch (err) {
         emailRetryError = err?.message || "Unable to send receipt email.";
@@ -1172,6 +1236,7 @@ export async function handler(event) {
         emailRetriedAt: retryAt,
         emailError: emailRetryError,
         ...(emailRetryError ? {} : { emailSentAt: retryAt }),
+        guestReceiptEmail,
         receiptUrl: proof?.receiptUrl || existing?.receiptUrl || null,
         paymentIntentId: proof?.paymentIntentId || existing?.paymentIntentId || null,
       });
@@ -1276,9 +1341,11 @@ export async function handler(event) {
     }
     let emailError = null;
     let emailSentAt = null;
+    const guestReceiptEmail = getGuestReceiptEmail(session);
+    let emailRecipients = [];
     try {
       const emailResult = await sendReceiptEmail({
-        to: [getGuestReceiptEmail(session)],
+        to: [guestReceiptEmail],
         reservationId,
         metadata: session?.metadata || {},
         session,
@@ -1290,10 +1357,15 @@ export async function handler(event) {
         },
       });
       if (emailResult?.skipped) {
-        emailError = "Receipt email skipped due to missing email configuration or recipient.";
+        emailError =
+          emailResult?.reason ||
+          "Receipt email skipped due to missing email configuration or recipient.";
       } else {
         emailSentAt = Date.now();
       }
+      emailRecipients = Array.isArray(emailResult?.recipients)
+        ? emailResult.recipients
+        : [];
     } catch (err) {
       emailError = err.message;
     }
@@ -1310,6 +1382,8 @@ export async function handler(event) {
       paymentError,
       noteError,
       guestNoteError,
+      guestReceiptEmail,
+      emailRecipients,
       emailRetryCount: 0,
       emailError,
       ...(emailSentAt ? { emailSentAt } : {}),

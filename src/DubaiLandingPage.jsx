@@ -753,6 +753,7 @@ const DateRangePicker = ({
   fallbackCurrency,
   fallbackMinNights,
   showMinNights = true,
+  dropdownClassName = "",
 }) => {
   const [open, setOpen] = useState(false);
   const setOpenState = (nextOpen) => {
@@ -950,7 +951,9 @@ const DateRangePicker = ({
           aria-modal="true"
           aria-label="Choose dates"
           aria-describedby={dialogHelpId}
-          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}${isLoading ? " is-loading" : ""}`}
+          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}${isLoading ? " is-loading" : ""}${
+            dropdownClassName ? ` ${dropdownClassName}` : ""
+          }`}
         >
           <p id={dialogHelpId} className="sr-only">
             Select a check-in date and a check-out date. Use the previous and next buttons to change months.
@@ -2486,6 +2489,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [cityCalendarLoading, setCityCalendarLoading] = useState(false);
   const cityCalendarCacheRef = useRef({});
   const cityCalendarInflightRef = useRef({});
+  const [cityAvailabilityMap, setCityAvailabilityMap] = useState({});
+  const [cityAvailabilityLoading, setCityAvailabilityLoading] = useState(false);
+  const [cityAvailabilityActive, setCityAvailabilityActive] = useState(false);
+  const cityAvailabilityInflightRef = useRef({});
   const [isCityCalendarOpen, setIsCityCalendarOpen] = useState(false);
   const [tourCity, setTourCity] = useState(TOUR_CITIES[0]);
   const [showCityTour, setShowCityTour] = useState(false);
@@ -3247,13 +3254,28 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     });
   }, [losAngelesListings, minBedrooms, appliedSearch, sectionGuests]);
 
+  const hasAvailabilityDateRange =
+    Boolean(sectionCheckIn && sectionCheckOut) &&
+    diffNights(sectionCheckIn, sectionCheckOut) > 0;
+
+  const dateFilteredListings = useMemo(() => {
+    if (!hasAvailabilityDateRange || !cityAvailabilityActive) return filteredListings;
+    return filteredListings.filter((listing) => {
+      const lookupKeys = [getListingId(listing), listing?.unitTypeId, getParentListingId(listing)]
+        .map(toLookupKey)
+        .filter(Boolean);
+      if (!lookupKeys.length) return false;
+      return lookupKeys.some((key) => cityAvailabilityMap[key] === true);
+    });
+  }, [filteredListings, hasAvailabilityDateRange, cityAvailabilityActive, cityAvailabilityMap]);
+
   const filteredParentListings = useMemo(() => {
-    if (!filteredListings.length) return [];
-    const parentGroups = groupListingsByParent(filteredListings);
+    if (!dateFilteredListings.length) return [];
+    const parentGroups = groupListingsByParent(dateFilteredListings);
     return Object.values(parentGroups)
       .map((group) => group.parent || group.children?.[0])
       .filter(Boolean);
-  }, [filteredListings]);
+  }, [dateFilteredListings]);
 
   const cityCalendarListingIds = useMemo(
     () => getCalendarLookupIdsForListings(filteredListings),
@@ -3988,6 +4010,117 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     baseDate.setHours(0, 0, 0, 0);
     fetchCityCalendarAvailability(baseDate, { force: true });
   }, [cityCalendarListingIds, isCityCalendarOpen, fetchCityCalendarAvailability]);
+
+  useEffect(() => {
+    if (!hasAvailabilityDateRange) {
+      setCityAvailabilityMap({});
+      setCityAvailabilityActive(false);
+      setCityAvailabilityLoading(false);
+      return;
+    }
+
+    if (!filteredListings.length) {
+      setCityAvailabilityMap({});
+      setCityAvailabilityActive(false);
+      setCityAvailabilityLoading(false);
+      return;
+    }
+
+    const listingIds = [
+      ...new Set(
+        filteredListings
+          .flatMap((listing) => [listing?._id, listing?.id, listing?.unitTypeId])
+          .map(toLookupKey)
+          .filter(Boolean)
+      ),
+    ];
+    if (!listingIds.length) {
+      setCityAvailabilityMap({});
+      setCityAvailabilityActive(false);
+      setCityAvailabilityLoading(false);
+      return;
+    }
+
+    const key = [
+      sectionCheckIn,
+      sectionCheckOut,
+      sectionGuests || "1",
+      listingIds.join(","),
+    ].join("|");
+    if (cityAvailabilityInflightRef.current[key]) return;
+
+    let cancelled = false;
+    cityAvailabilityInflightRef.current[key] = true;
+    setCityAvailabilityLoading(true);
+    setCityAvailabilityActive(false);
+
+    const getLookupIds = (listing) =>
+      [listing?._id, listing?.id, listing?.unitTypeId].map(toLookupKey).filter(Boolean);
+
+    const load = async () => {
+      try {
+        const qs = new URLSearchParams({
+          ids: listingIds.join(","),
+          checkIn: sectionCheckIn,
+          checkOut: sectionCheckOut,
+          minOccupancy: sectionGuests || "1",
+        }).toString();
+        const res = await fetch(
+          `${apiBase}/check-units/listings/availability-query?${qs}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("Availability request failed");
+
+        const data = await res.json();
+        const availableIds = new Set(
+          (Array.isArray(data?.results) ? data.results : [])
+            .map((item) => toLookupKey(item?.id))
+            .filter(Boolean)
+        );
+
+        const grouped = groupListingsByParent(filteredListings);
+        const nextMap = {};
+        Object.values(grouped).forEach((group) => {
+          const groupListings = [group.parent, ...group.children].filter(Boolean);
+          if (!groupListings.length) return;
+          const hasAvailable = groupListings.some((listing) =>
+            getLookupIds(listing).some((id) => availableIds.has(id))
+          );
+
+          const parentKey = toLookupKey(group.parentId);
+          if (parentKey) nextMap[parentKey] = hasAvailable;
+          groupListings.forEach((listing) => {
+            getLookupIds(listing).forEach((id) => {
+              nextMap[id] = hasAvailable;
+            });
+          });
+        });
+
+        if (cancelled) return;
+        setCityAvailabilityMap(nextMap);
+        setCityAvailabilityActive(true);
+      } catch {
+        if (cancelled) return;
+        setCityAvailabilityMap({});
+        setCityAvailabilityActive(false);
+      } finally {
+        cityAvailabilityInflightRef.current[key] = false;
+        setCityAvailabilityLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    filteredListings,
+    hasAvailabilityDateRange,
+    sectionCheckIn,
+    sectionCheckOut,
+    sectionGuests,
+  ]);
 
   const openInquiry = (listing) => {
     if (!listing) return;
@@ -4870,17 +5003,7 @@ const applyCheckoutPromoCode = () => {
   const hasStayDates = cityDateNightCount > 0;
   const buildListingPath = (listingId) => {
     if (!listingId) return "/dubai";
-    if (sectionCheckIn && sectionCheckOut && sectionGuests) {
-      return `/dubai/listing/${encodeURIComponent(listingId)}/${encodeURIComponent(
-        sectionCheckIn
-      )}/${encodeURIComponent(sectionCheckOut)}/${encodeURIComponent(sectionGuests)}`;
-    }
-    const params = new URLSearchParams();
-    if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
-    if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
-    if (sectionGuests) params.set("guests", sectionGuests);
-    const query = params.toString();
-    return `/dubai/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
+    return `/dubai/listing/${encodeURIComponent(listingId)}`;
   };
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
@@ -4916,8 +5039,8 @@ const applyCheckoutPromoCode = () => {
   }, [hasStayDates]);
 
   useEffect(() => {
-    syncListingMarkers(filteredListings);
-  }, [filteredListings]);
+    syncListingMarkers(dateFilteredListings);
+  }, [dateFilteredListings]);
 
   const applySearchQuery = (value, { scrollToListings = true } = {}) => {
     const trimmed = value.trim();
@@ -4955,7 +5078,7 @@ const applyCheckoutPromoCode = () => {
     const map = mapInstanceRef.current;
     if (!map) return;
     try {
-      syncListingMarkers(filteredListings);
+      syncListingMarkers(dateFilteredListings);
       if (!listingMarkersRef.current.length) {
         map.setCenter(PROPERTY_COORDS);
         setMapZoomLevel(map, MAP_DEFAULT_ZOOM);
@@ -6791,6 +6914,7 @@ const applyCheckoutPromoCode = () => {
               value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
               dayAvailability={cityCalendarAvailabilityMap}
               isLoading={cityCalendarLoading}
+              dropdownClassName="city-search-date-dropdown"
               onMonthChange={(month) => {
                 const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
                 fetchCityCalendarAvailability(monthStart);
@@ -6833,20 +6957,10 @@ const applyCheckoutPromoCode = () => {
           >
             Clear filters
           </button>
-          <button type="button" className="city-search-submit" onClick={handleSearchSubmit}>
-            <span className="city-search-submit__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                <path
-                  d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
-            Search
-          </button>
         </div>
         <p className="city-search-summary" aria-live="polite">
           Showing {filteredParentListings.length} of {losAngelesParentListings.length} units.
+          {hasAvailabilityDateRange && cityAvailabilityLoading ? " Checking availability..." : ""}
         </p>
       </section>
 

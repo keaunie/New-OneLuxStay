@@ -4195,6 +4195,14 @@ body {
   z-index: 40;
 }
 
+.city-search-date-dropdown {
+  position: absolute !important;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 320;
+}
+
 .city-search-shell .listing-date-dropdown::before {
   content: "";
   position: absolute;
@@ -4569,6 +4577,15 @@ body {
     margin-top: 12px;
     border-radius: 22px;
     animation: cityDateDropdownInMobile 0.26s ease-out both;
+  }
+
+  .city-search-date-dropdown {
+    position: static !important;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    margin-top: 12px;
   }
 }
 
@@ -5454,6 +5471,7 @@ body {
 .city-viewport-shell--dubai {
   --city-nav-height: 0px;
   --dubai-sticky-nav-height: 136px;
+  --dubai-shell-gutter: clamp(28px, 9vw, 220px);
   padding-top: var(--dubai-sticky-nav-height);
 }
 
@@ -5464,7 +5482,7 @@ body {
   right: 0;
   z-index: 260;
   margin: 0;
-  padding: 10px 8vw 10px;
+  padding: 10px var(--dubai-shell-gutter) 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   row-gap: 8px;
@@ -5558,6 +5576,35 @@ body {
   margin-top: 12px;
 }
 
+@media (min-width: 901px) {
+  .city-viewport-shell--dubai > .antwerp-main {
+    padding: 8px 1px 0;
+    overflow: hidden;
+  }
+
+  .city-viewport-shell--dubai .dubai-units-section {
+    height: calc(100svh - var(--dubai-sticky-nav-height) - 8px);
+    min-height: calc(100svh - var(--dubai-sticky-nav-height) - 8px);
+    margin-top: 0;
+  }
+
+  .city-viewport-shell--dubai .dubai-units-section .la-units-layout.la-units-layout--split {
+    height: 100%;
+    min-height: 0;
+    margin-top: 0;
+    gap: 2px;
+    padding: 1px;
+    border: 1px solid rgba(201, 181, 156, 0.55);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.88);
+    overflow: hidden;
+  }
+
+  .city-viewport-shell--dubai .dubai-units-section .la-units-aside--map {
+    border-left: 0;
+  }
+}
+
 @media (min-width: 982px) {
   .city-viewport-shell--dubai .city-search-shell--dubai .city-search-field--dates {
     flex: 0 0 320px;
@@ -5600,10 +5647,10 @@ body {
 
   .city-viewport-shell--dubai .city-search-shell--dubai .city-search-bar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
-      "search guests clear searchbtn"
-      "dates dates dates dates";
+      "search guests clear"
+      "dates dates dates";
     gap: 4px 10px;
     align-items: center;
   }
@@ -5624,10 +5671,6 @@ body {
   .city-viewport-shell--dubai .city-search-shell--dubai .city-search-clear--inline {
     grid-area: clear;
     justify-self: end;
-  }
-
-  .city-viewport-shell--dubai .city-search-shell--dubai .city-search-submit {
-    grid-area: searchbtn;
   }
 
   .city-viewport-shell--dubai .city-search-shell--dubai .city-search-divider {
@@ -5660,11 +5703,11 @@ body {
   }
 
   .city-viewport-shell--dubai .city-search-shell--dubai .city-search-bar {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      "search search search"
-      "dates dates dates"
-      "guests clear searchbtn";
+      "search search"
+      "dates dates"
+      "guests clear";
     gap: 6px 8px;
   }
 
@@ -5700,6 +5743,42 @@ body {
 .la-units-main.la-units-main--cards {
   padding: 6px 16px 24px 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(132, 115, 96, 0.82) rgba(233, 226, 216, 0.45);
+}
+
+.la-units-main.la-units-main--cards::-webkit-scrollbar {
+  width: 10px;
+}
+
+.la-units-main.la-units-main--cards::-webkit-scrollbar-track {
+  background: rgba(233, 226, 216, 0.45);
+  border-radius: 999px;
+}
+
+.la-units-main.la-units-main--cards::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background: linear-gradient(
+    180deg,
+    rgba(155, 136, 114, 0.9) 0%,
+    rgba(120, 102, 83, 0.9) 100%
+  );
+}
+
+.la-units-main.la-units-main--cards::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(138, 119, 97, 0.95) 0%,
+    rgba(104, 87, 70, 0.95) 100%
+  );
+}
+
+.la-units-main.la-units-main--cards::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .la-units-aside--map {
