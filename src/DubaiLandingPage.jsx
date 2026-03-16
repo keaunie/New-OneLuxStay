@@ -3123,14 +3123,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       listing?.prices?.nightly?.amount,
       listing?.prices?.basePrice?.amount
     );
+    const nightlyPrice = getListingNightlyPrice(listing);
     const currency =
       listing?.currency ||
       listing?.prices?.currency ||
       listing?.prices?.nightly?.currency ||
       listing?.prices?.basePrice?.currency ||
       "EUR";
+    const priceValue = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
     const priceLabel =
-      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} / night` : "Check price";
+      typeof priceValue === "number" ? `${formatCurrency(priceValue, currency)} / night` : "Check price";
     const bedrooms = getListingBedrooms(listing);
     const bathrooms = firstNumber(listing?.bathrooms);
     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
@@ -8761,4 +8763,3 @@ const applyCheckoutPromoCode = () => {
     </div>
   );
 }
-

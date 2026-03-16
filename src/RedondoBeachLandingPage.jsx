@@ -2668,14 +2668,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       listing?.prices?.nightly?.amount,
       listing?.prices?.basePrice?.amount
     );
+    const nightlyPrice = getListingNightlyPrice(listing);
     const currency =
       listing?.currency ||
       listing?.prices?.currency ||
       listing?.prices?.nightly?.currency ||
       listing?.prices?.basePrice?.currency ||
       "USD";
+    const priceValue = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
     const priceLabel =
-      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} / night` : "Check price";
+      typeof priceValue === "number" ? `${formatCurrency(priceValue, currency)} / night` : "Check price";
     const bedrooms = firstNumber(
       listing?.bedrooms,
       listing?.beds,
