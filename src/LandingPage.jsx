@@ -850,6 +850,17 @@ function LandingPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    const checkoutState = params.get("checkout") || "";
+    const sessionId = params.get("session_id") || params.get("sessionId") || "";
+    if (checkoutState !== "success" || !sessionId) return;
+    const redirectParams = new URLSearchParams();
+    redirectParams.set("checkout", "success");
+    redirectParams.set("session_id", sessionId);
+    navigate(`/booking-confirmation?${redirectParams.toString()}`, { replace: true });
+  }, [location.search, navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
     const destinationParam = params.get("city") || params.get("destination") || "";
     const checkInParam = params.get("checkIn") || "";
     const checkOutParam = params.get("checkOut") || "";

@@ -6,6 +6,7 @@ const TOKEN_STORE_NAME = "guesty-oauth";
 const TOKEN_KEY = "access-token";
 const CONSENT_STORE_NAME = "consent-proofs";
 const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
+const STRIPE_SESSION_STORE_NAME = "stripe-webhook-events";
 const RESERVATIONS_COPY_EMAIL = "reservations@oneluxstay.com";
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
@@ -75,6 +76,13 @@ const toStripeAmount = (amount, currency) => {
   if (!Number.isFinite(amount)) return null;
   if (ZERO_DECIMAL_CURRENCIES.has(normalized)) return Math.round(amount);
   return Math.round(amount * 100);
+};
+
+const fromStripeAmount = (amount, currency) => {
+  if (!Number.isFinite(amount)) return null;
+  const normalized = (currency || "USD").toLowerCase();
+  if (ZERO_DECIMAL_CURRENCIES.has(normalized)) return amount;
+  return amount / 100;
 };
 
 const getBaseUrl = (event) => {
@@ -776,6 +784,25 @@ const sendReservationEmail = async ({ to, subject, html, attachments = [] }) => 
   return payload;
 };
 
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const uniqueEmails = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .map((value) => normalizeEmail(value))
+        .filter((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)),
+    ),
+  );
+
+const getSessionGuestEmail = (session = {}) =>
+  uniqueEmails([
+    session?.metadata?.guestEmail,
+    session?.metadata?.guest_email,
+    session?.metadata?.email,
+    session?.customer_email,
+    session?.customer_details?.email,
+  ])[0] || "";
+
 let stripeClient;
 const getStripeClient = () => {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -817,11 +844,35 @@ const writeConsentProof = async (sessionId, payload) => {
   return true;
 };
 
+const readConsentProof = async (sessionId) => {
+  if (!sessionId) return null;
+  const store = await getBlobStore(CONSENT_STORE_NAME);
+  if (!store) return null;
+  return store.get(sessionId, { type: "json" });
+};
+
 const writeConsentPdf = async (token, pdfBytes, metadata = {}) => {
   if (!token || !pdfBytes) return false;
   const store = await getBlobStore(CONSENT_PDF_STORE_NAME);
   if (!store) return false;
   await store.set(token, Buffer.from(pdfBytes), { metadata });
+  return true;
+};
+
+const stripeSessionStoreKey = (sessionId) => `session:${String(sessionId || "")}`;
+
+const readStripeSessionRecord = async (sessionId) => {
+  if (!sessionId) return null;
+  const store = await getBlobStore(STRIPE_SESSION_STORE_NAME);
+  if (!store) return null;
+  return store.get(stripeSessionStoreKey(sessionId), { type: "json" });
+};
+
+const writeStripeSessionRecord = async (sessionId, payload) => {
+  if (!sessionId || !payload) return false;
+  const store = await getBlobStore(STRIPE_SESSION_STORE_NAME);
+  if (!store) return false;
+  await store.setJSON(stripeSessionStoreKey(sessionId), payload);
   return true;
 };
 
@@ -1930,10 +1981,11 @@ const handleCheckout = async (event) => {
         },
       },
     ],
-    success_url: `${baseUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${baseUrl}/booking-confirmation?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/?${cancelQuery.toString()}`,
     metadata: {
       listingId: String(listingId),
+      listingTitle: String(listingTitle || ""),
       checkIn,
       checkOut,
       guests: String(guests || 1),
@@ -1985,6 +2037,279 @@ const handleCheckout = async (event) => {
   return jsonResponse(200, { url: session.url, id: session.id });
 };
 
+const buildPaidConfirmationRedirectUrl = (baseUrl, summary = {}) => {
+  const query = new URLSearchParams({
+    mode: "paid",
+    confirmationId: String(summary.sessionId || ""),
+    reservationId: String(summary.reservationId || ""),
+    email: String(summary.email || ""),
+    emailSent: summary.emailSent ? "1" : "0",
+    listingTitle: String(summary.listingTitle || ""),
+    checkIn: String(summary.checkIn || ""),
+    checkOut: String(summary.checkOut || ""),
+    guests: String(summary.guests || ""),
+    amount: String(summary.amount ?? ""),
+    currency: String(summary.currency || "USD"),
+    consentProofUrl: String(summary.consentProofUrl || ""),
+  });
+  return `${baseUrl}/booking-confirmation?${query.toString()}`;
+};
+
+const handleCheckoutSuccess = async (event) => {
+  const query = event.queryStringParameters || {};
+  const sessionId = String(query.session_id || query.sessionId || "").trim();
+  if (!sessionId) {
+    return jsonResponse(400, { message: "Missing session_id" });
+  }
+
+  const baseUrl = getBaseUrl(event);
+  const cached = await readStripeSessionRecord(sessionId);
+  if (cached?.redirectUrl) {
+    return jsonResponse(200, {
+      ok: true,
+      finalized: true,
+      cached: true,
+      redirectUrl: cached.redirectUrl,
+      reservationId: cached.reservationId || "",
+      emailSent: !cached.emailError,
+      emailError: cached.emailError || "",
+    });
+  }
+
+  const stripe = getStripeClient();
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ["payment_intent.latest_charge"],
+  });
+  if (!session?.id) {
+    return jsonResponse(404, { message: "Stripe session not found" });
+  }
+  if (session.payment_status !== "paid") {
+    return jsonResponse(409, {
+      message: "Payment is not completed yet.",
+      paymentStatus: session.payment_status || "unpaid",
+    });
+  }
+
+  const metadata = session?.metadata || {};
+  const listingId = metadata.listingId;
+  const checkIn = metadata.checkIn;
+  const checkOut = metadata.checkOut;
+  const guests = Number(metadata.guests) || 1;
+  const consentPayload = (await readConsentProof(sessionId)) || {};
+  const resolvedListingTitle =
+    consentPayload?.listingTitle || metadata?.listingTitle || "OneLuxStay stay";
+  if (!listingId || !checkIn || !checkOut) {
+    return jsonResponse(400, { message: "Missing reservation metadata in Stripe session." });
+  }
+
+  const guestEmail = getSessionGuestEmail(session);
+  const guestName =
+    [metadata.guestFirstName, metadata.guestLastName].filter(Boolean).join(" ").trim() ||
+    metadata.guestName ||
+    "";
+  const guest = {
+    firstName: metadata.guestFirstName || guestName.split(/\s+/)[0] || "Guest",
+    lastName: metadata.guestLastName || guestName.split(/\s+/).slice(1).join(" ") || "Guest",
+    email: guestEmail,
+    phone: metadata.guestPhone || "",
+  };
+
+  const amount =
+    firstNumber(
+      metadata.bd_total,
+      metadata.amount,
+      Number.isFinite(session?.amount_total)
+        ? fromStripeAmount(session.amount_total, session?.currency)
+        : null
+    ) || 0;
+  const breakdown = {
+    accommodation: firstNumber(metadata.bd_accommodation),
+    cleaning: firstNumber(metadata.bd_cleaning),
+    fees: firstNumber(metadata.bd_fees),
+    taxes: firstNumber(metadata.bd_taxes),
+    total: amount,
+    subtotal: amount,
+    discountAmount: firstNumber(metadata.bd_discount) || 0,
+    discountRate: firstNumber(metadata.bd_discount_rate) || 0,
+    promoCode: metadata.promo_code || "",
+    promoDiscountAmount: firstNumber(metadata.bd_promo_discount) || 0,
+    promoDiscountRate: firstNumber(metadata.bd_promo_discount_rate) || 0,
+  };
+
+  if (cached?.reservationId || cached?.processedAt) {
+    const redirectUrl = buildPaidConfirmationRedirectUrl(baseUrl, {
+      sessionId,
+      reservationId: cached?.reservationId || "",
+      email: guestEmail,
+      emailSent: !cached?.emailError,
+      listingTitle: resolvedListingTitle,
+      checkIn,
+      checkOut,
+      guests,
+      amount,
+      currency: (metadata.currency || session?.currency || "USD").toUpperCase(),
+      consentProofUrl: cached?.consentPdfUrl || "",
+    });
+    await writeStripeSessionRecord(sessionId, {
+      ...cached,
+      redirectUrl,
+      lastCheckoutSuccessLookupAt: Date.now(),
+    });
+    return jsonResponse(200, {
+      ok: true,
+      finalized: true,
+      cached: true,
+      sessionId,
+      reservationId: cached?.reservationId || "",
+      emailSent: !cached?.emailError,
+      emailError: cached?.emailError || "",
+      redirectUrl,
+    });
+  }
+
+  let reservationId = "";
+  try {
+    const reservationPayload = buildGuestyReservationPayload({
+      listingId,
+      checkIn,
+      checkOut,
+      guests,
+      guest,
+      currency: (metadata.currency || session?.currency || "USD").toUpperCase(),
+      amount,
+      breakdown,
+    });
+    const reservation = await createGuestyReservation(reservationPayload);
+    reservationId = reservation?._id || reservation?.id || "";
+  } catch (err) {
+    return jsonResponse(502, {
+      message: "Unable to create reservation in Guesty.",
+      error: err?.message || "Unknown error",
+    });
+  }
+
+  let consentPdfUrl = "";
+  let consentPdfError = "";
+  let consentPdfBytes = null;
+  try {
+    const normalizedVerification = normalizeVerificationPayload(consentPayload?.verification || {});
+    consentPdfBytes = await buildConsentPdf({
+      confirmationId: sessionId,
+      reservationId,
+      listingTitle: consentPayload?.listingTitle || metadata?.listingTitle || "OneLuxStay stay",
+      checkIn,
+      checkOut,
+      guests,
+      amount,
+      currency: (metadata.currency || session?.currency || "USD").toUpperCase(),
+      guestName: guestName || [guest.firstName, guest.lastName].filter(Boolean).join(" ").trim(),
+      guestEmail,
+      consentText: consentPayload?.consentText || metadata?.consent_text || "",
+      consentAcceptedAt: consentPayload?.consentAcceptedAt || metadata?.consent_at || "",
+      consentSignerName:
+        consentPayload?.consentSignerName ||
+        metadata?.consent_signer_name ||
+        guestName ||
+        "",
+      consentSignatureDataUrl: consentPayload?.consentSignatureDataUrl || "",
+      verification: normalizedVerification,
+    });
+    const consentPdfToken = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`;
+    const stored = await writeConsentPdf(consentPdfToken, consentPdfBytes, {
+      reservationId: reservationId || "",
+      sessionId,
+    });
+    if (!stored) {
+      throw new Error("Consent proof storage unavailable");
+    }
+    const proofBaseUrl = toProofBaseUrl(event);
+    if (proofBaseUrl) {
+      consentPdfUrl = `${proofBaseUrl}/.netlify/functions/consent-proof?token=${encodeURIComponent(consentPdfToken)}`;
+    } else {
+      consentPdfError = "Consent proof saved, but no public base URL is configured for proof links.";
+    }
+  } catch (err) {
+    consentPdfError = err?.message || "Unable to generate consent proof PDF.";
+  }
+
+  let emailSent = false;
+  let emailError = "";
+  try {
+    const recipients = uniqueEmails([guestEmail, RESERVATIONS_COPY_EMAIL]);
+    const emailResult = await sendReservationEmail({
+      to: recipients,
+      subject: "OneLuxStay Booking Confirmation",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #3f3326;">
+          <h2>Thank you for booking with OneLuxStay</h2>
+          <p>Hi ${escapeHtml(guestName || "Guest")},</p>
+          <p>Your payment was received and your reservation has been confirmed.</p>
+          <p><strong>Stripe session:</strong> ${escapeHtml(sessionId)}</p>
+          ${reservationId ? `<p><strong>Reservation ID:</strong> ${escapeHtml(reservationId)}</p>` : ""}
+          <p><strong>Check-in:</strong> ${escapeHtml(checkIn)}</p>
+          <p><strong>Check-out:</strong> ${escapeHtml(checkOut)}</p>
+          <p><strong>Guests:</strong> ${escapeHtml(String(guests))}</p>
+          <p><strong>Total charged:</strong> ${escapeHtml(formatCurrencyValue(amount, metadata.currency || session?.currency || "USD"))}</p>
+          ${consentPdfUrl ? `<p><strong>Consent proof PDF:</strong> <a href="${consentPdfUrl}" target="_blank" rel="noreferrer">Download PDF</a></p>` : ""}
+          <p>Our reservations team will follow up shortly with any final details.</p>
+        </div>
+      `,
+      attachments:
+        consentPdfBytes && consentPdfBytes.length
+          ? [
+              {
+                filename: `consent-proof-${reservationId || sessionId}.pdf`,
+                content: Buffer.from(consentPdfBytes).toString("base64"),
+                type: "application/pdf",
+              },
+            ]
+          : [],
+    });
+    emailSent = !emailResult?.skipped;
+  } catch (err) {
+    emailError = err?.message || "Unable to send confirmation email.";
+  }
+
+  const redirectUrl = buildPaidConfirmationRedirectUrl(baseUrl, {
+    sessionId,
+    reservationId,
+    email: guestEmail,
+    emailSent,
+    listingTitle: resolvedListingTitle,
+    checkIn,
+    checkOut,
+    guests,
+    amount,
+    currency: (metadata.currency || session?.currency || "USD").toUpperCase(),
+    consentProofUrl: consentPdfUrl,
+  });
+
+  await writeStripeSessionRecord(sessionId, {
+    processedAt: Date.now(),
+    sessionId,
+    reservationId,
+    listingId: String(listingId),
+    guestReceiptEmail: guestEmail,
+    emailError: emailError || null,
+    ...(emailSent ? { emailSentAt: Date.now() } : {}),
+    redirectUrl,
+    consentPdfUrl,
+    consentPdfError: consentPdfError || null,
+  });
+
+  return jsonResponse(200, {
+    ok: true,
+    finalized: true,
+    sessionId,
+    reservationId,
+    emailSent,
+    emailError,
+    consentPdfUrl,
+    consentPdfError,
+    redirectUrl,
+  });
+};
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return jsonResponse(200, {});
@@ -2023,6 +2348,17 @@ export async function handler(event) {
         return await handleFreeCheckout(event);
       } catch (err) {
         return jsonResponse(500, { message: "Zero-total checkout failed", error: err.message });
+      }
+    }
+
+    if (path === "/checkout-success" && (event.httpMethod === "GET" || event.httpMethod === "POST")) {
+      try {
+        return await handleCheckoutSuccess(event);
+      } catch (err) {
+        return jsonResponse(500, {
+          message: err?.message || "Unable to finalize checkout.",
+          error: err?.message || "Unknown error",
+        });
       }
     }
 
