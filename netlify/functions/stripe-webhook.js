@@ -36,6 +36,43 @@ const jsonResponse = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
+const getHeaderValue = (event = {}, targetName = "") => {
+  const target = String(targetName || "").toLowerCase();
+  if (!target) return "";
+
+  const headers = event?.headers || {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (String(key).toLowerCase() !== target) continue;
+    if (Array.isArray(value)) return String(value[0] || "");
+    return String(value || "");
+  }
+
+  const multiValueHeaders = event?.multiValueHeaders || {};
+  for (const [key, value] of Object.entries(multiValueHeaders)) {
+    if (String(key).toLowerCase() !== target) continue;
+    if (Array.isArray(value)) return String(value[0] || "");
+    return String(value || "");
+  }
+
+  return "";
+};
+
+const parseWebhookSecrets = () => {
+  const sources = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_WEBHOOK_SECRETS,
+    process.env.STRIPE_WEBHOOK_SECRET_NEXT,
+  ];
+  return Array.from(
+    new Set(
+      sources
+        .flatMap((value) => String(value || "").split(/[\s,;]+/))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
 const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -149,7 +186,44 @@ const getSessionReceiptDetails = async (session) => {
   }
 };
 
+const findCheckoutSessionByPaymentIntent = async (stripe, paymentIntentId) => {
+  if (!stripe || !paymentIntentId) return null;
+  try {
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: String(paymentIntentId),
+      limit: 1,
+    });
+    return sessions?.data?.[0] || null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveCheckoutSessionFromStripeEvent = async (stripe, stripeEvent) => {
+  const type = stripeEvent?.type || "";
+  const object = stripeEvent?.data?.object || {};
+
+  if (type === "checkout.session.completed" || type === "checkout.session.async_payment_succeeded") {
+    return object;
+  }
+
+  if (type === "payment_intent.succeeded") {
+    const paymentIntentId = typeof object === "string" ? object : object?.id;
+    return findCheckoutSessionByPaymentIntent(stripe, paymentIntentId);
+  }
+
+  if (type === "charge.succeeded") {
+    const paymentIntent = object?.payment_intent;
+    const paymentIntentId =
+      typeof paymentIntent === "string" ? paymentIntent : paymentIntent?.id || "";
+    return findCheckoutSessionByPaymentIntent(stripe, paymentIntentId);
+  }
+
+  return null;
+};
+
 const getStripeEventStore = async () => getBlobStore(STRIPE_EVENT_STORE);
+const stripeSessionStoreKey = (sessionId) => `session:${String(sessionId || "")}`;
 
 const readStripeEvent = async (eventId) => {
   const store = await getStripeEventStore();
@@ -161,6 +235,21 @@ const writeStripeEvent = async (eventId, payload) => {
   const store = await getStripeEventStore();
   if (!store) return false;
   await store.setJSON(eventId, payload);
+  return true;
+};
+
+const readStripeSessionRecord = async (sessionId) => {
+  if (!sessionId) return null;
+  const store = await getStripeEventStore();
+  if (!store) return null;
+  return store.get(stripeSessionStoreKey(sessionId), { type: "json" });
+};
+
+const writeStripeSessionRecord = async (sessionId, payload) => {
+  if (!sessionId) return false;
+  const store = await getStripeEventStore();
+  if (!store) return false;
+  await store.setJSON(stripeSessionStoreKey(sessionId), payload);
   return true;
 };
 
@@ -1173,34 +1262,80 @@ export async function handler(event) {
     return jsonResponse(405, { message: "Method Not Allowed" });
   }
 
-  const signature = event.headers["stripe-signature"] || event.headers["Stripe-Signature"];
+  const signature = getHeaderValue(event, "stripe-signature").trim();
   if (!signature) {
     return jsonResponse(400, { message: "Missing Stripe signature" });
   }
 
-  const rawBody = event.isBase64Encoded
-    ? Buffer.from(event.body || "", "base64").toString("utf8")
-    : event.body || "";
+  const hasRawBody = typeof event?.rawBody === "string";
+  const hasStringBody = typeof event?.body === "string";
+  if (!hasRawBody && !hasStringBody) {
+    return jsonResponse(400, {
+      message: "Missing raw request body for Stripe signature verification",
+    });
+  }
+
+  const rawBody = hasRawBody
+    ? event.rawBody
+    : event.isBase64Encoded
+      ? Buffer.from(event.body || "", "base64").toString("utf8")
+      : event.body || "";
 
   let stripeEvent;
+  let stripe;
   try {
-    const stripe = getStripeClient();
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
-    stripeEvent = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    stripe = getStripeClient();
   } catch (err) {
-    return jsonResponse(400, { message: "Invalid webhook signature", error: err.message });
+    return jsonResponse(500, { message: err?.message || "Stripe client is not configured" });
+  }
+
+  const webhookSecrets = parseWebhookSecrets();
+  if (!webhookSecrets.length) {
+    return jsonResponse(500, {
+      message:
+        "Missing webhook secret. Set STRIPE_WEBHOOK_SECRET (or STRIPE_WEBHOOK_SECRETS).",
+    });
+  }
+
+  let verificationError = null;
+  for (const webhookSecret of webhookSecrets) {
+    try {
+      stripeEvent = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+      verificationError = null;
+      break;
+    } catch (err) {
+      verificationError = err;
+    }
+  }
+
+  if (!stripeEvent) {
+    return jsonResponse(400, {
+      message: "Invalid webhook signature",
+      error: verificationError?.message || "Signature verification failed",
+      candidateSecrets: webhookSecrets.length,
+    });
   }
 
   const handledTypes = new Set([
     "checkout.session.completed",
     "checkout.session.async_payment_succeeded",
+    "payment_intent.succeeded",
+    "charge.succeeded",
   ]);
   if (!handledTypes.has(stripeEvent.type)) {
     return jsonResponse(200, { received: true });
   }
 
-  const session = stripeEvent.data.object;
+  const session = await resolveCheckoutSessionFromStripeEvent(stripe, stripeEvent);
+  if (!session?.id) {
+    return jsonResponse(200, {
+      received: true,
+      ignored: true,
+      reason: "No checkout session could be resolved from event",
+      type: stripeEvent.type,
+    });
+  }
+
   const existing = await readStripeEvent(stripeEvent.id);
   if (existing) {
     if (existing?.emailError) {
@@ -1230,7 +1365,7 @@ export async function handler(event) {
         emailRetryError = err?.message || "Unable to send receipt email.";
       }
 
-      await writeStripeEvent(stripeEvent.id, {
+      const retryPayload = {
         ...existing,
         emailRetryCount,
         emailRetriedAt: retryAt,
@@ -1239,7 +1374,9 @@ export async function handler(event) {
         guestReceiptEmail,
         receiptUrl: proof?.receiptUrl || existing?.receiptUrl || null,
         paymentIntentId: proof?.paymentIntentId || existing?.paymentIntentId || null,
-      });
+      };
+      await writeStripeEvent(stripeEvent.id, retryPayload);
+      await writeStripeSessionRecord(session?.id || existing?.sessionId || "", retryPayload);
 
       if (emailRetryError) {
         return jsonResponse(500, {
@@ -1257,6 +1394,87 @@ export async function handler(event) {
       });
     }
     return jsonResponse(200, { received: true, duplicate: true });
+  }
+
+  const existingSession = await readStripeSessionRecord(session.id);
+  if (existingSession) {
+    if (existingSession?.emailError) {
+      const proof = await getSessionReceiptDetails(session);
+      const retryAt = Date.now();
+      const emailRetryCount = Number(existingSession?.emailRetryCount || 0) + 1;
+      let emailRetryError = null;
+      const guestReceiptEmail = getGuestReceiptEmail(session);
+      try {
+        const emailResult = await sendReceiptEmail({
+          to: [guestReceiptEmail],
+          reservationId: existingSession?.reservationId || null,
+          metadata: session?.metadata || {},
+          session,
+          proof: {
+            sessionId: session?.id || existingSession?.sessionId || null,
+            proofUrl: existingSession?.consentPdfUrl || null,
+            receiptUrl: proof?.receiptUrl || existingSession?.receiptUrl || null,
+          },
+        });
+        if (emailResult?.skipped) {
+          emailRetryError =
+            emailResult?.reason ||
+            "Receipt email skipped due to missing email configuration or recipient.";
+        }
+      } catch (err) {
+        emailRetryError = err?.message || "Unable to send receipt email.";
+      }
+
+      const retryPayload = {
+        ...existingSession,
+        emailRetryCount,
+        emailRetriedAt: retryAt,
+        emailError: emailRetryError,
+        ...(emailRetryError ? {} : { emailSentAt: retryAt }),
+        guestReceiptEmail,
+        receiptUrl: proof?.receiptUrl || existingSession?.receiptUrl || null,
+        paymentIntentId: proof?.paymentIntentId || existingSession?.paymentIntentId || null,
+      };
+      await writeStripeSessionRecord(session?.id || "", retryPayload);
+      await writeStripeEvent(stripeEvent.id, {
+        ...retryPayload,
+        replayedByEventId: stripeEvent.id,
+        replayedAt: retryAt,
+        duplicateSession: true,
+      });
+
+      if (emailRetryError) {
+        return jsonResponse(500, {
+          received: true,
+          duplicate: true,
+          duplicateSession: true,
+          retryable: true,
+          sessionId: session.id,
+          emailError: emailRetryError,
+        });
+      }
+
+      return jsonResponse(200, {
+        received: true,
+        duplicate: true,
+        duplicateSession: true,
+        emailRetried: true,
+        sessionId: session.id,
+      });
+    }
+
+    await writeStripeEvent(stripeEvent.id, {
+      ...existingSession,
+      replayedByEventId: stripeEvent.id,
+      replayedAt: Date.now(),
+      duplicateSession: true,
+    });
+    return jsonResponse(200, {
+      received: true,
+      duplicate: true,
+      duplicateSession: true,
+      sessionId: session.id,
+    });
   }
 
   if (session.payment_status && session.payment_status !== "paid") {
@@ -1369,7 +1587,7 @@ export async function handler(event) {
     } catch (err) {
       emailError = err.message;
     }
-    const stored = await writeStripeEvent(stripeEvent.id, {
+    const processedPayload = {
       processedAt: Date.now(),
       reservationId,
       guestId,
@@ -1387,6 +1605,11 @@ export async function handler(event) {
       emailRetryCount: 0,
       emailError,
       ...(emailSentAt ? { emailSentAt } : {}),
+    };
+    const stored = await writeStripeEvent(stripeEvent.id, processedPayload);
+    await writeStripeSessionRecord(session?.id || "", {
+      ...processedPayload,
+      sourceEventId: stripeEvent.id,
     });
     if (emailError && stored) {
       return jsonResponse(500, {
