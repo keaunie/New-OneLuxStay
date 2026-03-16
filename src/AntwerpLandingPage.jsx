@@ -2082,11 +2082,12 @@ export default function AntwerpLandingPage() {
   const [isMobileMapOpen, setIsMobileMapOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cardImageIndexes, setCardImageIndexes] = useState({});
   const [minBedrooms, setMinBedrooms] = useState(1);
   const [showMonthlyTotal, setShowMonthlyTotal] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const filtersPanelId = useId();
+  const viewportShellRef = useRef(null);
+  const stickySearchShellRef = useRef(null);
   const [activeListing, setActiveListing] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
@@ -2102,6 +2103,43 @@ export default function AntwerpLandingPage() {
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
+
+  useEffect(() => {
+    if (isListingRoute) return undefined;
+    const viewportNode = viewportShellRef.current;
+    const stickyNode = stickySearchShellRef.current;
+    if (!viewportNode || !stickyNode) return undefined;
+
+    let rafId = null;
+    const applyStickyOffset = () => {
+      const nextHeight = Math.ceil(stickyNode.getBoundingClientRect().height || 0);
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+      viewportNode.style.setProperty("--dubai-sticky-nav-height", `${nextHeight}px`);
+    };
+    const scheduleApplyStickyOffset = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        applyStickyOffset();
+      });
+    };
+
+    applyStickyOffset();
+    window.addEventListener("resize", scheduleApplyStickyOffset);
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(scheduleApplyStickyOffset);
+      resizeObserver.observe(stickyNode);
+    }
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", scheduleApplyStickyOffset);
+      resizeObserver?.disconnect();
+      viewportNode.style.removeProperty("--dubai-sticky-nav-height");
+    };
+  }, [isListingRoute]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -6193,7 +6231,7 @@ const applyCheckoutPromoCode = () => {
       {listingMapModal}
       {zoomModal}
       {tourModal}
-      <div className="city-viewport-shell city-viewport-shell--dubai">
+      <div className="city-viewport-shell city-viewport-shell--dubai" ref={viewportShellRef}>
       {/* <section className="la-bounce-section" aria-label="Antwerp highlights">
         <div className="la-bounce-section__inner is-stacked">
           <BounceCards
@@ -6226,7 +6264,11 @@ const applyCheckoutPromoCode = () => {
         </div>
       </section> */}
       
-      <section className="city-search-shell city-search-shell--dubai" aria-label="Search Antwerp stays">
+      <section
+        className="city-search-shell city-search-shell--dubai"
+        aria-label="Search Antwerp stays"
+        ref={stickySearchShellRef}
+      >
         <div className="city-search-topline city-search-topline--breadcrumbs" aria-label="Location breadcrumb">
           <Link to="/" className="city-search-brand" aria-label="OneLuxStay home">
             <img
@@ -6249,7 +6291,7 @@ const applyCheckoutPromoCode = () => {
             </span>
           </nav>
         </div>
-        <div className={`city-search-bar${filtersOpen ? " is-filters-open" : ""}`}>
+        <div className="city-search-bar">
           <label className="city-search-field city-search-field--location">
             <span className="city-search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -6288,7 +6330,7 @@ const applyCheckoutPromoCode = () => {
             ) : null}
             <div
               className={`city-search-dropdown${
-                isSearchFocused && filteredCitySuggestions.length && !filtersOpen ? " is-open" : ""
+                isSearchFocused && filteredCitySuggestions.length ? " is-open" : ""
               }`}
               role="listbox"
               aria-label="Available cities"
@@ -6327,42 +6369,14 @@ const applyCheckoutPromoCode = () => {
               }}
             />
           </div>
-          <button
-            type="button"
-            className="city-search-filters"
-            aria-expanded={filtersOpen}
-            aria-controls={filtersPanelId}
-            onClick={() => {
-              setFiltersOpen((prev) => !prev);
-              setIsSearchFocused(false);
-            }}
-          >
-            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-              <path
-                d="M4 7h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2zm0 6h3a2 2 0 0 0 4 0h9v-2h-9a2 2 0 0 0-4 0H4v2zm0 6h9a2 2 0 0 0 4 0h3v-2h-3a2 2 0 0 0-4 0H4v2z"
-                fill="currentColor"
-              />
-            </svg>
-            Filters
-          </button>
-          <button type="button" className="city-search-submit" onClick={handleSearchSubmit}>
-            <span className="city-search-submit__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                <path
-                  d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
-            Search
-          </button>
-        </div>
-        <div id={filtersPanelId} className={`city-search-panel${filtersOpen ? " is-open" : ""}`}>
-          <label className="city-search-panel__field">
-            <span>Guests</span>
+          <span className="city-search-divider" aria-hidden="true" />
+          <label className="city-search-field city-search-field--guests-inline">
+            <span className="city-search-guests-label">Guests</span>
             <select
+              className="city-search-guests-select"
               value={sectionGuests}
               onChange={(event) => setSectionGuests(event.target.value)}
+              aria-label="Guests"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
                 <option key={guestCount} value={String(guestCount)}>
@@ -6371,41 +6385,15 @@ const applyCheckoutPromoCode = () => {
               ))}
             </select>
           </label>
-          <label className="city-search-panel__field">
-            <span>Bedrooms</span>
-            <select
-              value={minBedrooms}
-              onChange={(event) => setMinBedrooms(Number(event.target.value) || 1)}
-            >
-              <option value={1}>Any</option>
-              {[2, 3, 4, 5, 6].map((count) => (
-                <option key={count} value={count}>
-                  {count}+
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="city-search-toggle">
-            <input
-              type="checkbox"
-              checked={hasStayDates && showMonthlyTotal}
-              disabled={!hasStayDates}
-              onChange={(event) => {
-                if (!hasStayDates) return;
-                setShowMonthlyTotal(event.target.checked);
-              }}
-            />
-            <span className="city-search-toggle__track" aria-hidden="true">
-              <span className="city-search-toggle__thumb" />
-            </span>
-            <span>Total stay cost</span>
-          </label>
           <button
             type="button"
-            className="city-search-clear"
+            className="city-search-clear city-search-clear--inline"
             onClick={() => {
               setSearchQuery("");
               setAppliedSearch("");
+              setSectionCheckIn("");
+              setSectionCheckOut("");
+              setSectionGuests("2");
               setMinBedrooms(1);
               setShowMonthlyTotal(false);
             }}
@@ -6552,7 +6540,31 @@ const applyCheckoutPromoCode = () => {
                     {filteredParentListings.map((listing) => {
                     const listingId = getListingId(listing);
                     const listingPath = listingId ? buildListingPath(listingId) : "/antwerp";
-                    const imageUrl = getListingImageUrls(listing)[0] || getImageUrl(listing?.picture);
+                    const listingKey = listingId || listingPath;
+                    const listingImages = getListingImageUrls(listing);
+                    const cardImageSources = listingImages.length
+                      ? listingImages
+                      : [getImageUrl(listing?.picture) || FALLBACK_IMAGE];
+                    const rawCardImageIndex = cardImageIndexes[listingKey] || 0;
+                    const safeCardImageIndex =
+                      ((rawCardImageIndex % cardImageSources.length) + cardImageSources.length) %
+                      cardImageSources.length;
+                    const dotWindowSize = 3;
+                    const carouselDotIndexes =
+                      cardImageSources.length <= dotWindowSize
+                        ? cardImageSources.map((_, idx) => idx)
+                        : (() => {
+                            const maxStart = cardImageSources.length - dotWindowSize;
+                            const start = Math.min(
+                              Math.max(safeCardImageIndex - 1, 0),
+                              maxStart
+                            );
+                            return Array.from(
+                              { length: dotWindowSize },
+                              (_, offset) => start + offset
+                            );
+                          })();
+                    const imageUrl = cardImageSources[safeCardImageIndex] || FALLBACK_IMAGE;
                     const basePrice = firstNumber(
                       listing?.basePrice,
                       listing?.prices?.basePrice,
@@ -6588,7 +6600,7 @@ const applyCheckoutPromoCode = () => {
                         ? `${formatCurrency(basePrice, currency)} / night`
                         : "Check price";
                     const priceSub = canShowStayTotal
-                      ? `${formatCurrency(nightlyPrice, currency)} / night · ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      ? `${formatCurrency(nightlyPrice, currency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
@@ -6599,13 +6611,65 @@ const applyCheckoutPromoCode = () => {
                       <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
                         <div className="la-unit-listing-card__media">
                           <img
+                            key={`${listingKey}-image-${safeCardImageIndex}`}
+                            className="la-unit-listing-card__media-image"
                             src={imageUrl || FALLBACK_IMAGE}
                             alt={sanitizeText(listing?.title || "One Lux Stay Antwerp")}
                             loading="lazy"
                             onError={handleImageError}
-                            width="800"
-                            height="600"
                           />
+                          {cardImageSources.length > 1 ? (
+                            <div
+                              className="la-unit-listing-card__carousel"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="la-unit-listing-card__carousel-btn"
+                                aria-label="Previous image"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setCardImageIndexes((prev) => ({
+                                    ...prev,
+                                    [listingKey]:
+                                      (safeCardImageIndex - 1 + cardImageSources.length) %
+                                      cardImageSources.length,
+                                  }));
+                                }}
+                              >
+                                &#8249;
+                              </button>
+                              <div className="la-unit-listing-card__carousel-dots" aria-hidden="true">
+                                {carouselDotIndexes.map((idx) => (
+                                  <span
+                                    key={`${listingKey}-dot-${idx}`}
+                                    className={`la-unit-listing-card__carousel-dot${
+                                      idx === safeCardImageIndex ? " is-active" : ""
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <button
+                                type="button"
+                                className="la-unit-listing-card__carousel-btn"
+                                aria-label="Next image"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setCardImageIndexes((prev) => ({
+                                    ...prev,
+                                    [listingKey]: (safeCardImageIndex + 1) % cardImageSources.length,
+                                  }));
+                                }}
+                              >
+                                &#8250;
+                              </button>
+                            </div>
+                          ) : null}
                           <span className="la-unit-listing-card__badge">Available now</span>
                           <span className="la-unit-listing-card__fav" aria-hidden="true">
                             &#9825;
@@ -6642,7 +6706,7 @@ const applyCheckoutPromoCode = () => {
                               .join(" | ") || "Details available"}
                           </p>
                           <p className="la-unit-listing-card__address">
-                            {`${listingId ? `#${listingId} | ` : ""}${formatAddress(listing)}`}
+                            {formatAddress(listing)}
                           </p>
                         </div>
                       </Link>
