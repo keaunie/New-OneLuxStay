@@ -3104,7 +3104,17 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const listing = listings[safeIndex];
     const totalUnits = listings.length;
     const title = escapeHtml(resolveGroupTitle(listing) || listing?.title || "One Lux Stay");
-    const image = escapeHtml(getListingImageUrls(listing)[0] || FALLBACK_IMAGE);
+    const images = getListingImageUrls(listing);
+    const imageKey = String(getListingId(listing) || listing?.unitTypeId || listing?.title || "");
+    let imageIndex = 0;
+    if (images.length > 1 && imageKey) {
+      let hash = 0;
+      for (let i = 0; i < imageKey.length; i += 1) {
+        hash = (hash * 31 + imageKey.charCodeAt(i)) | 0;
+      }
+      imageIndex = Math.abs(hash) % images.length;
+    }
+    const image = escapeHtml(images[imageIndex] || FALLBACK_IMAGE);
     const basePrice = firstNumber(
       listing?.basePrice,
       listing?.prices?.basePrice,
@@ -8751,5 +8761,4 @@ const applyCheckoutPromoCode = () => {
     </div>
   );
 }
-
 

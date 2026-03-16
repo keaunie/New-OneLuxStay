@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useId } from "react";
+import { useEffect, useMemo, useRef, useState, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
@@ -2283,6 +2283,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const mapsApiRef = useRef(null);
   const listingMarkersRef = useRef([]);
   const listingInfoRef = useRef(null);
+  const mapPopupClustersRef = useRef(new Map());
   const geocoderRef = useRef(null);
   const geocodeCacheRef = useRef(new Map());
   const geocodeInFlightRef = useRef(new Set());
@@ -2294,6 +2295,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     listingMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
     listingMarkersRef.current = [];
     listingInfoRef.current = null;
+    mapPopupClustersRef.current.clear();
     geocoderRef.current = null;
     const currentMap = mapInstanceRef.current;
     if (currentMap?.__leafletMap?.remove) {
@@ -2837,10 +2839,26 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
   }, [losAngelesListings]);
 
-  const buildMapPopupContent = (listing) => {
-    if (!listing) return "";
+  const buildMapPopupContent = useCallback((popupListings = [], activeIndex = 0, popupKey = "") => {
+    const listings = (Array.isArray(popupListings) ? popupListings : [popupListings]).filter(Boolean);
+    if (!listings.length) return "";
+
+    const safeIndex =
+      ((Number(activeIndex) || 0) % listings.length + listings.length) % listings.length;
+    const listing = listings[safeIndex];
+    const totalUnits = listings.length;
     const title = escapeHtml(resolveGroupTitle(listing) || listing?.title || "One Lux Stay");
-    const image = escapeHtml(getListingImageUrls(listing)[0] || FALLBACK_IMAGE);
+    const images = getListingImageUrls(listing);
+    const imageKey = String(getListingId(listing) || listing?.unitTypeId || listing?.title || "");
+    let imageIndex = 0;
+    if (images.length > 1 && imageKey) {
+      let hash = 0;
+      for (let i = 0; i < imageKey.length; i += 1) {
+        hash = (hash * 31 + imageKey.charCodeAt(i)) | 0;
+      }
+      imageIndex = Math.abs(hash) % images.length;
+    }
+    const image = escapeHtml(images[imageIndex] || FALLBACK_IMAGE);
     const basePrice = firstNumber(
       listing?.basePrice,
       listing?.prices?.basePrice,
@@ -2871,22 +2889,77 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const listingId = getListingId(listing);
     const idLine = listingId ? `#${escapeHtml(listingId)}` : "";
     const listingPath = listingId ? `/antwerp/listing/${encodeURIComponent(listingId)}` : "/antwerp";
+    const safePopupKey = escapeHtml(String(popupKey || ""));
+    const unitNav =
+      totalUnits > 1
+        ? `
+          <div class="ols-map-popup__unit-nav-wrap">
+            <button
+              type="button"
+              class="ols-map-popup__unit-nav"
+              data-popup-key="${safePopupKey}"
+              data-popup-direction="prev"
+              aria-label="Previous unit"
+            >
+              &#8249;
+            </button>
+            <span class="ols-map-popup__unit-count">${safeIndex + 1} / ${totalUnits}</span>
+            <button
+              type="button"
+              class="ols-map-popup__unit-nav"
+              data-popup-key="${safePopupKey}"
+              data-popup-direction="next"
+              aria-label="Next unit"
+            >
+              &#8250;
+            </button>
+          </div>
+        `
+        : "";
+    const mediaNav =
+      totalUnits > 1
+        ? `
+          <button
+            type="button"
+            class="ols-map-popup__media-nav ols-map-popup__media-nav--prev"
+            data-popup-key="${safePopupKey}"
+            data-popup-direction="prev"
+            aria-label="Previous listing"
+          >
+            &#8249;
+          </button>
+          <button
+            type="button"
+            class="ols-map-popup__media-nav ols-map-popup__media-nav--next"
+            data-popup-key="${safePopupKey}"
+            data-popup-direction="next"
+            aria-label="Next listing"
+          >
+            &#8250;
+          </button>
+        `
+        : "";
 
     return `
-      <div class="ols-map-popup">
+      <div class="ols-map-popup" data-popup-key="${safePopupKey}">
         <div class="ols-map-popup__header">
           <span class="ols-map-popup__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
               <path d="M12 4 3 11h2v8h5v-5h4v5h5v-8h2z" fill="currentColor" />
             </svg>
           </span>
-          <div class="ols-map-popup__title">${title}</div>
+          <div class="ols-map-popup__title-block">
+            <div class="ols-map-popup__title">${title}</div>
+            ${totalUnits > 1 ? `<div class="ols-map-popup__title-sub">${totalUnits} units here</div>` : ""}
+          </div>
+          ${unitNav}
         </div>
         <a class="ols-map-popup__card" href="${listingPath}">
-          <div class="ols-map-popup__media">
+          <div class="ols-map-popup__media" data-popup-key="${safePopupKey}">
             <img src="${image}" alt="${title}" loading="lazy" width="420" height="280" />
             <span class="ols-map-popup__badge">Popular home</span>
             <span class="ols-map-popup__fav" aria-hidden="true">&#9825;</span>
+            ${mediaNav}
           </div>
           <div class="ols-map-popup__body">
             <div class="ols-map-popup__price">${escapeHtml(priceLabel)}</div>
@@ -2898,7 +2971,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </a>
       </div>
     `;
-  };
+  }, []);
 
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
@@ -2971,6 +3044,93 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return citySuggestions.filter((item) => item.key.includes(query)).slice(0, 6);
   }, [citySuggestions, searchQuery]);
 
+  const navigatePopupUnit = useCallback(
+    (popupKey = "", direction = "next") => {
+      const popupState = mapPopupClustersRef.current.get(popupKey);
+      if (!popupState?.listings?.length || !popupState.marker) return;
+
+      const total = popupState.listings.length;
+      const delta = direction === "prev" ? -1 : 1;
+      const nextIndex = ((popupState.activeIndex + delta) % total + total) % total;
+      popupState.activeIndex = nextIndex;
+
+      const infoWindow = listingInfoRef.current;
+      const map = mapInstanceRef.current;
+      if (!infoWindow || !map) return;
+      infoWindow.setContent(buildMapPopupContent(popupState.listings, nextIndex, popupKey));
+      infoWindow.open(map, popupState.marker);
+    },
+    [buildMapPopupContent]
+  );
+
+  useEffect(() => {
+    const handlePopupUnitNavigation = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const trigger = target.closest(".ols-map-popup__unit-nav, .ols-map-popup__media-nav");
+      if (!trigger) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const popupKey = trigger.getAttribute("data-popup-key") || "";
+      const direction = trigger.getAttribute("data-popup-direction") || "next";
+      navigatePopupUnit(popupKey, direction);
+    };
+
+    const touchSession = {
+      popupKey: "",
+      startX: 0,
+      startY: 0,
+      active: false,
+    };
+
+    const handlePopupTouchStart = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const media = target.closest(".ols-map-popup__media[data-popup-key]");
+      if (!media) return;
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      touchSession.popupKey = media.getAttribute("data-popup-key") || "";
+      touchSession.startX = touch.clientX;
+      touchSession.startY = touch.clientY;
+      touchSession.active = Boolean(touchSession.popupKey);
+    };
+
+    const handlePopupTouchEnd = (event) => {
+      if (!touchSession.active || !touchSession.popupKey) return;
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+      const deltaX = touch.clientX - touchSession.startX;
+      const deltaY = touch.clientY - touchSession.startY;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      const minSwipePx = 38;
+      if (absX >= minSwipePx && absX > absY) {
+        event.preventDefault();
+        event.stopPropagation();
+        navigatePopupUnit(touchSession.popupKey, deltaX < 0 ? "next" : "prev");
+      }
+      touchSession.active = false;
+      touchSession.popupKey = "";
+    };
+
+    document.addEventListener("click", handlePopupUnitNavigation, true);
+    document.addEventListener("touchstart", handlePopupTouchStart, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("touchend", handlePopupTouchEnd, {
+      capture: true,
+      passive: false,
+    });
+    return () => {
+      document.removeEventListener("click", handlePopupUnitNavigation, true);
+      document.removeEventListener("touchstart", handlePopupTouchStart, true);
+      document.removeEventListener("touchend", handlePopupTouchEnd, true);
+    };
+  }, [navigatePopupUnit]);
+
   const syncListingMarkers = (
     listingsToUse = losAngelesListingsRef.current,
     { fitBounds = true } = {}
@@ -2981,6 +3141,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
     listingMarkersRef.current.forEach((marker) => marker.setMap(null));
     listingMarkersRef.current = [];
+    mapPopupClustersRef.current.clear();
 
     let infoWindow = listingInfoRef.current;
     if (!infoWindow) {
@@ -3011,25 +3172,112 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       if (zoom <= 18) return 0.015;
       return 0.008;
     };
+    const getTitleClusterKey = (listing) => {
+      const normalizedTitle = sanitizeText(listing?.title || "")
+        .toLowerCase()
+        .replace(/\b\d+\s*br\b/g, "")
+        .replace(/\bstudio\b/g, "")
+        .replace(/\s*-\s*.*/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return normalizedTitle ? `title:${normalizedTitle}` : "";
+    };
+    const getAddressClusterKey = (listing) => {
+      const normalizedAddress = formatAddress(listing)
+        .toLowerCase()
+        .replace(/,?\s*(apt|apartment|unit|suite|ste|#)\s*[^,]*/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return normalizedAddress ? `addr:${normalizedAddress}` : "";
+    };
+    const getPopupClusterKey = (listing, coords) => {
+      const titleKey = getTitleClusterKey(listing);
+      if (titleKey) return titleKey;
+      const addressKey = getAddressClusterKey(listing);
+      if (addressKey) return addressKey;
+
+      const step = getClusterStep();
+      const latBucket = Math.round(coords.lat / step);
+      const lngBucket = Math.round(coords.lng / step);
+      return `coord:${latBucket}:${lngBucket}`;
+    };
     const addToCluster = (coords, listing) => {
-      const groupKey = getBuildingKey(listing);
-      const groupOffsets = {
-        "la-downtown": { lat: 0.0012, lng: 0.0 },
-        "la-hwh": { lat: -0.0012, lng: 0.0 },
-        "la-hollywood": { lat: 0.0, lng: 0.0012 },
-        other: { lat: 0.0, lng: -0.0012 },
-      };
-      const offset = groupOffsets[groupKey] || groupOffsets.other;
-      const adjusted = {
-        lat: coords.lat + offset.lat,
-        lng: coords.lng + offset.lng,
-      };
-      const listingKey = getListingId(listing) || formatAddress(listing) || `${adjusted.lat},${adjusted.lng}`;
-      const key = `${listingKey}`;
+      const adjusted = { lat: coords.lat, lng: coords.lng };
+      const key = getPopupClusterKey(listing, adjusted);
       if (!clusters.has(key)) {
         clusters.set(key, { coords: adjusted, listings: [] });
       }
       clusters.get(key).listings.push(listing);
+    };
+    const getPopupMatchKeys = (listing) => {
+      const keys = [];
+      const titleKey = getTitleClusterKey(listing);
+      if (titleKey) keys.push(titleKey);
+      const addressKey = getAddressClusterKey(listing);
+      if (addressKey) keys.push(addressKey);
+      return keys;
+    };
+    const isCoordsNear = (a, b, threshold = 0.0012) => {
+      if (!a || !b) return false;
+      return (
+        Math.abs(a.lat - b.lat) <= threshold &&
+        Math.abs(a.lng - b.lng) <= threshold
+      );
+    };
+    const getListingsForCluster = (clusterKey, clusterCoords) => {
+      if (!clusterKey) return [];
+      if (clusterKey.startsWith("addr:")) {
+        const addressMatches = listingsToUse.filter(
+          (listing) => getAddressClusterKey(listing) === clusterKey
+        );
+        if (addressMatches.length) return addressMatches;
+      }
+      if (clusterKey.startsWith("title:")) {
+        const titleMatches = listingsToUse.filter(
+          (listing) => getTitleClusterKey(listing) === clusterKey
+        );
+        if (titleMatches.length) return titleMatches;
+      }
+      if (clusterKey.startsWith("coord:") && clusterCoords) {
+        const coordMatches = listingsToUse.filter((listing) => {
+          const coords = getListingCoords(listing);
+          return coords && isCoordsNear(coords, clusterCoords);
+        });
+        if (coordMatches.length) return coordMatches;
+      }
+      // Fallback: include any listing near the marker coords
+      if (clusterCoords) {
+        return listingsToUse.filter((listing) => {
+          const coords = getListingCoords(listing);
+          return coords && isCoordsNear(coords, clusterCoords);
+        });
+      }
+      return [];
+    };
+    const getGroupListingsForParent = (parentListing) => {
+      if (!parentListing) return [];
+      const parentId = getParentListingId(parentListing);
+      const group = parentId ? parentGroups[parentId] : null;
+      if (!group) return [parentListing];
+      return [group.parent, ...(group.children || [])].filter(Boolean);
+    };
+    const dedupePopupListings = (items) => {
+      const seen = new Set();
+      const out = [];
+      items.forEach((item) => {
+        if (!item) return;
+        const key =
+          getListingId(item) ||
+          item?.unitTypeId ||
+          formatAddress(item) ||
+          item?.title ||
+          `${item?.address?.full || ""}-${item?.title || ""}`;
+        const id = key ? String(key) : null;
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        out.push(item);
+      });
+      return out;
     };
 
     parentListings.forEach((listing) => {
@@ -3070,7 +3318,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return parent || listing;
     };
 
-    clusters.forEach(({ coords, listings: clusterListings }) => {
+    let popupKeyIndex = 0;
+    clusters.forEach(({ coords, listings: clusterListings }, clusterKey) => {
       const parents = clusterListings.map(toParentListing);
       const uniqueParents = [];
       const seen = new Set();
@@ -3089,8 +3338,19 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         icon: listingMarkerIcon,
         zIndex: 10,
       });
+      const popupKey = `cluster-${popupKeyIndex++}`;
       marker.addListener("click", () => {
-        infoWindow.setContent(buildMapPopupContent(primary));
+      const groupedListings = (uniqueParents.length ? uniqueParents : [primary]).flatMap(
+        getGroupListingsForParent
+      );
+      const matchedListings = getListingsForCluster(clusterKey, coords);
+      const popupListings = dedupePopupListings([...matchedListings, ...groupedListings]);
+        mapPopupClustersRef.current.set(popupKey, {
+          marker,
+          listings: popupListings,
+          activeIndex: 0,
+        });
+        infoWindow.setContent(buildMapPopupContent(popupListings, 0, popupKey));
         infoWindow.open(map, marker);
       });
       listingMarkersRef.current.push(marker);
