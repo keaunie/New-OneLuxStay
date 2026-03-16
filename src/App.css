@@ -6295,6 +6295,21 @@ body {
     border-top: 0;
   }
 
+  .city-viewport-shell--dubai {
+    height: 100svh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .city-viewport-shell--dubai .la-units-layout.la-units-layout--split {
+    grid-template-rows: auto;
+    height: auto;
+  }
+
+  .city-viewport-shell--dubai .la-units-main.la-units-main--cards {
+    overflow-y: visible;
+  }
+
   .la-units-aside--map {
     order: 1;
     border-left: 0;
