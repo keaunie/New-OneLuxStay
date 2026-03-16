@@ -7319,9 +7319,6 @@ const applyCheckoutPromoCode = () => {
         <button type="button" className="la-mobile-map-btn" onClick={() => setIsMobileMapOpen(true)}>
           View map
         </button>
-        <button type="button" className="la-mobile-map-btn is-secondary" onClick={resetMapView}>
-          Reset map
-        </button>
       </div>
       </div>
 
@@ -8742,6 +8739,5 @@ const applyCheckoutPromoCode = () => {
     </div>
   );
 }
-
 
 

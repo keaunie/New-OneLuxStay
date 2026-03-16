@@ -6378,8 +6378,11 @@ body {
     background: #3f6b9d;
     color: #fff;
     font-weight: 700;
-    padding: 10px 18px;
-    box-shadow: 0 12px 24px rgba(24, 41, 63, 0.25);
+    padding: 7px 14px;
+    min-height: 36px;
+    font-size: 0.86rem;
+    line-height: 1.1;
+    box-shadow: 0 8px 18px rgba(24, 41, 63, 0.2);
   }
 
   .la-mobile-map-btn.is-secondary {
