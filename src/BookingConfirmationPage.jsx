@@ -19,6 +19,28 @@ const formatCurrency = (value, currency = "USD") => {
   }
 };
 
+const buildCheckoutFinalizeUrls = (sessionId) => {
+  const encodedSessionId = encodeURIComponent(String(sessionId || ""));
+  const path = `/check-units/checkout-success?session_id=${encodedSessionId}`;
+  const sameOrigin =
+    typeof window !== "undefined" && window.location?.origin
+      ? `${window.location.origin}/.netlify/functions${path}`
+      : "";
+  const relative = `/.netlify/functions${path}`;
+  const configured = apiBase ? `${apiBase}${path}` : "";
+
+  return Array.from(new Set([configured, sameOrigin, relative].filter(Boolean)));
+};
+
+const formatFinalizeErrorMessage = (message, sessionId) => {
+  const raw = String(message || "").trim();
+  const normalized = raw.toLowerCase();
+  if (normalized === "failed to fetch" || normalized === "fetch failed") {
+    return `Unable to reach booking finalization service right now. Please refresh once. Session ID: ${sessionId}`;
+  }
+  return raw || "Unable to finalize paid checkout.";
+};
+
 const BookingConfirmationPage = () => {
   const location = useLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -48,23 +70,50 @@ const BookingConfirmationPage = () => {
     const finalize = async () => {
       setIsFinalizingPaidCheckout(true);
       setFinalizeError("");
+      let lastError = "";
       try {
-        const response = await fetch(
-          `${apiBase}/check-units/checkout-success?session_id=${encodeURIComponent(sessionId)}`,
-          { method: "GET" }
-        );
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(payload?.message || payload?.error || "Unable to finalize paid checkout.");
+        const candidates = buildCheckoutFinalizeUrls(sessionId);
+        for (const url of candidates) {
+          let response;
+          let payload = {};
+          try {
+            response = await fetch(url, {
+              method: "GET",
+              headers: { Accept: "application/json" },
+            });
+            payload = await response.json().catch(() => ({}));
+          } catch (err) {
+            lastError = err?.message || "fetch failed";
+            continue;
+          }
+
+          if (!response.ok) {
+            lastError =
+              payload?.message ||
+              payload?.error ||
+              `Unable to finalize paid checkout (${response.status}).`;
+            continue;
+          }
+
+          if (cancelled) return;
+          if (typeof payload?.redirectUrl === "string" && payload.redirectUrl) {
+            window.location.replace(payload.redirectUrl);
+            return;
+          }
+          if (payload?.ok) {
+            setIsFinalizingPaidCheckout(false);
+            return;
+          }
+
+          lastError = "Unexpected checkout finalization response.";
         }
-        if (cancelled) return;
-        if (typeof payload?.redirectUrl === "string" && payload.redirectUrl) {
-          window.location.replace(payload.redirectUrl);
-          return;
-        }
+
+        throw new Error(lastError || "Unable to finalize paid checkout.");
       } catch (err) {
         if (!cancelled) {
-          setFinalizeError(err?.message || "Unable to finalize paid checkout.");
+          setFinalizeError(
+            formatFinalizeErrorMessage(err?.message || "Unable to finalize paid checkout.", sessionId)
+          );
           setIsFinalizingPaidCheckout(false);
         }
       }

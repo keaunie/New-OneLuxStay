@@ -865,26 +865,33 @@ const buildReservationPayload = (session) => {
 
   const accommodation = toNumber(metadata.bd_accommodation);
   const discountAmount = toNumber(metadata.bd_discount);
+  const promoDiscountAmount = toNumber(metadata.bd_promo_discount);
   const discountRateRaw = toNumber(metadata.bd_discount_rate);
   const cleaning = toNumber(metadata.bd_cleaning);
   const fees = toNumber(metadata.bd_fees);
   const currency = (metadata.currency || "").toUpperCase();
+  const hasDiscountApplied =
+    (discountAmount !== null && discountAmount > 0) ||
+    (promoDiscountAmount !== null && promoDiscountAmount > 0);
   const money = {};
 
-  if (accommodation !== null) {
-    money.fareAccommodation = accommodation;
-  } else if (Number.isFinite(amount) && amount > 0) {
+  if (hasDiscountApplied && Number.isFinite(amount) && amount >= 0) {
+    // Keep Guesty reservation total aligned with Stripe charged total.
     money.fareAccommodation = amount;
+  } else {
+    if (accommodation !== null) {
+      money.fareAccommodation = accommodation;
+    } else if (Number.isFinite(amount) && amount > 0) {
+      money.fareAccommodation = amount;
+    }
+    if (cleaning !== null) money.fareCleaning = cleaning;
+    const invoiceItems = [];
+    if (fees !== null && fees > 0) {
+      invoiceItems.push({ title: "Fees", amount: fees, normalType: "OTHER" });
+    }
+    if (invoiceItems.length) money.invoiceItems = invoiceItems;
   }
-
-  if (cleaning !== null) money.fareCleaning = cleaning;
   if (currency) money.currency = currency;
-
-  const invoiceItems = [];
-  if (fees !== null && fees > 0) {
-    invoiceItems.push({ title: "Fees", amount: fees, normalType: "OTHER" });
-  }
-  if (invoiceItems.length) money.invoiceItems = invoiceItems;
   if (Object.keys(money).length) payload.money = money;
 
   return payload;

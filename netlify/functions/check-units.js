@@ -803,14 +803,30 @@ const getSessionGuestEmail = (session = {}) =>
     session?.customer_details?.email,
   ])[0] || "";
 
-let stripeClient;
-const getStripeClient = () => {
-  const key = process.env.STRIPE_SECRET_KEY;
+const parseStripeSecretKeys = () => {
+  const sources = [
+    process.env.STRIPE_SECRET_KEY,
+    process.env.STRIPE_SECRET_KEYS,
+    process.env.STRIPE_SECRET_KEY_NEXT,
+  ];
+  return Array.from(
+    new Set(
+      sources
+        .flatMap((value) => String(value || "").split(/[\s,;]+/))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
+const stripeClients = new Map();
+const getStripeClient = (keyOverride = "") => {
+  const key = String(keyOverride || process.env.STRIPE_SECRET_KEY || "").trim();
   if (!key) throw new Error("Missing STRIPE_SECRET_KEY");
-  if (!stripeClient) {
-    stripeClient = new Stripe(key, { apiVersion: "2023-10-16" });
+  if (!stripeClients.has(key)) {
+    stripeClients.set(key, new Stripe(key, { apiVersion: "2023-10-16" }));
   }
-  return stripeClient;
+  return stripeClients.get(key);
 };
 
 const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
@@ -821,6 +837,34 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20000) => {
   } finally {
     clearTimeout(id);
   }
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const retrieveStripeCheckoutSession = async (stripe, sessionId, options = {}) => {
+  const maxAttempts = 3;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await stripe.checkout.sessions.retrieve(sessionId, options);
+    } catch (err) {
+      lastError = err;
+      const message = String(err?.message || "").toLowerCase();
+      const isNetworkError =
+        message.includes("fetch failed") ||
+        message.includes("network") ||
+        message.includes("econnreset") ||
+        message.includes("etimedout") ||
+        message.includes("socket");
+      if (!isNetworkError || attempt >= maxAttempts) {
+        throw err;
+      }
+      await sleep(200 * attempt);
+    }
+  }
+
+  throw lastError || new Error("Unable to retrieve Stripe checkout session.");
 };
 
 const getBlobStore = async (storeName = TOKEN_STORE_NAME) => {
@@ -989,18 +1033,31 @@ const buildGuestyReservationPayload = ({
   const accommodation = Number(breakdown?.accommodation);
   const cleaning = Number(breakdown?.cleaning);
   const fees = Number(breakdown?.fees);
+  const discountAmount = Number(breakdown?.discountAmount);
+  const promoDiscountAmount = Number(breakdown?.promoDiscountAmount);
+  const hasDiscountApplied =
+    (Number.isFinite(discountAmount) && discountAmount > 0) ||
+    (Number.isFinite(promoDiscountAmount) && promoDiscountAmount > 0);
+  const effectiveTotal = Number.isFinite(Number(amount)) ? Number(amount) : null;
   const money = {};
-  if (Number.isFinite(accommodation)) {
-    money.fareAccommodation = accommodation;
-  } else if (Number.isFinite(amount) && amount > 0) {
-    money.fareAccommodation = amount;
+
+  if (hasDiscountApplied && Number.isFinite(effectiveTotal) && effectiveTotal >= 0) {
+    // Keep Guesty reservation total aligned with Stripe charged total.
+    money.fareAccommodation = effectiveTotal;
+  } else {
+    if (Number.isFinite(accommodation)) {
+      money.fareAccommodation = accommodation;
+    } else if (Number.isFinite(effectiveTotal) && effectiveTotal > 0) {
+      money.fareAccommodation = effectiveTotal;
+    }
+    if (Number.isFinite(cleaning)) {
+      money.fareCleaning = cleaning;
+    }
+    if (Number.isFinite(fees) && fees > 0) {
+      money.invoiceItems = [{ title: "Fees", amount: fees, normalType: "OTHER" }];
+    }
   }
-  if (Number.isFinite(cleaning)) {
-    money.fareCleaning = cleaning;
-  }
-  if (Number.isFinite(fees) && fees > 0) {
-    money.invoiceItems = [{ title: "Fees", amount: fees, normalType: "OTHER" }];
-  }
+
   if (currency) {
     money.currency = String(currency).toUpperCase();
   }
@@ -2076,12 +2133,45 @@ const handleCheckoutSuccess = async (event) => {
     });
   }
 
-  const stripe = getStripeClient();
-  const session = await stripe.checkout.sessions.retrieve(sessionId, {
-    expand: ["payment_intent.latest_charge"],
-  });
+  let session;
+  let lastStripeLookupError = null;
+  const stripeKeys = parseStripeSecretKeys();
+  if (!stripeKeys.length) {
+    stripeKeys.push(String(process.env.STRIPE_SECRET_KEY || "").trim());
+  }
+
+  for (const stripeKey of stripeKeys.filter(Boolean)) {
+    const stripe = getStripeClient(stripeKey);
+    try {
+      session = await retrieveStripeCheckoutSession(stripe, sessionId, {
+        expand: ["payment_intent.latest_charge"],
+      });
+      if (session?.id) break;
+    } catch (err) {
+      lastStripeLookupError = err;
+      const message = String(err?.message || "");
+      if (/no such checkout\.session/i.test(message)) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
   if (!session?.id) {
-    return jsonResponse(404, { message: "Stripe session not found" });
+    const message = String(lastStripeLookupError?.message || "");
+    if (/no such checkout\.session/i.test(message)) {
+      return jsonResponse(404, {
+        message:
+          "Stripe session not found for configured Stripe key(s). Check that STRIPE_SECRET_KEY/STRIPE_SECRET_KEYS match the Stripe account and mode used for checkout.",
+        error: message,
+        sessionId,
+      });
+    }
+    return jsonResponse(404, {
+      message: "Stripe session not found",
+      sessionId,
+      ...(message ? { error: message } : {}),
+    });
   }
   if (session.payment_status !== "paid") {
     return jsonResponse(409, {
