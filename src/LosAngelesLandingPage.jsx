@@ -2750,6 +2750,77 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
   }, [losAngelesListings]);
 
+  const buildMapPopupContent = (listing) => {
+    if (!listing) return "";
+    const title = escapeHtml(resolveGroupTitle(listing) || listing?.title || "One Lux Stay");
+    const image = escapeHtml(getListingImageUrls(listing)[0] || FALLBACK_IMAGE);
+    const basePrice = firstNumber(
+      listing?.basePrice,
+      listing?.prices?.basePrice,
+      listing?.prices?.basePricePerNight,
+      listing?.prices?.nightly,
+      listing?.prices?.nightly?.amount,
+      listing?.prices?.basePrice?.amount
+    );
+    const currency =
+      listing?.currency ||
+      listing?.prices?.currency ||
+      listing?.prices?.nightly?.currency ||
+      listing?.prices?.basePrice?.currency ||
+      "USD";
+    const priceLabel =
+      typeof basePrice === "number" ? `${formatCurrency(basePrice, currency)} / night` : "Check price";
+    const bedrooms = firstNumber(
+      listing?.bedrooms,
+      listing?.beds,
+      listing?.bedroomCount,
+      listing?.roomCount,
+      listing?.rooms
+    );
+    const bathrooms = firstNumber(listing?.bathrooms);
+    const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+    const meta = [
+      bedrooms ? `${bedrooms} bd` : null,
+      bathrooms ? `${bathrooms} ba` : null,
+      areaSqft ? `${areaSqft} ft2` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const address = escapeHtml(formatAddress(listing));
+    const listingId = getListingId(listing);
+    const idLine = listingId ? `#${escapeHtml(listingId)}` : "";
+    const listingPath = listingId
+      ? `/los-angeles/listing/${encodeURIComponent(listingId)}`
+      : "/los-angeles";
+
+    return `
+      <div class="ols-map-popup">
+        <div class="ols-map-popup__header">
+          <span class="ols-map-popup__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M12 4 3 11h2v8h5v-5h4v5h5v-8h2z" fill="currentColor" />
+            </svg>
+          </span>
+          <div class="ols-map-popup__title">${title}</div>
+        </div>
+        <a class="ols-map-popup__card" href="${listingPath}">
+          <div class="ols-map-popup__media">
+            <img src="${image}" alt="${title}" loading="lazy" width="420" height="280" />
+            <span class="ols-map-popup__badge">Popular home</span>
+            <span class="ols-map-popup__fav" aria-hidden="true">&#9825;</span>
+          </div>
+          <div class="ols-map-popup__body">
+            <div class="ols-map-popup__price">${escapeHtml(priceLabel)}</div>
+            ${meta ? `<div class="ols-map-popup__meta">${escapeHtml(meta)}</div>` : ""}
+            <div class="ols-map-popup__address">
+              ${idLine ? `${idLine} &#183; ` : ""}${address}
+            </div>
+          </div>
+        </a>
+      </div>
+    `;
+  };
+
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
     const minBeds = Number(minBedrooms) || 1;
@@ -2951,11 +3022,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       const clickTarget = marker || backgroundMarker;
       clickTarget.addListener("click", () => {
-        const content = `
-          <div>
-            <strong>${escapeHtml(title)}</strong>
-          </div>`;
-        infoWindow.setContent(content);
+        infoWindow.setContent(buildMapPopupContent(primary));
         infoWindow.open(map, clickTarget);
       });
       listingMarkersRef.current.push(backgroundMarker);
