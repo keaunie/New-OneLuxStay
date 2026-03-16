@@ -6379,7 +6379,7 @@ body {
   }
 
   .la-unit-listing-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .la-unit-listing-card__media {
