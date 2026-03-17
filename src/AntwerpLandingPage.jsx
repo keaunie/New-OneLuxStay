@@ -151,11 +151,11 @@ const firstNumber = (...values) => {
   return null;
 };
 
-const GLOBAL_MIN_NIGHTS = 2;
+const GLOBAL_MIN_NIGHTS = 1;
 const normalizeMinNights = (value) => {
   const num = toNumber(value);
   if (!Number.isFinite(num)) return GLOBAL_MIN_NIGHTS;
-  return Math.max(GLOBAL_MIN_NIGHTS, num);
+  return Math.max(1, num);
 };
 
 const getListingBedrooms = (listing) =>
@@ -227,7 +227,7 @@ const extractMinNightsFromDays = (days = []) => {
     .map((value) => {
       const num = toNumber(value);
       if (!Number.isFinite(num)) return null;
-      return Math.max(GLOBAL_MIN_NIGHTS, num);
+      return Math.max(1, num);
     })
     .filter((value) => typeof value === "number");
   return values.length ? Math.max(...values) : GLOBAL_MIN_NIGHTS;
@@ -495,6 +495,7 @@ const DateRangePicker = ({
   dayPrices,
   onMonthChange,
   onOpenChange,
+  onValidationChange,
   isLoading = false,
   fallbackPrice,
   fallbackCurrency,
@@ -624,6 +625,28 @@ const DateRangePicker = ({
     const minNights = normalizeMinNights(info?.restrictions?.minNights ?? fallbackMinNights ?? null);
     return minNights;
   }, [dayPrices, startDate, fallbackMinNights, showMinNights]);
+  const violatesMinNights =
+    !hasSameDayStay &&
+    showMinNights &&
+    Boolean(selectedMinNights) &&
+    selectedNights > 0 &&
+    selectedNights < selectedMinNights;
+
+  useEffect(() => {
+    if (!onValidationChange) return;
+    onValidationChange({
+      hasSameDayStay,
+      selectedNights,
+      minNights: selectedMinNights,
+      violatesMinNights,
+    });
+  }, [
+    onValidationChange,
+    hasSameDayStay,
+    selectedNights,
+    selectedMinNights,
+    violatesMinNights,
+  ]);
 
   const primaryMonth = buildMonth(view);
   const secondaryMonth = buildMonth(new Date(view.getFullYear(), view.getMonth() + 1, 1));
@@ -717,9 +740,7 @@ const DateRangePicker = ({
           )}
           {!hasSameDayStay &&
             showMinNights &&
-            selectedMinNights &&
-            selectedNights > 0 &&
-            selectedNights < selectedMinNights && (
+            violatesMinNights && (
               <div className="la-date-alert" role="alert">
                 There is a Minimum of {selectedMinNights} nights restriction, please adjust your dates
               </div>
@@ -2109,6 +2130,8 @@ export default function AntwerpLandingPage() {
   const [sectionAvailability, setSectionAvailability] = useState([]);
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
+  const [sectionDateValidationError, setSectionDateValidationError] = useState("");
+  const [sectionObservedMinNightsByDate, setSectionObservedMinNightsByDate] = useState({});
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
   const [sectionAvailabilityMap, setSectionAvailabilityMap] = useState({});
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
@@ -2492,6 +2515,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (activeSectionKey) {
       setActiveListing(null);
       setSectionAvailabilityError("");
+      setSectionDateValidationError("");
+      setSectionObservedMinNightsByDate({});
       setSectionAvailabilityActive(false);
       setSectionAvailabilityMap({});
       setIsInquiryOpen(false);
@@ -3483,11 +3508,71 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return listingFallback;
   }, [activeSection, sectionCalendarMinNightsOverride]);
   const sectionStayNights = diffNights(sectionCheckIn, sectionCheckOut);
+  const selectedCheckInMinNights = useMemo(() => {
+    if (!sectionCheckIn) return null;
+    const dayInfo =
+      sectionCalendarDayMap.get(sectionCheckIn) || calendarDayMap.get(sectionCheckIn);
+    const rawMinNights = toNumber(dayInfo?.restrictions?.minNights);
+    if (Number.isFinite(rawMinNights)) return normalizeMinNights(rawMinNights);
+    const cachedSelectedMinNights = toNumber(sectionObservedMinNightsByDate[sectionCheckIn]);
+    if (Number.isFinite(cachedSelectedMinNights)) {
+      return normalizeMinNights(cachedSelectedMinNights);
+    }
+    return null;
+  }, [sectionCheckIn, sectionCalendarDayMap, calendarDayMap, sectionObservedMinNightsByDate]);
   const effectiveMinNights = normalizeMinNights(
     activeSection?.listings?.length ? sectionMinNightsFallback : listingMinNightsFallback
   );
-  const stayTooShortMessage = `Minimum stay is ${effectiveMinNights} nights.`;
-  const isStayTooShort = sectionStayNights > 0 && sectionStayNights < effectiveMinNights;
+  const requiredMinNightsForSelection = selectedCheckInMinNights || effectiveMinNights;
+  const computedStayRestrictionMessage =
+    sectionCheckIn && sectionCheckOut && sectionStayNights === 0
+      ? "Please change the check-out date."
+      : sectionStayNights > 0 && sectionStayNights < requiredMinNightsForSelection
+        ? `Minimum stay is ${requiredMinNightsForSelection} nights.`
+        : "";
+  const stayTooShortMessage = sectionDateValidationError || computedStayRestrictionMessage;
+  const isStayTooShort = Boolean(stayTooShortMessage);
+
+  const handleSectionDateValidation = useCallback((state) => {
+    if (!state) {
+      setSectionDateValidationError("");
+      return;
+    }
+    const reportedMinNights = Number.isFinite(state.minNights)
+      ? normalizeMinNights(state.minNights)
+      : null;
+    if (sectionCheckIn && Number.isFinite(reportedMinNights)) {
+      setSectionObservedMinNightsByDate((prev) => {
+        const existing = toNumber(prev[sectionCheckIn]);
+        const nextMinNights = Number.isFinite(existing)
+          ? Math.max(existing, reportedMinNights)
+          : reportedMinNights;
+        if (Number.isFinite(existing) && existing === nextMinNights) return prev;
+        return {
+          ...prev,
+          [sectionCheckIn]: nextMinNights,
+        };
+      });
+    }
+    if (state.hasSameDayStay) {
+      setSectionDateValidationError("Please change the check-out date.");
+      return;
+    }
+    if (state.violatesMinNights && Number.isFinite(reportedMinNights)) {
+      setSectionDateValidationError(`Minimum stay is ${reportedMinNights} nights.`);
+      return;
+    }
+    setSectionDateValidationError("");
+  }, [sectionCheckIn]);
+
+  useEffect(() => {
+    if (!isStayTooShort || !sectionCheckIn || !sectionCheckOut) return;
+    setSectionAvailability([]);
+    setSectionAvailabilityMap({});
+    setSectionAvailabilityActive(false);
+    setSectionQuotes({});
+    setSectionAvailabilityError(stayTooShortMessage);
+  }, [isStayTooShort, sectionCheckIn, sectionCheckOut, stayTooShortMessage]);
 
   const fetchCalendarMonth = async (
     listingId,
@@ -4019,8 +4104,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionAvailabilityError("Please change the check-out date.");
       return;
     }
-    if (stayNights > 0 && stayNights < effectiveMinNights) {
-      setSectionAvailabilityError(stayTooShortMessage);
+    if (stayNights > 0 && stayNights < requiredMinNightsForSelection) {
+      setSectionAvailabilityError(`Minimum stay is ${requiredMinNightsForSelection} nights.`);
+      return;
+    }
+    if (sectionDateValidationError) {
+      setSectionAvailabilityError(sectionDateValidationError);
       return;
     }
     if (shouldScroll) {
@@ -4335,11 +4424,19 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionAvailabilityError("Please change the check-out date.");
       return;
     }
-    const requiredMinNights = resolveRequiredMinNights();
+    const requiredMinNights = Math.max(
+      resolveRequiredMinNights(),
+      requiredMinNightsForSelection
+    );
     if (stayNights < requiredMinNights) {
       const message = `Minimum stay is ${requiredMinNights} nights.`;
       setSectionAvailabilityError(message);
       setCheckoutGuestError(message);
+      return;
+    }
+    if (sectionDateValidationError) {
+      setSectionAvailabilityError(sectionDateValidationError);
+      setCheckoutGuestError(sectionDateValidationError);
       return;
     }
     const numericAmount = Number(amount);
@@ -5307,6 +5404,7 @@ const applyCheckoutPromoCode = () => {
                   <DateRangePicker
                     value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                     dayPrices={calendarDayMap}
+                    onValidationChange={handleSectionDateValidation}
                     onChange={({ checkIn, checkOut }) => {
                       setSectionCheckIn(checkIn);
                       setSectionCheckOut(checkOut);
@@ -6705,6 +6803,7 @@ const applyCheckoutPromoCode = () => {
           <div className="city-search-field city-search-field--dates">
             <DateRangePicker
               value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              onValidationChange={handleSectionDateValidation}
               onChange={({ checkIn, checkOut }) => {
                 setSectionCheckIn(checkIn);
                 setSectionCheckOut(checkOut);
@@ -7436,6 +7535,7 @@ const applyCheckoutPromoCode = () => {
                     <DateRangePicker
                       value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                       dayPrices={sectionCalendarDayMap}
+                      onValidationChange={handleSectionDateValidation}
                       isLoading={sectionCalendarLoading}
                       fallbackPrice={fallbackListing?.basePrice}
                       fallbackCurrency={fallbackListing?.currency || "USD"}
@@ -8376,6 +8476,7 @@ const applyCheckoutPromoCode = () => {
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                 dayPrices={sectionCalendarDayMap}
+                onValidationChange={handleSectionDateValidation}
                 isLoading={sectionCalendarLoading}
                 fallbackPrice={activeSection?.listings?.[0]?.basePrice}
                 fallbackCurrency={activeSection?.listings?.[0]?.currency || "USD"}
