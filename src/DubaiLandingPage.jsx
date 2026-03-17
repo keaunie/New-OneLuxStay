@@ -3677,6 +3677,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
     return listingFallback;
   }, [activeSection, sectionCalendarMinNightsOverride]);
+  const sectionStayNights = diffNights(sectionCheckIn, sectionCheckOut);
+  const effectiveMinNights = normalizeMinNights(
+    activeSection?.listings?.length ? sectionMinNightsFallback : listingMinNightsFallback
+  );
+  const stayTooShortMessage = `Minimum stay is ${effectiveMinNights} nights.`;
+  const isStayTooShort = sectionStayNights > 0 && sectionStayNights < effectiveMinNights;
 
   const fetchCalendarMonth = async (
     listingId,
@@ -4383,8 +4389,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionAvailabilityError("Select check-in and check-out dates first.");
       return;
     }
-    if (diffNights(sectionCheckIn, sectionCheckOut) === 0) {
+    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+    if (stayNights === 0) {
       setSectionAvailabilityError("Please change the check-out date.");
+      return;
+    }
+    if (stayNights > 0 && stayNights < effectiveMinNights) {
+      setSectionAvailabilityError(stayTooShortMessage);
       return;
     }
     if (shouldScroll) {
@@ -4423,7 +4434,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         setSectionAvailabilityLoading(false);
         return;
       }
-      const nights = diffNights(sectionCheckIn, sectionCheckOut);
+      const nights = stayNights;
       const qs = new URLSearchParams({
         listingIds: items.join(","),
         startDate: sectionCheckIn,
@@ -5660,7 +5671,14 @@ const applyCheckoutPromoCode = () => {
                   <button
                     type="button"
                     className="la-unit-modal__booking-cta"
-                    onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                    disabled={sectionAvailabilityLoading || isStayTooShort}
+                    onClick={() => {
+                      if (isStayTooShort) {
+                        setSectionAvailabilityError(stayTooShortMessage);
+                        return;
+                      }
+                      fetchAvailabilityListings({ shouldScroll: true });
+                    }}
                   >
                     {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
                   </button>
@@ -5692,7 +5710,14 @@ const applyCheckoutPromoCode = () => {
                   <button
                     type="button"
                     className="la-listing-hero__reserve"
-                    onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                    disabled={sectionAvailabilityLoading || isStayTooShort}
+                    onClick={() => {
+                      if (isStayTooShort) {
+                        setSectionAvailabilityError(stayTooShortMessage);
+                        return;
+                      }
+                      fetchAvailabilityListings({ shouldScroll: true });
+                    }}
                   >
                     Reserve your dates
                   </button>
@@ -5831,8 +5856,12 @@ const applyCheckoutPromoCode = () => {
                           <button
                             type="button"
                             className="la-unit-modal__action-primary"
-                            disabled={sectionAvailabilityLoading || isReserving}
+                            disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
                             onClick={() => {
+                              if (isStayTooShort) {
+                                setSectionAvailabilityError(stayTooShortMessage);
+                                return;
+                              }
                               setPendingCheckout({
                                 listingId,
                                 listingTitle: activeListing.title,
@@ -7722,7 +7751,14 @@ const applyCheckoutPromoCode = () => {
                     <button
                       type="button"
                       className="la-unit-modal__booking-cta"
-                      onClick={() => fetchAvailabilityListings({ shouldScroll: true })}
+                      disabled={sectionAvailabilityLoading || isStayTooShort}
+                      onClick={() => {
+                        if (isStayTooShort) {
+                          setSectionAvailabilityError(stayTooShortMessage);
+                          return;
+                        }
+                        fetchAvailabilityListings({ shouldScroll: true });
+                      }}
                     >
                       {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
                     </button>
@@ -7870,6 +7906,12 @@ const applyCheckoutPromoCode = () => {
                       const isUnavailable =
                         sectionAvailabilityActive && sectionAvailabilityMap[listingId] === false;
                       const isReserving = sectionReserveLoadingId === checkoutListingId;
+                      const rowMinNights = normalizeMinNights(
+                        getListingMinNightsWithParent(listing, listings)
+                      );
+                      const rowTooShort =
+                        sectionStayNights > 0 && sectionStayNights < rowMinNights;
+                      const rowTooShortMessage = `Minimum stay is ${rowMinNights} nights.`;
                       const priceValue =
                         typeof total === "number"
                           ? total
@@ -8093,8 +8135,12 @@ const applyCheckoutPromoCode = () => {
                                 <button
                                   type="button"
                                   className="la-booking-table__reserve"
-                                  disabled={isLoadingRates || isReserving}
+                                  disabled={isLoadingRates || isReserving || rowTooShort}
                                   onClick={() => {
+                                    if (rowTooShort) {
+                                      setSectionAvailabilityError(rowTooShortMessage);
+                                      return;
+                                    }
                                     if (
                                       !checkoutGuest.firstName ||
                                       !checkoutGuest.lastName ||
@@ -8507,8 +8553,12 @@ const applyCheckoutPromoCode = () => {
                               <button
                                 type="button"
                                 className="la-unit-modal__action-primary"
-                                disabled={sectionAvailabilityLoading || isReserving}
+                                disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
                                 onClick={() => {
+                                  if (isStayTooShort) {
+                                    setSectionAvailabilityError(stayTooShortMessage);
+                                    return;
+                                  }
                                   if (
                                     !checkoutGuest.firstName ||
                                     !checkoutGuest.lastName ||
@@ -8625,7 +8675,17 @@ const applyCheckoutPromoCode = () => {
                   <option value="5">5</option>
                 </select>
               </div>
-              <button type="button" onClick={() => fetchAvailabilityListings({ shouldScroll: true })}>
+              <button
+                type="button"
+                disabled={sectionAvailabilityLoading || isStayTooShort}
+                onClick={() => {
+                  if (isStayTooShort) {
+                    setSectionAvailabilityError(stayTooShortMessage);
+                    return;
+                  }
+                  fetchAvailabilityListings({ shouldScroll: true });
+                }}
+              >
                 {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
               </button>
             </div>
