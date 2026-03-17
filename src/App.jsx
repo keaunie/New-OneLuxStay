@@ -1,6 +1,7 @@
 import { Suspense, lazy, useLayoutEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { routePreloaders } from "./utils/routePreloaders";
+import ChatConcierge from "./components/ChatConcierge";
 import "./App.css";
 
 const LoadingScreen = lazy(() => import("./components/LoadingScreen"));
@@ -161,6 +162,7 @@ function AppRoutes() {
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ChatConcierge />
       </div>
     </>
   );
