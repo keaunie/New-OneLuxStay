@@ -198,7 +198,7 @@
   font-weight: 700;
 }
 
-.roadmap-private-status--complete {
+.roadmap-private-status--completed {
   color: #9ff0ba;
   border-color: rgba(99, 211, 134, 0.45);
   background: rgba(42, 124, 70, 0.28);

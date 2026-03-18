@@ -6,13 +6,13 @@ const ROADMAP_ACCESS_KEY = "ols-roadmap-kurt-chase-2024-a91f7d3c";
 const PROGRESS_AS_OF = "March 6, 2026";
 
 const ITEM_STATUS = {
-  complete: "complete",
+  completed: "completed",
   inProgress: "in-progress",
   planned: "planned",
 };
 
 const STATUS_META = {
-  [ITEM_STATUS.complete]: { label: "Complete", weight: 1 },
+  [ITEM_STATUS.completed]: { label: "Completed", weight: 1 },
   [ITEM_STATUS.inProgress]: { label: "In Progress", weight: 0.5 },
   [ITEM_STATUS.planned]: { label: "Planned", weight: 0 },
 };
@@ -52,20 +52,20 @@ const ROADMAP_PHASES = [
     title: "Foundation",
     items: [
       {
-        label: "High-performance listing pages (Antwerp, Dubai, LA)",
-        status: ITEM_STATUS.complete,
+        label: "Replacement for reservations.oneluxstay.com from Guesty.",
+        status: ITEM_STATUS.completed,
       },
       {
-        label: "Mobile-first UI and 5-step booking flow",
-        status: ITEM_STATUS.complete,
+        label: "Mobile App UI/UX foundation",
+        status: ITEM_STATUS.completed,
       },
       {
         label: "Guesty Read-Only API integration",
-        status: ITEM_STATUS.complete,
+        status: ITEM_STATUS.completed,
       },
       {
-        label: "Unified data model for cleaners, customers, and admins",
-        status: ITEM_STATUS.planned,
+        label: "Booking engine",
+        status: ITEM_STATUS.completed,
       },
     ],
   },
@@ -78,12 +78,12 @@ const ROADMAP_PHASES = [
         status: ITEM_STATUS.planned,
       },
       {
-        label: "Real-time operations dashboard",
-        status: ITEM_STATUS.planned,
+        label: "Real-time calendar prices and availability dashboard",
+        status: ITEM_STATUS.completed,
       },
       {
-        label: "VAT and city tax finance module",
-        status: ITEM_STATUS.inProgress,
+        label: "Consent form dossier",
+        status: ITEM_STATUS.completed,
       },
       {
         label: "Single app workspace with role-specific views",
@@ -104,12 +104,16 @@ const ROADMAP_PHASES = [
         status: ITEM_STATUS.inProgress,
       },
       {
-        label: "Regional tax engine",
+        label: "AI Chat Engine",
         status: ITEM_STATUS.inProgress,
       },
       {
         label: "In-app messaging between cleaners, customers, and admins",
         status: ITEM_STATUS.planned,
+      },
+      {
+        label: "Automated reservation confirmation email",
+        status: ITEM_STATUS.completed,
       },
     ],
   },
@@ -178,8 +182,8 @@ const getProgressPercent = (items = []) => {
 };
 
 const getPhaseStatus = (items = []) => {
-  if (items.every((item) => item.status === ITEM_STATUS.complete)) return ITEM_STATUS.complete;
-  if (items.some((item) => item.status === ITEM_STATUS.complete || item.status === ITEM_STATUS.inProgress)) {
+  if (items.every((item) => item.status === ITEM_STATUS.completed)) return ITEM_STATUS.completed;
+  if (items.some((item) => item.status === ITEM_STATUS.completed || item.status === ITEM_STATUS.inProgress)) {
     return ITEM_STATUS.inProgress;
   }
   return ITEM_STATUS.planned;
@@ -188,7 +192,7 @@ const getPhaseStatus = (items = []) => {
 const RoadmapPrivatePage = () => {
   const { accessKey = "" } = useParams();
   const allMilestones = ROADMAP_PHASES.flatMap((phase) => phase.items);
-  const completedCount = allMilestones.filter((item) => item.status === ITEM_STATUS.complete).length;
+  const completedCount = allMilestones.filter((item) => item.status === ITEM_STATUS.completed).length;
   const inProgressCount = allMilestones.filter((item) => item.status === ITEM_STATUS.inProgress).length;
   const plannedCount = allMilestones.filter((item) => item.status === ITEM_STATUS.planned).length;
   const overallProgress = getProgressPercent(allMilestones);
