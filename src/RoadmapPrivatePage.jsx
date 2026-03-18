@@ -78,6 +78,10 @@ const ROADMAP_PHASES = [
         status: ITEM_STATUS.planned,
       },
       {
+        label: "In-app messaging between cleaners, customers, and admins",
+        status: ITEM_STATUS.planned,
+      },
+      {
         label: "Real-time calendar prices and availability dashboard",
         status: ITEM_STATUS.completed,
       },
@@ -86,8 +90,8 @@ const ROADMAP_PHASES = [
         status: ITEM_STATUS.completed,
       },
       {
-        label: "Single app workspace with role-specific views",
-        status: ITEM_STATUS.planned,
+        label: "Fraud detection in Stripe",
+        status: ITEM_STATUS.completed,
       },
     ],
   },
@@ -96,7 +100,7 @@ const ROADMAP_PHASES = [
     title: "Automation and Scaling",
     items: [
       {
-        label: "Guest account portal",
+        label: "Additional services (Food, Cars, & Experiences)",
         status: ITEM_STATUS.planned,
       },
       {
@@ -106,10 +110,6 @@ const ROADMAP_PHASES = [
       {
         label: "AI Chat Engine",
         status: ITEM_STATUS.inProgress,
-      },
-      {
-        label: "In-app messaging between cleaners, customers, and admins",
-        status: ITEM_STATUS.planned,
       },
       {
         label: "Automated reservation confirmation email",
@@ -122,20 +122,16 @@ const ROADMAP_PHASES = [
     title: "Advanced Revenue Tools",
     items: [
       {
-        label: "Dynamic pricing system",
+        label: "GBP 100% Verification",
         status: ITEM_STATUS.inProgress,
       },
       {
         label: "Promotion and coupon engine",
-        status: ITEM_STATUS.inProgress,
-      },
-      {
-        label: "Upsell marketplace",
         status: ITEM_STATUS.planned,
       },
       {
-        label: "Central communication hub with audit history and SLAs",
-        status: ITEM_STATUS.planned,
+        label: "Stripe Payment Automation & Notification",
+        status: ITEM_STATUS.completed,
       },
     ],
   },
@@ -284,7 +280,7 @@ const RoadmapPrivatePage = () => {
             {ROADMAP_PHASES.map((phase) => (
               <article key={phase.title} className="roadmap-private-phase">
                 <div className="roadmap-private-phase-head">
-                  <span className="roadmap-private-phase-label">{phase.label}</span>
+                  {/* <span className="roadmap-private-phase-label">{phase.label}</span> */}
                   <span
                     className={`roadmap-private-status roadmap-private-status--${getPhaseStatus(phase.items)}`}
                   >
@@ -346,3 +342,6 @@ const RoadmapPrivatePage = () => {
 };
 
 export default RoadmapPrivatePage;
+
+
+
