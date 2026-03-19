@@ -18,6 +18,28 @@ const buildSuccessUrl = (baseUrl, summary = {}) => {
   return `${baseUrl}/booking-confirmation?${query.toString()}`;
 };
 
+const isLocalDebugRequest = (event = {}) => {
+  const headers = event.headers || {};
+  const values = [
+    headers.host,
+    headers.Host,
+    headers.origin,
+    headers.Origin,
+    headers.referer,
+    headers.referrer,
+    process.env.URL,
+    process.env.DEPLOY_URL,
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .filter(Boolean);
+
+  return (
+    String(process.env.CONTEXT || "").toLowerCase() === "dev" ||
+    String(process.env.NODE_ENV || "").toLowerCase() !== "production" ||
+    values.some((value) => value.includes("localhost") || value.includes("127.0.0.1"))
+  );
+};
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return jsonResponse(200, { ok: true });
@@ -96,7 +118,18 @@ export async function handler(event) {
     return jsonResponse(400, { message: "Invalid checkout amount" });
   }
 
-  const stripe = getStripeClient();
+  const debugMode = isLocalDebugRequest(event);
+  let stripe;
+  try {
+    stripe = getStripeClient();
+  } catch (error) {
+    const detail = error?.message || String(error);
+    return jsonResponse(502, {
+      message: debugMode ? `Unable to create Stripe checkout session: ${detail}` : "Unable to create Stripe checkout session",
+      error: detail,
+    });
+  }
+
   const baseUrl = getBaseUrl(event);
   const returnTo = withBookingSearchParams(
     sanitizeInternalPath(body.cancelPath) || "/",
@@ -161,10 +194,19 @@ export async function handler(event) {
       calculated_price: calculatedPrice,
     });
   } catch (error) {
+    const detail = error?.message || String(error);
+    console.error("Stripe checkout session creation failed", {
+      propertyId,
+      checkIn,
+      checkOut,
+      guests,
+      currency: calculatedPrice.currency,
+      amount: calculatedPrice.grand_total,
+      error: detail,
+    });
     return jsonResponse(502, {
-      message: "Unable to create Stripe checkout session",
-      error: error?.message || String(error),
+      message: debugMode ? `Unable to create Stripe checkout session: ${detail}` : "Unable to create Stripe checkout session",
+      error: detail,
     });
   }
 }
-

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { ensureLocalEnv } from "./loadEnv.js";
 
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
@@ -20,9 +21,31 @@ const ZERO_DECIMAL_CURRENCIES = new Set([
 ]);
 
 let stripeClient;
+let parsedStripeSecretKeys;
+
+const parseStripeSecretKeys = () => {
+  if (parsedStripeSecretKeys) return parsedStripeSecretKeys;
+
+  ensureLocalEnv();
+
+  parsedStripeSecretKeys = Array.from(
+    new Set(
+      [
+        process.env.STRIPE_SECRET_KEY,
+        process.env.STRIPE_SECRET_KEYS,
+        process.env.STRIPE_SECRET_KEY_NEXT,
+      ]
+        .flatMap((value) => String(value || "").split(/[\s,;]+/))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  return parsedStripeSecretKeys;
+};
 
 export const getStripeClient = () => {
-  const secretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
+  const secretKey = parseStripeSecretKeys()[0] || "";
   if (!secretKey) throw new Error("Missing STRIPE_SECRET_KEY");
   if (!stripeClient) {
     stripeClient = new Stripe(secretKey, { apiVersion: "2023-10-16" });
@@ -39,8 +62,10 @@ export const toStripeAmount = (amount, currency) => {
     : Math.round(numeric * 100);
 };
 
-export const parseWebhookSecrets = () =>
-  Array.from(
+export const parseWebhookSecrets = () => {
+  ensureLocalEnv();
+
+  return Array.from(
     new Set(
       [
         process.env.STRIPE_WEBHOOK_SECRET,
@@ -52,4 +77,4 @@ export const parseWebhookSecrets = () =>
         .filter(Boolean),
     ),
   );
-
+};
