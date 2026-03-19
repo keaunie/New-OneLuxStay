@@ -11,6 +11,12 @@ const STRIPE_EVENT_STORE = "stripe-webhook-events";
 const CONSENT_STORE_NAME = "consent-proofs";
 const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
 const RESERVATIONS_COPY_EMAIL = "reservations@oneluxstay.com";
+const STRIPE_SESSION_PROCESSING_STALE_MS = Number(
+  process.env.STRIPE_SESSION_PROCESSING_STALE_MS || 120_000
+);
+const STRIPE_SESSION_PROCESSING_WAIT_MS = Number(
+  process.env.STRIPE_SESSION_PROCESSING_WAIT_MS || 12_000
+);
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
   "clp",
@@ -251,6 +257,85 @@ const writeStripeSessionRecord = async (sessionId, payload) => {
   if (!store) return false;
   await store.setJSON(stripeSessionStoreKey(sessionId), payload);
   return true;
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForStripeSessionReservation = async (
+  sessionId,
+  { timeoutMs = STRIPE_SESSION_PROCESSING_WAIT_MS, pollMs = 500 } = {}
+) => {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let latest = null;
+  while (Date.now() <= deadline) {
+    latest = await readStripeSessionRecord(sessionId);
+    if (latest?.reservationId || latest?.processedAt) {
+      return latest;
+    }
+    await sleep(pollMs);
+  }
+  return latest || (await readStripeSessionRecord(sessionId));
+};
+
+const claimStripeSessionProcessing = async (sessionId, source) => {
+  if (!sessionId) return { claimed: false, record: null, reason: "missing-session-id" };
+
+  const current = await readStripeSessionRecord(sessionId);
+  if (current?.reservationId || current?.processedAt) {
+    return { claimed: false, record: current, reason: "already-processed" };
+  }
+
+  const processingAt = Number(current?.processingAt || 0);
+  if (processingAt && Date.now() - processingAt < STRIPE_SESSION_PROCESSING_STALE_MS) {
+    const waited = await waitForStripeSessionReservation(sessionId);
+    if (waited?.reservationId || waited?.processedAt) {
+      return { claimed: false, record: waited, reason: "processed-by-other" };
+    }
+    const refreshed = await readStripeSessionRecord(sessionId);
+    const refreshedProcessingAt = Number(refreshed?.processingAt || 0);
+    if (
+      refreshed?.processingToken &&
+      refreshedProcessingAt &&
+      Date.now() - refreshedProcessingAt < STRIPE_SESSION_PROCESSING_STALE_MS
+    ) {
+      return { claimed: false, record: refreshed, reason: "processing-by-other" };
+    }
+  }
+
+  const token = `${String(source || "webhook").slice(0, 20)}-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+  const claimedAt = Date.now();
+  const claimRecord = {
+    ...(current || {}),
+    sessionId,
+    processingToken: token,
+    processingSource: source || "stripe-webhook",
+    processingAt: claimedAt,
+    processingUpdatedAt: claimedAt,
+  };
+
+  const wrote = await writeStripeSessionRecord(sessionId, claimRecord);
+  if (!wrote) {
+    return { claimed: true, token, record: claimRecord, reason: "store-unavailable" };
+  }
+
+  await sleep(150 + Math.floor(Math.random() * 150));
+  const verify = await readStripeSessionRecord(sessionId);
+  if (verify?.processingToken === token) {
+    return { claimed: true, token, record: verify };
+  }
+
+  if (verify?.reservationId || verify?.processedAt) {
+    return { claimed: false, record: verify, reason: "lost-race" };
+  }
+
+  const waited = await waitForStripeSessionReservation(sessionId);
+  if (waited?.reservationId || waited?.processedAt) {
+    return { claimed: false, record: waited, reason: "processed-after-race" };
+  }
+
+  return { claimed: false, record: verify || waited || current || null, reason: "claim-conflict" };
 };
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
@@ -864,32 +949,61 @@ const buildReservationPayload = (session) => {
   };
 
   const accommodation = toNumber(metadata.bd_accommodation);
-  const discountAmount = toNumber(metadata.bd_discount);
-  const promoDiscountAmount = toNumber(metadata.bd_promo_discount);
-  const discountRateRaw = toNumber(metadata.bd_discount_rate);
   const cleaning = toNumber(metadata.bd_cleaning);
+  const taxes = toNumber(metadata.bd_taxes);
   const fees = toNumber(metadata.bd_fees);
   const currency = (metadata.currency || "").toUpperCase();
-  const hasDiscountApplied =
-    (discountAmount !== null && discountAmount > 0) ||
-    (promoDiscountAmount !== null && promoDiscountAmount > 0);
   const money = {};
+  const invoiceItems = [];
+  const roundMoney = (value) =>
+    Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+  const cleaningValue = cleaning !== null ? roundMoney(cleaning) : null;
+  const taxesValue = taxes !== null ? roundMoney(taxes) : null;
+  const feesValue = fees !== null ? roundMoney(fees) : null;
+  let fareAccommodation = accommodation !== null ? roundMoney(accommodation) : null;
 
-  if (hasDiscountApplied && Number.isFinite(amount) && amount >= 0) {
-    // Keep Guesty reservation total aligned with Stripe charged total.
-    money.fareAccommodation = amount;
-  } else {
-    if (accommodation !== null) {
-      money.fareAccommodation = accommodation;
-    } else if (Number.isFinite(amount) && amount > 0) {
-      money.fareAccommodation = amount;
+  if (fareAccommodation === null && Number.isFinite(amount) && amount >= 0) {
+    const nonAccommodation =
+      (cleaningValue && cleaningValue > 0 ? cleaningValue : 0) +
+      (taxesValue && taxesValue > 0 ? taxesValue : 0) +
+      (feesValue && feesValue > 0 ? feesValue : 0);
+    fareAccommodation = roundMoney(Math.max(amount - nonAccommodation, 0));
+  }
+  if (fareAccommodation !== null) {
+    money.fareAccommodation = fareAccommodation;
+  } else if (Number.isFinite(amount) && amount > 0) {
+    money.fareAccommodation = roundMoney(amount);
+  }
+
+  if (cleaningValue !== null && cleaningValue > 0) {
+    money.fareCleaning = cleaningValue;
+  }
+  if (taxesValue !== null && taxesValue > 0) {
+    invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
+  }
+  if (feesValue !== null && feesValue > 0) {
+    invoiceItems.push({ title: "Fees", amount: feesValue, normalType: "OTHER" });
+  }
+
+  if (
+    Number.isFinite(amount) &&
+    Number.isFinite(money.fareAccommodation)
+  ) {
+    const runningTotal =
+      (money.fareAccommodation || 0) +
+      (Number.isFinite(money.fareCleaning) ? money.fareCleaning : 0) +
+      invoiceItems.reduce(
+        (sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0),
+        0
+      );
+    const diff = roundMoney(amount - runningTotal);
+    if (diff !== null && Math.abs(diff) >= 0.01) {
+      money.fareAccommodation = roundMoney(Math.max((money.fareAccommodation || 0) + diff, 0));
     }
-    if (cleaning !== null) money.fareCleaning = cleaning;
-    const invoiceItems = [];
-    if (fees !== null && fees > 0) {
-      invoiceItems.push({ title: "Fees", amount: fees, normalType: "OTHER" });
-    }
-    if (invoiceItems.length) money.invoiceItems = invoiceItems;
+  }
+
+  if (invoiceItems.length) {
+    money.invoiceItems = invoiceItems;
   }
   if (currency) money.currency = currency;
   if (Object.keys(money).length) payload.money = money;
@@ -1403,8 +1517,18 @@ export async function handler(event) {
     return jsonResponse(200, { received: true, duplicate: true });
   }
 
-  const existingSession = await readStripeSessionRecord(session.id);
-  if (existingSession) {
+  let existingSession = await readStripeSessionRecord(session.id);
+  if (
+    existingSession &&
+    !existingSession?.reservationId &&
+    !existingSession?.processedAt &&
+    Number(existingSession?.processingAt || 0) &&
+    Date.now() - Number(existingSession?.processingAt || 0) < STRIPE_SESSION_PROCESSING_STALE_MS
+  ) {
+    const waited = await waitForStripeSessionReservation(session.id);
+    if (waited) existingSession = waited;
+  }
+  if (existingSession?.reservationId || existingSession?.processedAt) {
     if (existingSession?.emailError) {
       const proof = await getSessionReceiptDetails(session);
       const retryAt = Date.now();
@@ -1488,6 +1612,34 @@ export async function handler(event) {
     return jsonResponse(200, { received: true, unpaid: true });
   }
 
+  const claim = await claimStripeSessionProcessing(session.id, "stripe-webhook");
+  if (!claim.claimed) {
+    const finalRecord = claim.record?.reservationId
+      ? claim.record
+      : await waitForStripeSessionReservation(session.id);
+    if (finalRecord?.reservationId || finalRecord?.processedAt) {
+      await writeStripeEvent(stripeEvent.id, {
+        ...finalRecord,
+        replayedByEventId: stripeEvent.id,
+        replayedAt: Date.now(),
+        duplicateSession: true,
+      });
+      return jsonResponse(200, {
+        received: true,
+        duplicate: true,
+        duplicateSession: true,
+        sessionId: session.id,
+      });
+    }
+    return jsonResponse(500, {
+      message: "Reservation processing lock conflict; retrying via webhook retries.",
+      received: true,
+      retryable: true,
+      sessionId: session.id,
+      reason: claim.reason || "processing-lock-conflict",
+    });
+  }
+
   const payload = buildReservationPayload(session);
   if (!payload.listingId || !payload.checkInDateLocalized || !payload.checkOutDateLocalized) {
     return jsonResponse(400, { message: "Missing reservation metadata" });
@@ -1497,6 +1649,20 @@ export async function handler(event) {
     const reservation = await createGuestyReservation(payload);
     const reservationId = reservation?._id || reservation?.id || null;
     const guestId = extractGuestId(reservation);
+    await writeStripeSessionRecord(session?.id || "", {
+      ...(existingSession || {}),
+      sessionId: session?.id || null,
+      reservationId,
+      guestId,
+      listingId: payload.listingId,
+      reservationCreatedAt: Date.now(),
+      source: "stripe-webhook",
+      sourceEventId: stripeEvent.id,
+      processingToken: claim.token || null,
+      processingSource: "stripe-webhook",
+      processingAt: claim.record?.processingAt || Date.now(),
+      processingUpdatedAt: Date.now(),
+    });
     const proof = await getSessionReceiptDetails(session);
     const consentPayload = await readConsentProof(session?.id || "");
     let consentPdfError = null;
@@ -1650,6 +1816,17 @@ export async function handler(event) {
       consentPdfError,
     });
   } catch (err) {
+    await writeStripeSessionRecord(session?.id || "", {
+      ...(existingSession || {}),
+      sessionId: session?.id || null,
+      source: "stripe-webhook",
+      sourceEventId: stripeEvent.id,
+      processingToken: null,
+      processingSource: "stripe-webhook",
+      processingAt: 0,
+      processingUpdatedAt: Date.now(),
+      processingError: err?.message || "Guesty reservation failed",
+    });
     return jsonResponse(502, { message: "Guesty reservation failed", error: err.message });
   }
 }

@@ -912,9 +912,29 @@ const getQuotePricing = (quoteData, listing, nights) => {
         const amt = typeof item?.amount === "number" ? item.amount : null;
         if (amt === null) return;
         const t = (item?.normalType || item?.type || "").toUpperCase();
+        const second = (item?.secondIdentifier || item?.secondType || "").toUpperCase();
+        const label = `${item?.title || item?.name || item?.description || ""}`.toUpperCase();
+        const isCleaningLine =
+          t === "CF" ||
+          t === "CLEANING_FEE" ||
+          t === "CFE" ||
+          /\bCLEAN(ING)?\b/.test(t) ||
+          /\bCLEAN(ING)?\b/.test(second) ||
+          /\bCLEAN(ING)?\b/.test(label);
+        const isTaxLine =
+          t === "OCT" ||
+          t === "TAX" ||
+          t === "OCCUPANCY_TAX" ||
+          t === "VAT" ||
+          t === "CITY_TAX" ||
+          t === "TOURISM_TAX" ||
+          t === "SALES_TAX" ||
+          /\b(TAX|VAT)\b/.test(t) ||
+          /\b(TAX|VAT)\b/.test(second) ||
+          /\b(TAX|VAT)\b/.test(label);
         if (t === "AF" || t === "ACCOMMODATION_FARE") acc.accommodation += amt;
-        else if (t === "CF" || t === "CLEANING_FEE") acc.cleaning += amt;
-        else if (t === "OCT" || t === "TAX" || t === "OCCUPANCY_TAX") acc.taxes += amt;
+        else if (isCleaningLine) acc.cleaning += amt;
+        else if (isTaxLine) acc.taxes += amt;
         else acc.fees += amt;
       });
       return acc;
@@ -923,9 +943,14 @@ const getQuotePricing = (quoteData, listing, nights) => {
     const accommodationFromQuote =
       quoteMoney?.fareAccommodation ??
       null;
-    const cleaningFromQuote =
-      quoteMoney?.fareCleaning ??
-      null;
+    const cleaningFromQuote = firstNumber(
+      quoteMoney?.fareCleaning,
+      quoteMoney?.cleaning,
+      quoteMoney?.cleaningFee,
+      quoteData?.price?.cleaning,
+      quoteData?.price?.cleaningFee,
+      breakdown?.cleaning
+    );
 
     const accommodationBase =
       breakdown?.accommodation ??
@@ -942,11 +967,33 @@ const getQuotePricing = (quoteData, listing, nights) => {
         ? accommodationBase - discountAmount
         : accommodationBase;
     const cleaning =
-      cleaningFromQuote ??
-      breakdown?.cleaning ??
-      (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0);
+      typeof cleaningFromQuote === "number"
+        ? cleaningFromQuote
+        : (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0);
+    const taxesFromQuote = firstNumber(
+      quoteMoney?.fareTaxes,
+      quoteMoney?.fareTax,
+      quoteMoney?.taxes,
+      quoteMoney?.taxAmount,
+      quoteMoney?.totalTaxes,
+      quoteMoney?.tax?.amount,
+      quoteMoney?.vat,
+      quoteMoney?.vatAmount,
+      quoteMoney?.fareVat,
+      quoteData?.price?.taxes,
+      quoteData?.price?.tax,
+      quoteData?.price?.taxAmount,
+      quoteData?.price?.tax?.amount,
+      quoteData?.price?.taxes?.amount,
+      quoteData?.price?.vatAmount,
+      quoteData?.taxes,
+      quoteData?.taxes?.amount,
+      breakdown?.taxes
+    );
     const taxes =
-      computeTaxes(accommodation, listing);
+      typeof taxesFromQuote === "number"
+        ? taxesFromQuote
+        : computeTaxes(accommodation, listing);
     const fees = breakdown?.fees ?? 0;
     const subtotal =
       (typeof accommodation === "number" ? accommodation : 0) +

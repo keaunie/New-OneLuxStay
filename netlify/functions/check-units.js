@@ -8,6 +8,12 @@ const CONSENT_STORE_NAME = "consent-proofs";
 const CONSENT_PDF_STORE_NAME = "consent-proof-pdfs";
 const STRIPE_SESSION_STORE_NAME = "stripe-webhook-events";
 const RESERVATIONS_COPY_EMAIL = "reservations@oneluxstay.com";
+const STRIPE_SESSION_PROCESSING_STALE_MS = Number(
+  process.env.STRIPE_SESSION_PROCESSING_STALE_MS || 120_000
+);
+const STRIPE_SESSION_PROCESSING_WAIT_MS = Number(
+  process.env.STRIPE_SESSION_PROCESSING_WAIT_MS || 12_000
+);
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -920,6 +926,83 @@ const writeStripeSessionRecord = async (sessionId, payload) => {
   return true;
 };
 
+const waitForStripeSessionReservation = async (
+  sessionId,
+  { timeoutMs = STRIPE_SESSION_PROCESSING_WAIT_MS, pollMs = 500 } = {}
+) => {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let latest = null;
+  while (Date.now() <= deadline) {
+    latest = await readStripeSessionRecord(sessionId);
+    if (latest?.reservationId || latest?.processedAt) {
+      return latest;
+    }
+    await sleep(pollMs);
+  }
+  return latest || (await readStripeSessionRecord(sessionId));
+};
+
+const claimStripeSessionProcessing = async (sessionId, source) => {
+  if (!sessionId) return { claimed: false, record: null, reason: "missing-session-id" };
+
+  const current = await readStripeSessionRecord(sessionId);
+  if (current?.reservationId || current?.processedAt) {
+    return { claimed: false, record: current, reason: "already-processed" };
+  }
+
+  const processingAt = Number(current?.processingAt || 0);
+  if (processingAt && Date.now() - processingAt < STRIPE_SESSION_PROCESSING_STALE_MS) {
+    const waited = await waitForStripeSessionReservation(sessionId);
+    if (waited?.reservationId || waited?.processedAt) {
+      return { claimed: false, record: waited, reason: "processed-by-other" };
+    }
+    const refreshed = await readStripeSessionRecord(sessionId);
+    const refreshedProcessingAt = Number(refreshed?.processingAt || 0);
+    if (
+      refreshed?.processingToken &&
+      refreshedProcessingAt &&
+      Date.now() - refreshedProcessingAt < STRIPE_SESSION_PROCESSING_STALE_MS
+    ) {
+      return { claimed: false, record: refreshed, reason: "processing-by-other" };
+    }
+  }
+
+  const token = `${String(source || "checkout").slice(0, 20)}-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+  const claimedAt = Date.now();
+  const claimRecord = {
+    ...(current || {}),
+    sessionId,
+    processingToken: token,
+    processingSource: source || "check-units",
+    processingAt: claimedAt,
+    processingUpdatedAt: claimedAt,
+  };
+
+  const wrote = await writeStripeSessionRecord(sessionId, claimRecord);
+  if (!wrote) {
+    return { claimed: true, token, record: claimRecord, reason: "store-unavailable" };
+  }
+
+  await sleep(150 + Math.floor(Math.random() * 150));
+  const verify = await readStripeSessionRecord(sessionId);
+  if (verify?.processingToken === token) {
+    return { claimed: true, token, record: verify };
+  }
+
+  if (verify?.reservationId || verify?.processedAt) {
+    return { claimed: false, record: verify, reason: "lost-race" };
+  }
+
+  const waited = await waitForStripeSessionReservation(sessionId);
+  if (waited?.reservationId || waited?.processedAt) {
+    return { claimed: false, record: waited, reason: "processed-after-race" };
+  }
+
+  return { claimed: false, record: verify || waited || current || null, reason: "claim-conflict" };
+};
+
 const requestGuestyToken = async () => {
   const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
   const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
@@ -1033,29 +1116,59 @@ const buildGuestyReservationPayload = ({
   const accommodation = Number(breakdown?.accommodation);
   const cleaning = Number(breakdown?.cleaning);
   const fees = Number(breakdown?.fees);
-  const discountAmount = Number(breakdown?.discountAmount);
-  const promoDiscountAmount = Number(breakdown?.promoDiscountAmount);
-  const hasDiscountApplied =
-    (Number.isFinite(discountAmount) && discountAmount > 0) ||
-    (Number.isFinite(promoDiscountAmount) && promoDiscountAmount > 0);
+  const taxes = Number(breakdown?.taxes);
   const effectiveTotal = Number.isFinite(Number(amount)) ? Number(amount) : null;
   const money = {};
+  const invoiceItems = [];
+  const roundMoney = (value) =>
+    Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+  const cleaningValue = Number.isFinite(cleaning) ? roundMoney(cleaning) : null;
+  const taxesValue = Number.isFinite(taxes) ? roundMoney(taxes) : null;
+  const feesValue = Number.isFinite(fees) ? roundMoney(fees) : null;
 
-  if (hasDiscountApplied && Number.isFinite(effectiveTotal) && effectiveTotal >= 0) {
-    // Keep Guesty reservation total aligned with Stripe charged total.
-    money.fareAccommodation = effectiveTotal;
-  } else {
-    if (Number.isFinite(accommodation)) {
-      money.fareAccommodation = accommodation;
-    } else if (Number.isFinite(effectiveTotal) && effectiveTotal > 0) {
-      money.fareAccommodation = effectiveTotal;
+  let fareAccommodation = Number.isFinite(accommodation) ? roundMoney(accommodation) : null;
+  if (fareAccommodation === null && Number.isFinite(effectiveTotal) && effectiveTotal >= 0) {
+    const nonAccommodation =
+      (cleaningValue && cleaningValue > 0 ? cleaningValue : 0) +
+      (taxesValue && taxesValue > 0 ? taxesValue : 0) +
+      (feesValue && feesValue > 0 ? feesValue : 0);
+    fareAccommodation = roundMoney(Math.max(effectiveTotal - nonAccommodation, 0));
+  }
+  if (fareAccommodation !== null) {
+    money.fareAccommodation = fareAccommodation;
+  } else if (Number.isFinite(effectiveTotal) && effectiveTotal > 0) {
+    money.fareAccommodation = roundMoney(effectiveTotal);
+  }
+
+  if (cleaningValue !== null && cleaningValue > 0) {
+    money.fareCleaning = cleaningValue;
+  }
+  if (taxesValue !== null && taxesValue > 0) {
+    invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
+  }
+  if (feesValue !== null && feesValue > 0) {
+    invoiceItems.push({ title: "Fees", amount: feesValue, normalType: "OTHER" });
+  }
+
+  if (
+    Number.isFinite(effectiveTotal) &&
+    Number.isFinite(money.fareAccommodation)
+  ) {
+    const runningTotal =
+      (money.fareAccommodation || 0) +
+      (Number.isFinite(money.fareCleaning) ? money.fareCleaning : 0) +
+      invoiceItems.reduce(
+        (sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0),
+        0
+      );
+    const diff = roundMoney(effectiveTotal - runningTotal);
+    if (diff !== null && Math.abs(diff) >= 0.01) {
+      money.fareAccommodation = roundMoney(Math.max((money.fareAccommodation || 0) + diff, 0));
     }
-    if (Number.isFinite(cleaning)) {
-      money.fareCleaning = cleaning;
-    }
-    if (Number.isFinite(fees) && fees > 0) {
-      money.invoiceItems = [{ title: "Fees", amount: fees, normalType: "OTHER" }];
-    }
+  }
+
+  if (invoiceItems.length) {
+    money.invoiceItems = invoiceItems;
   }
 
   if (currency) {
@@ -1066,6 +1179,67 @@ const buildGuestyReservationPayload = ({
   }
 
   return payload;
+};
+
+const postReservationPayment = async (reservationId, paymentMethod, amount, note) => {
+  const { token } = await getGuestyToken();
+  const response = await fetchWithTimeout(
+    `${OPEN_API_V1}/reservations/${reservationId}/payments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        paymentMethod,
+        amount,
+        note,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+};
+
+const createReservationPayment = async (reservationId, session) => {
+  if (!reservationId) return null;
+  const metadata = session?.metadata || {};
+  const metaTotal =
+    Number.isFinite(Number(metadata.bd_total)) ? Number(metadata.bd_total) : null;
+  const metaAmount =
+    Number.isFinite(Number(metadata.amount)) ? Number(metadata.amount) : null;
+  const stripeAmount =
+    Number.isFinite(session?.amount_total)
+      ? fromStripeAmount(session.amount_total, session?.currency)
+      : null;
+  const amount = metaTotal ?? metaAmount ?? stripeAmount;
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const note = `Paid via Stripe checkout session ${session?.id || ""}`.trim();
+  const preferredMethod = (process.env.GUESTY_PAYMENT_METHOD || "").trim().toUpperCase();
+  const methods = [
+    ...(preferredMethod ? [preferredMethod] : []),
+    "OTHER",
+    "BANK_TRANSFER",
+    "CASH",
+  ].filter((value, index, array) => array.indexOf(value) === index);
+
+  const errors = [];
+  for (const method of methods) {
+    try {
+      return await postReservationPayment(reservationId, { method }, amount, note);
+    } catch (err) {
+      errors.push(`${method}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Failed to record payment in Guesty. ${errors.join(" | ")}`);
 };
 
 const addMonths = (date, months) => {
@@ -2120,7 +2294,16 @@ const handleCheckoutSuccess = async (event) => {
   }
 
   const baseUrl = getBaseUrl(event);
-  const cached = await readStripeSessionRecord(sessionId);
+  let cached = await readStripeSessionRecord(sessionId);
+  if (
+    !cached?.reservationId &&
+    !cached?.processedAt &&
+    Number(cached?.processingAt || 0) &&
+    Date.now() - Number(cached?.processingAt || 0) < STRIPE_SESSION_PROCESSING_STALE_MS
+  ) {
+    const waited = await waitForStripeSessionReservation(sessionId);
+    if (waited) cached = waited;
+  }
   if (cached?.redirectUrl) {
     return jsonResponse(200, {
       ok: true,
@@ -2128,6 +2311,7 @@ const handleCheckoutSuccess = async (event) => {
       cached: true,
       redirectUrl: cached.redirectUrl,
       reservationId: cached.reservationId || "",
+      paymentError: cached.paymentError || "",
       emailSent: !cached.emailError,
       emailError: cached.emailError || "",
     });
@@ -2257,6 +2441,53 @@ const handleCheckoutSuccess = async (event) => {
     });
   }
 
+  const claim = await claimStripeSessionProcessing(sessionId, "checkout-success");
+  if (!claim.claimed) {
+    const finalRecord = claim.record?.reservationId
+      ? claim.record
+      : await waitForStripeSessionReservation(sessionId);
+    if (finalRecord?.reservationId || finalRecord?.processedAt) {
+      const redirectUrl =
+        finalRecord?.redirectUrl ||
+        buildPaidConfirmationRedirectUrl(baseUrl, {
+          sessionId,
+          reservationId: finalRecord?.reservationId || "",
+          email: guestEmail,
+          emailSent: !finalRecord?.emailError,
+          listingTitle: resolvedListingTitle,
+          checkIn,
+          checkOut,
+          guests,
+          amount,
+          currency: (metadata.currency || session?.currency || "USD").toUpperCase(),
+          consentProofUrl: finalRecord?.consentPdfUrl || "",
+        });
+      if (redirectUrl && !finalRecord?.redirectUrl) {
+        await writeStripeSessionRecord(sessionId, {
+          ...finalRecord,
+          redirectUrl,
+          lastCheckoutSuccessLookupAt: Date.now(),
+        });
+      }
+      return jsonResponse(200, {
+        ok: true,
+        finalized: true,
+        cached: true,
+        sessionId,
+        reservationId: finalRecord?.reservationId || "",
+        emailSent: !finalRecord?.emailError,
+        emailError: finalRecord?.emailError || "",
+        paymentError: finalRecord?.paymentError || "",
+        redirectUrl,
+      });
+    }
+    return jsonResponse(409, {
+      message: "Booking finalization is already in progress. Please refresh in a few seconds.",
+      sessionId,
+      reason: claim.reason || "processing",
+    });
+  }
+
   let reservationId = "";
   try {
     const reservationPayload = buildGuestyReservationPayload({
@@ -2272,9 +2503,43 @@ const handleCheckoutSuccess = async (event) => {
     const reservation = await createGuestyReservation(reservationPayload);
     reservationId = reservation?._id || reservation?.id || "";
   } catch (err) {
+    await writeStripeSessionRecord(sessionId, {
+      ...(cached || {}),
+      sessionId,
+      listingId: String(listingId),
+      source: "checkout-success",
+      processingToken: null,
+      processingSource: "checkout-success",
+      processingAt: 0,
+      processingUpdatedAt: Date.now(),
+      processingError: err?.message || "Unable to create reservation in Guesty.",
+    });
     return jsonResponse(502, {
       message: "Unable to create reservation in Guesty.",
       error: err?.message || "Unknown error",
+    });
+  }
+  await writeStripeSessionRecord(sessionId, {
+    ...(cached || {}),
+    sessionId,
+    reservationId,
+    listingId: String(listingId),
+    reservationCreatedAt: Date.now(),
+    source: "checkout-success",
+    processingToken: claim.token || null,
+    processingSource: "checkout-success",
+    processingAt: claim.record?.processingAt || Date.now(),
+    processingUpdatedAt: Date.now(),
+  });
+  let paymentError = "";
+  try {
+    await createReservationPayment(reservationId, session);
+  } catch (err) {
+    paymentError = err?.message || "Unable to record payment in Guesty.";
+    console.error("[check-units] Payment record failed", {
+      reservationId,
+      sessionId,
+      error: paymentError,
     });
   }
 
@@ -2379,6 +2644,7 @@ const handleCheckoutSuccess = async (event) => {
     sessionId,
     reservationId,
     listingId: String(listingId),
+    paymentError: paymentError || null,
     guestReceiptEmail: guestEmail,
     emailError: emailError || null,
     ...(emailSent ? { emailSentAt: Date.now() } : {}),
@@ -2392,6 +2658,7 @@ const handleCheckoutSuccess = async (event) => {
     finalized: true,
     sessionId,
     reservationId,
+    paymentError,
     emailSent,
     emailError,
     consentPdfUrl,
