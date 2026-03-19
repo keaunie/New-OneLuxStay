@@ -919,12 +919,16 @@ const buildReservationPayload = (session) => {
   const checkIn = metadata.checkIn;
   const checkOut = metadata.checkOut;
   const guests = Number(metadata.guests) || 1;
-  const amount = Number(metadata.amount || 0);
 
   const toNumber = (value) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : null;
   };
+  const amount =
+    toNumber(getStripeSessionPaidAmount(session)) ??
+    toNumber(metadata.bd_total) ??
+    toNumber(metadata.amount) ??
+    0;
 
   const guestFirstName = metadata.guestFirstName || "";
   const guestLastName = metadata.guestLastName || "";
@@ -1018,6 +1022,15 @@ const fromStripeAmount = (amount, currency) => {
   return amount / 100;
 };
 
+const roundMoneyAmount = (value) =>
+  Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+
+const getStripeSessionPaidAmount = (session) => {
+  if (!Number.isFinite(session?.amount_total)) return null;
+  const converted = fromStripeAmount(session.amount_total, session?.currency);
+  return roundMoneyAmount(converted);
+};
+
 const postReservationPayment = async (reservationId, paymentMethod, amount, note) => {
   const { token } = await getGuestyToken();
   const response = await fetchWithTimeout(
@@ -1047,15 +1060,12 @@ const postReservationPayment = async (reservationId, paymentMethod, amount, note
 const createReservationPayment = async (reservationId, session) => {
   if (!reservationId) return null;
   const metadata = session?.metadata || {};
+  const stripeAmount = getStripeSessionPaidAmount(session);
   const metaTotal =
     Number.isFinite(Number(metadata.bd_total)) ? Number(metadata.bd_total) : null;
   const metaAmount =
     Number.isFinite(Number(metadata.amount)) ? Number(metadata.amount) : null;
-  const stripeAmount =
-    Number.isFinite(session?.amount_total)
-      ? fromStripeAmount(session.amount_total, session?.currency)
-      : null;
-  const amount = metaTotal ?? metaAmount ?? stripeAmount;
+  const amount = roundMoneyAmount(stripeAmount ?? metaTotal ?? metaAmount);
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
   const note = `Paid via Stripe checkout session ${session?.id || ""}`.trim();
@@ -1457,8 +1467,48 @@ export async function handler(event) {
     });
   }
 
-  const existing = await readStripeEvent(stripeEvent.id);
+  let existing = await readStripeEvent(stripeEvent.id);
   if (existing) {
+    if (existing?.paymentError && existing?.reservationId) {
+      const retryAt = Date.now();
+      const paymentRetryCount = Number(existing?.paymentRetryCount || 0) + 1;
+      let paymentRetryError = null;
+      let paymentPostedAmount = existing?.paymentPostedAmount ?? null;
+      try {
+        await createReservationPayment(existing.reservationId, session);
+        paymentPostedAmount =
+          getStripeSessionPaidAmount(session) ??
+          (Number.isFinite(Number(paymentPostedAmount)) ? Number(paymentPostedAmount) : null);
+      } catch (err) {
+        paymentRetryError = err?.message || "Unable to record payment in Guesty.";
+      }
+
+      const retryPayload = {
+        ...existing,
+        paymentRetryCount,
+        paymentRetriedAt: retryAt,
+        paymentError: paymentRetryError,
+        ...(paymentRetryError
+          ? {}
+          : {
+              paymentRecordedAt: retryAt,
+              paymentPostedAmount,
+            }),
+      };
+      await writeStripeEvent(stripeEvent.id, retryPayload);
+      await writeStripeSessionRecord(session?.id || existing?.sessionId || "", retryPayload);
+      existing = retryPayload;
+
+      if (paymentRetryError) {
+        return jsonResponse(500, {
+          received: true,
+          duplicate: true,
+          retryable: true,
+          paymentError: paymentRetryError,
+        });
+      }
+    }
+
     if (existing?.emailError) {
       const proof = await getSessionReceiptDetails(session);
       const retryAt = Date.now();
@@ -1529,6 +1579,53 @@ export async function handler(event) {
     if (waited) existingSession = waited;
   }
   if (existingSession?.reservationId || existingSession?.processedAt) {
+    if (existingSession?.paymentError && existingSession?.reservationId) {
+      const retryAt = Date.now();
+      const paymentRetryCount = Number(existingSession?.paymentRetryCount || 0) + 1;
+      let paymentRetryError = null;
+      let paymentPostedAmount = existingSession?.paymentPostedAmount ?? null;
+      try {
+        await createReservationPayment(existingSession.reservationId, session);
+        paymentPostedAmount =
+          getStripeSessionPaidAmount(session) ??
+          (Number.isFinite(Number(paymentPostedAmount)) ? Number(paymentPostedAmount) : null);
+      } catch (err) {
+        paymentRetryError = err?.message || "Unable to record payment in Guesty.";
+      }
+
+      const retryPayload = {
+        ...existingSession,
+        paymentRetryCount,
+        paymentRetriedAt: retryAt,
+        paymentError: paymentRetryError,
+        ...(paymentRetryError
+          ? {}
+          : {
+              paymentRecordedAt: retryAt,
+              paymentPostedAmount,
+            }),
+      };
+      await writeStripeSessionRecord(session?.id || "", retryPayload);
+      await writeStripeEvent(stripeEvent.id, {
+        ...retryPayload,
+        replayedByEventId: stripeEvent.id,
+        replayedAt: retryAt,
+        duplicateSession: true,
+      });
+      existingSession = retryPayload;
+
+      if (paymentRetryError) {
+        return jsonResponse(500, {
+          received: true,
+          duplicate: true,
+          duplicateSession: true,
+          retryable: true,
+          sessionId: session.id,
+          paymentError: paymentRetryError,
+        });
+      }
+    }
+
     if (existingSession?.emailError) {
       const proof = await getSessionReceiptDetails(session);
       const retryAt = Date.now();
@@ -1704,8 +1801,12 @@ export async function handler(event) {
       proofUrl: consentPdfUrl,
     });
     let paymentError = null;
+    let paymentRecordedAt = null;
+    let paymentPostedAmount = null;
     try {
       await createReservationPayment(reservationId, session);
+      paymentRecordedAt = Date.now();
+      paymentPostedAmount = getStripeSessionPaidAmount(session);
     } catch (err) {
       paymentError = err.message;
       console.error("[stripe-webhook] Payment record failed", {
@@ -1771,6 +1872,11 @@ export async function handler(event) {
       consentPdfUrl,
       consentPdfError,
       paymentError,
+      ...(paymentRecordedAt ? { paymentRecordedAt } : {}),
+      ...(Number.isFinite(Number(paymentPostedAmount))
+        ? { paymentPostedAmount: Number(paymentPostedAmount) }
+        : {}),
+      paymentRetryCount: Number(existingSession?.paymentRetryCount || 0),
       noteError,
       guestNoteError,
       guestReceiptEmail,
@@ -1784,6 +1890,29 @@ export async function handler(event) {
       ...processedPayload,
       sourceEventId: stripeEvent.id,
     });
+    if (paymentError && stored) {
+      return jsonResponse(500, {
+        message: "Guesty payment sync failed; retrying via Stripe webhook retries.",
+        received: true,
+        retryable: true,
+        reservationId,
+        paymentError,
+        noteError,
+        guestNoteError,
+        consentPdfUrl,
+        consentPdfError,
+      });
+    }
+    if (paymentError && !stored) {
+      console.error(
+        "[stripe-webhook] Payment sync failed, but webhook event storage is unavailable",
+        {
+          eventId: stripeEvent.id,
+          reservationId,
+          paymentError,
+        }
+      );
+    }
     if (emailError && stored) {
       return jsonResponse(500, {
         message: "Receipt delivery failed; retry scheduled via Stripe webhook retries.",

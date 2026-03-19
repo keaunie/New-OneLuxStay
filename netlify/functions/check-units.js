@@ -1210,15 +1210,16 @@ const postReservationPayment = async (reservationId, paymentMethod, amount, note
 const createReservationPayment = async (reservationId, session) => {
   if (!reservationId) return null;
   const metadata = session?.metadata || {};
-  const metaTotal =
-    Number.isFinite(Number(metadata.bd_total)) ? Number(metadata.bd_total) : null;
-  const metaAmount =
-    Number.isFinite(Number(metadata.amount)) ? Number(metadata.amount) : null;
   const stripeAmount =
     Number.isFinite(session?.amount_total)
       ? fromStripeAmount(session.amount_total, session?.currency)
       : null;
-  const amount = metaTotal ?? metaAmount ?? stripeAmount;
+  const metaTotal =
+    Number.isFinite(Number(metadata.bd_total)) ? Number(metadata.bd_total) : null;
+  const metaAmount =
+    Number.isFinite(Number(metadata.amount)) ? Number(metadata.amount) : null;
+  const rawAmount = stripeAmount ?? metaTotal ?? metaAmount;
+  const amount = Number.isFinite(rawAmount) ? Math.round(rawAmount * 100) / 100 : null;
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
   const note = `Paid via Stripe checkout session ${session?.id || ""}`.trim();
@@ -2390,11 +2391,11 @@ const handleCheckoutSuccess = async (event) => {
 
   const amount =
     firstNumber(
-      metadata.bd_total,
-      metadata.amount,
       Number.isFinite(session?.amount_total)
         ? fromStripeAmount(session.amount_total, session?.currency)
-        : null
+        : null,
+      metadata.bd_total,
+      metadata.amount,
     ) || 0;
   const breakdown = {
     accommodation: firstNumber(metadata.bd_accommodation),

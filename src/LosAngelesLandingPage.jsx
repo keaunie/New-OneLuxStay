@@ -1042,12 +1042,10 @@ const getQuotePricing = (quoteData, listing, nights) => {
 
   const plans = plansRaw
     .map(buildPlanPricing)
-    .filter(Boolean)
-    .filter((plan) => /standard|non[- ]?refundable/i.test(plan.label));
+    .filter((plan) => Boolean(plan) && !plan.isNonRefundable);
   if (!plans.length) return null;
   const standardPlan =
-    plans.find((plan) => /standard/i.test(plan.label)) ||
-    plans.find((plan) => !plan.isNonRefundable) ||
+    plans.find((plan) => /standard|refundable/i.test(plan.label)) ||
     null;
   return {
     plans,
@@ -3874,21 +3872,20 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           : [];
         const filteredPlans = plans.filter((plan) => {
           const label = plan?.ratePlan?.name || plan?.ratePlan?.title || plan?.ratePlan?.description || "";
-          return /standard|non[- ]?refundable/i.test(label);
+          const isNonRefundable =
+            /non[- ]?refundable/i.test(label) ||
+            Boolean(plan?.ratePlan?.cancellationPolicy?.isNonRefundable);
+          return !isNonRefundable;
         });
         let minTotal = null;
-        (filteredPlans.length ? filteredPlans : plans).forEach((plan) => {
+        filteredPlans.forEach((plan) => {
           const money = plan?.money?.money || plan?.money || quoteData?.money?.money || quoteData?.money || {};
           const invoiceItems = Array.isArray(money?.invoiceItems) ? money.invoiceItems : [];
           const invoiceTotal = invoiceItems.reduce(
             (acc, item) => acc + (typeof item?.amount === "number" ? item.amount : 0),
             0
           );
-          const label = plan?.ratePlan?.name || plan?.ratePlan?.title || plan?.ratePlan?.description || "";
-          const isNonRefundable =
-            /non[- ]?refundable/i.test(label) ||
-            Boolean(plan?.ratePlan?.cancellationPolicy?.isNonRefundable);
-          const discountRate = isNonRefundable ? 0.15 : 0.1;
+          const discountRate = 0.1;
           const accommodationItem = invoiceItems.find((item) => {
             const type = (item?.normalType || item?.type || "").toUpperCase();
             return type === "AF" || type === "ACCOMMODATION_FARE";
