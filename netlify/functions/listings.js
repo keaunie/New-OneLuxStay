@@ -1,6 +1,8 @@
-const GUESTY_LISTINGS_URL = "https://open-api.guesty.com/v1/listings";
-const TOKEN_STORE_NAME = "guesty-oauth";
-const TOKEN_KEY = "access-token";
+const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
+const GUESTY_LISTINGS_URL = `${OPEN_API_HOST}/v1/listings`;
+const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
+const TOKEN_KEY = process.env.GUESTY_TOKEN_BLOB_KEY || "access-token";
+const TOKEN_REFRESH_BUFFER_MS = Number(process.env.GUESTY_TOKEN_REFRESH_BUFFER_MS || 60_000);
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
     statusCode,
@@ -27,9 +29,53 @@ const getBlobStore = async () => {
     }
 };
 
+const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(id);
+    }
+};
+
+const requestGuestyToken = async () => {
+    const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
+    const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+        throw new Error("Missing Guesty API credentials");
+    }
+
+    const body = new URLSearchParams({
+        grant_type: "client_credentials",
+        scope: "open-api",
+        client_id: clientId,
+        client_secret: clientSecret,
+    });
+
+    const response = await fetchWithTimeout(`${OPEN_API_HOST}/oauth2/token`, {
+        method: "POST",
+        headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+        throw new Error(`Token request failed (${response.status}): ${text}`);
+    }
+
+    return text ? JSON.parse(text) : {};
+};
+
+let tokenRefreshPromise = null;
+
 const getGuestyToken = async () => {
     const now = Date.now();
-    if (globalThis.GUESTY_TOKEN && globalThis.GUESTY_TOKEN_EXPIRES > now + 60_000) {
+    if (globalThis.GUESTY_TOKEN && globalThis.GUESTY_TOKEN_EXPIRES > now + TOKEN_REFRESH_BUFFER_MS) {
         return { token: globalThis.GUESTY_TOKEN, source: "memory" };
     }
 
@@ -40,14 +86,42 @@ const getGuestyToken = async () => {
             const raw = await store.get(TOKEN_KEY, { type: "text" });
             cached = raw ? JSON.parse(raw) : null;
         }
-        if (cached && cached.token && cached.expiresAt > now + 60_000) {
-            globalThis.GUESTY_TOKEN = cached.token;
-            globalThis.GUESTY_TOKEN_EXPIRES = cached.expiresAt;
-            return { token: cached.token, source: "blob" };
+        const cachedToken = cached?.token || cached?.access_token || cached?.accessToken;
+        const cachedExpiry = Number(cached?.expiresAt ?? cached?.expires_at ?? 0);
+        if (cachedToken && cachedExpiry > now + TOKEN_REFRESH_BUFFER_MS) {
+            globalThis.GUESTY_TOKEN = cachedToken;
+            globalThis.GUESTY_TOKEN_EXPIRES = cachedExpiry;
+            return { token: cachedToken, source: "blob" };
         }
     }
 
-    throw new Error("Guesty token missing or expired. Refresh token first.");
+    if (!tokenRefreshPromise) {
+        tokenRefreshPromise = (async () => {
+            const tokenPayload = await requestGuestyToken();
+            const refreshedAt = Date.now();
+            const tokenData = {
+                token: tokenPayload.access_token,
+                expiresAt: refreshedAt + Number(tokenPayload.expires_in || 0) * 1000,
+            };
+
+            if (!tokenData.token) {
+                throw new Error("Token response missing access_token");
+            }
+
+            if (store) {
+                await store.setJSON(TOKEN_KEY, tokenData);
+            }
+
+            globalThis.GUESTY_TOKEN = tokenData.token;
+            globalThis.GUESTY_TOKEN_EXPIRES = tokenData.expiresAt;
+            return tokenData;
+        })().finally(() => {
+            tokenRefreshPromise = null;
+        });
+    }
+
+    const tokenData = await tokenRefreshPromise;
+    return { token: tokenData.token, source: "fresh" };
 };
 
 const BED_PATTERNS = [

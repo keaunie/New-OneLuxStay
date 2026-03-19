@@ -1,6 +1,7 @@
-const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
-const TOKEN_STORE_NAME = "guesty-oauth";
-const TOKEN_KEY = "access-token";
+const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
+const GUESTY_TOKEN_URL = `${OPEN_API_HOST}/oauth2/token`;
+const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
+const TOKEN_KEY = process.env.GUESTY_TOKEN_BLOB_KEY || "access-token";
 
 const jsonResponse = (statusCode, body) => ({
     statusCode,
