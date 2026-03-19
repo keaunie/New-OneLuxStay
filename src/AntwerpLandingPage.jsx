@@ -4853,7 +4853,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       const checkoutEndpoint =
         numericAmount <= 0
           ? `${apiBase}/check-units/checkout-free`
-          : `${apiBase}/check-units/checkout`;
+          : `${apiBase}/api-checkout`;
       const res = await fetch(checkoutEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

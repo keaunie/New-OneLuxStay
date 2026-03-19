@@ -1,0 +1,97 @@
+const baseHeaders = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Stripe-Signature",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
+export const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
+  statusCode,
+  headers: {
+    ...baseHeaders,
+    ...extraHeaders,
+  },
+  body: JSON.stringify(body),
+});
+
+export const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export const readJsonBody = (event = {}) => JSON.parse(event.body || "{}");
+
+export const getBaseUrl = (event = {}) => {
+  const headers = event.headers || {};
+  const origin = headers.origin || headers.Origin || "";
+  if (origin) return String(origin).replace(/\/+$/, "");
+
+  const referer = headers.referer || headers.referrer || headers.Referer || headers.Referrer || "";
+  if (referer) {
+    try {
+      return new URL(referer).origin.replace(/\/+$/, "");
+    } catch {
+      // ignore
+    }
+  }
+
+  const proto =
+    headers["x-forwarded-proto"] ||
+    headers["X-Forwarded-Proto"] ||
+    "https";
+  const host = headers["x-forwarded-host"] || headers["X-Forwarded-Host"] || headers.host || headers.Host || "";
+  if (host) return `${proto}://${host}`.replace(/\/+$/, "");
+
+  return String(process.env.PUBLIC_SITE_URL || process.env.URL || "https://oneluxstay.com").replace(/\/+$/, "");
+};
+
+export const sanitizeInternalPath = (value = "") => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed || !trimmed.startsWith("/") || trimmed.startsWith("//")) return "";
+  return trimmed;
+};
+
+export const withBookingSearchParams = (path = "/", { checkIn, checkOut, guests } = {}) => {
+  const safePath = sanitizeInternalPath(path) || "/";
+  let pathname = "/";
+  let params = new URLSearchParams();
+
+  try {
+    const parsed = new URL(safePath, "https://oneluxstay.local");
+    pathname = sanitizeInternalPath(parsed.pathname) || "/";
+    params = new URLSearchParams(parsed.search || "");
+  } catch {
+    pathname = safePath;
+  }
+
+  if (checkIn) params.set("checkIn", String(checkIn));
+  if (checkOut) params.set("checkOut", String(checkOut));
+  if (Number.isFinite(Number(guests)) && Number(guests) > 0) {
+    params.set("guests", String(Math.max(1, Math.round(Number(guests)))));
+  }
+
+  const query = params.toString();
+  return `${pathname}${query ? `?${query}` : ""}`;
+};
+
+export const getHeaderValue = (event = {}, targetName = "") => {
+  const target = String(targetName || "").toLowerCase();
+  for (const [key, value] of Object.entries(event.headers || {})) {
+    if (String(key).toLowerCase() !== target) continue;
+    return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+  }
+  for (const [key, value] of Object.entries(event.multiValueHeaders || {})) {
+    if (String(key).toLowerCase() !== target) continue;
+    return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+  }
+  return "";
+};
+

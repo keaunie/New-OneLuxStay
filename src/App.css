@@ -9752,8 +9752,8 @@ body {
 
 .la-facilities-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px 28px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px 20px;
 }
 
 .la-facilities-layout {
@@ -9775,7 +9775,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   font-weight: 700;
   color: #1f1a16;
 }
@@ -9797,9 +9797,10 @@ body {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
   color: #3b3127;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .la-facilities-group li::before {

@@ -953,7 +953,7 @@ function ListingPage() {
     setBookingState({ status: "loading", message: "" });
 
     try {
-      const res = await fetch(`${checkoutBase}/check-units/checkout`, {
+      const res = await fetch(`${checkoutBase}/api-checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1521,7 +1521,6 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
 
 
 

@@ -28,6 +28,21 @@ for = "/private/roadmap/*"
   X-Robots-Tag = "noindex, nofollow, noarchive"
   Cache-Control = "no-store"
 
+[[redirects]]
+from = "/api/availability"
+to = "/.netlify/functions/api-availability"
+status = 200
+
+[[redirects]]
+from = "/api/checkout"
+to = "/.netlify/functions/api-checkout"
+status = 200
+
+[[redirects]]
+from = "/api/webhook"
+to = "/.netlify/functions/api-webhook"
+status = 200
+
 # SPA fallback - KEEP THIS
 [[redirects]]
 from = "/*"

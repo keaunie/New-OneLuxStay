@@ -2570,6 +2570,20 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       : [];
     return [...new Set(amenityListRaw.filter((item) => typeof item === "string"))];
   }, [activeListing]);
+  const activeAmenityGroups = useMemo(
+    () => groupAmenities(activeAmenityList),
+    [activeAmenityList],
+  );
+  const hasCollapsedAmenities = useMemo(
+    () =>
+      activeAmenityGroups.length > 6 ||
+      activeAmenityGroups.some((group) => group.items.length > 4),
+    [activeAmenityGroups],
+  );
+  const visibleAmenityGroups = useMemo(
+    () => (showAllAmenities ? activeAmenityGroups : activeAmenityGroups.slice(0, 6)),
+    [activeAmenityGroups, showAllAmenities],
+  );
 
   const activeAboutText = useMemo(() => {
     if (!activeListing) return "";
@@ -4781,7 +4795,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       const checkoutEndpoint =
         numericAmount <= 0
           ? `${apiBase}/check-units/checkout-free`
-          : `${apiBase}/check-units/checkout`;
+          : `${apiBase}/api-checkout`;
       const res = await fetch(checkoutEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -6072,17 +6086,17 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
         <div className="la-unit-modal__facilities">
-          {activeListing?.amenities?.length ? (
+          {activeAmenityList.length ? (
             <div className="la-facilities-layout">
               <div className="la-facilities-grid">
-                {groupAmenities(activeListing.amenities).map((group) => (
+                {visibleAmenityGroups.map((group) => (
                   <div key={group.key} className="la-facilities-group">
                     <div className="la-facilities-group__head">
                       <span className="la-facilities-group__icon">{"\u2713"}</span>
                       <h5>{group.label}</h5>
                     </div>
                     <ul>
-                      {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
+                      {(showAllAmenities ? group.items : group.items.slice(0, 4)).map((item, idx) => (
                         <li key={`${group.key}-${idx}-${item}`}>{item}</li>
                       ))}
                     </ul>
@@ -6093,13 +6107,15 @@ const applyCheckoutPromoCode = () => {
                 <a className="la-facilities-cta" href="#la-rooms">
                   See availability
                 </a>
-                <button
-                  type="button"
-                  className="la-unit-modal__amenities-toggle"
-                  onClick={() => setShowAllAmenities((prev) => !prev)}
-                >
-                  {showAllAmenities ? "See less" : "See more"}
-                </button>
+                {hasCollapsedAmenities && (
+                  <button
+                    type="button"
+                    className="la-unit-modal__amenities-toggle"
+                    onClick={() => setShowAllAmenities((prev) => !prev)}
+                  >
+                    {showAllAmenities ? "See less" : "See more"}
+                  </button>
+                )}
               </div>
             </div>
           ) : (
