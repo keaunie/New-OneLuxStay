@@ -230,6 +230,8 @@ const enumerateDateRange = (start, end) => {
 const getCalendarEntryId = (entry) =>
   entry?.listingId || entry?.id || entry?._id || null;
 
+const toLookupKey = (value) => (value === null || value === undefined ? "" : String(value));
+
 const getCalendarDayKey = (day) =>
   day?.date ||
   day?.dateLocalized ||
@@ -245,9 +247,21 @@ const isCalendarDayAvailable = (day) => {
   return false;
 };
 
+const hasCalendarDayAvailabilitySignal = (day) =>
+  Boolean(
+    typeof day?.allotment === "number" ||
+    typeof day?.available === "boolean" ||
+    typeof day?.isAvailable === "boolean" ||
+    typeof day?.status === "string"
+  );
+
 const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
   const date = getCalendarDayKey(day);
   if (!date) return null;
+  const closedToArrivalValue =
+    day?.closedToArrival ?? day?.cta ?? day?.restrictions?.cta;
+  const closedToDepartureValue =
+    day?.closedToDeparture ?? day?.ctd ?? day?.restrictions?.ctd;
   const price = firstNumber(
     day?.price,
     day?.nightlyPrice,
@@ -284,17 +298,211 @@ const normalizeCalendarDayForUi = (day, fallbackCurrency) => {
     day?.restrictions?.maxNights,
     day?.restrictions?.maxStay
   );
+  const hasAvailabilitySignal = hasCalendarDayAvailabilitySignal(day);
   return {
     date,
     price,
     currency,
+    available: hasAvailabilitySignal ? isCalendarDayAvailable(day) : null,
     restrictions: {
       minNights,
       maxNights,
-      closedToArrival: Boolean(day?.closedToArrival ?? day?.cta ?? day?.restrictions?.cta),
-      closedToDeparture: Boolean(day?.closedToDeparture ?? day?.ctd ?? day?.restrictions?.ctd),
+      closedToArrival:
+        typeof closedToArrivalValue === "boolean" ? closedToArrivalValue : null,
+      closedToDeparture:
+        typeof closedToDepartureValue === "boolean" ? closedToDepartureValue : null,
     },
   };
+};
+
+const mergeCalendarDay = (existingDay = {}, incomingDay = {}) => {
+  const existingRestrictions = existingDay?.restrictions || {};
+  const incomingRestrictions = incomingDay?.restrictions || {};
+  return {
+    ...existingDay,
+    ...incomingDay,
+    date: incomingDay?.date || existingDay?.date || null,
+    price:
+      typeof incomingDay?.price === "number"
+        ? incomingDay.price
+        : existingDay?.price ?? null,
+    currency: incomingDay?.currency || existingDay?.currency || null,
+    available:
+      typeof incomingDay?.available === "boolean"
+        ? incomingDay.available
+        : typeof existingDay?.available === "boolean"
+          ? existingDay.available
+          : null,
+    restrictions: {
+      ...existingRestrictions,
+      ...incomingRestrictions,
+      minNights: incomingRestrictions?.minNights ?? existingRestrictions?.minNights ?? null,
+      maxNights: incomingRestrictions?.maxNights ?? existingRestrictions?.maxNights ?? null,
+      closedToArrival:
+        typeof incomingRestrictions?.closedToArrival === "boolean"
+          ? incomingRestrictions.closedToArrival
+          : typeof existingRestrictions?.closedToArrival === "boolean"
+            ? existingRestrictions.closedToArrival
+            : null,
+      closedToDeparture:
+        typeof incomingRestrictions?.closedToDeparture === "boolean"
+          ? incomingRestrictions.closedToDeparture
+          : typeof existingRestrictions?.closedToDeparture === "boolean"
+            ? existingRestrictions.closedToDeparture
+            : null,
+    },
+  };
+};
+
+const getCalendarEntries = (payload) =>
+  Array.isArray(payload?.calendars)
+    ? payload.calendars
+    : Array.isArray(payload?.listings)
+      ? payload.listings
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.results) && payload.results.some((item) => item?.days || item?.calendar)
+          ? payload.results
+          : [];
+
+const getCalendarEntryDays = (entry) => {
+  if (!entry) return [];
+  if (Array.isArray(entry?.days)) return entry.days;
+  if (Array.isArray(entry?.calendar)) return entry.calendar;
+  if (Array.isArray(entry?.data)) return entry.data;
+  return [];
+};
+
+const getCalendarLookupIdsForListings = (listings = []) => {
+  const childIds = listings
+    .filter((listing) => isChildListing(listing))
+    .map((listing) => listing?.id || listing?._id || listing?.unitTypeId)
+    .map(toLookupKey)
+    .filter(Boolean);
+  if (childIds.length) return [...new Set(childIds)];
+  return [
+    ...new Set(
+      listings
+        .map((listing) => listing?.id || listing?._id || listing?.unitTypeId)
+        .map(toLookupKey)
+        .filter(Boolean)
+    ),
+  ];
+};
+
+const getListingCurrencyLookup = (listings = []) => {
+  const lookup = {};
+  listings.forEach((listing) => {
+    const currency = listing?.currency || listing?.prices?.currency || null;
+    if (!currency) return;
+    [listing?.id, listing?._id, listing?.unitTypeId].forEach((idValue) => {
+      const key = toLookupKey(idValue);
+      if (key && !lookup[key]) lookup[key] = currency;
+    });
+  });
+  return lookup;
+};
+
+const buildNormalizedCalendarDaysByListing = (
+  payload,
+  listingIds = [],
+  fallbackCurrencyByListingId = {}
+) => {
+  if (!payload || !Array.isArray(listingIds) || !listingIds.length) return {};
+  const normalizedCalendars =
+    payload?.normalizedCalendars && typeof payload.normalizedCalendars === "object"
+      ? payload.normalizedCalendars
+      : {};
+  const rawPayloadDays = Array.isArray(payload?.data?.days) ? payload.data.days : [];
+  const payloadDaysByListingId = {};
+  rawPayloadDays.forEach((day) => {
+    const dayListingId = toLookupKey(
+      day?.listingId || day?.listing?._id || day?.listing?.id || day?.id || day?._id
+    );
+    if (!dayListingId) return;
+    if (!payloadDaysByListingId[dayListingId]) payloadDaysByListingId[dayListingId] = [];
+    payloadDaysByListingId[dayListingId].push(day);
+  });
+  const entries = getCalendarEntries(payload);
+  const entryMap = new Map();
+  entries.forEach((entry) => {
+    const entryId = toLookupKey(getCalendarEntryId(entry));
+    if (entryId) entryMap.set(entryId, entry);
+  });
+  const normalizedIds = [...new Set(listingIds.map(toLookupKey).filter(Boolean))];
+  const daysByListing = {};
+  normalizedIds.forEach((listingId, index) => {
+    let rawDays = [];
+    if (Array.isArray(normalizedCalendars?.[listingId])) {
+      rawDays = normalizedCalendars[listingId];
+    } else {
+      const entry = entryMap.get(listingId);
+      if (entry) {
+        rawDays = getCalendarEntryDays(entry);
+      } else if (Array.isArray(payloadDaysByListingId[listingId])) {
+        rawDays = payloadDaysByListingId[listingId];
+      } else if (normalizedIds.length === 1 && Array.isArray(payload?.data?.days)) {
+        rawDays = payload.data.days;
+      }
+    }
+    const fallbackCurrency =
+      fallbackCurrencyByListingId[listingId] ||
+      fallbackCurrencyByListingId[toLookupKey(listingIds[index])] ||
+      null;
+    daysByListing[listingId] = rawDays
+      .map((day) => normalizeCalendarDayForUi(day, fallbackCurrency))
+      .filter(Boolean);
+  });
+  return daysByListing;
+};
+
+const buildDateAvailabilityMapFromCalendars = (daysByListing = {}) => {
+  const aggregate = {};
+  Object.values(daysByListing).forEach((days) => {
+    if (!Array.isArray(days)) return;
+    days.forEach((day) => {
+      if (!day?.date) return;
+      if (!aggregate[day.date]) {
+        aggregate[day.date] = { hasSignal: false, anyAvailable: false };
+      }
+      if (typeof day.available === "boolean") {
+        aggregate[day.date].hasSignal = true;
+        if (day.available) aggregate[day.date].anyAvailable = true;
+      }
+    });
+  });
+  const availabilityByDate = {};
+  Object.entries(aggregate).forEach(([date, info]) => {
+    if (info.hasSignal) availabilityByDate[date] = info.anyAvailable;
+  });
+  return availabilityByDate;
+};
+
+const selectPreferredCalendarDay = (currentDay = null, candidateDay = null) => {
+  if (!candidateDay?.date) return currentDay;
+  if (!currentDay?.date) return candidateDay;
+  const currentPrice = toNumber(currentDay?.price);
+  const candidatePrice = toNumber(candidateDay?.price);
+  if (Number.isFinite(candidatePrice) && Number.isFinite(currentPrice)) {
+    return candidatePrice < currentPrice ? candidateDay : currentDay;
+  }
+  if (Number.isFinite(candidatePrice) && !Number.isFinite(currentPrice)) return candidateDay;
+  if (!Number.isFinite(candidatePrice) && Number.isFinite(currentPrice)) return currentDay;
+  return currentDay;
+};
+
+const buildLowestPriceCalendarByDate = (daysByListing = {}) => {
+  const dayMap = {};
+  Object.values(daysByListing).forEach((days) => {
+    if (!Array.isArray(days)) return;
+    days.forEach((day) => {
+      if (!day?.date) return;
+      if (day?.available === false) return;
+      const existing = dayMap[day.date] || null;
+      dayMap[day.date] = selectPreferredCalendarDay(existing, day);
+    });
+  });
+  return dayMap;
 };
 
 const getListingId = (listing) => listing?.id || listing?._id || null;
@@ -314,6 +522,13 @@ const getPrimaryListingId = (listings = []) => {
   return listings
     .map((listing) => listing.unitTypeId || listing.id || listing._id)
     .find(Boolean);
+};
+
+const getSectionCalendarKey = (section, listings = []) => {
+  const sectionKey = section?.key ? String(section.key) : "";
+  if (sectionKey) return `section:${sectionKey}`;
+  const primaryId = toLookupKey(getPrimaryListingId(listings));
+  return primaryId || "";
 };
 
 const getListingGroupKey = (listing) => {
@@ -416,11 +631,19 @@ const hasMonthData = (daysMap = {}, targetDate) => {
   return Object.values(daysMap).some((day) => day?.date?.startsWith(prefix));
 };
 
+const countMonthCalendarDays = (daysMap = {}, targetDate) => {
+  const prefix = monthKey(targetDate);
+  return Object.values(daysMap).filter((day) => day?.date?.startsWith(prefix)).length;
+};
+
 const addMonths = (date, count) => {
   const next = new Date(date);
   next.setMonth(next.getMonth() + count);
   return next;
 };
+
+const isDesktopCalendarViewport = () =>
+  typeof window !== "undefined" && window.innerWidth > 640;
 
 const buildCalendarPayload = (daysMap = {}) => {
   const days = Object.values(daysMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -490,6 +713,7 @@ const DateRangePicker = ({
   value,
   onChange,
   dayPrices,
+  dayAvailability,
   onMonthChange,
   onOpenChange,
   onValidationChange,
@@ -498,6 +722,7 @@ const DateRangePicker = ({
   fallbackCurrency,
   fallbackMinNights,
   showMinNights = true,
+  dropdownClassName = "",
 }) => {
   const [open, setOpen] = useState(false);
   const setOpenState = (nextOpen) => {
@@ -580,8 +805,24 @@ const DateRangePicker = ({
     return isSameDay(day, startDate);
   };
 
+  const getDayAvailability = (isoDate, priceInfo = null) => {
+    if (!isoDate) return null;
+    if (dayAvailability instanceof Map && dayAvailability.has(isoDate)) {
+      const value = dayAvailability.get(isoDate);
+      if (typeof value === "boolean") return value;
+    }
+    if (priceInfo && typeof priceInfo.available === "boolean") {
+      return priceInfo.available;
+    }
+    return null;
+  };
+
   const handleDayClick = (day) => {
     if (!day || day < today) return;
+    const iso = toISODate(day);
+    const priceInfo = dayPrices?.get(iso) || null;
+    const dayAvailable = getDayAvailability(iso, priceInfo);
+    if (dayAvailable === false) return;
     let nextStart = startDate;
     let nextEnd = endDate;
     if (!startDate || (startDate && endDate)) {
@@ -700,7 +941,9 @@ const DateRangePicker = ({
           aria-modal="true"
           aria-label="Choose dates"
           aria-describedby={dialogHelpId}
-          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}${isLoading ? " is-loading" : ""}`}
+          className={`listing-date-dropdown${dayPrices ? " has-prices" : ""}${isLoading ? " is-loading" : ""}${
+            dropdownClassName ? ` ${dropdownClassName}` : ""
+          }`}
         >
           <p id={dialogHelpId} className="sr-only">
             Select a check-in date and a check-out date. Use the previous and next buttons to change months.
@@ -759,24 +1002,43 @@ const DateRangePicker = ({
                   </div>
                   <div className="la-date-days" role="grid">
                     {monthObj.cells.map((day, idx) => {
-                      const disabled = !day || day < today;
+                      const isoDate = day ? toISODate(day) : "";
+                      const priceInfo = dayPrices && day ? dayPrices.get(isoDate) : null;
+                      const hasCalendarPricing =
+                        dayPrices instanceof Map && dayPrices.size > 0;
+                      const hasAvailabilityMap =
+                        dayAvailability instanceof Map && dayAvailability.size > 0;
+                      const dayAvailable = day ? getDayAvailability(isoDate, priceInfo) : null;
+                      const isUnavailable = Boolean(
+                        day &&
+                        (
+                          dayAvailable === false ||
+                          ((hasAvailabilityMap || hasCalendarPricing) && !priceInfo && dayAvailable !== true)
+                        )
+                      );
+                      const disabled = !day || day < today || isUnavailable;
                       const isPast = Boolean(day && day < today);
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
                       const between = inRange(day) && !selected;
-                      const isoDate = day ? toISODate(day) : "";
-                      const priceInfo = dayPrices && day ? dayPrices.get(isoDate) : null;
-                      const priceLabel = !isPast
+                      const priceLabel = !isPast && !isUnavailable
                         ? priceInfo
                           ? formatCalendarPrice(priceInfo.price, priceInfo.currency)
-                          : typeof fallbackPrice === "number"
+                          : !hasCalendarPricing && typeof fallbackPrice === "number"
                             ? formatCalendarPrice(fallbackPrice, fallbackCurrency)
                             : ""
                         : "";
-                      const isFallbackPrice = !priceInfo && typeof fallbackPrice === "number";
+                      const isFallbackPrice =
+                        !priceInfo &&
+                        !hasCalendarPricing &&
+                        typeof fallbackPrice === "number";
                       const minNights = normalizeMinNights(
-                        priceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null
+                        priceInfo?.restrictions?.minNights ??
+                          (!hasCalendarPricing ? fallbackMinNights : null)
                       );
-                      const showMinNightsCell = showMinNights && minNights > 1;
+                      const showMinNightsCell =
+                        showMinNights &&
+                        !isUnavailable &&
+                        minNights > 1;
                       const dayLabel = day
                         ? day.toLocaleDateString(undefined, {
                           weekday: "long",
@@ -785,7 +1047,11 @@ const DateRangePicker = ({
                           year: "numeric",
                         })
                         : "";
-                      const dayAria = priceLabel ? `${dayLabel}. ${priceLabel} per night.` : dayLabel;
+                      const dayAria = isUnavailable
+                        ? `${dayLabel}. Unavailable.`
+                        : priceLabel
+                          ? `${dayLabel}. ${priceLabel} per night.`
+                          : dayLabel;
                       const stateClass = disabled
                         ? "is-disabled"
                         : selected
@@ -2236,6 +2502,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   });
   const sectionCalendarCacheRef = useRef({});
   const sectionCalendarDaysRef = useRef({});
+  const sectionCalendarAvailabilityRef = useRef({});
+  const [sectionCalendarAvailability, setSectionCalendarAvailability] = useState({});
   const [isSectionCalendarOpen, setIsSectionCalendarOpen] = useState(false);
   const sectionCalendarInflightRef = useRef({});
   const [tourCity, setTourCity] = useState("Hollywood");
@@ -2350,6 +2618,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return new Map(sectionCalendarPrices.days.map((day) => [day.date, day]));
   }, [sectionCalendarPrices]);
 
+  const sectionCalendarAvailabilityMap = useMemo(
+    () => new Map(Object.entries(sectionCalendarAvailability || {})),
+    [sectionCalendarAvailability]
+  );
+
   const sectionCalendarCurrentMonth = useMemo(() => {
     const base = new Date(sectionCalendarStartDate);
     base.setMonth(base.getMonth() + sectionCalendarMonthIndex);
@@ -2444,7 +2717,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   useEffect(() => {
     if (!activeListing) return;
-    const listingId = activeListing.unitTypeId || activeListing.id || activeListing._id;
+    const listingId = getCalendarListingId(activeListing, losAngelesListings);
     if (!listingId) return;
     const start = new Date();
     start.setDate(1);
@@ -2489,6 +2762,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionCalendarError("");
       setSectionCalendarMonthIndex(0);
       setSectionCalendarMinNightsOverride(null);
+      setSectionCalendarAvailability({});
       setIsReviewExpanded(false);
       setShowAllAmenities(false);
     }
@@ -3525,7 +3799,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (!daysRef.current) daysRef.current = {};
     if (!inflightRef.current) inflightRef.current = {};
     const key = `${listingId}-${monthKey(targetDate)}`;
-    if (cacheRef.current[key]) return;
+    if (cacheRef.current[key]) {
+      const cachedDays = daysRef.current[listingId] || {};
+      if (countMonthCalendarDays(cachedDays, targetDate) < 20) {
+        fetchCalendarMinNightsFromMulti(listingId, targetDate);
+      }
+      return;
+    }
     if (calendarGlobalCacheRef.current[key]) {
       cacheRef.current[key] = true;
       const sharedDays = calendarGlobalDaysRef.current[listingId];
@@ -3552,6 +3832,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         ...existingDays,
       };
       setPrices(buildCalendarPayload(existingDays));
+      if (countMonthCalendarDays(existingDays, targetDate) < 20) {
+        fetchCalendarMinNightsFromMulti(listingId, targetDate);
+      }
       inflightRef.current[key] = false;
       calendarGlobalInflightRef.current[key] = false;
       return;
@@ -3621,13 +3904,42 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   const fetchCalendarMinNightsFromMulti = async (listingId, targetDate) => {
     const key = `${listingId}-${monthKey(targetDate)}`;
-    if (calendarMinNightsCacheRef.current[key]) return;
+    const existingMap = calendarDaysRef.current[listingId] || {};
+    const existingMonthDays = countMonthCalendarDays(existingMap, targetDate);
+    if (calendarMinNightsCacheRef.current[key] && existingMonthDays >= 20) return;
     calendarMinNightsCacheRef.current[key] = true;
     try {
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
       const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 12, 1);
+      const listingKey = toLookupKey(listingId);
+      const activeListingCalendarId = toLookupKey(
+        getCalendarListingId(activeListing, losAngelesListings)
+      );
+      const baseListing =
+        activeListing && activeListingCalendarId === listingKey
+          ? activeListing
+          : losAngelesListings.find((listing) => {
+            const ids = [listing?.id, listing?._id, listing?.unitTypeId]
+              .map(toLookupKey)
+              .filter(Boolean);
+            return ids.includes(listingKey);
+          }) || null;
+      const listingGroupKey = getListingGroupKey(baseListing);
+      const listingPool =
+        listingGroupKey
+          ? losAngelesListings.filter(
+            (listing) => getListingGroupKey(listing) === listingGroupKey
+          )
+          : baseListing
+            ? [baseListing]
+            : [];
+      const groupedListingIds = getCalendarLookupIdsForListings(listingPool);
+      const calendarListingIds = groupedListingIds.length
+        ? groupedListingIds
+        : [listingKey].filter(Boolean);
+      if (!calendarListingIds.length) return;
       const qs = new URLSearchParams({
-        listingIds: listingId,
+        listingIds: calendarListingIds.join(","),
         startDate: toISODate(monthStart),
         endDate: toISODate(monthEnd),
         includeAllotment: "true",
@@ -3637,28 +3949,22 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       if (!res.ok) return;
       const data = await res.json();
-      let days = null;
-      if (data?.normalizedCalendars?.[listingId]) {
-        days = data.normalizedCalendars[listingId];
-      } else {
-        const calendarEntries = Array.isArray(data?.calendars)
-          ? data.calendars
-          : Array.isArray(data?.listings)
-            ? data.listings
-            : Array.isArray(data?.data)
-              ? data.data
-              : [];
-        const entry = calendarEntries.find((item) => getCalendarEntryId(item) === listingId);
-        if (entry) {
-          const rawDays = entry?.days || entry?.calendar || entry?.data || [];
-          days = rawDays
-            .map((day) => normalizeCalendarDayForUi(day, entry?.currency))
-            .filter(Boolean);
-        }
+      const currencyByListingId = getListingCurrencyLookup(listingPool);
+      const daysByListing = buildNormalizedCalendarDaysByListing(
+        data,
+        calendarListingIds,
+        currencyByListingId
+      );
+      let normalizedDays = Object.values(buildLowestPriceCalendarByDate(daysByListing));
+      if (!normalizedDays.length && Array.isArray(daysByListing[listingKey])) {
+        normalizedDays = daysByListing[listingKey];
       }
-      const normalizedDays = Array.isArray(days)
-        ? days.map((day) => normalizeCalendarDayForUi(day, null)).filter(Boolean)
-        : [];
+      if (!normalizedDays.length) {
+        const fallbackListingId = calendarListingIds.find(
+          (id) => Array.isArray(daysByListing[id]) && daysByListing[id].length
+        );
+        normalizedDays = fallbackListingId ? daysByListing[fallbackListingId] : [];
+      }
       const minNights = extractMinNightsFromDays(normalizedDays);
       if (typeof minNights === "number") {
         setCalendarMinNightsOverride(minNights);
@@ -3670,20 +3976,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         const map = calendarDaysRef.current[listingId];
         normalizedDays.forEach((day) => {
           if (!day?.date) return;
-          const existing = map[day.date] || {};
-          map[day.date] = {
-            ...existing,
-            date: day.date,
-            price: typeof day.price === "number" ? day.price : existing.price ?? null,
-            currency: day.currency || existing.currency || null,
-            restrictions: {
-              ...existing.restrictions,
-              minNights: day?.restrictions?.minNights ?? existing?.restrictions?.minNights ?? null,
-              maxNights: day?.restrictions?.maxNights ?? existing?.restrictions?.maxNights ?? null,
-              closedToArrival: day?.restrictions?.closedToArrival ?? existing?.restrictions?.closedToArrival ?? false,
-              closedToDeparture: day?.restrictions?.closedToDeparture ?? existing?.restrictions?.closedToDeparture ?? false,
-            },
-          };
+          map[day.date] = mergeCalendarDay(map[day.date], day);
         });
         calendarGlobalDaysRef.current[listingId] = {
           ...(calendarGlobalDaysRef.current[listingId] || {}),
@@ -3696,12 +3989,25 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
   };
 
-  const fetchSectionCalendarMultiMonth = async (listingIds, targetDate) => {
-    if (!listingIds.length) return;
-    const primaryId = getPrimaryListingId(activeSection?.listings || []);
-    if (!primaryId) return;
-    const key = `${primaryId}-${monthKey(targetDate)}`;
-    if (sectionCalendarCacheRef.current[key]) return;
+  const fetchSectionCalendarMultiMonth = async (listingIds, targetDate, { force = false } = {}) => {
+    const normalizedListingIds = [...new Set((listingIds || []).map(toLookupKey).filter(Boolean))];
+    if (!normalizedListingIds.length) return;
+    const primaryId =
+      toLookupKey(getPrimaryListingId(activeSection?.listings || [])) || normalizedListingIds[0];
+    const sectionCalendarKey = getSectionCalendarKey(activeSection, activeSection?.listings || []);
+    const cacheKeyBase = sectionCalendarKey || primaryId;
+    if (!cacheKeyBase) return;
+    const key = `${cacheKeyBase}-${monthKey(targetDate)}`;
+    if (!force && sectionCalendarCacheRef.current[key]) {
+      const cachedDays = sectionCalendarDaysRef.current[cacheKeyBase];
+      if (cachedDays && Object.keys(cachedDays).length) {
+        setSectionCalendarPrices(buildCalendarPayload(cachedDays));
+        setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {});
+        return;
+      }
+      delete sectionCalendarCacheRef.current[key];
+      setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {});
+    }
 
     setSectionCalendarLoading(true);
     setSectionCalendarError("");
@@ -3709,10 +4015,20 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     try {
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
       const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 12, 1);
+      const calendarListingIds = normalizedListingIds;
+      if (!calendarListingIds.length) {
+        setSectionCalendarAvailability({});
+        return;
+      }
+      const currencyByListingId = getListingCurrencyLookup(activeSection?.listings || []);
       const pricingListing = getLowestPriceListing(activeSection?.listings || []);
-      const pricingListingId = getListingId(pricingListing) || listingIds[0];
+      const pricingListingIdCandidates = [
+        toLookupKey(getListingId(pricingListing)),
+        toLookupKey(pricingListing?.unitTypeId),
+        calendarListingIds[0],
+      ].filter(Boolean);
       const qs = new URLSearchParams({
-        listingIds: pricingListingId,
+        listingIds: calendarListingIds.join(","),
         startDate: toISODate(monthStart),
         endDate: toISODate(monthEnd),
         includeAllotment: "true",
@@ -3726,44 +4042,63 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         throw new Error(data?.message || "Calendar pricing failed");
       }
 
-      const calendarEntries = Array.isArray(data?.calendars)
-        ? data.calendars
-        : Array.isArray(data?.listings)
-          ? data.listings
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
-      const currencyFallback =
-        pricingListing?.currency || activeSection?.listings?.[0]?.currency || "USD";
-      let days = [];
-
-      if (data?.normalizedCalendars?.[pricingListingId]) {
-        days = data.normalizedCalendars[pricingListingId];
-      } else if (Array.isArray(data?.data?.days)) {
-        days = data.data.days;
-      } else {
-        const entry = calendarEntries.find(
-          (item) => getCalendarEntryId(item) === pricingListingId
+      const daysByListing = buildNormalizedCalendarDaysByListing(
+        data,
+        calendarListingIds,
+        currencyByListingId
+      );
+      const availabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
+      let pricingDays = Object.values(buildLowestPriceCalendarByDate(daysByListing));
+      if (!pricingDays.length) {
+        pricingListingIdCandidates.some((candidateId) => {
+          const days = daysByListing[candidateId];
+          if (Array.isArray(days) && days.length) {
+            pricingDays = days;
+            return true;
+          }
+          return false;
+        });
+      }
+      if (!pricingDays.length) {
+        const fallbackPricingId = calendarListingIds.find(
+          (id) => Array.isArray(daysByListing[id]) && daysByListing[id].length
         );
-        if (entry) {
-          days = entry?.days || entry?.calendar || entry?.data || [];
-        }
+        pricingDays = fallbackPricingId ? daysByListing[fallbackPricingId] : [];
       }
 
+      const existingDayMap = sectionCalendarDaysRef.current[cacheKeyBase] || {};
       const dayMap = {};
-      days
-        .map((day) => normalizeCalendarDayForUi(day, currencyFallback))
-        .filter(Boolean)
-        .forEach((day) => {
-          dayMap[day.date] = day;
-        });
+      pricingDays.forEach((day) => {
+        if (!day?.date) return;
+        dayMap[day.date] = mergeCalendarDay(existingDayMap[day.date], day);
+      });
 
-      sectionCalendarDaysRef.current[primaryId] = dayMap;
-      sectionCalendarCacheRef.current[key] = true;
-      setSectionCalendarPrices(buildCalendarPayload(dayMap));
-      const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
-      if (typeof minNightsOverride === "number") {
-        setSectionCalendarMinNightsOverride(minNightsOverride);
+      if (Object.keys(dayMap).length) {
+        const mergedDays = {
+          ...existingDayMap,
+          ...dayMap,
+        };
+        sectionCalendarDaysRef.current[cacheKeyBase] = mergedDays;
+        if (primaryId && primaryId !== cacheKeyBase) {
+          sectionCalendarDaysRef.current[primaryId] = mergedDays;
+        }
+        setSectionCalendarPrices(buildCalendarPayload(mergedDays));
+        const minNightsOverride = extractMinNightsFromDays(Object.values(mergedDays));
+        if (typeof minNightsOverride === "number") {
+          setSectionCalendarMinNightsOverride(minNightsOverride);
+        }
+      }
+      const mergedAvailability = {
+        ...(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {}),
+        ...availabilityByDate,
+      };
+      sectionCalendarAvailabilityRef.current[cacheKeyBase] = mergedAvailability;
+      if (primaryId && primaryId !== cacheKeyBase) {
+        sectionCalendarAvailabilityRef.current[primaryId] = mergedAvailability;
+      }
+      setSectionCalendarAvailability(mergedAvailability);
+      if (Object.keys(dayMap).length || Object.keys(availabilityByDate).length) {
+        sectionCalendarCacheRef.current[key] = true;
       }
     } catch (err) {
       setSectionCalendarError(err?.message || "Calendar pricing is unavailable.");
@@ -3779,11 +4114,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     baseDate.setDate(1);
     baseDate.setHours(0, 0, 0, 0);
     setSectionCalendarStartDate(baseDate);
-    const listingIds = activeSection.listings
-      .map((listing) => listing.id || listing._id)
-      .filter(Boolean);
+    const listingIds = getCalendarLookupIdsForListings(activeSection.listings || []);
     if (!listingIds.length) return;
-    fetchSectionCalendarMultiMonth(listingIds, baseDate);
+    fetchSectionCalendarMultiMonth(listingIds, baseDate, { force: true });
   };
 
   const handleListingCalendarOpen = (open) => {
@@ -3796,16 +4129,25 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setCalendarMonthIndex(0);
     const listingId = getCalendarListingId(activeListing, losAngelesListings);
     if (!listingId) return;
-    fetchCalendarMonth(
-      listingId,
-      baseDate,
-      calendarCacheRef,
-      calendarDaysRef,
-      calendarInflightRef,
-      setCalendarLoading,
-      setCalendarError,
-      setCalendarPrices
-    );
+    const loadMonth = (targetMonth) => {
+      fetchCalendarMonth(
+        listingId,
+        targetMonth,
+        calendarCacheRef,
+        calendarDaysRef,
+        calendarInflightRef,
+        setCalendarLoading,
+        setCalendarError,
+        setCalendarPrices
+      );
+    };
+    loadMonth(baseDate);
+    if (isDesktopCalendarViewport()) {
+      const nextVisibleMonth = addMonths(baseDate, 1);
+      nextVisibleMonth.setDate(1);
+      nextVisibleMonth.setHours(0, 0, 0, 0);
+      loadMonth(nextVisibleMonth);
+    }
   };
 
   const openInquiry = (listing) => {
@@ -3838,23 +4180,28 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   useEffect(() => {
     if (!activeSection) return;
-    const listingId =
-      activeSection.listings[0]?.unitTypeId ||
-      activeSection.listings[0]?.id ||
-      activeSection.listings[0]?._id;
-    if (!listingId) return;
+    const listingId = toLookupKey(getPrimaryListingId(activeSection.listings || []));
+    const sectionKey = getSectionCalendarKey(activeSection, activeSection.listings || []);
+    const cacheKeyBase = sectionKey || listingId;
+    if (!cacheKeyBase) {
+      setSectionCalendarAvailability({});
+      return;
+    }
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
     setSectionCalendarStartDate(start);
     setSectionCalendarMonthIndex(0);
-    const cachedDays = sectionCalendarDaysRef.current[listingId];
-    if (cachedDays) {
+    const cachedDays = sectionCalendarDaysRef.current[cacheKeyBase];
+    if (cachedDays && Object.keys(cachedDays).length) {
       setSectionCalendarPrices(buildCalendarPayload(cachedDays));
       setSectionCalendarError("");
     } else {
-      setSectionCalendarPrices(null);
+      setSectionCalendarPrices((current) =>
+        Array.isArray(current?.days) && current.days.length ? current : null
+      );
     }
+    setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {});
   }, [activeSection]);
 
   useEffect(() => {
@@ -4030,19 +4377,27 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   const fetchAvailabilityListings = async ({ listingIds, listingId, shouldScroll = false } = {}) => {
     if (!sectionCheckIn || !sectionCheckOut) {
+      setSectionQuotes({});
+      setSectionAvailabilityActive(false);
       setSectionAvailabilityError("Select check-in and check-out dates first.");
       return;
     }
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
     if (stayNights === 0) {
+      setSectionQuotes({});
+      setSectionAvailabilityActive(false);
       setSectionAvailabilityError("Please change the check-out date.");
       return;
     }
     if (stayNights > 0 && stayNights < requiredMinNightsForSelection) {
+      setSectionQuotes({});
+      setSectionAvailabilityActive(false);
       setSectionAvailabilityError(`Minimum stay is ${requiredMinNightsForSelection} nights.`);
       return;
     }
     if (sectionDateValidationError) {
+      setSectionQuotes({});
+      setSectionAvailabilityActive(false);
       setSectionAvailabilityError(sectionDateValidationError);
       return;
     }
@@ -4056,7 +4411,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setSectionAvailabilityLoading(true);
     setSectionAvailabilityError("");
     try {
-      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       let calendarMultiLoaded = false;
       const listingPool = (() => {
         if (activeSection?.listings?.length) {
@@ -4071,15 +4425,17 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       const childIds = listingPool
         .filter((listing) => isChildListing(listing))
         .map((listing) => listing.id || listing._id || listing.unitTypeId)
+        .map(toLookupKey)
         .filter(Boolean);
       if (!childIds.length && activeListing) {
         const fallbackId = activeListing.unitTypeId || activeListing.id || activeListing._id;
-        if (fallbackId) childIds.push(fallbackId);
+        const fallbackKey = toLookupKey(fallbackId);
+        if (fallbackKey) childIds.push(fallbackKey);
       }
       const itemsFromArg = Array.isArray(listingIds)
-        ? listingIds.filter((id) => childIds.includes(id))
+        ? listingIds.map(toLookupKey).filter((id) => childIds.includes(id))
         : [];
-      const items = (itemsFromArg.length ? itemsFromArg : childIds).filter(Boolean);
+      const items = (itemsFromArg.length ? itemsFromArg : childIds).map(toLookupKey).filter(Boolean);
       if (!items.length) {
         setSectionAvailabilityError("No units found for availability.");
         setSectionAvailabilityLoading(false);
@@ -4148,16 +4504,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         throw new Error(errText || "Availability failed");
       }
       const bulkJson = await bulkRes.json();
-      const normalizedCalendars = bulkJson?.normalizedCalendars || null;
-      const calendarEntries = Array.isArray(bulkJson?.calendars)
-        ? bulkJson.calendars
-        : Array.isArray(bulkJson?.listings)
-          ? bulkJson.listings
-          : Array.isArray(bulkJson?.data)
-            ? bulkJson.data
-            : Array.isArray(bulkJson?.results) && bulkJson.results.some((item) => item?.days || item?.calendar)
-              ? bulkJson.results
-              : [];
+      const lookupIds = [...new Set(items.map(toLookupKey).filter(Boolean))];
+      const currencyByListingId = getListingCurrencyLookup(listingPool);
+      const daysByListing = buildNormalizedCalendarDaysByListing(
+        bulkJson,
+        lookupIds,
+        currencyByListingId
+      );
+      const aggregatedCalendarAvailability = buildDateAvailabilityMapFromCalendars(daysByListing);
 
       // availability is driven by availability-query results (child-only)
 
@@ -4195,44 +4549,50 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionAvailabilityMap(parentAvailabilityMap);
       setSectionAvailabilityActive(true);
 
-      const calendarListingId = listingId || getPrimaryListingId(listingPool);
-      if (calendarListingId) {
-        if (normalizedCalendars?.[calendarListingId]) {
-          const dayMap = {};
-          normalizedCalendars[calendarListingId]
-            .map((day) => normalizeCalendarDayForUi(day, listingPool?.[0]?.currency))
-            .filter(Boolean)
-            .forEach((day) => {
-              dayMap[day.date] = day;
-            });
-          sectionCalendarDaysRef.current[calendarListingId] = dayMap;
-          setSectionCalendarPrices(buildCalendarPayload(dayMap));
-          calendarMultiLoaded = true;
-          const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
-          if (typeof minNightsOverride === "number") {
-            setSectionCalendarMinNightsOverride(minNightsOverride);
-          }
-        } else if (calendarEntries.length) {
-          const calendarEntry = calendarEntries.find(
-            (entry) => getCalendarEntryId(entry) === calendarListingId
-          );
-          if (calendarEntry) {
-            const days = calendarEntry?.days || calendarEntry?.calendar || calendarEntry?.data || [];
-            const dayMap = {};
-            days
-              .map((day) => normalizeCalendarDayForUi(day, activeSection?.listings?.[0]?.currency))
-              .filter(Boolean)
-              .forEach((day) => {
-                dayMap[day.date] = day;
-              });
-            sectionCalendarDaysRef.current[calendarListingId] = dayMap;
-            setSectionCalendarPrices(buildCalendarPayload(dayMap));
-            calendarMultiLoaded = true;
-            const minNightsOverride = extractMinNightsFromDays(Object.values(dayMap));
-            if (typeof minNightsOverride === "number") {
-              setSectionCalendarMinNightsOverride(minNightsOverride);
-            }
-          }
+      const calendarListingId = toLookupKey(listingId || getPrimaryListingId(listingPool));
+      const sectionCalendarId = toLookupKey(getPrimaryListingId(listingPool) || calendarListingId);
+      const sectionCalendarKey = getSectionCalendarKey(activeSection, listingPool) || sectionCalendarId;
+      if (sectionCalendarKey) {
+        const mergedAvailability = {
+          ...(sectionCalendarAvailabilityRef.current[sectionCalendarKey] || {}),
+          ...aggregatedCalendarAvailability,
+        };
+        sectionCalendarAvailabilityRef.current[sectionCalendarKey] = mergedAvailability;
+        if (sectionCalendarId && sectionCalendarId !== sectionCalendarKey) {
+          sectionCalendarAvailabilityRef.current[sectionCalendarId] = mergedAvailability;
+        }
+        setSectionCalendarAvailability(mergedAvailability);
+      }
+      const pricingCandidates = [calendarListingId, sectionCalendarId, ...lookupIds].filter(Boolean);
+      let days = Object.values(buildLowestPriceCalendarByDate(daysByListing));
+      let pricingCalendarId = null;
+      if (!days.length) {
+        pricingCalendarId =
+          pricingCandidates.find((id) => Array.isArray(daysByListing[id]) && daysByListing[id].length) ||
+          null;
+        days = pricingCalendarId ? (daysByListing[pricingCalendarId] || []) : [];
+      }
+      if (days.length) {
+        const sectionDayKey = sectionCalendarKey || sectionCalendarId || pricingCalendarId || calendarListingId;
+        const existingSectionDays = sectionCalendarDaysRef.current[sectionDayKey] || {};
+        const dayMap = {};
+        days.forEach((day) => {
+          if (!day?.date) return;
+          dayMap[day.date] = mergeCalendarDay(existingSectionDays[day.date], day);
+        });
+        const mergedDays = {
+          ...existingSectionDays,
+          ...dayMap,
+        };
+        sectionCalendarDaysRef.current[sectionDayKey] = mergedDays;
+        if (sectionCalendarId && sectionCalendarId !== sectionDayKey) {
+          sectionCalendarDaysRef.current[sectionCalendarId] = mergedDays;
+        }
+        setSectionCalendarPrices(buildCalendarPayload(mergedDays));
+        calendarMultiLoaded = true;
+        const minNightsOverride = extractMinNightsFromDays(Object.values(mergedDays));
+        if (typeof minNightsOverride === "number") {
+          setSectionCalendarMinNightsOverride(minNightsOverride);
         }
       }
 
@@ -4319,8 +4679,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (sectionCheckIn !== routeCheckIn || sectionCheckOut !== routeCheckOut) return;
     if ((sectionGuests || "2") !== routeGuests) return;
 
-    const listingIds = activeSection.listings.map((listing) => getListingId(listing)).filter(Boolean);
-    const listingId = getPrimaryListingId(activeSection.listings);
+    const listingIds = getCalendarLookupIdsForListings(activeSection.listings || []);
+    const listingId = toLookupKey(getPrimaryListingId(activeSection.listings || []));
     if (!listingIds.length) return;
 
     const key = [
@@ -5171,7 +5531,11 @@ const applyCheckoutPromoCode = () => {
               ? "Available"
               : "Checking..."
           : "Select dates";
-        const quote = listingId ? sectionQuotes[listingId] : null;
+        const canShowQuote =
+          sectionAvailabilityActive &&
+          !isStayTooShort &&
+          Boolean(sectionCheckIn && sectionCheckOut);
+        const quote = canShowQuote && listingId ? sectionQuotes[listingId] : null;
         const planOptions = quote?.plans || [];
         const selectedPlanId =
           (listingId ? selectedRatePlans[listingId] : "") ||
@@ -5323,16 +5687,25 @@ const applyCheckoutPromoCode = () => {
                       const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
                       setCalendarStartDate(monthStart);
                       setCalendarMonthIndex(0);
-                      fetchCalendarMonth(
-                        listingId,
-                        monthStart,
-                        calendarCacheRef,
-                        calendarDaysRef,
-                        calendarInflightRef,
-                        setCalendarLoading,
-                        setCalendarError,
-                        setCalendarPrices
-                      );
+                      const loadMonth = (targetMonth) => {
+                        fetchCalendarMonth(
+                          listingId,
+                          targetMonth,
+                          calendarCacheRef,
+                          calendarDaysRef,
+                          calendarInflightRef,
+                          setCalendarLoading,
+                          setCalendarError,
+                          setCalendarPrices
+                        );
+                      };
+                      loadMonth(monthStart);
+                      if (isDesktopCalendarViewport()) {
+                        const nextVisibleMonth = addMonths(monthStart, 1);
+                        nextVisibleMonth.setDate(1);
+                        nextVisibleMonth.setHours(0, 0, 0, 0);
+                        loadMonth(nextVisibleMonth);
+                      }
                     }}
                     onOpenChange={handleListingCalendarOpen}
                     isLoading={calendarLoading}
@@ -5490,8 +5863,10 @@ const applyCheckoutPromoCode = () => {
                       {availabilityStatus}
                     </span>
                   </div>
-                  <div className="la-unit-modal__availability-details">
-                    {availability === false ? (
+                <div className="la-unit-modal__availability-details">
+                    {isStayTooShort ? (
+                      <p>{stayTooShortMessage}</p>
+                    ) : availability === false ? (
                       <p>Unavailable for the selected dates.</p>
                     ) : breakdown ? (
                       <>
@@ -5533,7 +5908,7 @@ const applyCheckoutPromoCode = () => {
                       <p>Check availability to view pricing breakdown.</p>
                     )}
                   </div>
-                  {availability !== false && planOptions.length > 0 && (
+                  {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                     <div className="la-unit-modal__rate-plan">
                       <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
                       <select
@@ -6715,6 +7090,7 @@ const applyCheckoutPromoCode = () => {
             <DateRangePicker
               value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
               onValidationChange={handleSectionDateValidation}
+              dropdownClassName="city-search-date-dropdown"
               onChange={({ checkIn, checkOut }) => {
                 setSectionCheckIn(checkIn);
                 setSectionCheckOut(checkOut);
@@ -7447,6 +7823,7 @@ const applyCheckoutPromoCode = () => {
                     <DateRangePicker
                       value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                       dayPrices={sectionCalendarDayMap}
+                      dayAvailability={sectionCalendarAvailabilityMap}
                       onValidationChange={handleSectionDateValidation}
                       isLoading={sectionCalendarLoading}
                       fallbackPrice={fallbackListing?.basePrice}
@@ -8051,7 +8428,11 @@ const applyCheckoutPromoCode = () => {
                     ? "Available"
                     : "Checking..."
                 : "Select dates";
-              const quote = listingId ? sectionQuotes[listingId] : null;
+              const canShowQuote =
+                sectionAvailabilityActive &&
+                !isStayTooShort &&
+                Boolean(sectionCheckIn && sectionCheckOut);
+              const quote = canShowQuote && listingId ? sectionQuotes[listingId] : null;
               const planOptions = quote?.plans || [];
               const selectedPlanId =
                 (listingId ? selectedRatePlans[listingId] : "") ||
@@ -8215,7 +8596,9 @@ const applyCheckoutPromoCode = () => {
                         </span>
                       </div>
                       <div className="la-unit-modal__availability-details">
-                        {availability === false ? (
+                        {isStayTooShort ? (
+                          <p>{stayTooShortMessage}</p>
+                        ) : availability === false ? (
                           <p>Unavailable for the selected dates.</p>
                         ) : breakdown ? (
                           <>
@@ -8257,7 +8640,7 @@ const applyCheckoutPromoCode = () => {
                           <p>Check availability to view pricing breakdown.</p>
                         )}
                       </div>
-                      {availability !== false && planOptions.length > 0 && (
+                      {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                         <div className="la-unit-modal__rate-plan">
                           <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
                           <select
@@ -8351,6 +8734,7 @@ const applyCheckoutPromoCode = () => {
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                 dayPrices={sectionCalendarDayMap}
+                dayAvailability={sectionCalendarAvailabilityMap}
                 onValidationChange={handleSectionDateValidation}
                 isLoading={sectionCalendarLoading}
                 fallbackPrice={activeSection?.listings?.[0]?.basePrice}
@@ -8359,9 +8743,7 @@ const applyCheckoutPromoCode = () => {
                 onMonthChange={(month) => {
                   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
                   if (!activeSection) return;
-                  const listingIds = activeSection.listings
-                    .map((listing) => listing.id || listing._id)
-                    .filter(Boolean);
+                  const listingIds = getCalendarLookupIdsForListings(activeSection.listings || []);
                   if (!listingIds.length) return;
                   fetchSectionCalendarMultiMonth(listingIds, monthStart);
                 }}
