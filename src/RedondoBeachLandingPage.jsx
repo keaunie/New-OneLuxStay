@@ -1120,7 +1120,9 @@ const getQuotePricing = (quoteData, listing, nights) => {
 
   const plansRaw = Array.isArray(quoteData?.rates?.ratePlans)
     ? quoteData.rates.ratePlans
-    : [];
+    : quoteData?.rates?.ratePlans
+      ? [quoteData.rates.ratePlans]
+      : [];
 
   const buildPlanPricing = (plan, idx) => {
     const ratePlanMeta = plan?.ratePlan || {};
@@ -2301,6 +2303,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const [buildingPrices, setBuildingPrices] = useState({});
+  const [cardQuoteRates, setCardQuoteRates] = useState({});
   const [calendarPrices, setCalendarPrices] = useState(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState("");
@@ -2929,6 +2932,166 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .map((group) => group.parent || group.children?.[0])
       .filter(Boolean);
   }, [redondoBeachListings]);
+
+  useEffect(() => {
+    let active = true;
+    const loadCardQuoteRates = async () => {
+      const parentListings = Array.isArray(redondoBeachParentListings) ? redondoBeachParentListings : [];
+      if (!parentListings.length) {
+        if (active) setCardQuoteRates({});
+        return;
+      }
+
+      const parsedCheckIn = parseDateValue(sectionCheckIn);
+      const parsedCheckOut = parseDateValue(sectionCheckOut);
+      let quoteCheckIn = "";
+      let quoteCheckOut = "";
+      if (parsedCheckIn && parsedCheckOut && parsedCheckOut > parsedCheckIn) {
+        quoteCheckIn = toISODate(parsedCheckIn);
+        quoteCheckOut = toISODate(parsedCheckOut);
+      } else if (parsedCheckIn) {
+        const nextOut = new Date(parsedCheckIn);
+        nextOut.setDate(nextOut.getDate() + 1);
+        quoteCheckIn = toISODate(parsedCheckIn);
+        quoteCheckOut = toISODate(nextOut);
+      } else if (parsedCheckOut) {
+        const prevIn = new Date(parsedCheckOut);
+        prevIn.setDate(prevIn.getDate() - 1);
+        quoteCheckIn = toISODate(prevIn);
+        quoteCheckOut = toISODate(parsedCheckOut);
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        quoteCheckIn = toISODate(today);
+        quoteCheckOut = toISODate(tomorrow);
+      }
+
+      const nights = diffNights(quoteCheckIn, quoteCheckOut);
+      if (!nights) {
+        if (active) setCardQuoteRates({});
+        return;
+      }
+
+      const requests = parentListings
+        .map((listing) => {
+          const displayListingId = getListingId(listing);
+          if (!displayListingId) return null;
+          const quoteListingId = toLookupKey(
+            isChildListing(listing) ? listing?.unitTypeId : displayListingId
+          );
+          if (!quoteListingId) return null;
+          return {
+            listing,
+            displayListingId: toLookupKey(displayListingId),
+            quoteListingId,
+            request: {
+              listingId: quoteListingId,
+              checkInDateLocalized: quoteCheckIn,
+              checkOutDateLocalized: quoteCheckOut,
+              guestsCount: Number(sectionGuests) || 1,
+            },
+          };
+        })
+        .filter(Boolean);
+
+      if (!requests.length) {
+        if (active) setCardQuoteRates({});
+        return;
+      }
+
+      try {
+        const dedupedRequests = [];
+        const seenRequestIds = new Set();
+        requests.forEach((entry) => {
+          const key = entry?.quoteListingId;
+          if (!key || seenRequestIds.has(key)) return;
+          seenRequestIds.add(key);
+          dedupedRequests.push(entry.request);
+        });
+        if (!dedupedRequests.length) {
+          if (active) setCardQuoteRates({});
+          return;
+        }
+
+        const BATCH_SIZE = 35;
+        const results = {};
+        for (let index = 0; index < dedupedRequests.length; index += BATCH_SIZE) {
+          const batch = dedupedRequests.slice(index, index + BATCH_SIZE);
+          const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requests: batch }),
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          Object.assign(results, data?.results || {});
+        }
+
+        if (!active) return;
+        const nextRates = {};
+        requests.forEach((entry) => {
+          const { listing, displayListingId, quoteListingId } = entry;
+          if (!displayListingId) return;
+          const quoteData = results?.[quoteListingId] || results?.[displayListingId];
+          const pricing = getQuotePricing(quoteData, listing, nights);
+          const selectedPlan =
+            pricing?.plans?.find((plan) => plan.id === pricing?.defaultPlanId) ||
+            pricing?.plans?.[0] ||
+            null;
+          const quotePlansRaw = Array.isArray(quoteData?.rates?.ratePlans)
+            ? quoteData.rates.ratePlans
+            : quoteData?.rates?.ratePlans
+              ? [quoteData.rates.ratePlans]
+              : [];
+          const selectedQuotePlan =
+            quotePlansRaw.find((plan, idx) => {
+              const ratePlanMeta = plan?.ratePlan || {};
+              const planId = ratePlanMeta?._id || plan?._id || `plan-${idx}`;
+              return String(planId) === String(selectedPlan?.id || "");
+            }) || quotePlansRaw[0] || null;
+          const dayPrices = Array.isArray(selectedQuotePlan?.days) ? selectedQuotePlan.days : [];
+          const dayDailyRate = toNumber(
+            dayPrices[0]?.manualPrice ?? dayPrices[0]?.price ?? dayPrices[0]?.basePrice
+          );
+          const cleaningFee = firstNumber(
+            selectedPlan?.breakdown?.cleaning,
+            listing?.cleaningFee,
+            listing?.prices?.cleaning,
+            listing?.prices?.cleaningFee
+          );
+          const dayPlusCleaning =
+            Number.isFinite(dayDailyRate) && Number.isFinite(toNumber(cleaningFee))
+              ? dayDailyRate + toNumber(cleaningFee)
+              : null;
+          const nightly = firstNumber(dayPlusCleaning, selectedPlan?.nightly);
+          if (Number.isFinite(toNumber(nightly))) {
+            nextRates[displayListingId] = {
+              nightly,
+              currency:
+                dayPrices[0]?.currency ||
+                selectedPlan?.currency ||
+                listing?.currency ||
+                listing?.prices?.nightly?.currency ||
+                listing?.prices?.basePrice?.currency ||
+                "USD",
+            };
+          }
+        });
+        setCardQuoteRates(nextRates);
+      } catch {
+        if (active) setCardQuoteRates({});
+      }
+    };
+
+    loadCardQuoteRates().catch(() => {
+      if (active) setCardQuoteRates({});
+    });
+    return () => {
+      active = false;
+    };
+  }, [redondoBeachParentListings, sectionCheckIn, sectionCheckOut, sectionGuests]);
 
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
@@ -5308,28 +5471,35 @@ const applyCheckoutPromoCode = () => {
                   ? "Available"
                   : "Checking..."
               : "Select dates";
-            const quote = listingId ? sectionQuotes[listingId] : null;
-            const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-            const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-            const priceCurrency = quote?.currency || activeListing.currency || "USD";
-            const dailyRate = firstNumber(
-              plan?.nightly,
-              plan?.pricing?.nightly,
-              plan?.basePricePerNight,
-              quote?.pricing?.nightly,
-              quote?.nightly,
+        const quote = listingId ? sectionQuotes[listingId] : null;
+        const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
+        const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+        const priceCurrency = quote?.currency || activeListing.currency || "USD";
+        const targetDailyRateDate = sectionCheckIn || toISODate(new Date());
+        const dailyRateDay =
+          calendarDayMap.get(targetDailyRateDate) ||
+          sectionCalendarDayMap.get(targetDailyRateDate) ||
+          null;
+        const dailyRate = firstNumber(
+          dailyRateDay?.price,
+          plan?.nightly,
+          plan?.pricing?.nightly,
+          plan?.basePricePerNight,
+          quote?.pricing?.nightly,
+          quote?.nightly,
               activeListing?.prices?.basePricePerNight,
               activeListing?.prices?.nightly,
               activeListing?.prices?.basePrice?.amount,
               activeListing?.prices?.nightly?.amount,
               activeListing?.basePrice
             );
-            const dailyRateCurrency =
-              plan?.currency ||
-              quote?.currency ||
-              activeListing?.prices?.nightly?.currency ||
-              activeListing?.prices?.basePrice?.currency ||
-              activeListing?.currency ||
+        const dailyRateCurrency =
+          dailyRateDay?.currency ||
+          plan?.currency ||
+          quote?.currency ||
+          activeListing?.prices?.nightly?.currency ||
+          activeListing?.prices?.basePrice?.currency ||
+          activeListing?.currency ||
               priceCurrency;
             const totalPrice =
               breakdown?.total ??
@@ -7040,23 +7210,26 @@ const applyCheckoutPromoCode = () => {
                       const bathrooms = firstNumber(listing?.bathrooms);
                       const accommodates = firstNumber(listing?.accommodates);
                       const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
-                      const nightlyPrice = getListingNightlyPrice(listing);
-                      const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-                      const canShowStayTotal =
-                        showMonthlyTotal && stayNights > 0 && typeof nightlyPrice === "number";
-                      const stayTotal = canShowStayTotal ? nightlyPrice * stayNights : null;
-                      const priceMain = canShowStayTotal
-                        ? `${formatCurrency(stayTotal, currency)} total`
-                        : typeof basePrice === "number"
-                          ? `${formatCurrency(basePrice, currency)} / night`
-                          : "Check price";
-                      const priceSub = canShowStayTotal
-                        ? `${formatCurrency(nightlyPrice, currency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
-                        : "";
-                      const hasStrikePrice =
-                        typeof originalPrice === "number" &&
-                        typeof basePrice === "number" &&
-                        originalPrice > basePrice;
+                    const nightlyPrice = getListingNightlyPrice(listing);
+                    const quoteRateEntry = listingId ? cardQuoteRates[toLookupKey(listingId)] : null;
+                    const displayCurrency = quoteRateEntry?.currency || currency;
+                    const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+                    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+                    const canShowStayTotal =
+                      showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
+                    const stayTotal = canShowStayTotal ? dailyRate * stayNights : null;
+                    const priceMain = canShowStayTotal
+                      ? `${formatCurrency(stayTotal, displayCurrency)} total`
+                      : typeof dailyRate === "number"
+                        ? `${formatCurrency(dailyRate, displayCurrency)} / night`
+                        : "Check price";
+                    const priceSub = canShowStayTotal
+                      ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      : "";
+                    const hasStrikePrice =
+                      typeof originalPrice === "number" &&
+                      typeof dailyRate === "number" &&
+                      originalPrice > dailyRate;
 
                       return (
                         <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">

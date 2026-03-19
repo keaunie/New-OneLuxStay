@@ -32,5 +32,10 @@ dist-ssr
 /netlify/functions/*.zip
 /netlify/functions/manifest.json
 
+# Local environment files
+.env
+.env.*
+!.env.example
+
 # Temporary Reactbits clone
 .temp-reactbits/
