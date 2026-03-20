@@ -213,7 +213,7 @@ const extractMinNightsFromDays = (days = []) => {
       return Math.max(1, num);
     })
     .filter((value) => typeof value === "number");
-  return values.length ? Math.max(...values) : GLOBAL_MIN_NIGHTS;
+  return values.length ? Math.min(...values) : GLOBAL_MIN_NIGHTS;
 };
 
 const enumerateDateRange = (start, end) => {
@@ -491,6 +491,61 @@ const selectPreferredCalendarDay = (currentDay = null, candidateDay = null) => {
   return currentDay;
 };
 
+const mergeSelectableMinNights = (...values) => {
+  const normalizedValues = values
+    .map((value) => normalizeMinNights(value))
+    .filter((value) => typeof value === "number");
+  return normalizedValues.length ? Math.min(...normalizedValues) : null;
+};
+
+const mergeSelectableMaxNights = (...values) => {
+  const normalizedValues = values
+    .map((value) => toNumber(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return normalizedValues.length ? Math.max(...normalizedValues) : null;
+};
+
+const mergeSelectableClosedRestriction = (...values) => {
+  const normalizedValues = values.filter((value) => typeof value === "boolean");
+  if (!normalizedValues.length) return null;
+  return normalizedValues.every(Boolean);
+};
+
+const mergeSelectableCalendarDay = (currentDay = null, candidateDay = null) => {
+  if (!candidateDay?.date) return currentDay;
+  if (!currentDay?.date) return candidateDay;
+  const preferredDay = selectPreferredCalendarDay(currentDay, candidateDay) || candidateDay;
+  const currentRestrictions = currentDay?.restrictions || {};
+  const candidateRestrictions = candidateDay?.restrictions || {};
+  return {
+    ...preferredDay,
+    date: preferredDay?.date || candidateDay?.date || currentDay?.date || null,
+    available:
+      typeof currentDay?.available === "boolean" || typeof candidateDay?.available === "boolean"
+        ? Boolean(currentDay?.available || candidateDay?.available)
+        : preferredDay?.available ?? null,
+    restrictions: {
+      ...(preferredDay?.restrictions || {}),
+      minNights: mergeSelectableMinNights(
+        currentRestrictions?.minNights,
+        candidateRestrictions?.minNights
+      ),
+      maxNights: mergeSelectableMaxNights(
+        currentRestrictions?.maxNights,
+        candidateRestrictions?.maxNights
+      ),
+      closedToArrival: mergeSelectableClosedRestriction(
+        currentRestrictions?.closedToArrival,
+        candidateRestrictions?.closedToArrival
+      ),
+      closedToDeparture: mergeSelectableClosedRestriction(
+        currentRestrictions?.closedToDeparture,
+        candidateRestrictions?.closedToDeparture
+      ),
+    },
+  };
+};
+
 const buildLowestPriceCalendarByDate = (daysByListing = {}) => {
   const dayMap = {};
   Object.values(daysByListing).forEach((days) => {
@@ -499,7 +554,7 @@ const buildLowestPriceCalendarByDate = (daysByListing = {}) => {
       if (!day?.date) return;
       if (day?.available === false) return;
       const existing = dayMap[day.date] || null;
-      dayMap[day.date] = selectPreferredCalendarDay(existing, day);
+      dayMap[day.date] = mergeSelectableCalendarDay(existing, day);
     });
   });
   return dayMap;
@@ -3887,9 +3942,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const values = activeSection.listings
       .map((listing) => getListingMinNightsWithParent(listing, activeSection.listings))
       .filter((value) => typeof value === "number");
-    const listingFallback = values.length ? Math.max(...values) : null;
+    const listingFallback = values.length ? Math.min(...values) : null;
     if (typeof sectionCalendarMinNightsOverride === "number") {
-      return Math.max(sectionCalendarMinNightsOverride, listingFallback || 0) || sectionCalendarMinNightsOverride;
+      return typeof listingFallback === "number"
+        ? Math.min(sectionCalendarMinNightsOverride, listingFallback)
+        : sectionCalendarMinNightsOverride;
     }
     return listingFallback;
   }, [activeSection, sectionCalendarMinNightsOverride]);
@@ -3917,6 +3974,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         ? `Minimum stay is ${requiredMinNightsForSelection} nights.`
         : "";
   const stayTooShortMessage = sectionDateValidationError || computedStayRestrictionMessage;
+  const sectionValidationNotice = stayTooShortMessage || sectionAvailabilityError;
   const isStayTooShort = Boolean(stayTooShortMessage);
 
   const handleSectionDateValidation = useCallback((state) => {
@@ -6182,9 +6240,9 @@ const applyCheckoutPromoCode = () => {
                 </div>
               </div>
             </div>
-            {sectionAvailabilityError && (
+            {sectionValidationNotice && (
               <div role="alert" className="la-section-hero__notice">
-                {sectionAvailabilityError}
+                {sectionValidationNotice}
               </div>
             )}
             <div className="la-unit-modal__section">
@@ -8059,9 +8117,9 @@ const applyCheckoutPromoCode = () => {
                       {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
                     </button>
                   </div>
-                  {sectionAvailabilityError && (
+                  {sectionValidationNotice && (
                     <div role="alert" className="la-section-hero__notice">
-                      {sectionAvailabilityError}
+                      {sectionValidationNotice}
                     </div>
                   )}
                   <div className="la-unit-modal__section">
@@ -8202,9 +8260,7 @@ const applyCheckoutPromoCode = () => {
                       const isUnavailable =
                         sectionAvailabilityActive && sectionAvailabilityMap[listingId] === false;
                       const isReserving = sectionReserveLoadingId === checkoutListingId;
-                      const rowMinNights = normalizeMinNights(
-                        getListingMinNightsWithParent(listing, listings)
-                      );
+                      const rowMinNights = normalizeMinNights(requiredMinNightsForSelection);
                       const rowTooShort =
                         sectionStayNights > 0 && sectionStayNights < rowMinNights;
                       const rowTooShortMessage = `Minimum stay is ${rowMinNights} nights.`;
