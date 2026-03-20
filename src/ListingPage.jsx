@@ -841,7 +841,7 @@ function ListingPage() {
       const breakdown = (() => {
         const items = quoteMoney?.invoiceItems;
         if (!Array.isArray(items)) return null;
-        const acc = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0, deposit: 0 };
+        const acc = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0 };
         items.forEach((item) => {
           const amt = typeof item?.amount === "number" ? item.amount : null;
           if (amt === null) return;
@@ -849,13 +849,7 @@ function ListingPage() {
           if (t === "AF" || t === "ACCOMMODATION_FARE") acc.accommodation += amt;
           else if (t === "CF" || t === "CLEANING_FEE") acc.cleaning += amt;
           else if (t === "OCT" || t === "TAX" || t === "OCCUPANCY_TAX") acc.taxes += amt;
-          else if (t === "AFE" || t === "ADDITIONAL") {
-            const second = (item?.secondIdentifier || "").toUpperCase();
-            if (second === "DEPOSIT") acc.deposit += amt;
-            else acc.fees += amt;
-          } else {
-            acc.fees += amt;
-          }
+          else acc.fees += amt;
         });
         return acc;
       })();
@@ -1211,9 +1205,6 @@ function ListingPage() {
                       {status.breakdown.fees > 0 && (
                         <span>Fees: {formatCurrency(status.breakdown.fees, status.currency)}</span>
                       )}
-                      {status.breakdown.deposit > 0 && (
-                        <span>Deposit: {formatCurrency(status.breakdown.deposit, status.currency)}</span>
-                      )}
                     </div>
                   )}
 
@@ -1388,9 +1379,6 @@ function ListingPage() {
                           {modalAvailability.breakdown.fees > 0 && (
                             <span>Fees: {formatCurrency(modalAvailability.breakdown.fees, modalAvailability.currency)}</span>
                           )}
-                          {modalAvailability.breakdown.deposit > 0 && (
-                            <span>Deposit: {formatCurrency(modalAvailability.breakdown.deposit, modalAvailability.currency)}</span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1521,7 +1509,6 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
 
 
 

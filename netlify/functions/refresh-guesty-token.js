@@ -1,3 +1,5 @@
+import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
+
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
 const GUESTY_TOKEN_URL = `${OPEN_API_HOST}/oauth2/token`;
 const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
@@ -47,8 +49,7 @@ export async function handler(event) {
     }
 
     try {
-        const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
-        const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
+        const { clientId, clientSecret } = getGuestyOpenApiCredentials();
 
         if (!clientId || !clientSecret) {
             return jsonResponse(500, { error: "Missing Guesty API credentials" });

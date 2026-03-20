@@ -181,7 +181,6 @@ export async function handler(event) {
         fees: String(calculatedPrice.fees),
         cleaning_fee: String(calculatedPrice.cleaning_fee),
         taxes: String(calculatedPrice.taxes),
-        deposit_amount: String(calculatedPrice.deposit),
         grand_total: String(calculatedPrice.grand_total),
         currency: calculatedPrice.currency,
       },

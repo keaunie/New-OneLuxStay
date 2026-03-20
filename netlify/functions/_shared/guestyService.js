@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { fetchWithTimeout } from "./http.js";
+import { getGuestyOpenApiCredentials } from "./guestyEnv.js";
 import { calculateNights, roundMoney } from "./pricingService.js";
 
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
@@ -35,8 +36,7 @@ const getBlobStore = async () => {
 };
 
 const requestGuestyToken = async () => {
-  const clientId = String(process.env.GUESTY_OPEN_API_CLIENT_ID || "").trim();
-  const clientSecret = String(process.env.GUESTY_OPEN_API_CLIENT_SECRET || "").trim();
+  const { clientId, clientSecret } = getGuestyOpenApiCredentials();
   if (!clientId || !clientSecret) {
     throw new Error("Missing Guesty API credentials");
   }

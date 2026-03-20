@@ -30,13 +30,13 @@ function TermsConditions() {
             fees of 2.5% and 3.5%. PayPal payments do not incur any administrative fees or surcharges.
           </p>
           <p>
-            Deposit refunds may also be subject to a fee of approximately 2.5%-3.5% for PayPal or credit card services.
+            Payment refunds may also be subject to a fee of approximately 2.5%-3.5% for PayPal or credit card services.
           </p>
         </section>
 
         <section className="policy-section">
           <h2>Agreement Acceptance</h2>
-          <p>Your rental deposit confirms your acceptance of these conditions:</p>
+          <p>Your booking confirms your acceptance of these conditions:</p>
           <ul className="policy-list">
             <li>For security purposes, guests are required to send a photo ID and credit card before arrival.</li>
             <li>These documents must also be presented during check-in.</li>
@@ -66,7 +66,7 @@ function TermsConditions() {
           </p>
           <p>
             Failure to inform us of a delayed departure will result in a late checkout penalty of $250 per hour, which
-            will be deducted from your security deposit or charged to your credit card.
+            will be charged to your credit card.
           </p>
           <p>Upon checkout, please ensure:</p>
           <ul className="policy-list">

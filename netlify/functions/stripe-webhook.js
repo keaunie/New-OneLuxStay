@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { getStore } from "@netlify/blobs";
 import crypto from "crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
 
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
@@ -100,8 +101,7 @@ const getBlobStore = async (name) => {
 };
 
 const requestGuestyToken = async () => {
-  const clientId = process.env.GUESTY_OPEN_API_CLIENT_ID;
-  const clientSecret = process.env.GUESTY_OPEN_API_CLIENT_SECRET;
+  const { clientId, clientSecret } = getGuestyOpenApiCredentials();
   if (!clientId || !clientSecret) {
     throw new Error("Missing Guesty API credentials");
   }

@@ -1,8 +1,3 @@
-const SECURITY_DEPOSIT_BY_CURRENCY = {
-  USD: 250,
-  PHP: 250,
-};
-
 export const roundMoney = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : 0;
@@ -18,9 +13,6 @@ export const calculateNights = (checkIn, checkOut) => {
   return diffMs > 0 ? Math.round(diffMs / 86_400_000) : 0;
 };
 
-export const getSecurityDepositAmount = (currency) =>
-  roundMoney(SECURITY_DEPOSIT_BY_CURRENCY[normalizeCurrency(currency)] || 0);
-
 export const calculatePrice = ({
   nightlyRate,
   numberOfNights,
@@ -35,8 +27,7 @@ export const calculatePrice = ({
   const taxTotal = roundMoney(taxes);
   const roomTotal = roundMoney(nightly * nights);
   const fees = roundMoney(cleaning + taxTotal);
-  const deposit = getSecurityDepositAmount(normalizedCurrency);
-  const grandTotal = roundMoney(roomTotal + fees + deposit);
+  const grandTotal = roundMoney(roomTotal + fees);
 
   return {
     currency: normalizedCurrency,
@@ -46,8 +37,6 @@ export const calculatePrice = ({
     taxes: taxTotal,
     room_total: roomTotal,
     fees,
-    deposit,
     grand_total: grandTotal,
   };
 };
-

@@ -40,7 +40,6 @@ export async function handler(event) {
         currency: "USD",
         room_total: 0,
         fees: 0,
-        deposit: 0,
         grand_total: 0,
       });
     }
@@ -61,7 +60,6 @@ export async function handler(event) {
       currency: calculated.currency,
       room_total: calculated.room_total,
       fees: calculated.fees,
-      deposit: calculated.deposit,
       grand_total: calculated.grand_total,
     });
   } catch (error) {
@@ -71,4 +69,3 @@ export async function handler(event) {
     });
   }
 }
-
