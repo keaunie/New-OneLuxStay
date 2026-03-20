@@ -12,7 +12,8 @@
 		"build": "npm run sitemap:generate && vite build",
 		"lint": "eslint .",
 		"preview": "vite preview",
-		"guesty:token": "node scripts/get-guesty-token.js"
+		"guesty:token": "node scripts/get-guesty-token.js",
+		"netlify:env:audit": "node scripts/audit-netlify-function-env.mjs"
 	},
 	"dependencies": {
 		"@api/open-api-docs": "file:.api/apis/open-api-docs",
