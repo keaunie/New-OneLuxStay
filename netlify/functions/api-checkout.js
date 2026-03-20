@@ -104,11 +104,16 @@ export async function handler(event) {
     body?.calculated_price?.grand_total ??
       body?.calculatedPrice?.grand_total ??
       body?.price?.grand_total ??
-      body?.price?.grandTotal,
+      body?.price?.grandTotal ??
+      body?.breakdown?.total ??
+      body?.breakdown?.subtotal ??
+      body?.amount,
   );
   if (Number.isFinite(clientGrandTotal) && Math.abs(clientGrandTotal - calculatedPrice.grand_total) >= 0.5) {
     return jsonResponse(409, {
-      message: "Pricing changed. Refresh availability and try again.",
+      message: `Pricing mismatch. The page showed ${clientGrandTotal.toFixed(2)} ${calculatedPrice.currency}, but checkout recalculated ${calculatedPrice.grand_total.toFixed(2)} ${calculatedPrice.currency}. Refresh availability and try again.`,
+      client_total: clientGrandTotal,
+      server_total: calculatedPrice.grand_total,
       calculated_price: calculatedPrice,
     });
   }
