@@ -86,31 +86,15 @@ const resolveCheckoutCurrency = (currency) => {
 const roundCurrency = (value) =>
   Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 
-const getTaxRateForListing = (listing = {}) => {
-  const locationText = [
-    listing?.address?.city,
-    listing?.city,
-    listing?.location,
-    listing?.address?.full,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const state = (listing?.address?.state || listing?.address?.stateCode || "").toLowerCase();
-
-  if (locationText.includes("dubai")) return 0;
-  if (locationText.includes("antwerp")) return 0.06;
-  if (locationText.includes("miami")) return 0.145;
-  if (locationText.includes("redondo")) return 0.145;
-  if (locationText.includes("los angeles")) return 0.145;
-  if (state === "ca" || state.includes("california")) return 0.145;
-  return 0;
-};
-
-const computeTaxes = (amount, listing) => {
-  if (!Number.isFinite(amount)) return 0;
-  const rate = getTaxRateForListing(listing);
-  return roundCurrency(amount * rate);
+const computeTaxes = (_amount, _options = {}) => 0;
+const STRIPE_ADMIN_FEE_RATE = 0.03;
+const computeStripeAdminFee = (accommodation, cleaning, taxes) => {
+  const base =
+    (Number.isFinite(accommodation) ? accommodation : 0) +
+    (Number.isFinite(cleaning) ? cleaning : 0) +
+    (Number.isFinite(taxes) ? taxes : 0);
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  return roundCurrency(base * STRIPE_ADMIN_FEE_RATE);
 };
 
 const getMapZoomLevel = (map) => {
@@ -1237,6 +1221,7 @@ const DateRangePicker = ({
                       );
                       const showMinNightsCell =
                         showMinNights &&
+                        !isPast &&
                         !isUnavailable &&
                         minNights > 1;
                       const dayLabel = day
@@ -1323,7 +1308,7 @@ const DateRangePicker = ({
     </div>
   );
 };
-const getQuotePricing = (quoteData, listing, nights) => {
+const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
   if (!quoteData || !listing) return null;
   const normalizeRatePlan = (plan = {}) => {
     const labelSource = plan?.name || plan?.title || plan?.description || "";
@@ -1442,31 +1427,22 @@ const getQuotePricing = (quoteData, listing, nights) => {
       cleaningFromQuote ??
       breakdown?.cleaning ??
       (typeof listing.cleaningFee === "number" ? listing.cleaningFee : 0);
-    const taxesFromQuote = firstNumber(
-      quoteMoney?.fareTaxes,
-      quoteMoney?.fareTax,
-      quoteMoney?.taxes,
-      quoteMoney?.taxAmount,
-      quoteMoney?.totalTaxes,
-      quoteMoney?.tax?.amount,
-      quoteMoney?.vat,
-      quoteMoney?.vatAmount,
-      quoteMoney?.fareVat,
-      quoteData?.price?.taxes,
-      quoteData?.price?.tax,
-      quoteData?.price?.taxAmount,
-      quoteData?.price?.tax?.amount,
-      quoteData?.price?.taxes?.amount,
-      quoteData?.price?.vatAmount,
-      quoteData?.taxes,
-      quoteData?.taxes?.amount,
-      breakdown?.taxes
+    const effectiveGuests = firstNumber(
+      plan?.guestsCount,
+      plan?.guestCount,
+      quoteData?.guestsCount,
+      quoteData?.inquiry?.guestsCount,
+      quoteData?.inquiry?.guests?.count,
+      quoteData?.guests?.count,
+      guestsCount,
+      1
     );
-    const taxes =
-      typeof taxesFromQuote === "number"
-        ? taxesFromQuote
-        : computeTaxes(accommodation, listing);
-    const fees = breakdown?.fees ?? 0;
+    const effectiveNights = firstNumber(quotedNights, nights, quoteDays.length, 1);
+    const taxes = computeTaxes(accommodation, {
+      nights: effectiveNights,
+      guests: effectiveGuests,
+    });
+    const fees = computeStripeAdminFee(accommodation, cleaning, taxes);
     const subtotal =
       (typeof accommodation === "number" ? accommodation : 0) +
       (typeof cleaning === "number" ? cleaning : 0) +
@@ -2772,6 +2748,35 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return formatFullDescription(activeListing);
   }, [activeListing]);
 
+  const sectionGuestCapacityListing = useMemo(
+    () => activeListing || null,
+    [activeListing]
+  );
+
+  const sectionMaxGuests = useMemo(() => {
+    const accommodates = getListingAccommodates(sectionGuestCapacityListing);
+    if (Number.isFinite(accommodates) && accommodates > 0) {
+      return Math.max(1, Math.floor(accommodates));
+    }
+    return 5;
+  }, [sectionGuestCapacityListing]);
+
+  const sectionGuestOptions = useMemo(
+    () => Array.from({ length: sectionMaxGuests }, (_, idx) => String(idx + 1)),
+    [sectionMaxGuests]
+  );
+
+  useEffect(() => {
+    const currentGuests = Number.parseInt(sectionGuests, 10);
+    if (!Number.isFinite(currentGuests) || currentGuests < 1) {
+      setSectionGuests(sectionGuestOptions[0] || "1");
+      return;
+    }
+    if (currentGuests > sectionMaxGuests) {
+      setSectionGuests(String(sectionMaxGuests));
+    }
+  }, [sectionGuests, sectionMaxGuests, sectionGuestOptions]);
+
   const calendarDayMap = useMemo(() => {
     if (!Array.isArray(calendarPrices?.days)) return new Map();
     return new Map(calendarPrices.days.map((day) => [day.date, day]));
@@ -3408,7 +3413,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           const { listing, displayListingId, quoteListingId } = entry;
           if (!displayListingId) return;
           const quoteData = results?.[quoteListingId] || results?.[displayListingId];
-          const pricing = getQuotePricing(quoteData, listing, nights);
+          const pricing = getQuotePricing(
+            quoteData,
+            listing,
+            nights,
+            Number(sectionGuests) || 1
+          );
           const selectedPlan =
             pricing?.plans?.find((plan) => plan.id === pricing?.defaultPlanId) ||
             pricing?.plans?.[0] ||
@@ -4722,7 +4732,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const load = async () => {
       const nights = diffNights(sectionCheckIn, sectionCheckOut);
       const results = {};
-      const getManualTotal = (quoteData, listingContext) => {
+      const getManualTotal = (quoteData) => {
         const plans = Array.isArray(quoteData?.rates?.ratePlans)
           ? quoteData.rates.ratePlans
           : [];
@@ -4734,10 +4744,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         (filteredPlans.length ? filteredPlans : plans).forEach((plan) => {
           const money = plan?.money?.money || plan?.money || quoteData?.money?.money || quoteData?.money || {};
           const invoiceItems = Array.isArray(money?.invoiceItems) ? money.invoiceItems : [];
-          const invoiceTotal = invoiceItems.reduce(
-            (acc, item) => acc + (typeof item?.amount === "number" ? item.amount : 0),
-            0
-          );
           const label = plan?.ratePlan?.name || plan?.ratePlan?.title || plan?.ratePlan?.description || "";
           const isNonRefundable =
             /non[- ]?refundable/i.test(label) ||
@@ -4757,8 +4763,28 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             typeof money?.fareCleaning === "number" ? money.fareCleaning : 0;
           const discountedAccommodation =
             accommodationAmount > 0 ? accommodationAmount * (1 - discountRate) : accommodationAmount;
-          const taxAmount = computeTaxes(discountedAccommodation, listingContext);
-          const total = discountedAccommodation + cleaningAmount + taxAmount;
+          const quoteDays = Array.isArray(plan?.days) ? plan.days : [];
+          const effectiveNights = firstNumber(quoteDays.length, nights, 1);
+          const effectiveGuests = firstNumber(
+            plan?.guestsCount,
+            plan?.guestCount,
+            quoteData?.guestsCount,
+            quoteData?.inquiry?.guestsCount,
+            quoteData?.inquiry?.guests?.count,
+            quoteData?.guests?.count,
+            sectionGuests,
+            1
+          );
+          const taxAmount = computeTaxes(discountedAccommodation, {
+            nights: effectiveNights,
+            guests: effectiveGuests,
+          });
+          const adminFeeAmount = computeStripeAdminFee(
+            discountedAccommodation,
+            cleaningAmount,
+            taxAmount
+          );
+          const total = discountedAccommodation + cleaningAmount + taxAmount + adminFeeAmount;
           if (minTotal === null || total < minTotal) {
             minTotal = total;
           }
@@ -4776,7 +4802,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             listingId,
             checkInDateLocalized: sectionCheckIn,
             checkOutDateLocalized: sectionCheckOut,
-            guestsCount: "1",
+            guestsCount: sectionGuests || "1",
           };
         })
         .filter(Boolean);
@@ -4802,8 +4828,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           if (!listingId) return;
           const quoteData = resultMap[listingId];
           if (!quoteData) return;
-          const pricing = getQuotePricing(quoteData, listing, nights);
-          const manualTotals = getManualTotal(quoteData, listing);
+          const pricing = getQuotePricing(
+            quoteData,
+            listing,
+            nights,
+            Number(sectionGuests) || 1
+          );
+          const manualTotals = getManualTotal(quoteData);
           const total =
             (typeof manualTotals?.total === "number" && manualTotals.total > 0
               ? manualTotals.total
@@ -5098,7 +5129,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             if (!listingKey || !quoteListingId) return;
             const quoteData = data?.results?.[quoteListingId];
             if (!quoteData) return;
-            const pricing = getQuotePricing(quoteData, listing, nights);
+            const pricing = getQuotePricing(
+              quoteData,
+              listing,
+              nights,
+              Number(sectionGuests) || 1
+            );
             if (pricing) quotes[listingKey] = pricing;
           });
           setSectionQuotes(quotes);
@@ -6031,9 +6067,20 @@ const applyCheckoutPromoCode = () => {
               : "Checking..."
           : "Select dates";
         const quote = listingId ? sectionQuotes[listingId] : null;
-        const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-        const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-        const priceCurrency = quote?.currency || activeListing.currency || "USD";
+        const planOptions = quote?.plans || [];
+        const selectedPlanId =
+          (listingId ? selectedRatePlans[listingId] : "") ||
+          quote?.defaultPlanId ||
+          planOptions[0]?.id ||
+          "";
+        const selectedPlan =
+          planOptions.find((ratePlan) => ratePlan.id === selectedPlanId) ||
+          planOptions[0] ||
+          quote?.plan ||
+          quote?.pricing ||
+          null;
+        const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+        const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
         const targetDailyRateDate = sectionCheckIn || toISODate(new Date());
         const dailyRateDay =
           calendarDayMap.get(targetDailyRateDate) ||
@@ -6041,9 +6088,9 @@ const applyCheckoutPromoCode = () => {
           null;
         const dailyRate = firstNumber(
           dailyRateDay?.price,
-          plan?.nightly,
-          plan?.pricing?.nightly,
-          plan?.basePricePerNight,
+          selectedPlan?.nightly,
+          selectedPlan?.pricing?.nightly,
+          selectedPlan?.basePricePerNight,
           quote?.pricing?.nightly,
           quote?.nightly,
           activeListing?.prices?.basePricePerNight,
@@ -6054,7 +6101,7 @@ const applyCheckoutPromoCode = () => {
         );
         const dailyRateCurrency =
           dailyRateDay?.currency ||
-          plan?.currency ||
+          selectedPlan?.currency ||
           quote?.currency ||
           activeListing?.prices?.nightly?.currency ||
           activeListing?.prices?.basePrice?.currency ||
@@ -6063,7 +6110,7 @@ const applyCheckoutPromoCode = () => {
         const totalPrice =
           breakdown?.total ??
           breakdown?.subtotal ??
-          plan?.total ??
+          selectedPlan?.total ??
           quote?.total ??
           null;
         return (
@@ -6211,11 +6258,11 @@ const applyCheckoutPromoCode = () => {
                       value={sectionGuests}
                       onChange={(event) => setSectionGuests(event.target.value)}
                     >
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                      <option value="3">3</option>
-                      <option value="4">4</option>
-                      <option value="5">5</option>
+                      {sectionGuestOptions.map((guestOption) => (
+                        <option key={guestOption} value={guestOption}>
+                          {guestOption}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <button
@@ -6240,16 +6287,13 @@ const applyCheckoutPromoCode = () => {
                 <strong>OneLuxStay Dubai</strong>
                 <a href={`tel:+${activeListingContactPhone.e164}`}>{activeListingContactPhone.label}</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
-                  Message concierge
-                </a>
-                <a
+                                <a
                   href={buildWhatsAppLink(activeListing, sectionCheckIn, sectionCheckOut)}
-                  className="la-unit-modal__contact-cta"
+                  className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  WhatsApp us
+                  WhatsApp
                 </a>
               </div>
               <div className="la-unit-modal__card la-unit-modal__price">
@@ -6380,7 +6424,7 @@ const applyCheckoutPromoCode = () => {
                           <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                         </div>
                         <div>
-                          <span>Fees</span>
+                          <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                           <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
                         </div>
                         <div className="la-unit-modal__total">
@@ -6397,6 +6441,29 @@ const applyCheckoutPromoCode = () => {
                       <p>Check availability to view pricing breakdown.</p>
                     )}
                   </div>
+                  {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
+                    <div className="la-unit-modal__rate-plan">
+                      <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                      <select
+                        id={`la-listing-rate-plan-${listingId || "active"}`}
+                        value={selectedPlanId}
+                        disabled={sectionAvailabilityLoading}
+                        onChange={(event) =>
+                          setSelectedRatePlans((prev) => ({
+                            ...prev,
+                            [listingId]: event.target.value,
+                          }))
+                        }
+                        className="la-booking-table__rate-select"
+                      >
+                        {planOptions.map((planOption) => (
+                          <option key={planOption.id} value={planOption.id}>
+                            {planOption.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="la-unit-modal__actions">
                     {(() => {
                       const availability = listingId ? sectionAvailabilityMap[listingId] : null;
@@ -8154,16 +8221,13 @@ const applyCheckoutPromoCode = () => {
                       <strong>OneLuxStay Dubai</strong>
                       <a href={`tel:+${sectionContactPhone.e164}`}>{sectionContactPhone.label}</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                      <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
-                        Message concierge
-                      </a>
-                      <a
+                                            <a
                         href={buildWhatsAppLink(sectionParent || sectionLabel, sectionCheckIn, sectionCheckOut)}
-                        className="la-unit-modal__contact-cta"
+                        className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
                         target="_blank"
                         rel="noreferrer"
                       >
-                        WhatsApp us
+                        WhatsApp
                       </a>
                     </div>
                     <div className="la-section-hero__review">
@@ -8295,11 +8359,11 @@ const applyCheckoutPromoCode = () => {
                         value={sectionGuests}
                         onChange={(event) => setSectionGuests(event.target.value)}
                       >
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
+                        {sectionGuestOptions.map((guestOption) => (
+                          <option key={guestOption} value={guestOption}>
+                            {guestOption}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <button
@@ -8626,7 +8690,7 @@ const applyCheckoutPromoCode = () => {
                                             <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                                           </div>
                                           <div>
-                                            <span>Fees</span>
+                                            <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                                             <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
                                           </div>
                                           <div className="la-booking-table__total">
@@ -8794,16 +8858,13 @@ const applyCheckoutPromoCode = () => {
                 <strong>OneLuxStay Dubai</strong>
                 <a href={`tel:+${activeListingContactPhone.e164}`}>{activeListingContactPhone.label}</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                <a href="mailto:reservations@oneluxstay.com" className="la-unit-modal__contact-cta">
-                  Message concierge
-                </a>
-                <a
+                                <a
                   href={buildWhatsAppLink(activeListing, sectionCheckIn, sectionCheckOut)}
-                  className="la-unit-modal__contact-cta"
+                  className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  WhatsApp us
+                  WhatsApp
                 </a>
               </div>
             </div>
@@ -8902,13 +8963,24 @@ const applyCheckoutPromoCode = () => {
                     : "Checking..."
                 : "Select dates";
               const quote = listingId ? sectionQuotes[listingId] : null;
-              const plan = quote?.plans?.[0] || quote?.plan || quote?.pricing || null;
-              const breakdown = plan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
-              const priceCurrency = quote?.currency || activeListing.currency || "USD";
+              const planOptions = quote?.plans || [];
+              const selectedPlanId =
+                (listingId ? selectedRatePlans[listingId] : "") ||
+                quote?.defaultPlanId ||
+                planOptions[0]?.id ||
+                "";
+              const selectedPlan =
+                planOptions.find((ratePlan) => ratePlan.id === selectedPlanId) ||
+                planOptions[0] ||
+                quote?.plan ||
+                quote?.pricing ||
+                null;
+              const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
+              const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
               const totalPrice =
                 breakdown?.total ??
                 breakdown?.subtotal ??
-                plan?.total ??
+                selectedPlan?.total ??
                 quote?.total ??
                 null;
               return (
@@ -9079,7 +9151,7 @@ const applyCheckoutPromoCode = () => {
                               <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                             </div>
                             <div>
-                              <span>Fees</span>
+                              <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                               <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
                             </div>
                             <div className="la-unit-modal__total">
@@ -9096,6 +9168,29 @@ const applyCheckoutPromoCode = () => {
                           <p>Check availability to view pricing breakdown.</p>
                         )}
                       </div>
+                      {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
+                        <div className="la-unit-modal__rate-plan">
+                          <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                          <select
+                            id={`la-listing-rate-plan-${listingId || "active"}`}
+                            value={selectedPlanId}
+                            disabled={sectionAvailabilityLoading}
+                            onChange={(event) =>
+                              setSelectedRatePlans((prev) => ({
+                                ...prev,
+                                [listingId]: event.target.value,
+                              }))
+                            }
+                            className="la-booking-table__rate-select"
+                          >
+                            {planOptions.map((planOption) => (
+                              <option key={planOption.id} value={planOption.id}>
+                                {planOption.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="la-unit-modal__actions">
                         {(() => {
                           const availability = listingId ? sectionAvailabilityMap[listingId] : null;
@@ -9219,11 +9314,11 @@ const applyCheckoutPromoCode = () => {
                   value={sectionGuests}
                   onChange={(event) => setSectionGuests(event.target.value)}
                 >
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
+                  {sectionGuestOptions.map((guestOption) => (
+                    <option key={guestOption} value={guestOption}>
+                      {guestOption}
+                    </option>
+                  ))}
                 </select>
               </div>
               <button

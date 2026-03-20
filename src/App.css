@@ -1078,9 +1078,10 @@ body {
 }
 
 .landing-date-picker .listing-date-cell.is-disabled {
-  background: rgba(255, 255, 255, 0.5);
-  color: rgba(107, 95, 85, 0.7);
-  border-color: rgba(201, 181, 156, 0.3);
+  background: #f0ece7;
+  color: rgba(112, 99, 88, 0.78);
+  border-color: rgba(191, 177, 160, 0.55);
+  box-shadow: none;
 }
 
 .landing-step {
@@ -7926,6 +7927,17 @@ body {
   background: rgba(239, 226, 207, 0.8);
 }
 
+.la-unit-modal__contact a.la-unit-modal__contact-cta--whatsapp {
+  background: #25d366;
+  border-color: #25d366;
+  color: #ffffff;
+}
+
+.la-unit-modal__contact a.la-unit-modal__contact-cta--whatsapp:hover {
+  background: #1ebe5b;
+  border-color: #1ebe5b;
+}
+
 .la-inquiry-modal {
   width: min(640px, 92vw);
   border-radius: 28px;
@@ -9518,6 +9530,26 @@ body {
   filter: grayscale(0.4);
 }
 
+.listing-date-cell.is-disabled {
+  background: #f0ece7;
+  color: rgba(112, 99, 88, 0.78);
+  border-color: rgba(191, 177, 160, 0.55);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
+  filter: grayscale(0.35);
+}
+
+.listing-date-cell.is-disabled.has-restriction {
+  border-color: rgba(191, 177, 160, 0.55);
+  box-shadow: none;
+}
+
+.listing-date-cell.is-disabled .listing-date-cell__price,
+.listing-date-cell.is-disabled .listing-date-cell__restriction {
+  display: none;
+}
+
 .listing-date-cell__restriction {
   font-size: 0.62rem;
   text-transform: uppercase;
@@ -9591,9 +9623,10 @@ body {
 }
 
 .la-section-modal .listing-date-cell.is-disabled {
-  background: rgba(255, 255, 255, 0.5);
-  color: rgba(107, 95, 85, 0.7);
-  border-color: rgba(201, 181, 156, 0.3);
+  background: #f0ece7;
+  color: rgba(112, 99, 88, 0.78);
+  border-color: rgba(191, 177, 160, 0.55);
+  box-shadow: none;
 }
 
 .la-unit-modal .listing-date-cell.is-between {
@@ -9608,9 +9641,10 @@ body {
 }
 
 .la-unit-modal .listing-date-cell.is-disabled {
-  background: rgba(255, 255, 255, 0.5);
-  color: rgba(107, 95, 85, 0.7);
-  border-color: rgba(201, 181, 156, 0.3);
+  background: #f0ece7;
+  color: rgba(112, 99, 88, 0.78);
+  border-color: rgba(191, 177, 160, 0.55);
+  box-shadow: none;
 }
 
 .la-date-footer {
@@ -11689,8 +11723,10 @@ body {
 }
 
 .listing-page .listing-date-cell.is-disabled {
-  background: #f2ede7;
-  color: rgba(107, 95, 85, 0.8);
+  background: #f0ece7;
+  color: rgba(112, 99, 88, 0.78);
+  border-color: rgba(191, 177, 160, 0.55);
+  box-shadow: none;
 }
 
 .la-tour-trigger {
