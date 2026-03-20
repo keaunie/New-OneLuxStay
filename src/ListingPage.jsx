@@ -809,15 +809,24 @@ function ListingPage() {
         }, 0)
         : null;
 
+      const invoiceItems = Array.isArray(quoteMoney?.invoiceItems) ? quoteMoney.invoiceItems : [];
+      const invoiceItemsTotal = invoiceItems.length
+        ? invoiceItems.reduce((sum, item) => {
+          const amount = Number(item?.amount);
+          return sum + (Number.isFinite(amount) ? amount : 0);
+        }, 0)
+        : null;
+
       const quoteTotalRaw =
-        quoteMoney?.subTotalPrice ??
-        quoteMoney?.totalPrice ??
         quoteMoney?.total ??
+        quoteMoney?.totalPrice ??
         quoteData?.total ??
         quoteData?.price?.total ??
         quoteData?.price?.totalAmount ??
         quoteData?.price?.totalPrice ??
         (typeof quoteData?.price?.total === "object" ? quoteData.price.total.amount : null) ??
+        invoiceItemsTotal ??
+        quoteMoney?.subTotalPrice ??
         (typeof quoteData?.amount === "number" ? quoteData.amount : null) ??
         (typeof daySum === "number" && quotedNights ? daySum + (listing.cleaningFee || 0) : null);
 
@@ -831,18 +840,10 @@ function ListingPage() {
       const nightly = quoteNightly ?? listing.basePrice;
       const total = quoteTotal ?? (nightly && nights ? nightly * nights + (listing.cleaningFee || 0) : null);
 
-      const hostPayout =
-        typeof quoteMoney?.hostPayout === "number"
-          ? quoteMoney.hostPayout
-          : typeof quoteMoney?.hostPayoutUsd === "number"
-            ? quoteMoney.hostPayoutUsd
-            : null;
-
       const breakdown = (() => {
-        const items = quoteMoney?.invoiceItems;
-        if (!Array.isArray(items)) return null;
+        if (!invoiceItems.length) return null;
         const acc = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0 };
-        items.forEach((item) => {
+        invoiceItems.forEach((item) => {
           const amt = typeof item?.amount === "number" ? item.amount : null;
           if (amt === null) return;
           const t = (item?.normalType || item?.type || "").toUpperCase();
@@ -851,7 +852,13 @@ function ListingPage() {
           else if (t === "OCT" || t === "TAX" || t === "OCCUPANCY_TAX") acc.taxes += amt;
           else acc.fees += amt;
         });
-        return acc;
+        return {
+          ...acc,
+          total:
+            typeof quoteTotal === "number"
+              ? quoteTotal
+              : acc.accommodation + acc.cleaning + acc.taxes + acc.fees,
+        };
       })();
 
       setAvailability((prev) => ({
@@ -861,7 +868,6 @@ function ListingPage() {
           available: isAvailable,
           nightly,
           total,
-          hostPayout,
           breakdown,
           currency: quoteCurrency,
           lastQuery: requestKey,
@@ -933,7 +939,7 @@ function ListingPage() {
       return;
     }
 
-    const amount = avail.hostPayout ?? avail.total;
+    const amount = avail.total;
     const currency = avail.currency || selectedListing?.currency || "USD";
     if (!amount || amount <= 0) {
       setBookingState({ status: "error", message: "Pricing is missing. Please refresh availability." });
@@ -947,7 +953,7 @@ function ListingPage() {
     setBookingState({ status: "loading", message: "" });
 
     try {
-      const res = await fetch(`${checkoutBase}/api-checkout`, {
+      const res = await fetch(`${checkoutBase}/check-units/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1104,7 +1110,7 @@ function ListingPage() {
           <div className="grid gap-5 sm:grid-cols-2">
             {filteredListings.map((listing, index) => {
               const status = availability[listing.id] || {};
-              const displayTotal = status.hostPayout ?? status.total;
+              const displayTotal = status.total;
               const displayNightly = status.nightly ?? listing.basePrice;
               const canBook = status.status === "ready" && status.available !== false;
               const showInquiry = status.status === "ready" && status.available === false;
@@ -1182,7 +1188,6 @@ function ListingPage() {
                       <span>
                         Available  -  {formatCurrency(displayNightly, status.currency)} avg/night{" "}
                         {displayTotal ? ` -  ${formatCurrency(displayTotal, status.currency)} total` : ""}
-                        {status.hostPayout ? " " : ""}
                       </span>
                     )}
                     {status.status === "ready" && status.available === false && <span>Not available for your dates</span>}
@@ -1359,11 +1364,9 @@ function ListingPage() {
                     <div className="mt-2 space-y-1 text-sm">
                       <p className="text-amber-300">
                         Available  -  {formatCurrency(modalAvailability.nightly, modalAvailability.currency)} avg/night{" "}
-                        {modalAvailability.hostPayout
-                          ? ` -  ${formatCurrency(modalAvailability.hostPayout, modalAvailability.currency)} total`
-                          : modalAvailability.total
-                            ? ` -  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
-                            : ""}
+                        {modalAvailability.total
+                          ? ` -  ${formatCurrency(modalAvailability.total, modalAvailability.currency)} total`
+                          : ""}
                       </p>
                       {modalAvailability.breakdown && (
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-amber-100/80">
@@ -1509,8 +1512,6 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
-
 
 
 
