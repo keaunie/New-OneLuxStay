@@ -15,6 +15,9 @@ const STRIPE_SESSION_PROCESSING_STALE_MS = Number(
 const STRIPE_SESSION_PROCESSING_WAIT_MS = Number(
   process.env.STRIPE_SESSION_PROCESSING_WAIT_MS || 12_000
 );
+const ANTWERP_BE_TAX_PROFILE = "ANTWERP_BE";
+const BELGIUM_VAT_RATE = 0.12;
+const BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT = 2.97;
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -1117,6 +1120,9 @@ const buildGuestyReservationPayload = ({
   const cleaning = Number(breakdown?.cleaning);
   const fees = Number(breakdown?.fees);
   const taxes = Number(breakdown?.taxes);
+  const vat = Number(breakdown?.vat);
+  const cityTax = Number(breakdown?.cityTax);
+  const taxProfile = String(breakdown?.taxProfile || "").trim().toUpperCase();
   const effectiveTotal = Number.isFinite(Number(amount)) ? Number(amount) : null;
   const money = {};
   const invoiceItems = [];
@@ -1125,6 +1131,30 @@ const buildGuestyReservationPayload = ({
   const cleaningValue = Number.isFinite(cleaning) ? roundMoney(cleaning) : null;
   const taxesValue = Number.isFinite(taxes) ? roundMoney(taxes) : null;
   const feesValue = Number.isFinite(fees) ? roundMoney(fees) : null;
+  const vatValue = Number.isFinite(vat) ? roundMoney(vat) : null;
+  const cityTaxValue = Number.isFinite(cityTax) ? roundMoney(cityTax) : null;
+  const checkInDate = new Date(String(checkIn || ""));
+  const checkOutDate = new Date(String(checkOut || ""));
+  const parsedGuests = Number(guests);
+  const normalizedGuests =
+    Number.isFinite(parsedGuests) && parsedGuests > 0 ? Math.round(parsedGuests) : 1;
+  const derivedNightsMs = checkOutDate.getTime() - checkInDate.getTime();
+  const normalizedNights =
+    Number.isFinite(derivedNightsMs) && derivedNightsMs > 0
+      ? Math.round(derivedNightsMs / (1000 * 60 * 60 * 24))
+      : 1;
+  const derivedVatValue =
+    vatValue !== null
+      ? vatValue
+      : Number.isFinite(accommodation) && accommodation > 0
+        ? roundMoney(accommodation * BELGIUM_VAT_RATE)
+        : null;
+  const derivedCityTaxValue =
+    cityTaxValue !== null
+      ? cityTaxValue
+      : roundMoney(BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT * normalizedGuests * normalizedNights);
+  const shouldSplitBelgiumTaxes =
+    taxProfile === ANTWERP_BE_TAX_PROFILE || vatValue !== null || cityTaxValue !== null;
 
   let fareAccommodation = Number.isFinite(accommodation) ? roundMoney(accommodation) : null;
   if (fareAccommodation === null && Number.isFinite(effectiveTotal) && effectiveTotal >= 0) {
@@ -1144,7 +1174,27 @@ const buildGuestyReservationPayload = ({
     money.fareCleaning = cleaningValue;
   }
   if (taxesValue !== null && taxesValue > 0) {
-    invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
+    if (shouldSplitBelgiumTaxes) {
+      let taxesRemaining = taxesValue;
+      const desiredCityTax = derivedCityTaxValue !== null ? Math.max(derivedCityTaxValue, 0) : 0;
+      const desiredVat = derivedVatValue !== null ? Math.max(derivedVatValue, 0) : 0;
+      const splitCityTax = roundMoney(Math.min(desiredCityTax, taxesRemaining)) || 0;
+      taxesRemaining = roundMoney(taxesRemaining - splitCityTax) || 0;
+      const splitVat = roundMoney(Math.min(desiredVat, taxesRemaining)) || 0;
+      taxesRemaining = roundMoney(taxesRemaining - splitVat) || 0;
+      if (splitCityTax > 0) {
+        invoiceItems.push({ title: "City Tax", amount: splitCityTax, normalType: "CT" });
+      }
+      if (splitVat > 0) {
+        invoiceItems.push({ title: "VAT", amount: splitVat, normalType: "VAT" });
+      }
+      const taxRemainder = roundMoney(taxesRemaining);
+      if (taxRemainder !== null && taxRemainder > 0) {
+        invoiceItems.push({ title: "Occupancy Tax", amount: taxRemainder, normalType: "OCT" });
+      }
+    } else {
+      invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
+    }
   }
   if (feesValue !== null && feesValue > 0) {
     invoiceItems.push({ title: "Fees", amount: feesValue, normalType: "OTHER" });
@@ -2186,6 +2236,8 @@ const handleCheckout = async (event) => {
           bd_accommodation: breakdown.accommodation,
           bd_cleaning: breakdown.cleaning,
           bd_taxes: breakdown.taxes,
+          bd_vat: breakdown.vat,
+          bd_city_tax: breakdown.cityTax,
           bd_fees: breakdown.fees,
           bd_discount: breakdown.discountAmount,
           bd_discount_rate: breakdown.discountRate,
@@ -2234,6 +2286,9 @@ const handleCheckout = async (event) => {
               .filter(([, value]) => Number.isFinite(Number(value)))
               .map(([key, value]) => [key, String(value)]),
           )
+        : {}),
+      ...(typeof breakdown?.taxProfile === "string" && breakdown.taxProfile.trim()
+        ? { bd_tax_profile: breakdown.taxProfile.trim() }
         : {}),
       guestName,
       guestFirstName: guest?.firstName || "",
@@ -2402,6 +2457,9 @@ const handleCheckoutSuccess = async (event) => {
     cleaning: firstNumber(metadata.bd_cleaning),
     fees: firstNumber(metadata.bd_fees),
     taxes: firstNumber(metadata.bd_taxes),
+    vat: firstNumber(metadata.bd_vat),
+    cityTax: firstNumber(metadata.bd_city_tax),
+    taxProfile: typeof metadata.bd_tax_profile === "string" ? metadata.bd_tax_profile : "",
     total: amount,
     subtotal: amount,
     discountAmount: firstNumber(metadata.bd_discount) || 0,

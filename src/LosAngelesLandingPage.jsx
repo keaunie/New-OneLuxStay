@@ -5245,15 +5245,51 @@ const applyCheckoutPromoCode = () => {
           ? accommodationBaseValue
           : baseAmountValue;
       const promoDiscountAmount = Number((promoBaseValue * promo.rate).toFixed(2));
-      const discountedTotal = Number(Math.max(baseAmountValue - promoDiscountAmount, 0).toFixed(2));
+      const nextAccommodation = Number.isFinite(accommodationBaseValue)
+        ? Number(Math.max(accommodationBaseValue - promoDiscountAmount, 0).toFixed(2))
+        : null;
+      const parsedNights = diffNights(sectionCheckIn, sectionCheckOut);
+      const breakdownNights = Number(baseBreakdown?.nights);
+      const effectiveNights =
+        Number.isFinite(parsedNights) && parsedNights > 0
+          ? Math.round(parsedNights)
+          : Number.isFinite(breakdownNights) && breakdownNights > 0
+            ? Math.round(breakdownNights)
+            : 1;
+      const parsedGuests = Number(sectionGuests);
+      const breakdownGuests = Number(baseBreakdown?.guests);
+      const effectiveGuests =
+        Number.isFinite(parsedGuests) && parsedGuests > 0
+          ? Math.round(parsedGuests)
+          : Number.isFinite(breakdownGuests) && breakdownGuests > 0
+            ? Math.round(breakdownGuests)
+            : 1;
+      const cleaningBaseValue = Number(baseBreakdown?.cleaning);
+      const nextCleaning = Number.isFinite(cleaningBaseValue) ? cleaningBaseValue : 0;
+      const recomputedTaxes =
+        nextAccommodation !== null
+          ? computeTaxes(nextAccommodation, { nights: effectiveNights, guests: effectiveGuests })
+          : Number(baseBreakdown?.taxes);
+      const nextTaxes = Number.isFinite(recomputedTaxes) ? Number(recomputedTaxes.toFixed(2)) : 0;
+      const recomputedFees =
+        nextAccommodation !== null
+          ? computeStripeAdminFee(nextAccommodation, nextCleaning, nextTaxes)
+          : Number(baseBreakdown?.fees);
+      const nextFees = Number.isFinite(recomputedFees) ? Number(recomputedFees.toFixed(2)) : 0;
+      const discountedTotal =
+        nextAccommodation !== null
+          ? Number(Math.max(nextAccommodation + nextCleaning + nextTaxes + nextFees, 0).toFixed(2))
+          : Number(Math.max(baseAmountValue - promoDiscountAmount, 0).toFixed(2));
       const nextBreakdown = baseBreakdown
         ? {
             ...baseBreakdown,
-            ...(Number.isFinite(accommodationBaseValue)
+            ...(nextAccommodation !== null
               ? {
-                  accommodation: Number(
-                    Math.max(accommodationBaseValue - promoDiscountAmount, 0).toFixed(2)
-                  ),
+                  accommodation: nextAccommodation,
+                  taxes: nextTaxes,
+                  fees: nextFees,
+                  nights: effectiveNights,
+                  guests: effectiveGuests,
                 }
               : {}),
             promoCode: normalizedCode,

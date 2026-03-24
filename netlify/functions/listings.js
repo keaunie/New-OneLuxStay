@@ -296,13 +296,41 @@ const extractBedDetails = (listing) => {
 };
 
 const LISTING_FIELDS =
-    "_id id title nickname type unitTypeId address address.full address.city address.country terms prices picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId active pmsActive listed";
+    "_id id title nickname type unitTypeId address address.full address.city address.country terms prices prices.currency prices.securityDepositFee prices.securityDeposit prices.deposit picture pictures accommodates bedrooms bathrooms beds bedType propertyType timezone tags amenities publicDescription accountId active pmsActive listed";
+
+const toNumericValue = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+};
 
 const normalizeListing = (listing) => {
     if (!listing) return null;
     const bedDetails = extractBedDetails(listing);
     const bedType = listing.bedType || bedDetails[0] || null;
-    return { ...listing, bedType, bedDetails };
+    const securityDeposit = [
+        listing?.securityDeposit,
+        listing?.security_deposit,
+        listing?.prices?.securityDepositFee,
+        listing?.prices?.securityDeposit,
+        listing?.prices?.deposit,
+        listing?.terms?.securityDeposit,
+        listing?.terms?.deposit,
+    ]
+        .map((value) => toNumericValue(value))
+        .find((value) => value !== null);
+
+    const securityDepositCurrency =
+        listing?.prices?.currency ||
+        listing?.currency ||
+        null;
+
+    return {
+        ...listing,
+        bedType,
+        bedDetails,
+        ...(securityDeposit !== undefined ? { securityDeposit } : {}),
+        ...(securityDepositCurrency ? { securityDepositCurrency } : {}),
+    };
 };
 
 const getListingId = (listing) =>

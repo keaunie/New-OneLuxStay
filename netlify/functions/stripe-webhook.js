@@ -18,6 +18,9 @@ const STRIPE_SESSION_PROCESSING_STALE_MS = Number(
 const STRIPE_SESSION_PROCESSING_WAIT_MS = Number(
   process.env.STRIPE_SESSION_PROCESSING_WAIT_MS || 12_000
 );
+const ANTWERP_BE_TAX_PROFILE = "ANTWERP_BE";
+const BELGIUM_VAT_RATE = 0.12;
+const BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT = 2.97;
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
   "clp",
@@ -955,6 +958,9 @@ const buildReservationPayload = (session) => {
   const accommodation = toNumber(metadata.bd_accommodation);
   const cleaning = toNumber(metadata.bd_cleaning);
   const taxes = toNumber(metadata.bd_taxes);
+  const vat = toNumber(metadata.bd_vat);
+  const cityTax = toNumber(metadata.bd_city_tax);
+  const taxProfile = String(metadata.bd_tax_profile || "").trim().toUpperCase();
   const fees = toNumber(metadata.bd_fees);
   const currency = (metadata.currency || "").toUpperCase();
   const money = {};
@@ -964,6 +970,30 @@ const buildReservationPayload = (session) => {
   const cleaningValue = cleaning !== null ? roundMoney(cleaning) : null;
   const taxesValue = taxes !== null ? roundMoney(taxes) : null;
   const feesValue = fees !== null ? roundMoney(fees) : null;
+  const vatValue = vat !== null ? roundMoney(vat) : null;
+  const cityTaxValue = cityTax !== null ? roundMoney(cityTax) : null;
+  const checkInDate = new Date(String(checkIn || ""));
+  const checkOutDate = new Date(String(checkOut || ""));
+  const parsedGuests = Number(guests);
+  const normalizedGuests =
+    Number.isFinite(parsedGuests) && parsedGuests > 0 ? Math.round(parsedGuests) : 1;
+  const derivedNightsMs = checkOutDate.getTime() - checkInDate.getTime();
+  const normalizedNights =
+    Number.isFinite(derivedNightsMs) && derivedNightsMs > 0
+      ? Math.round(derivedNightsMs / (1000 * 60 * 60 * 24))
+      : 1;
+  const derivedVatValue =
+    vatValue !== null
+      ? vatValue
+      : Number.isFinite(accommodation) && accommodation > 0
+        ? roundMoney(accommodation * BELGIUM_VAT_RATE)
+        : null;
+  const derivedCityTaxValue =
+    cityTaxValue !== null
+      ? cityTaxValue
+      : roundMoney(BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT * normalizedGuests * normalizedNights);
+  const shouldSplitBelgiumTaxes =
+    taxProfile === ANTWERP_BE_TAX_PROFILE || vatValue !== null || cityTaxValue !== null;
   let fareAccommodation = accommodation !== null ? roundMoney(accommodation) : null;
 
   if (fareAccommodation === null && Number.isFinite(amount) && amount >= 0) {
@@ -983,7 +1013,27 @@ const buildReservationPayload = (session) => {
     money.fareCleaning = cleaningValue;
   }
   if (taxesValue !== null && taxesValue > 0) {
-    invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
+    if (shouldSplitBelgiumTaxes) {
+      let taxesRemaining = taxesValue;
+      const desiredCityTax = derivedCityTaxValue !== null ? Math.max(derivedCityTaxValue, 0) : 0;
+      const desiredVat = derivedVatValue !== null ? Math.max(derivedVatValue, 0) : 0;
+      const splitCityTax = roundMoney(Math.min(desiredCityTax, taxesRemaining)) || 0;
+      taxesRemaining = roundMoney(taxesRemaining - splitCityTax) || 0;
+      const splitVat = roundMoney(Math.min(desiredVat, taxesRemaining)) || 0;
+      taxesRemaining = roundMoney(taxesRemaining - splitVat) || 0;
+      if (splitCityTax > 0) {
+        invoiceItems.push({ title: "City Tax", amount: splitCityTax, normalType: "CT" });
+      }
+      if (splitVat > 0) {
+        invoiceItems.push({ title: "VAT", amount: splitVat, normalType: "VAT" });
+      }
+      const taxRemainder = roundMoney(taxesRemaining);
+      if (taxRemainder !== null && taxRemainder > 0) {
+        invoiceItems.push({ title: "Occupancy Tax", amount: taxRemainder, normalType: "OCT" });
+      }
+    } else {
+      invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
+    }
   }
   if (feesValue !== null && feesValue > 0) {
     invoiceItems.push({ title: "Fees", amount: feesValue, normalType: "OTHER" });

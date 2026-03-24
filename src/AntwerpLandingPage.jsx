@@ -63,15 +63,23 @@ const roundCurrency = (value) =>
 const BELGIUM_VAT_RATE = 0.12;
 const BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT = 2.97;
 const STRIPE_ADMIN_FEE_RATE = 0.03;
-const computeTaxes = (amount, options = {}) => {
+const ANTWERP_BE_TAX_PROFILE = "ANTWERP_BE";
+const computeTaxBreakdown = (amount, options = {}) => {
   const taxableAccommodation = Number.isFinite(amount) ? amount : 0;
   const nightsValue = Number(options?.nights);
   const guestsValue = Number(options?.guests);
   const nights = Number.isFinite(nightsValue) && nightsValue > 0 ? Math.round(nightsValue) : 1;
   const guests = Number.isFinite(guestsValue) && guestsValue > 0 ? Math.round(guestsValue) : 1;
-  const vatAmount = taxableAccommodation > 0 ? taxableAccommodation * BELGIUM_VAT_RATE : 0;
-  const cityTaxAmount = BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT * guests * nights;
-  return roundCurrency(vatAmount + cityTaxAmount);
+  const vat = taxableAccommodation > 0 ? roundCurrency(taxableAccommodation * BELGIUM_VAT_RATE) : 0;
+  const cityTax = roundCurrency(BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT * guests * nights);
+  return {
+    vat,
+    cityTax,
+    total: roundCurrency(vat + cityTax),
+  };
+};
+const computeTaxes = (amount, options = {}) => {
+  return computeTaxBreakdown(amount, options).total;
 };
 const computeStripeAdminFee = (accommodation, cleaning, taxes) => {
   const base =
@@ -1318,10 +1326,11 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
       1
     );
     const effectiveNights = firstNumber(quotedNights, nights, quoteDays.length, 1);
-    const taxes = computeTaxes(accommodation, {
+    const taxBreakdown = computeTaxBreakdown(accommodation, {
       nights: effectiveNights,
       guests: effectiveGuests,
     });
+    const taxes = taxBreakdown.total;
     const fees = computeStripeAdminFee(accommodation, cleaning, taxes);
     const subtotal =
       (typeof accommodation === "number" ? accommodation : 0) +
@@ -1344,6 +1353,9 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
         discountRate,
         cleaning,
         taxes,
+        vat: taxBreakdown.vat,
+        cityTax: taxBreakdown.cityTax,
+        taxProfile: ANTWERP_BE_TAX_PROFILE,
         fees,
         subtotal,
         total,
@@ -5275,15 +5287,68 @@ const applyCheckoutPromoCode = () => {
           ? accommodationBaseValue
           : baseAmountValue;
       const promoDiscountAmount = Number((promoBaseValue * promo.rate).toFixed(2));
-      const discountedTotal = Number(Math.max(baseAmountValue - promoDiscountAmount, 0).toFixed(2));
+      const nextAccommodation = Number.isFinite(accommodationBaseValue)
+        ? Number(Math.max(accommodationBaseValue - promoDiscountAmount, 0).toFixed(2))
+        : null;
+      const parsedNights = diffNights(sectionCheckIn, sectionCheckOut);
+      const breakdownNights = Number(baseBreakdown?.nights);
+      const effectiveNights =
+        Number.isFinite(parsedNights) && parsedNights > 0
+          ? Math.round(parsedNights)
+          : Number.isFinite(breakdownNights) && breakdownNights > 0
+            ? Math.round(breakdownNights)
+            : 1;
+      const parsedGuests = Number(sectionGuests);
+      const breakdownGuests = Number(baseBreakdown?.guests);
+      const effectiveGuests =
+        Number.isFinite(parsedGuests) && parsedGuests > 0
+          ? Math.round(parsedGuests)
+          : Number.isFinite(breakdownGuests) && breakdownGuests > 0
+            ? Math.round(breakdownGuests)
+            : 1;
+      const cleaningBaseValue = Number(baseBreakdown?.cleaning);
+      const nextCleaning = Number.isFinite(cleaningBaseValue) ? cleaningBaseValue : 0;
+      const taxBreakdown =
+        nextAccommodation !== null
+          ? computeTaxBreakdown(nextAccommodation, { nights: effectiveNights, guests: effectiveGuests })
+          : null;
+      const nextTaxes = Number.isFinite(Number(taxBreakdown?.total))
+        ? Number(Number(taxBreakdown.total).toFixed(2))
+        : Number.isFinite(Number(baseBreakdown?.taxes))
+          ? Number(Number(baseBreakdown.taxes).toFixed(2))
+          : 0;
+      const nextVat = Number.isFinite(Number(taxBreakdown?.vat))
+        ? Number(Number(taxBreakdown.vat).toFixed(2))
+        : Number.isFinite(Number(baseBreakdown?.vat))
+          ? Number(Number(baseBreakdown.vat).toFixed(2))
+          : null;
+      const nextCityTax = Number.isFinite(Number(taxBreakdown?.cityTax))
+        ? Number(Number(taxBreakdown.cityTax).toFixed(2))
+        : Number.isFinite(Number(baseBreakdown?.cityTax))
+          ? Number(Number(baseBreakdown.cityTax).toFixed(2))
+          : null;
+      const recomputedFees =
+        nextAccommodation !== null
+          ? computeStripeAdminFee(nextAccommodation, nextCleaning, nextTaxes)
+          : Number(baseBreakdown?.fees);
+      const nextFees = Number.isFinite(recomputedFees) ? Number(recomputedFees.toFixed(2)) : 0;
+      const discountedTotal =
+        nextAccommodation !== null
+          ? Number(Math.max(nextAccommodation + nextCleaning + nextTaxes + nextFees, 0).toFixed(2))
+          : Number(Math.max(baseAmountValue - promoDiscountAmount, 0).toFixed(2));
       const nextBreakdown = baseBreakdown
         ? {
             ...baseBreakdown,
-            ...(Number.isFinite(accommodationBaseValue)
+            ...(nextAccommodation !== null
               ? {
-                  accommodation: Number(
-                    Math.max(accommodationBaseValue - promoDiscountAmount, 0).toFixed(2)
-                  ),
+                  accommodation: nextAccommodation,
+                  taxes: nextTaxes,
+                  fees: nextFees,
+                  nights: effectiveNights,
+                  guests: effectiveGuests,
+                  taxProfile: ANTWERP_BE_TAX_PROFILE,
+                  ...(nextVat !== null ? { vat: nextVat } : {}),
+                  ...(nextCityTax !== null ? { cityTax: nextCityTax } : {}),
                 }
               : {}),
             promoCode: normalizedCode,
