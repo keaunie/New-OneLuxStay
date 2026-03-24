@@ -1,4 +1,4 @@
-import { getAvailabilityAndPricing } from "./_shared/guestyService.js";
+import { getAvailabilityAndPricing } from "./_shared/availabilityService.js";
 import { jsonResponse, readJsonBody, getBaseUrl, sanitizeInternalPath, withBookingSearchParams } from "./_shared/http.js";
 import { calculatePrice } from "./_shared/pricingService.js";
 import { getStripeClient, toStripeAmount } from "./_shared/stripeCheckoutService.js";

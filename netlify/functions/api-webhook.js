@@ -44,7 +44,7 @@ const buildBookingRecord = ({
     stripe_payment_intent_id: paymentIntent,
     stripe_event_id: String(eventId || ""),
     guesty_reservation_id: guestyReservationId || null,
-    booking_status,
+    booking_status: bookingStatus,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

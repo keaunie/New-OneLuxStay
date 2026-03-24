@@ -34,3 +34,73 @@ Behavior notes:
 - `npm run dev` runs the client and local server processes
 - `npm run lint` runs ESLint
 - `npm run build` builds the frontend bundle
+
+## Supabase Migration Prep
+
+The project now supports a staged data-provider rollout so we can move data into Supabase without breaking current Guesty flows.
+
+### 1) Create/Apply schema
+
+Apply Supabase migrations, including:
+
+- `supabase/migrations/20260323_prepare_site_data_tables.sql`
+
+This creates:
+
+- `public.listings`
+- `public.listing_nightly_prices`
+- `public.site_content`
+- `public.listings_public` view
+
+### 2) Configure environment
+
+Set at minimum:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Optional table names:
+
+- `SUPABASE_LISTINGS_TABLE` (default: `listings`)
+- `SUPABASE_AVAILABILITY_TABLE` (default: `listing_nightly_prices`)
+- `SUPABASE_SITE_CONTENT_TABLE` (default: `site_content`)
+- `SUPABASE_BOOKINGS_TABLE` (default: `bookings`)
+
+### 3) Seed/sync data
+
+- `npm run supabase:seed:content` seeds concierge + review content into `site_content`.
+- `npm run supabase:sync:listings` syncs listings from your listings endpoint into Supabase.
+- `npm run supabase:health` validates Supabase connectivity for the core tables.
+
+### 4) Switch provider incrementally
+
+These toggles enable Supabase per domain:
+
+- `SUPABASE_USE_FOR_LISTINGS=true`
+- `SUPABASE_USE_FOR_AVAILABILITY=true`
+- `SUPABASE_USE_FOR_CONTENT=true`
+
+Or set one global provider:
+
+- `APP_DATA_PROVIDER=supabase`
+
+If you want strict Supabase-only behavior (no Guesty fallback), set:
+
+- `APP_DATA_PROVIDER_ENFORCE=true`
+
+## Google Vacation Rentals Feed
+
+A first Hotel List XML endpoint for Google Vacation Rentals is available at:
+
+- `/.netlify/functions/google-vr-hotel-list`
+
+It reads from Supabase (`properties` by default) and outputs XML in `<listings>` / `<listing>` format.
+
+Environment variables:
+
+- `GOOGLE_VR_FEED_TABLE` (default: `properties`)
+- `GOOGLE_VR_FEED_LANGUAGE` (default: `en`)
+- `GOOGLE_VR_WEBSITE_BASE_URL` (for per-listing direct links)
+- `GOOGLE_VR_DEFAULT_COUNTRY` (default: `US`)
+- `GOOGLE_VR_DEFAULT_PHONE` (optional)
+- `GOOGLE_VR_DEFAULT_CATEGORY` (default: `vacation_rental`)

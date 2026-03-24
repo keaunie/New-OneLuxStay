@@ -1,4 +1,9 @@
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
+import { isSupabaseEnforced } from "./_shared/supabaseClient.js";
+import {
+    fetchListingsFromSupabase,
+    isSupabaseListingsEnabled,
+} from "./_shared/supabaseListingsService.js";
 
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
 const GUESTY_LISTINGS_URL = `${OPEN_API_HOST}/v1/listings`;
@@ -451,14 +456,122 @@ const fetchListingsByIds = async (ids, token) => {
     return fallbackResults;
 };
 
+const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
+    const forceIdsEnv = parseIdList(
+        process.env.GUESTY_EXTRA_LISTING_IDS || process.env.FORCE_LISTING_IDS
+    );
+    const forceIdsQuery = parseIdList(rawQueryParams.includeIds || rawQueryParams.forceIds);
+    const forcedIds = [...new Set([...forceIdsEnv, ...forceIdsQuery])];
+    const onlyIdsEnv = parseIdList(
+        process.env.GUESTY_ONLY_LISTING_IDS || process.env.ONLY_LISTING_IDS
+    );
+    const onlyIdsQuery = parseIdList(rawQueryParams.onlyIds || rawQueryParams.idsOnly);
+    const onlyIds = [...new Set([...onlyIdsEnv, ...onlyIdsQuery])];
+    const { hiddenIds, hiddenTitleTerms } = getHiddenConfig();
+
+    const basePayload = await fetchListingsFromSupabase({ queryParams: rawQueryParams });
+    let enrichedResults = (Array.isArray(basePayload?.results) ? basePayload.results : [])
+        .map((listing) => normalizeListing(listing))
+        .filter((listing) => isActiveAndPmsActive(listing))
+        .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
+        .filter(Boolean);
+
+    if (onlyIds.length) {
+        const onlyIdsSet = new Set(onlyIds.map((id) => String(id)));
+        const onlyIdMap = new Map();
+        enrichedResults.forEach((listing) => {
+            const id = String(getListingId(listing) || "");
+            if (!id || !onlyIdsSet.has(id) || onlyIdMap.has(id)) return;
+            onlyIdMap.set(id, listing);
+        });
+
+        const missingOnlyIds = onlyIds.filter((id) => !onlyIdMap.has(String(id)));
+        if (missingOnlyIds.length) {
+            const scopedPayload = await fetchListingsFromSupabase({
+                queryParams: {
+                    ...rawQueryParams,
+                    onlyIds: missingOnlyIds.join(","),
+                    includeIds: "",
+                },
+            });
+            (Array.isArray(scopedPayload?.results) ? scopedPayload.results : [])
+                .map((listing) => normalizeListing(listing))
+                .filter((listing) => isActiveAndPmsActive(listing))
+                .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
+                .filter(Boolean)
+                .forEach((listing) => {
+                    const id = String(getListingId(listing) || "");
+                    if (!id || !onlyIdsSet.has(id) || onlyIdMap.has(id)) return;
+                    onlyIdMap.set(id, listing);
+                });
+        }
+
+        const orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+        return {
+            results: orderedResults,
+            count: orderedResults.length,
+            tokenSource: "supabase",
+            dataSource: "supabase",
+        };
+    }
+
+    if (forcedIds.length) {
+        const existingIds = new Set(enrichedResults.map(getListingId).filter(Boolean).map(String));
+        const missingIds = forcedIds.filter((id) => !existingIds.has(String(id)));
+        if (missingIds.length) {
+            const forcedPayload = await fetchListingsFromSupabase({
+                queryParams: {
+                    ...rawQueryParams,
+                    includeIds: missingIds.join(","),
+                },
+            });
+            (Array.isArray(forcedPayload?.results) ? forcedPayload.results : [])
+                .map((listing) => normalizeListing(listing))
+                .filter((listing) => isActiveAndPmsActive(listing))
+                .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
+                .filter(Boolean)
+                .forEach((listing) => {
+                    const listingId = String(getListingId(listing) || "");
+                    if (!listingId || existingIds.has(listingId)) return;
+                    existingIds.add(listingId);
+                    enrichedResults.push(listing);
+                });
+        }
+    }
+
+    return {
+        ...basePayload,
+        results: enrichedResults,
+        count: enrichedResults.length,
+        tokenSource: "supabase",
+        dataSource: "supabase",
+    };
+};
+
 export async function handler(event) {
     if (event.httpMethod === "OPTIONS") {
         return jsonResponse(200, {});
     }
 
     try {
-        const { token, source: tokenSource } = await getGuestyToken();
         const rawQueryParams = event.queryStringParameters || {};
+
+        if (isSupabaseListingsEnabled()) {
+            try {
+                const payload = await buildSupabaseListingResponse(rawQueryParams);
+                return jsonResponse(200, payload, {
+                    "X-Guesty-Token-Cache": "supabase",
+                    "X-Data-Provider": "supabase",
+                });
+            } catch (error) {
+                if (isSupabaseEnforced()) throw error;
+                console.warn("Supabase listings lookup failed, falling back to Guesty", {
+                    error: error?.message || String(error),
+                });
+            }
+        }
+
+        const { token, source: tokenSource } = await getGuestyToken();
 
         const forceIdsEnv = parseIdList(
             process.env.GUESTY_EXTRA_LISTING_IDS || process.env.FORCE_LISTING_IDS

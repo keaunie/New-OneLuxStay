@@ -1,20 +1,56 @@
 import dotenv from "dotenv";
-import conciergeKnowledge from "../../src/data/conciergeKnowledge.js";
+import defaultConciergeKnowledge from "../../src/data/conciergeKnowledge.js";
+import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 
 dotenv.config();
 
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
 const MAX_MESSAGES = 10;
-const SUPPORTED_CITIES = conciergeKnowledge.cities.map((city) => city.name);
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
-const SITE_CONTEXT = `
+const normalizeConciergeKnowledge = (value) => {
+  if (!value || typeof value !== "object") return defaultConciergeKnowledge;
+
+  const normalized = {
+    ...defaultConciergeKnowledge,
+    ...value,
+    brand: {
+      ...(defaultConciergeKnowledge.brand || {}),
+      ...(value.brand || {}),
+    },
+    pageGuidance: {
+      ...(defaultConciergeKnowledge.pageGuidance || {}),
+      ...(value.pageGuidance || {}),
+    },
+    policies: {
+      ...(defaultConciergeKnowledge.policies || {}),
+      ...(value.policies || {}),
+    },
+    cities:
+      Array.isArray(value.cities) && value.cities.length
+        ? value.cities
+        : defaultConciergeKnowledge.cities || [],
+    faq:
+      Array.isArray(value.faq) && value.faq.length
+        ? value.faq
+        : defaultConciergeKnowledge.faq || [],
+  };
+
+  return normalized;
+};
+
+const getSupportedCities = (knowledge) =>
+  (Array.isArray(knowledge?.cities) ? knowledge.cities : [])
+    .map((city) => String(city?.name || "").trim())
+    .filter(Boolean);
+
+const buildSiteContext = (supportedCities = []) => `
 You are the One Lux Stay AI concierge for a hospitality website.
 
 Brand scope:
 - Help visitors understand One Lux Stay properties and the booking journey.
-- Supported city pages on this website include ${SUPPORTED_CITIES.join(", ")}, and a global listings view.
+- Supported city pages on this website include ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}, and a global listings view.
 - You can explain the general purpose of pages, help narrow down destinations, and guide users toward booking.
 
 Behavior rules:
@@ -26,6 +62,11 @@ Behavior rules:
 - If someone wants to book, encourage them to continue through the site's booking flow.
 - If someone needs a human for anything sensitive or uncertain, suggest contacting the One Lux Stay team directly through the website.
 `;
+
+const getConciergeKnowledge = async () => {
+  const value = await getConciergeKnowledgeFromSupabase(defaultConciergeKnowledge);
+  return normalizeConciergeKnowledge(value);
+};
 
 const baseHeaders = {
   "Content-Type": "application/json",
@@ -84,7 +125,7 @@ const formatKnowledgeSection = (title, lines) => {
   return [`${title}:`, ...normalized.map((line) => `- ${line}`), ""].join("\n");
 };
 
-const buildKnowledgeText = () => {
+const buildKnowledgeText = (conciergeKnowledge) => {
   const brandLines = [
     `Brand: ${conciergeKnowledge.brand.name}`,
     conciergeKnowledge.brand.description,
@@ -117,8 +158,6 @@ const buildKnowledgeText = () => {
     .join("\n");
 };
 
-const MANUAL_KNOWLEDGE_TEXT = buildKnowledgeText();
-
 const fallbackNoticeFromReason = (reason) => {
   switch (reason) {
     case "missing_api_key":
@@ -134,14 +173,17 @@ const fallbackNoticeFromReason = (reason) => {
   }
 };
 
-const buildFallbackReply = ({ latestUserMessage, pageContext }) => {
+const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge, supportedCities }) => {
   const prompt = String(latestUserMessage?.content || "").toLowerCase();
   const city = pageContext.city || "One Lux Stay";
   const onListingPage = pageContext.pageType === "listing";
   const onCityPage = pageContext.pageType === "city";
+  const visibleCities = supportedCities.length
+    ? supportedCities
+    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"];
 
   if (/\b(cities|city|locations|where)\b/.test(prompt)) {
-    return `We currently feature stays in ${SUPPORTED_CITIES.join(", ")}. If you want, tell me which vibe you want most and I can point you toward the best fit.`;
+    return `We currently feature stays in ${visibleCities.join(", ")}. If you want, tell me which vibe you want most and I can point you toward the best fit.`;
   }
 
   if (/\b(book|booking|reserve|reservation|checkout)\b/.test(prompt)) {
@@ -178,14 +220,27 @@ const buildFallbackReply = ({ latestUserMessage, pageContext }) => {
     return conciergeKnowledge.pageGuidance?.home || "You are on a general One Lux Stay page. From here, you can browse city pages, explore listings, and continue into booking.";
   }
 
-  return `I can still help with the basics while the live AI service is unavailable. One Lux Stay currently features stays in ${SUPPORTED_CITIES.join(", ")}${city && city !== "One Lux Stay" && city !== "Global" ? `, and you are currently browsing ${city}` : ""}. Ask me about cities, booking steps, or how to use the page you are on.`;
+  return `I can still help with the basics while the live AI service is unavailable. One Lux Stay currently features stays in ${visibleCities.join(", ")}${city && city !== "One Lux Stay" && city !== "Global" ? `, and you are currently browsing ${city}` : ""}. Ask me about cities, booking steps, or how to use the page you are on.`;
 };
 
-const fallbackResponse = ({ event, latestUserMessage, pageContext, reason }) =>
+const fallbackResponse = ({
+  event,
+  latestUserMessage,
+  pageContext,
+  reason,
+  conciergeKnowledge,
+  supportedCities,
+}) =>
   jsonResponse(
     200,
     {
-      reply: buildFallbackReply({ latestUserMessage, pageContext, reason }),
+      reply: buildFallbackReply({
+        latestUserMessage,
+        pageContext,
+        reason,
+        conciergeKnowledge,
+        supportedCities,
+      }),
       mode: "fallback",
       notice: fallbackNoticeFromReason(reason),
     },
@@ -197,7 +252,7 @@ const formatTranscript = (messages) =>
     .map((message) => `${message.role === "assistant" ? "Assistant" : "User"}: ${message.content}`)
     .join("\n");
 
-const buildInput = ({ pageContext, messages }) => {
+const buildInput = ({ pageContext, messages, knowledgeText }) => {
   const contextLines = [
     `Page title: ${pageContext.title || "Unknown"}`,
     `Pathname: ${pageContext.pathname || "/"}`,
@@ -208,7 +263,7 @@ const buildInput = ({ pageContext, messages }) => {
   ];
 
   return [
-    MANUAL_KNOWLEDGE_TEXT,
+    knowledgeText,
     "Current website context:",
     ...contextLines,
     "",
@@ -268,32 +323,6 @@ export async function handler(event) {
     return jsonResponse(405, { error: "Method not allowed" }, event);
   }
 
-  const apiKey = getEnv("OPENAI_API_KEY");
-  const model = getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini";
-  if (!apiKey) {
-    let payload = {};
-    try {
-      payload = JSON.parse(event.body || "{}");
-    } catch {
-      return jsonResponse(400, { error: "Invalid JSON body" }, event);
-    }
-
-    const messages = sanitizeMessages(payload?.messages);
-    const pageContext = sanitizePageContext(payload?.pageContext);
-    const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
-
-    if (!latestUserMessage) {
-      return jsonResponse(400, { error: "A user message is required" }, event);
-    }
-
-    return fallbackResponse({
-      event,
-      latestUserMessage,
-      pageContext,
-      reason: "missing_api_key",
-    });
-  }
-
   let payload;
   try {
     payload = JSON.parse(event.body || "{}");
@@ -309,6 +338,24 @@ export async function handler(event) {
     return jsonResponse(400, { error: "A user message is required" }, event);
   }
 
+  const conciergeKnowledge = await getConciergeKnowledge();
+  const supportedCities = getSupportedCities(conciergeKnowledge);
+  const knowledgeText = buildKnowledgeText(conciergeKnowledge);
+  const siteContext = buildSiteContext(supportedCities);
+
+  const apiKey = getEnv("OPENAI_API_KEY");
+  const model = getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini";
+  if (!apiKey) {
+    return fallbackResponse({
+      event,
+      latestUserMessage,
+      pageContext,
+      reason: "missing_api_key",
+      conciergeKnowledge,
+      supportedCities,
+    });
+  }
+
   try {
     const response = await fetchWithTimeout(OPENAI_API_URL, {
       method: "POST",
@@ -318,8 +365,8 @@ export async function handler(event) {
       },
       body: JSON.stringify({
         model,
-        instructions: SITE_CONTEXT,
-        input: buildInput({ pageContext, messages }),
+        instructions: siteContext,
+        input: buildInput({ pageContext, messages, knowledgeText }),
         max_output_tokens: 350,
       }),
     });
@@ -344,6 +391,8 @@ export async function handler(event) {
           latestUserMessage,
           pageContext,
           reason: errorCode === "insufficient_quota" ? "insufficient_quota" : "rate_limit",
+          conciergeKnowledge,
+          supportedCities,
         });
       }
 
@@ -353,6 +402,8 @@ export async function handler(event) {
           latestUserMessage,
           pageContext,
           reason: "service_unavailable",
+          conciergeKnowledge,
+          supportedCities,
         });
       }
 
@@ -385,6 +436,8 @@ export async function handler(event) {
       latestUserMessage,
       pageContext,
       reason: error?.name === "AbortError" ? "timeout" : "service_unavailable",
+      conciergeKnowledge,
+      supportedCities,
     });
   }
 }

@@ -1,4 +1,4 @@
-import { getAvailabilityAndPricing } from "./_shared/guestyService.js";
+import { getAvailabilityAndPricing } from "./_shared/availabilityService.js";
 import { calculatePrice } from "./_shared/pricingService.js";
 import { jsonResponse } from "./_shared/http.js";
 
