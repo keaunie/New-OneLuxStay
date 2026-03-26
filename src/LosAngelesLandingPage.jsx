@@ -19,6 +19,8 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
+const UNIT_MARKER_ICON =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
 const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
 const PROPERTY_COORDS = { lat: 34.0575, lng: -118.2776 };
 const LANDMARKS = [
@@ -2622,6 +2624,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const geocodeInFlightRef = useRef(new Set());
   const mapLoadedRef = useRef(false);
   const losAngelesListingsRef = useRef([]);
+  const syncListingMarkersRef = useRef(() => {});
   const [isMapEnabled, setIsMapEnabled] = useState(true);
   const [mapError, setMapError] = useState("");
   const teardownMainMap = () => {
@@ -3183,11 +3186,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             });
 
             if (losAngelesListingsRef.current.length) {
-              syncListingMarkers(losAngelesListingsRef.current);
+              syncListingMarkersRef.current(losAngelesListingsRef.current);
             }
 
             maps.event.addListener(map, "zoom_changed", () => {
-              syncListingMarkers(losAngelesListingsRef.current, { fitBounds: false });
+              syncListingMarkersRef.current(losAngelesListingsRef.current, { fitBounds: false });
             });
           })
           .catch((err) => {
@@ -3413,33 +3416,71 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       imageIndex = Math.abs(hash) % images.length;
     }
     const image = escapeHtml(images[imageIndex] || FALLBACK_IMAGE);
-    const basePrice = firstNumber(
-      listing?.basePrice,
-      listing?.prices?.basePrice,
-      listing?.prices?.basePricePerNight,
-      listing?.prices?.nightly,
-      listing?.prices?.nightly?.amount,
-      listing?.prices?.basePrice?.amount
+    const parentByGroupKey = new Map(
+      (Array.isArray(losAngelesParentListings) ? losAngelesParentListings : [])
+        .map((entry) => [getListingGroupKey(entry), entry])
+        .filter(([key]) => Boolean(key))
     );
-    const nightlyPrice = getListingNightlyPrice(listing);
-    const currency =
-      listing?.currency ||
-      listing?.prices?.currency ||
-      listing?.prices?.nightly?.currency ||
-      listing?.prices?.basePrice?.currency ||
-      "USD";
+    const resolvePopupRate = (entry) => {
+      const entryBasePrice = firstNumber(
+        entry?.basePrice,
+        entry?.prices?.basePrice,
+        entry?.prices?.basePricePerNight,
+        entry?.prices?.nightly,
+        entry?.prices?.nightly?.amount,
+        entry?.prices?.basePrice?.amount
+      );
+      const entryNightlyPrice = getListingNightlyPrice(entry);
+      const entryCurrency =
+        entry?.currency ||
+        entry?.prices?.currency ||
+        entry?.prices?.nightly?.currency ||
+        entry?.prices?.basePrice?.currency ||
+        "USD";
+      const entryListingId = getListingId(entry);
+      const entryGroupKey = getListingGroupKey(entry);
+      const entryParentListingId = entryGroupKey
+        ? getListingId(parentByGroupKey.get(entryGroupKey))
+        : null;
+      const entryQuoteLookupKeys = [
+        entryListingId,
+        entry?.unitTypeId,
+        entryParentListingId,
+        getParentListingId(entry),
+      ]
+        .map(toLookupKey)
+        .filter(Boolean);
+      const entryQuoteRate =
+        entryQuoteLookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
+      return {
+        listingId: entryListingId,
+        displayCurrency: entryQuoteRate?.currency || entryCurrency,
+        dailyRate: firstNumber(entryQuoteRate?.nightly, entryNightlyPrice, entryBasePrice),
+      };
+    };
+    const selectedRate = resolvePopupRate(listing);
+    const fallbackRate =
+      typeof selectedRate.dailyRate === "number"
+        ? null
+        : listings
+            .map((entry) => resolvePopupRate(entry))
+            .find((entry) => typeof entry?.dailyRate === "number") || null;
+    const listingId = selectedRate.listingId;
+    const displayCurrency = fallbackRate?.displayCurrency || selectedRate.displayCurrency;
+    const dailyRate =
+      typeof selectedRate.dailyRate === "number"
+        ? selectedRate.dailyRate
+        : fallbackRate?.dailyRate;
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-    const nightlyForTotal = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
-    const canShowStayTotal = showMonthlyTotal && stayNights > 0 && typeof nightlyForTotal === "number";
+    const canShowStayTotal =
+      showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
     const priceValue = canShowStayTotal
-      ? nightlyForTotal * stayNights
-      : typeof nightlyPrice === "number"
-        ? nightlyPrice
-        : basePrice;
+      ? dailyRate * stayNights
+      : dailyRate;
     const priceLabel =
       typeof priceValue === "number"
-        ? `${formatCurrency(priceValue, currency)}${canShowStayTotal ? " total" : " / night"}`
-        : "Check price";
+        ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
+        : "Checking price...";
     const bedrooms = firstNumber(
       listing?.bedrooms,
       listing?.beds,
@@ -3457,7 +3498,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean)
       .join(" · ");
     const address = escapeHtml(formatAddress(listing));
-    const listingId = getListingId(listing);
     const idLine = listingId ? `#${escapeHtml(listingId)}` : "";
     const listingPath = listingId
       ? `/los-angeles/listing/${encodeURIComponent(listingId)}`
@@ -3544,7 +3584,63 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </a>
       </div>
     `;
-  }, []);
+  }, [cardQuoteRates, losAngelesParentListings, sectionCheckIn, sectionCheckOut, showMonthlyTotal]);
+
+  const resolveCardRateForListing = useCallback(
+    (listing) => {
+      if (!listing) return { dailyRate: null, displayCurrency: "USD" };
+      const parentByGroupKey = new Map(
+        (Array.isArray(losAngelesParentListings) ? losAngelesParentListings : [])
+          .map((entry) => [getListingGroupKey(entry), entry])
+          .filter(([key]) => Boolean(key))
+      );
+      const resolveEntryRate = (entry) => {
+        const entryBasePrice = firstNumber(
+          entry?.basePrice,
+          entry?.prices?.basePrice,
+          entry?.prices?.basePricePerNight,
+          entry?.prices?.nightly,
+          entry?.prices?.nightly?.amount,
+          entry?.prices?.basePrice?.amount
+        );
+        const entryNightlyPrice = getListingNightlyPrice(entry);
+        const entryCurrency =
+          entry?.currency ||
+          entry?.prices?.currency ||
+          entry?.prices?.nightly?.currency ||
+          entry?.prices?.basePrice?.currency ||
+          "USD";
+        const entryId = getListingId(entry);
+        const entryGroupKey = getListingGroupKey(entry);
+        const entryParentId = entryGroupKey
+          ? getListingId(parentByGroupKey.get(entryGroupKey))
+          : null;
+        const lookupKeys = [entryId, entry?.unitTypeId, entryParentId, getParentListingId(entry)]
+          .map(toLookupKey)
+          .filter(Boolean);
+        const quoteRate = lookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
+        return {
+          dailyRate: firstNumber(quoteRate?.nightly, entryNightlyPrice, entryBasePrice),
+          displayCurrency: quoteRate?.currency || entryCurrency,
+        };
+      };
+
+      const selectedRate = resolveEntryRate(listing);
+      if (typeof selectedRate.dailyRate === "number") return selectedRate;
+
+      const groupKey = getListingGroupKey(listing);
+      if (groupKey) {
+        const siblingRate =
+          (Array.isArray(losAngelesListings) ? losAngelesListings : [])
+            .filter((entry) => getListingGroupKey(entry) === groupKey)
+            .map((entry) => resolveEntryRate(entry))
+            .find((entry) => typeof entry?.dailyRate === "number") || null;
+        if (siblingRate) return siblingRate;
+      }
+      return selectedRate;
+    },
+    [cardQuoteRates, losAngelesListings, losAngelesParentListings]
+  );
 
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
@@ -3718,17 +3814,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
 
     const listingMarkerIcon = {
-      path: maps.SymbolPath.CIRCLE,
-      scale: 26,
-      fillColor: "#1f1c19",
-      fillOpacity: 1,
-      strokeColor: "#c9b59c",
-      strokeWeight: 2,
-    };
-    const listingLogoIcon = {
-      url: LOGO_URL,
-      scaledSize: new maps.Size(26, 26),
-      anchor: new maps.Point(13, 13),
+      url: UNIT_MARKER_ICON,
+      scaledSize: new maps.Size(34, 34),
+      anchor: new maps.Point(17, 17),
     };
 
     const bounds = new maps.LatLngBounds();
@@ -3867,21 +3955,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       const primary = uniqueParents[0] || clusterListings[0];
       const title = resolveGroupTitle(primary);
-      const backgroundMarker = new maps.Marker({
-        map,
-        position: coords,
-        icon: listingMarkerIcon,
-        zIndex: 10,
-      });
       const marker = new maps.Marker({
         map,
         position: coords,
         title,
-        icon: listingLogoIcon,
-        zIndex: 11,
+        icon: listingMarkerIcon,
+        zIndex: 10,
       });
       const popupKey = `cluster-${popupKeyIndex++}`;
-      const popupAnchor = marker || backgroundMarker;
+      const popupAnchor = marker;
       const groupedListings = (uniqueParents.length ? uniqueParents : [primary]).flatMap(
         getGroupListingsForParent
       );
@@ -3899,9 +3981,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         infoWindow.open(map, popupAnchor);
       };
       marker.addListener("click", openPopup);
-      backgroundMarker.addListener("click", openPopup);
-      listingMarkersRef.current.push(backgroundMarker);
-      if (marker) listingMarkersRef.current.push(marker);
+      listingMarkersRef.current.push(marker);
       bounds.extend(coords);
       hasBounds = true;
     });
@@ -3916,9 +3996,18 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   };
 
   useEffect(() => {
+    syncListingMarkersRef.current = syncListingMarkers;
+  }, [syncListingMarkers]);
+
+  useEffect(() => {
     losAngelesListingsRef.current = losAngelesListings;
     syncListingMarkers(losAngelesListings);
   }, [losAngelesListings]);
+
+  useEffect(() => {
+    if (!mapsApiRef.current || !mapInstanceRef.current) return;
+    syncListingMarkersRef.current(losAngelesListingsRef.current, { fitBounds: false });
+  }, [buildMapPopupContent]);
 
   const groupedListingsAll = useMemo(() => {
     const groups = BUILDING_GROUPS.reduce((acc, group) => {
@@ -7676,10 +7765,9 @@ const applyCheckoutPromoCode = () => {
                     const bathrooms = firstNumber(listing?.bathrooms);
                     const accommodates = firstNumber(listing?.accommodates);
                     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
-                    const nightlyPrice = getListingNightlyPrice(listing);
-                    const quoteRateEntry = listingId ? cardQuoteRates[toLookupKey(listingId)] : null;
-                    const displayCurrency = quoteRateEntry?.currency || currency;
-                    const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+                    const resolvedCardRate = resolveCardRateForListing(listing);
+                    const displayCurrency = resolvedCardRate?.displayCurrency || currency;
+                    const dailyRate = resolvedCardRate?.dailyRate;
                     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
                     const canShowStayTotal =
                       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
@@ -7688,7 +7776,7 @@ const applyCheckoutPromoCode = () => {
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof dailyRate === "number"
                         ? `${formatCurrency(dailyRate, displayCurrency)} / night`
-                        : "Check price";
+                        : "Checking price...";
                     const priceSub = canShowStayTotal
                       ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";

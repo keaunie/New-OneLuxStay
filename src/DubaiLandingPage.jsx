@@ -3511,18 +3511,37 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       listing?.prices?.nightly?.currency ||
       listing?.prices?.basePrice?.currency ||
       "EUR";
+    const listingId = getListingId(listing);
+    const listingGroupKey = getListingGroupKey(listing);
+    const parentListingId = listingGroupKey
+      ? getListingId(
+          (Array.isArray(losAngelesParentListings) ? losAngelesParentListings : []).find(
+            (entry) => getListingGroupKey(entry) === listingGroupKey
+          )
+        )
+      : null;
+    const quoteLookupKeys = [
+      listingId,
+      listing?.unitTypeId,
+      parentListingId,
+      getParentListingId(listing),
+    ]
+      .map(toLookupKey)
+      .filter(Boolean);
+    const quoteRateEntry =
+      quoteLookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
+    const displayCurrency = quoteRateEntry?.currency || currency;
+    const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-    const nightlyForTotal = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
-    const canShowStayTotal = showMonthlyTotal && stayNights > 0 && typeof nightlyForTotal === "number";
+    const canShowStayTotal =
+      showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
     const priceValue = canShowStayTotal
-      ? nightlyForTotal * stayNights
-      : typeof nightlyPrice === "number"
-        ? nightlyPrice
-        : basePrice;
+      ? dailyRate * stayNights
+      : dailyRate;
     const priceLabel =
       typeof priceValue === "number"
-        ? `${formatCurrency(priceValue, currency)}${canShowStayTotal ? " total" : " / night"}`
-        : "Check price";
+        ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
+        : "Checking price...";
     const bedrooms = getListingBedrooms(listing);
     const bathrooms = firstNumber(listing?.bathrooms);
     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
@@ -3534,7 +3553,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean)
       .join(" | ");
     const address = escapeHtml(formatAddress(listing));
-    const listingId = getListingId(listing);
     const listingPath = listingId ? `/dubai/listing/${encodeURIComponent(listingId)}` : "/dubai";
     const safePopupKey = escapeHtml(String(popupKey || ""));
     const unitNav =
@@ -3618,7 +3636,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </a>
       </div>
     `;
-  }, []);
+  }, [cardQuoteRates, losAngelesParentListings, sectionCheckIn, sectionCheckOut, showMonthlyTotal]);
 
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
@@ -7905,7 +7923,7 @@ const applyCheckoutPromoCode = () => {
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof dailyRate === "number"
                         ? `${formatCurrency(dailyRate, displayCurrency)} / night`
-                        : "Check price";
+                        : "Checking price...";
                     const priceSub = canShowStayTotal
                       ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";

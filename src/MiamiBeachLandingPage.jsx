@@ -17,6 +17,12 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
+const UNIT_MARKER_ICON =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
+const MAP_DEFAULT_ZOOM = 13;
+const MAP_SINGLE_MARKER_ZOOM = 13;
+const MAP_FIT_BOUNDS_MAX_ZOOM = 15;
+const MAP_MAX_ZOOM = 19;
 const PROPERTY_ADDRESS = "Brickell, Miami, FL";
 const PROPERTY_COORDS = { lat: 25.7617, lng: -80.1918 };
 const LANDMARKS = [
@@ -29,6 +35,11 @@ const LANDMARKS = [
 ];
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
+const getUnitMarkerIcon = (maps) => ({
+  url: UNIT_MARKER_ICON,
+  scaledSize: new maps.Size(34, 34),
+  anchor: new maps.Point(17, 17),
+});
 
 const handleImageError = (event) => {
   const img = event.currentTarget;
@@ -74,6 +85,24 @@ const computeStripeAdminFee = (accommodation, cleaning, taxes) => {
     (Number.isFinite(taxes) ? taxes : 0);
   if (!Number.isFinite(base) || base <= 0) return 0;
   return roundCurrency(base * STRIPE_ADMIN_FEE_RATE);
+};
+
+const getMapZoomLevel = (map) => {
+  if (!map) return null;
+  if (typeof map.getZoom === "function") return map.getZoom();
+  if (typeof map?.__leafletMap?.getZoom === "function") return map.__leafletMap.getZoom();
+  return null;
+};
+
+const setMapZoomLevel = (map, zoom) => {
+  if (!map || !Number.isFinite(zoom)) return;
+  if (typeof map.setZoom === "function") {
+    map.setZoom(zoom);
+    return;
+  }
+  if (typeof map?.__leafletMap?.setZoom === "function") {
+    map.__leafletMap.setZoom(zoom);
+  }
 };
 
 const BedIcon = () => (
@@ -2950,9 +2979,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           .then((maps) => {
             const map = new maps.Map(target, {
               center: PROPERTY_COORDS,
-              zoom: 14,
+              zoom: MAP_DEFAULT_ZOOM,
               minZoom: 3,
-              maxZoom: 21,
+              maxZoom: MAP_MAX_ZOOM,
               gestureHandling: "greedy",
               scrollwheel: true,
               draggable: true,
@@ -3307,18 +3336,37 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       listing?.prices?.nightly?.currency ||
       listing?.prices?.basePrice?.currency ||
       "USD";
+    const listingId = getListingId(listing);
+    const listingGroupKey = getListingGroupKey(listing);
+    const parentListingId = listingGroupKey
+      ? getListingId(
+          (Array.isArray(miamiBeachParentListings) ? miamiBeachParentListings : []).find(
+            (entry) => getListingGroupKey(entry) === listingGroupKey
+          )
+        )
+      : null;
+    const quoteLookupKeys = [
+      listingId,
+      listing?.unitTypeId,
+      parentListingId,
+      getParentListingId(listing),
+    ]
+      .map(toLookupKey)
+      .filter(Boolean);
+    const quoteRateEntry =
+      quoteLookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
+    const displayCurrency = quoteRateEntry?.currency || currency;
+    const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-    const nightlyForTotal = typeof nightlyPrice === "number" ? nightlyPrice : basePrice;
-    const canShowStayTotal = showMonthlyTotal && stayNights > 0 && typeof nightlyForTotal === "number";
+    const canShowStayTotal =
+      showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
     const priceValue = canShowStayTotal
-      ? nightlyForTotal * stayNights
-      : typeof nightlyPrice === "number"
-        ? nightlyPrice
-        : basePrice;
+      ? dailyRate * stayNights
+      : dailyRate;
     const priceLabel =
       typeof priceValue === "number"
-        ? `${formatCurrency(priceValue, currency)}${canShowStayTotal ? " total" : " / night"}`
-        : "Check price";
+        ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
+        : "Checking price...";
     const bedrooms = firstNumber(
       listing?.bedrooms,
       listing?.beds,
@@ -3336,7 +3384,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean)
       .join(" · ");
     const address = escapeHtml(formatAddress(listing));
-    const listingId = getListingId(listing);
     const idLine = listingId ? `#${escapeHtml(listingId)}` : "";
     const listingPath = listingId
       ? `/miami/listing/${encodeURIComponent(listingId)}`
@@ -3423,7 +3470,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </a>
       </div>
     `;
-  }, []);
+  }, [cardQuoteRates, miamiBeachParentListings, sectionCheckIn, sectionCheckOut, showMonthlyTotal]);
 
   const navigatePopupUnit = useCallback(
     (popupKey = "", direction = "next") => {
@@ -3531,17 +3578,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
 
     const listingMarkerIcon = {
-      path: maps.SymbolPath.CIRCLE,
-      scale: 26,
-      fillColor: "#1f1c19",
-      fillOpacity: 1,
-      strokeColor: "#c9b59c",
-      strokeWeight: 2,
-    };
-    const listingLogoIcon = {
-      url: LOGO_URL,
-      scaledSize: new maps.Size(26, 26),
-      anchor: new maps.Point(13, 13),
+      url: UNIT_MARKER_ICON,
+      scaledSize: new maps.Size(34, 34),
+      anchor: new maps.Point(17, 17),
     };
 
     const bounds = new maps.LatLngBounds();
@@ -3553,7 +3592,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .filter(Boolean);
     const clusters = new Map();
     const getClusterStep = () => {
-      const zoom = typeof map.getZoom === "function" ? map.getZoom() : 13;
+      const zoom = getMapZoomLevel(map) ?? MAP_DEFAULT_ZOOM;
       if (zoom <= 10) return 0.25;
       if (zoom <= 12) return 0.12;
       if (zoom <= 14) return 0.06;
@@ -3680,21 +3719,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       });
       const primary = uniqueParents[0] || clusterListings[0];
       const title = resolveGroupTitle(primary);
-      const backgroundMarker = new maps.Marker({
-        map,
-        position: coords,
-        icon: listingMarkerIcon,
-        zIndex: 10,
-      });
       const marker = new maps.Marker({
         map,
         position: coords,
         title,
-        icon: listingLogoIcon,
-        zIndex: 11,
+        icon: listingMarkerIcon,
+        zIndex: 10,
       });
       const popupKey = `cluster-${popupKeyIndex++}`;
-      const popupAnchor = marker || backgroundMarker;
+      const popupAnchor = marker;
       const groupedListings = (uniqueParents.length ? uniqueParents : [primary]).flatMap(
         getGroupListingsForParent
       );
@@ -3712,15 +3745,19 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         infoWindow.open(map, popupAnchor);
       };
       marker.addListener("click", openPopup);
-      backgroundMarker.addListener("click", openPopup);
-      listingMarkersRef.current.push(backgroundMarker);
-      if (marker) listingMarkersRef.current.push(marker);
+      listingMarkersRef.current.push(marker);
       bounds.extend(coords);
       hasBounds = true;
     });
 
     if (hasBounds && fitBounds) {
       map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
+      const currentZoom = getMapZoomLevel(map);
+      const maxAllowedZoom =
+        listingMarkersRef.current.length <= 1 ? MAP_SINGLE_MARKER_ZOOM : MAP_FIT_BOUNDS_MAX_ZOOM;
+      if (Number.isFinite(currentZoom) && currentZoom > maxAllowedZoom) {
+        setMapZoomLevel(map, maxAllowedZoom);
+      }
       const westlake = new maps.LatLng(PROPERTY_COORDS.lat, PROPERTY_COORDS.lng);
       if (bounds.contains(westlake)) {
         map.panTo(westlake);
@@ -5428,7 +5465,7 @@ const applyCheckoutPromoCode = () => {
           center: initialCenter,
           zoom: 15,
           minZoom: 3,
-          maxZoom: 21,
+          maxZoom: MAP_MAX_ZOOM,
           gestureHandling: "greedy",
           scrollwheel: true,
           draggable: true,
@@ -5447,6 +5484,7 @@ const applyCheckoutPromoCode = () => {
             map,
             position,
             title: activeListing.title || "OneLuxStay",
+            icon: getUnitMarkerIcon(maps),
           });
         };
         if (listingMapTarget?.coords) {
@@ -5484,7 +5522,7 @@ const applyCheckoutPromoCode = () => {
           center: initialCenter,
           zoom: 15,
           minZoom: 3,
-          maxZoom: 21,
+          maxZoom: MAP_MAX_ZOOM,
           gestureHandling: "greedy",
           scrollwheel: true,
           draggable: true,
@@ -5503,6 +5541,7 @@ const applyCheckoutPromoCode = () => {
             map,
             position,
             title: sectionMapTarget.label || "OneLuxStay",
+            icon: getUnitMarkerIcon(maps),
           });
         };
         if (sectionMapTarget.coords) {
@@ -7432,7 +7471,7 @@ const applyCheckoutPromoCode = () => {
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof dailyRate === "number"
                         ? `${formatCurrency(dailyRate, displayCurrency)} / night`
-                        : "Check price";
+                        : "Checking price...";
                     const priceSub = canShowStayTotal
                       ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";

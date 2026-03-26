@@ -343,9 +343,25 @@ const querySupabaseListings = async ({ query, propertiesMode }) => {
   }
 };
 
-export const isSupabaseListingsEnabled = () =>
-  shouldUseSupabaseProvider("listings") ||
-  parseEnvBoolean(process.env.SUPABASE_USE_FOR_LISTINGS, false);
+const SUPABASE_PROVIDER_VALUES = new Set(["supabase", "sb", "postgres", "postgresql"]);
+const GUESTY_PROVIDER_VALUES = new Set(["guesty", "guesty_api", "api"]);
+
+const resolveListingsProviderOverride = () =>
+  normalizeString(
+    process.env.LISTINGS_DATA_PROVIDER ||
+      process.env.APP_DATA_PROVIDER_LISTINGS ||
+      "",
+  ).toLowerCase();
+
+export const isSupabaseListingsEnabled = () => {
+  const providerOverride = resolveListingsProviderOverride();
+  if (GUESTY_PROVIDER_VALUES.has(providerOverride)) return false;
+  if (SUPABASE_PROVIDER_VALUES.has(providerOverride)) return true;
+  return (
+    shouldUseSupabaseProvider("listings") ||
+    parseEnvBoolean(process.env.SUPABASE_USE_FOR_LISTINGS, false)
+  );
+};
 
 export const fetchListingsFromSupabase = async ({ queryParams = {} } = {}) => {
   const requestedLimit = parsePositiveInteger(queryParams.limit, 200);

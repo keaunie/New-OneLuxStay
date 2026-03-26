@@ -162,7 +162,7 @@ function AppRoutes() {
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        <ChatConcierge />
+        {/* <ChatConcierge /> */}
       </div>
     </>
   );

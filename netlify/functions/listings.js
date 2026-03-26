@@ -10,6 +10,10 @@ const GUESTY_LISTINGS_URL = `${OPEN_API_HOST}/v1/listings`;
 const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
 const TOKEN_KEY = process.env.GUESTY_TOKEN_BLOB_KEY || "access-token";
 const TOKEN_REFRESH_BUFFER_MS = Number(process.env.GUESTY_TOKEN_REFRESH_BUFFER_MS || 60_000);
+const GUESTY_TOKEN_TIMEOUT_MS = Number(process.env.GUESTY_TOKEN_TIMEOUT_MS || 12_000);
+const GUESTY_LISTINGS_TIMEOUT_MS = Number(process.env.GUESTY_LISTINGS_TIMEOUT_MS || 12_000);
+const GUESTY_LISTING_BY_ID_TIMEOUT_MS = Number(process.env.GUESTY_LISTING_BY_ID_TIMEOUT_MS || 8_000);
+const SUPABASE_LISTINGS_TIMEOUT_MS = Number(process.env.SUPABASE_LISTINGS_TIMEOUT_MS || 8_000);
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
     statusCode,
@@ -67,7 +71,7 @@ const requestGuestyToken = async () => {
             "Content-Type": "application/x-www-form-urlencoded",
         },
         body: body.toString(),
-    });
+    }, GUESTY_TOKEN_TIMEOUT_MS);
 
     const text = await response.text();
     if (!response.ok) {
@@ -303,6 +307,21 @@ const toNumericValue = (value) => {
     return Number.isFinite(number) ? number : null;
 };
 
+const withTimeout = async (promise, timeoutMs, label) => {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+    });
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 const normalizeListing = (listing) => {
     if (!listing) return null;
     const bedDetails = extractBedDetails(listing);
@@ -452,12 +471,12 @@ const fetchListingsByIds = async (ids, token) => {
     });
 
     const tryFetch = async (url) => {
-        const res = await fetch(url, {
+        const res = await fetchWithTimeout(url, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 Accept: "application/json",
             },
-        });
+        }, GUESTY_LISTINGS_TIMEOUT_MS);
         if (!res.ok) return null;
         const data = await res.json();
         if (Array.isArray(data?.results)) return data.results;
@@ -476,7 +495,22 @@ const fetchListingsByIds = async (ids, token) => {
     const fallbackResults = [];
     for (const id of uniqueIds) {
         const byIdUrl = `${GUESTY_LISTINGS_URL}/${encodeURIComponent(id)}?fields=${encodeURIComponent(LISTING_FIELDS)}`;
-        const single = await tryFetch(byIdUrl);
+        const single = await fetchWithTimeout(byIdUrl, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/json",
+            },
+        }, GUESTY_LISTING_BY_ID_TIMEOUT_MS)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!data) return null;
+                if (Array.isArray(data?.results)) return data.results;
+                if (Array.isArray(data?.data)) return data.data;
+                if (data?.data) return [data.data];
+                if (data?.result) return [data.result];
+                return Array.isArray(data) ? data : [data];
+            })
+            .catch(() => null);
         if (Array.isArray(single) && single.length) {
             fallbackResults.push(...single);
         }
@@ -586,7 +620,11 @@ export async function handler(event) {
 
         if (isSupabaseListingsEnabled()) {
             try {
-                const payload = await buildSupabaseListingResponse(rawQueryParams);
+                const payload = await withTimeout(
+                    buildSupabaseListingResponse(rawQueryParams),
+                    SUPABASE_LISTINGS_TIMEOUT_MS,
+                    "Supabase listings"
+                );
                 return jsonResponse(200, payload, {
                     "X-Guesty-Token-Cache": "supabase",
                     "X-Data-Provider": "supabase",
@@ -653,14 +691,15 @@ export async function handler(event) {
         params.set("pmsActive", "true");
         params.set("active", "true");
 
-        const response = await fetch(
+        const response = await fetchWithTimeout(
             `${GUESTY_LISTINGS_URL}?${params.toString()}`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: "application/json",
                 },
-            }
+            },
+            GUESTY_LISTINGS_TIMEOUT_MS
         );
 
         if (!response.ok) {
@@ -682,14 +721,15 @@ export async function handler(event) {
             relaxedParams.delete("active");
             relaxedParams.delete("pmsActive");
 
-            const relaxedResponse = await fetch(
+            const relaxedResponse = await fetchWithTimeout(
                 `${GUESTY_LISTINGS_URL}?${relaxedParams.toString()}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         Accept: "application/json",
                     },
-                }
+                },
+                GUESTY_LISTINGS_TIMEOUT_MS
             );
             if (relaxedResponse.ok) {
                 const relaxedData = await relaxedResponse.json();
