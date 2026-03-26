@@ -29,6 +29,40 @@ Behavior notes:
 - The assistant is page-aware and receives route context from the current page.
 - The assistant is instructed not to invent live pricing, availability, or policy details it cannot verify.
 
+## AI Agent (RAG + Booking Handoff)
+
+An additive AI agent endpoint is available at:
+
+- `netlify/functions/ai-query.js`
+
+This endpoint:
+
+- retrieves relevant policy/company sections from Supabase vector search
+- uses OpenAI embeddings + response generation
+- can read listing context from existing listing APIs
+- can call existing booking APIs (`api-availability`, `api-checkout`) without modifying booking logic
+
+Supabase retrieval function/index migration is defined in:
+
+- `supabase/migrations/20260326_add_ai_knowledge_tables.sql`
+
+Seed and embed scripts:
+
+- `npm run supabase:seed:ai-docs`
+- `npm run supabase:embed:ai-docs`
+
+New environment variables:
+
+- `OPENAI_AI_QUERY_MODEL` (default: `gpt-5-mini`)
+- `OPENAI_EMBEDDING_MODEL` (default: `text-embedding-3-small`)
+- `SUPABASE_AI_DOCS_TABLE` (default: `documents`)
+- `SUPABASE_AI_SECTIONS_TABLE` (default: `sections`)
+- `SUPABASE_AI_MATCH_RPC` (default: `match_document_sections`)
+
+Frontend test console route:
+
+- `/ai-agent`
+
 ## Development
 
 - `npm run dev` runs the client and local server processes

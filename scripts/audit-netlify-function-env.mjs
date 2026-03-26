@@ -12,6 +12,10 @@ const EXTRA_DYNAMIC_KEYS = [
   // Chat function reads through getEnv()
   "OPENAI_API_KEY",
   "OPENAI_CHAT_MODEL",
+  "OPENAI_AI_QUERY_MODEL",
+  "OPENAI_EMBEDDING_MODEL",
+  "AI_QUERY_FUNCTIONS_BASE",
+  "SUPABASE_AI_MATCH_RPC",
 ];
 
 const walkJsFiles = (dir, out = []) => {

@@ -1,0 +1,135 @@
+.ai-agent-page {
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, #f5efe8, #f9f6f1 45%, #f2f2ef);
+  color: #1f2a2e;
+  padding: 24px;
+}
+
+.ai-agent-wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.ai-agent-header {
+  background: #ffffffcc;
+  border: 1px solid #d8d6d1;
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.ai-agent-kicker {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: #5f4f3d;
+}
+
+.ai-agent-header h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.ai-agent-header p {
+  margin: 0;
+}
+
+.ai-agent-card {
+  background: #ffffffdd;
+  border: 1px solid #d8d6d1;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.ai-agent-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.ai-agent-card p {
+  margin: 6px 0;
+}
+
+.ai-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-agent-grid label,
+.ai-agent-form {
+  display: grid;
+  gap: 6px;
+}
+
+.ai-agent-grid input,
+.ai-agent-form textarea {
+  border: 1px solid #c8c5be;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fffdf9;
+  color: inherit;
+}
+
+.ai-agent-form button {
+  width: fit-content;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #104d5e;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ai-agent-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-agent-checkbox {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-agent-answer {
+  margin-top: 14px;
+  border-top: 1px solid #e3e1db;
+  padding-top: 12px;
+}
+
+.ai-agent-answer h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.ai-agent-answer pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f7f7f4;
+  border-radius: 10px;
+  border: 1px solid #dfddd8;
+  padding: 10px;
+}
+
+.ai-agent-error {
+  margin-top: 10px;
+  color: #a30021;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .ai-agent-page {
+    padding: 14px;
+  }
+
+  .ai-agent-grid {
+    grid-template-columns: 1fr;
+  }
+}

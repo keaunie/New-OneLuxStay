@@ -16,7 +16,9 @@
 		"netlify:env:audit": "node scripts/audit-netlify-function-env.mjs",
 		"supabase:health": "node scripts/supabase-healthcheck.mjs",
 		"supabase:seed:content": "node scripts/supabase-seed-content.mjs",
-		"supabase:sync:listings": "node scripts/supabase-sync-listings.mjs"
+		"supabase:sync:listings": "node scripts/supabase-sync-listings.mjs",
+		"supabase:seed:ai-docs": "node scripts/supabase-seed-ai-docs.mjs",
+		"supabase:embed:ai-docs": "node scripts/supabase-embed-ai-sections.mjs"
 	},
 	"dependencies": {
 		"@api/open-api-docs": "file:.api/apis/open-api-docs",

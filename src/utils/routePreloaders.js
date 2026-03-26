@@ -13,6 +13,7 @@ const preloadAcknowledgementPage = () => import("../AcknowledgementPage");
 const preloadBookingConfirmationPage = () => import("../BookingConfirmationPage");
 const preloadCheckoutCancelledPage = () => import("../CheckoutCancelledPage");
 const preloadRoadmapPrivatePage = () => import("../RoadmapPrivatePage");
+const preloadAiAgentPage = () => import("../AiAgentPage");
 
 export const routePreloaders = {
   landing: preloadLandingPage,
@@ -30,6 +31,7 @@ export const routePreloaders = {
   bookingConfirmation: preloadBookingConfirmationPage,
   checkoutCancelled: preloadCheckoutCancelledPage,
   roadmapPrivate: preloadRoadmapPrivatePage,
+  aiAgent: preloadAiAgentPage,
 };
 
 const normalizePathname = (value = "") => {
@@ -92,6 +94,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/checkout-cancelled") {
     return routePreloaders.checkoutCancelled().then(() => undefined);
+  }
+  if (normalized === "/ai-agent") {
+    return routePreloaders.aiAgent().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };
