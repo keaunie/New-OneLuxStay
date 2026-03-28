@@ -170,7 +170,7 @@ function AppRoutes() {
   ); 
 }
 
-function App() {d
+function App() {
   return (
     <BrowserRouter>
       <AppRoutes />

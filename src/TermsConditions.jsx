@@ -65,7 +65,7 @@ function TermsConditions() {
             every effort to accommodate your request.
           </p>
           <p>
-            Failure to inform us of a delayed departure will result in a late checkout penalty of $250 per hour, which
+            Failure to inform us of a delayed departure will result in a late checkout penalty of $50 per hour for USA €50 per hour for EU and AED 200 for UAE, which
             will be charged to your credit card.
           </p>
           <p>Upon checkout, please ensure:</p>
