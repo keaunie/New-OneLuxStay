@@ -253,7 +253,7 @@ const buildKnowledgeBlock = (sections = []) =>
         `Document: ${sanitizeString(row?.document_title, 160)}`,
         `Section: ${sanitizeString(row?.section_title, 200)}`,
         `Similarity: ${score.toFixed(4)}`,
-        `Content: ${sanitizeString(row?.section_content, 2600)}`,
+        `Content: ${sanitizeString(row?.section_content, 900)}`,
       ].join("\n");
     })
     .join("\n\n");
@@ -325,6 +325,36 @@ Rules:
 - If user asks about current page, explain using page context fields.
 `.trim();
 
+const buildLocalFallbackAnswer = ({ query, sections, availability, checkout }) => {
+  const top = Array.isArray(sections) ? sections[0] : null;
+  const sectionSummary =
+    top && top.section_content
+      ? `${sanitizeString(top.document_title, 120)} - ${sanitizeString(top.section_title, 160)}: ${sanitizeString(top.section_content, 420)}`
+      : "";
+
+  const availabilitySummary =
+    availability && typeof availability === "object"
+      ? availability.available === true
+        ? `Availability check: available. Estimated total ${availability.grand_total ?? "N/A"} ${availability.currency || ""}.`
+        : availability.available === false
+          ? "Availability check: not available for the selected dates."
+          : ""
+      : "";
+
+  const checkoutUrl = sanitizeString(checkout?.checkout_url || checkout?.url, 900);
+  const checkoutSummary = checkoutUrl ? `Checkout link: ${checkoutUrl}` : "";
+
+  const parts = [
+    "I could not generate the full AI reply right now, but here is what I found:",
+    sectionSummary,
+    availabilitySummary,
+    checkoutSummary,
+    `Question received: ${sanitizeString(query, 280)}`,
+  ].filter(Boolean);
+
+  return parts.join("\n\n");
+};
+
 const createAssistantReply = async ({ apiKey, model, input, instructions }) => {
   const response = await fetchWithTimeout(
     OPENAI_RESPONSES_URL,
@@ -338,7 +368,9 @@ const createAssistantReply = async ({ apiKey, model, input, instructions }) => {
         model,
         instructions,
         input,
-        max_output_tokens: 500,
+        reasoning: { effort: "low" },
+        text: { verbosity: "low" },
+        max_output_tokens: 900,
       }),
     },
     30_000,
@@ -352,10 +384,6 @@ const createAssistantReply = async ({ apiKey, model, input, instructions }) => {
   }
 
   const text = extractOutputText(payload);
-  if (!text) {
-    throw new Error("Assistant returned an empty response");
-  }
-
   return text;
 };
 
@@ -401,7 +429,7 @@ export async function handler(event) {
 
     const sections = await retrieveSections({
       queryEmbedding,
-      limit: Number(payload?.limit || 6),
+      limit: Number(payload?.limit || 4),
       contentTypes,
     });
 
@@ -424,7 +452,7 @@ export async function handler(event) {
       listingTitle: listingSummary?.title || bookingContext.listingTitle,
     });
 
-    const answer = await createAssistantReply({
+    const modelAnswer = await createAssistantReply({
       apiKey,
       model: replyModel,
       instructions: buildInstructions(),
@@ -439,6 +467,15 @@ export async function handler(event) {
         checkout,
       }),
     });
+
+    const answer =
+      sanitizeString(modelAnswer, 5000) ||
+      buildLocalFallbackAnswer({
+        query,
+        sections,
+        availability,
+        checkout,
+      });
 
     return jsonResponse(200, {
       answer,
