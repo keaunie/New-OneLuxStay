@@ -1592,6 +1592,111 @@ const groupAmenities = (items) => {
   return result;
 };
 
+const AMENITY_GROUP_ICON_MAP = {
+  kitchen: (
+    <>
+      <path d="M6 4v7" />
+      <path d="M10 4v7" />
+      <path d="M8 4v17" />
+      <path d="M14 4h2a2 2 0 0 1 2 2v15" />
+      <path d="M14 10h4" />
+    </>
+  ),
+  bathroom: (
+    <>
+      <path d="M7 6h10" />
+      <path d="M8 6V4" />
+      <path d="M16 6V4" />
+      <path d="M6 10h12l-1 5a2 2 0 0 1-2 1H9a2 2 0 0 1-2-1l-1-5z" />
+      <path d="M10 16v2m4-2v2" />
+    </>
+  ),
+  bedroom: (
+    <>
+      <path d="M4 12h16v5H4z" />
+      <path d="M6 12V9a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3" />
+      <path d="M13 10h3a2 2 0 0 1 2 2" />
+      <path d="M5 17v2m14-2v2" />
+    </>
+  ),
+  living: (
+    <>
+      <path d="M5 12a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4H5z" />
+      <path d="M7 10V8m10 2V8" />
+      <path d="M7 16v2m10-2v2" />
+    </>
+  ),
+  laundry: (
+    <>
+      <rect x="5" y="4" width="14" height="16" rx="2" />
+      <path d="M8 8h3m4 0h.01" />
+      <circle cx="12" cy="14" r="3.5" />
+    </>
+  ),
+  outdoor: (
+    <>
+      <path d="M12 4v9" />
+      <path d="M8 8c0-2.2 1.8-4 4-4s4 1.8 4 4" />
+      <path d="M6 13h12" />
+      <path d="M7 20l2-7m8 7-2-7" />
+    </>
+  ),
+  parking: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M10 8h3a2 2 0 1 1 0 4h-3z" />
+      <path d="M10 8v8" />
+    </>
+  ),
+  internet: (
+    <>
+      <path d="M4 9a12 12 0 0 1 16 0" />
+      <path d="M7 12a8 8 0 0 1 10 0" />
+      <path d="M10 15a4 4 0 0 1 4 0" />
+      <circle cx="12" cy="18" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  media: (
+    <>
+      <rect x="4" y="6" width="16" height="10" rx="2" />
+      <path d="M9 19h6" />
+      <path d="M12 16v3" />
+    </>
+  ),
+  safety: (
+    <>
+      <path d="M12 4l7 3v5c0 4.2-2.8 6.9-7 8-4.2-1.1-7-3.8-7-8V7l7-3z" />
+      <path d="M12 8v4" />
+      <path d="M12 15h.01" />
+    </>
+  ),
+  pets: (
+    <>
+      <circle cx="8" cy="9" r="1.5" />
+      <circle cx="12" cy="7" r="1.5" />
+      <circle cx="16" cy="9" r="1.5" />
+      <path d="M8.5 15a3.5 3.5 0 0 1 7 0c0 1.4-1.2 2.5-3.5 2.5S8.5 16.4 8.5 15z" />
+    </>
+  ),
+  misc: (
+    <>
+      <circle cx="6.5" cy="12" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="17.5" cy="12" r="1.25" fill="currentColor" stroke="none" />
+    </>
+  ),
+};
+
+const renderAmenityGroupIcon = (groupKey) => {
+  const iconPath = AMENITY_GROUP_ICON_MAP[groupKey];
+  if (!iconPath) return null;
+  return (
+    <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+      {iconPath}
+    </svg>
+  );
+};
+
 const formatDescription = (value) => {
   if (!value) return "";
   if (typeof value === "string") return sanitizeText(value);
@@ -1943,84 +2048,6 @@ const HOLLYWOOD_FACILITIES = [
   "BBQ facilities",
   "Tea/Coffee maker in all rooms",
 ];
-
-const FACILITY_ICON_MAP = {
-  "outdoor swimming pool": (
-    <>
-      <circle cx="7.5" cy="7" r="2" />
-      <path d="M3 17c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2 2 2 4 2" />
-      <path d="M5 12l4-2 4 2 3-1" />
-    </>
-  ),
-  "free parking": (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M10 8h3.2a2.6 2.6 0 0 1 0 5.2H10V8zm0 0v8" />
-    </>
-  ),
-  "free wi-fi": (
-    <path d="M4 9a12 12 0 0 1 16 0m-12 4a6 6 0 0 1 8 0m-4 4h.01" />
-  ),
-  "family rooms": (
-    <>
-      <circle cx="7" cy="7" r="2" />
-      <circle cx="17" cy="7" r="2" />
-      <circle cx="12" cy="9.5" r="1.5" />
-      <path d="M3.5 19c0-2.1 1.9-3.8 4.2-3.8S12 16.9 12 19" />
-      <path d="M12 19c0-2.1 1.9-3.8 4.2-3.8S20.5 16.9 20.5 19" />
-    </>
-  ),
-  "non-smoking rooms": (
-    <>
-      <path d="M4 14h10m2 0h4m-16 3h16" />
-      <path d="M6 10c0-1.2 1-2 2.4-2h3.1" />
-      <path d="M4 4l16 16" />
-    </>
-  ),
-  "fitness center": (
-    <path d="M3 11h3v2H3zm15 0h3v2h-3zM7 9h2v6H7zm8 0h2v6h-2zM9 11h6v2H9z" />
-  ),
-  terrace: (
-    <>
-      <path d="M4 18h16" />
-      <path d="M12 4v9m-5 0h10" />
-      <path d="M6 18l2-6m10 6-2-6" />
-    </>
-  ),
-  laundry: (
-    <>
-      <rect x="5" y="3" width="14" height="18" rx="2" />
-      <path d="M8 7h4m4 0h.01" />
-      <circle cx="12" cy="13" r="4" />
-    </>
-  ),
-  "bbq facilities": (
-    <>
-      <path d="M6 11h12" />
-      <path d="M8 11v3a4 4 0 0 0 8 0v-3" />
-      <path d="M7 18l-2 3m14-3 2 3" />
-      <path d="M10 3h4m-3 0v3m2-3v3" />
-    </>
-  ),
-  "tea/coffee maker in all rooms": (
-    <>
-      <path d="M5 8h9v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8z" />
-      <path d="M14 9h3a2 2 0 0 1 0 4h-3" />
-      <path d="M8 4v2m4-2v2" />
-    </>
-  ),
-};
-
-const renderFacilityIcon = (label) => {
-  const key = String(label || "").toLowerCase();
-  const iconPath = FACILITY_ICON_MAP[key];
-  if (!iconPath) return null;
-  return (
-    <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-      {iconPath}
-    </svg>
-  );
-};
 
 const getListingText = (listing) => {
   const tagText = Array.isArray(listing.tags) ? listing.tags.join(" ") : "";
@@ -2654,15 +2681,22 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     () => groupAmenities(activeAmenityList),
     [activeAmenityList],
   );
+  const collapsedAmenityGroupLimit =
+    typeof window !== "undefined" && window.innerWidth <= 640 ? 4 : 6;
+  const collapsedAmenityItemLimit =
+    typeof window !== "undefined" && window.innerWidth <= 640 ? 2 : 4;
   const hasCollapsedAmenities = useMemo(
     () =>
-      activeAmenityGroups.length > 6 ||
-      activeAmenityGroups.some((group) => group.items.length > 4),
-    [activeAmenityGroups],
+      activeAmenityGroups.length > collapsedAmenityGroupLimit ||
+      activeAmenityGroups.some((group) => group.items.length > collapsedAmenityItemLimit),
+    [activeAmenityGroups, collapsedAmenityGroupLimit, collapsedAmenityItemLimit],
   );
   const visibleAmenityGroups = useMemo(
-    () => (showAllAmenities ? activeAmenityGroups : activeAmenityGroups.slice(0, 6)),
-    [activeAmenityGroups, showAllAmenities],
+    () =>
+      showAllAmenities
+        ? activeAmenityGroups
+        : activeAmenityGroups.slice(0, collapsedAmenityGroupLimit),
+    [activeAmenityGroups, collapsedAmenityGroupLimit, showAllAmenities],
   );
 
   const activeAboutText = useMemo(() => {
@@ -5891,7 +5925,7 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
         <div className="la-listing-hero__intro">
-          <div>
+          <div className="la-unit-modal__intro-copy">
             <p className="la-listing-hero__kicker">Los Angeles private stay</p>
             <h3>{formatListingLocationLabel(activeListing, "Los Angeles")}</h3>
             <div className="la-unit-modal__chips">
@@ -5909,10 +5943,10 @@ const applyCheckoutPromoCode = () => {
                 </p>
               );
             })()}
-          </div>
-          <div className="la-listing-hero__logo">
-            <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
-          </div>
+            </div>
+            <div className="la-listing-hero__logo">
+              <img {...logoHomeProps} src={LOGO_URL} alt="OneLuxStay logo" loading="lazy" onError={handleImageError} />
+            </div>
         </div>
       </section>
       <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
@@ -6537,11 +6571,15 @@ const applyCheckoutPromoCode = () => {
                 {visibleAmenityGroups.map((group) => (
                   <div key={group.key} className="la-facilities-group">
                     <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">{"\u2713"}</span>
+                      <span className="la-facilities-group__icon">
+                        {renderAmenityGroupIcon(group.key)}
+                      </span>
                       <h5>{group.label}</h5>
                     </div>
                     <ul>
-                      {(showAllAmenities ? group.items : group.items.slice(0, 4)).map((item, idx) => (
+                      {(showAllAmenities
+                        ? group.items
+                        : group.items.slice(0, collapsedAmenityItemLimit)).map((item, idx) => (
                         <li key={`${group.key}-${idx}-${item}`}>{item}</li>
                       ))}
                     </ul>
@@ -8790,7 +8828,7 @@ const applyCheckoutPromoCode = () => {
               </div>
             </div>
             <div className="la-unit-modal__intro">
-              <div>
+              <div className="la-unit-modal__intro-copy">
                 <h3>{formatListingLocationLabel(activeListing, "Los Angeles")}</h3>
                 <div className="la-unit-modal__chips">
                   <span>Exceptional location</span>
