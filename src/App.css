@@ -6804,12 +6804,13 @@ body {
 
   .la-mobile-map-actions {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 18px;
-    z-index: 210;
+    left: 12px;
+    right: auto;
+    transform: none;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 205;
   }
 
   .la-mobile-map-actions.is-hidden {
@@ -6817,16 +6818,16 @@ body {
   }
 
   .la-mobile-map-btn {
-    border-radius: 999px;
-    border: 1px solid rgba(28, 54, 96, 0.6);
-    background: #3f6b9d;
-    color: #fff;
+    border-radius: 18px;
+    border: 1px solid rgba(28, 54, 96, 0.18);
+    background: rgba(255, 255, 255, 0.94);
+    color: #2f2116;
     font-weight: 700;
-    padding: 7px 14px;
-    min-height: 36px;
-    font-size: 0.86rem;
+    padding: 10px 14px;
+    min-height: 42px;
+    font-size: 0.84rem;
     line-height: 1.1;
-    box-shadow: 0 8px 18px rgba(24, 41, 63, 0.2);
+    box-shadow: 0 12px 24px rgba(43, 36, 29, 0.16);
   }
 
   .la-mobile-map-btn.is-secondary {
