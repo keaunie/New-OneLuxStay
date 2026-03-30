@@ -460,6 +460,50 @@ body {
   opacity: 0.88;
 }
 
+.chat-concierge__cards {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.chat-concierge__card {
+  display: block;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(93, 73, 57, 0.18);
+  background: rgba(255, 255, 255, 0.82);
+  color: inherit;
+  text-decoration: none;
+}
+
+.chat-concierge__card-images {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chat-concierge__card-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  background: rgba(63, 54, 47, 0.08);
+}
+
+.chat-concierge__card-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.chat-concierge__card-meta {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.76;
+}
+
 .chat-concierge__message--user {
   justify-self: end;
   border-bottom-right-radius: 6px;

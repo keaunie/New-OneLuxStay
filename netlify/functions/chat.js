@@ -576,6 +576,51 @@ const buildListingInfoUrl = ({ event, listing, checkIn, checkOut, guests, pageCo
   return `${base}${path}`;
 };
 
+const extractListingImageUrls = (listing = {}, limit = 3) => {
+  const urls = [];
+  const seen = new Set();
+
+  const pushUrl = (value) => {
+    const candidate = sanitizeString(value, 900);
+    if (!candidate) return;
+    if (!/^https?:\/\//i.test(candidate)) return;
+    if (seen.has(candidate)) return;
+    seen.add(candidate);
+    urls.push(candidate);
+  };
+
+  pushUrl(
+    listing?.picture?.original ||
+      listing?.picture?.regular ||
+      listing?.picture?.large ||
+      listing?.picture?.thumbnail ||
+      listing?.picture?.url ||
+      listing?.picture,
+  );
+
+  if (Array.isArray(listing?.pictures)) {
+    listing.pictures.forEach((picture) => {
+      if (typeof picture === "string") {
+        pushUrl(picture);
+        return;
+      }
+      pushUrl(picture?.original || picture?.regular || picture?.large || picture?.thumbnail || picture?.url);
+    });
+  }
+
+  if (Array.isArray(listing?.images)) {
+    listing.images.forEach((image) => {
+      if (typeof image === "string") {
+        pushUrl(image);
+        return;
+      }
+      pushUrl(image?.original || image?.regular || image?.large || image?.thumbnail || image?.url || image?.src);
+    });
+  }
+
+  return urls.slice(0, Math.max(1, Math.min(6, Number(limit) || 3)));
+};
+
 const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge, supportedCities }) => {
   const prompt = String(latestUserMessage?.content || "").toLowerCase();
   const city = pageContext.city || "One Lux Stay";
@@ -1129,6 +1174,7 @@ const fetchAvailableListingsForDates = async ({
     const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
     const title = sanitizeString(listing?.title || listing?.nickname || `Unit ${listingId}`, 220);
     const city = sanitizeString(listing?.city || listing?.address?.city, 120);
+    const imageUrls = extractListingImageUrls(listing, 3);
     const url = buildListingInfoUrl({
       event,
       listing,
@@ -1137,7 +1183,7 @@ const fetchAvailableListingsForDates = async ({
       guests,
       pageContext,
     });
-    return { id: listingId, title, city, url };
+    return { id: listingId, title, city, url, imageUrls };
   });
 
   return { results, searched: ids.length };
@@ -1533,6 +1579,15 @@ export async function handler(event) {
               matches: availabilityMatches.results,
               searched: availabilityMatches.searched,
             }),
+            cards: (Array.isArray(availabilityMatches.results) ? availabilityMatches.results : []).map((item) => ({
+              id: sanitizeString(item?.id, 120),
+              title: sanitizeString(item?.title, 220),
+              city: sanitizeString(item?.city, 120),
+              url: sanitizeString(item?.url, 500),
+              images: Array.isArray(item?.imageUrls)
+                ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
+                : [],
+            })),
             model,
           },
           event,

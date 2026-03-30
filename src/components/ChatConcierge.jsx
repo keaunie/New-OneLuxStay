@@ -142,10 +142,30 @@ const sanitizeMessages = (messages) =>
         .map((message) => ({
           role: message.role === "assistant" ? "assistant" : "user",
           content: message.content.trim().slice(0, 2000),
+          cards: sanitizeCards(message.cards),
         }))
         .filter((message) => message.content)
         .slice(-MAX_VISIBLE_MESSAGES)
     : [];
+
+function sanitizeCards(cards) {
+  if (!Array.isArray(cards)) return [];
+  return cards
+    .map((card, index) => ({
+      id: String(card?.id || `card-${index}`).trim().slice(0, 120),
+      title: String(card?.title || "").trim().slice(0, 220),
+      city: String(card?.city || "").trim().slice(0, 120),
+      url: String(card?.url || "").trim().slice(0, 900),
+      images: Array.isArray(card?.images)
+        ? card.images
+            .map((image) => String(image || "").trim().slice(0, 900))
+            .filter((image) => /^https?:\/\//i.test(image))
+            .slice(0, 3)
+        : [],
+    }))
+    .filter((card) => card.title || card.url)
+    .slice(0, 6);
+}
 
 const isIsoDate = (value = "") => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
 
@@ -240,12 +260,13 @@ function ChatConcierge() {
         if (!reply) {
           throw new Error("The concierge returned an empty reply.");
         }
+        const cards = sanitizeCards(payload?.cards);
 
         setMode(payload?.mode === "fallback" ? "fallback" : "live");
         setNotice(String(payload?.notice || "").trim());
 
         setMessages((current) =>
-          [...current.slice(-MAX_VISIBLE_MESSAGES + 1), { role: "assistant", content: reply }].slice(
+          [...current.slice(-MAX_VISIBLE_MESSAGES + 1), { role: "assistant", content: reply, cards }].slice(
             -MAX_VISIBLE_MESSAGES,
           ),
         );
@@ -362,6 +383,40 @@ function ChatConcierge() {
                 className={`chat-concierge__message chat-concierge__message--${message.role}`}
               >
                 <p>{renderMessageContent(message.content)}</p>
+                {message.role === "assistant" && Array.isArray(message.cards) && message.cards.length > 0 && (
+                  <div className="chat-concierge__cards">
+                    {message.cards.map((card) => (
+                      <a
+                        key={`${card.id}-${card.url}`}
+                        className="chat-concierge__card"
+                        href={card.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {Array.isArray(card.images) && card.images.length > 0 && (
+                          <div className="chat-concierge__card-images">
+                            {card.images.map((image, imageIndex) => (
+                              <img
+                                key={`${card.id}-img-${imageIndex}`}
+                                className="chat-concierge__card-image"
+                                src={image}
+                                alt={card.title || "Listing image"}
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            ))}
+                          </div>
+                        )}
+                        <p className="chat-concierge__card-title">{card.title}</p>
+                        {(card.city || card.url) && (
+                          <p className="chat-concierge__card-meta">
+                            {card.city ? `${card.city}` : "Open listing"}
+                          </p>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </article>
             ))}
 
