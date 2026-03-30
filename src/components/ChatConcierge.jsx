@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 
@@ -7,9 +7,66 @@ const MAX_VISIBLE_MESSAGES = 12;
 
 const DEFAULT_SUGGESTIONS = [
   "Can you help me choose a property?",
-  "What cities do you have stays in?",
-  "How do I book with One Lux Stay?",
+  "Check availability for 2026-04-15 to 2026-04-20 for 2 guests",
+  "Check my booking status (I have my reservation code)",
 ];
+
+const isSafeHttpUrl = (value = "") => {
+  try {
+    const parsed = new URL(String(value || ""));
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const renderMessageContent = (value = "") => {
+  const text = String(value || "");
+  const lines = text.split("\n");
+
+  return lines.map((line, lineIndex) => {
+    const matches = Array.from(line.matchAll(/https?:\/\/[^\s]+/gi));
+    const pieces = [];
+    let cursor = 0;
+
+    matches.forEach((match, matchIndex) => {
+      const url = String(match[0] || "");
+      const start = match.index ?? 0;
+      if (start > cursor) {
+        pieces.push(line.slice(cursor, start));
+      }
+
+      if (isSafeHttpUrl(url)) {
+        pieces.push(
+          <a
+            key={`url-${lineIndex}-${matchIndex}`}
+            className="chat-concierge__message-link"
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {url}
+          </a>,
+        );
+      } else {
+        pieces.push(url);
+      }
+
+      cursor = start + url.length;
+    });
+
+    if (cursor < line.length) {
+      pieces.push(line.slice(cursor));
+    }
+
+    return (
+      <Fragment key={`line-${lineIndex}`}>
+        {pieces}
+        {lineIndex < lines.length - 1 && <br />}
+      </Fragment>
+    );
+  });
+};
 
 const cityLabelFromPath = (pathname = "") => {
   const lower = pathname.toLowerCase();
@@ -62,8 +119,8 @@ const getSuggestions = (pageContext) => {
   if (pageContext.pageType === "listing") {
     return [
       "Tell me about this property",
-      "What should I know before booking this stay?",
-      "Can you help me plan this booking?",
+      "Is this unit available for my dates?",
+      "Check my booking status with reservation code",
     ];
   }
 
@@ -90,6 +147,29 @@ const sanitizeMessages = (messages) =>
         .slice(-MAX_VISIBLE_MESSAGES)
     : [];
 
+const isIsoDate = (value = "") => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+
+const normalizeGuestCount = (value = "") => {
+  const parsed = Math.round(Number(value) || 0);
+  return parsed > 0 ? parsed : 1;
+};
+
+const getAutoAvailabilityFromSearch = (pageContext) => {
+  if (pageContext?.pageType !== "city") return null;
+
+  try {
+    const params = new URLSearchParams(String(pageContext?.search || "").replace(/^\?/, ""));
+    const checkIn = String(params.get("checkIn") || params.get("check_in") || "").trim();
+    const checkOut = String(params.get("checkOut") || params.get("check_out") || "").trim();
+    if (!isIsoDate(checkIn) || !isIsoDate(checkOut) || checkIn >= checkOut) return null;
+
+    const guests = normalizeGuestCount(params.get("guests") || params.get("adults") || "1");
+    return { checkIn, checkOut, guests };
+  } catch {
+    return null;
+  }
+};
+
 function ChatConcierge() {
   const location = useLocation();
   const pageContext = useMemo(() => getPageContext(location), [location]);
@@ -111,7 +191,9 @@ function ChatConcierge() {
   const [notice, setNotice] = useState("");
   const [mode, setMode] = useState("live");
   const scrollRef = useRef(null);
+  const autoRunKeyRef = useRef("");
   const showSuggestions = messages.length === 0;
+  const autoAvailability = useMemo(() => getAutoAvailabilityFromSearch(pageContext), [pageContext]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -123,64 +205,85 @@ function ChatConcierge() {
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isOpen, isSending]);
 
-  const sendMessage = async (rawValue) => {
-    const value = String(rawValue || "").trim();
-    if (!value || isSending) return;
+  const sendMessage = useCallback(
+    async (rawValue) => {
+      const value = String(rawValue || "").trim();
+      if (!value || isSending) return;
 
-    const nextMessages = [...messages, { role: "user", content: value }].slice(-MAX_VISIBLE_MESSAGES);
-    setMessages(nextMessages);
-    setDraft("");
-    setError("");
-    setNotice("");
-    setMode("live");
-    setIsOpen(true);
-    setIsSending(true);
-
-    try {
-      const response = await fetch(`${apiBase}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: nextMessages,
-          pageContext,
-        }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || "The concierge is unavailable right now.");
-      }
-
-      const reply = String(payload?.reply || "").trim();
-      if (!reply) {
-        throw new Error("The concierge returned an empty reply.");
-      }
-
-      setMode(payload?.mode === "fallback" ? "fallback" : "live");
-      setNotice(String(payload?.notice || "").trim());
-
-      setMessages((current) =>
-        [...current.slice(-MAX_VISIBLE_MESSAGES + 1), { role: "assistant", content: reply }].slice(
-          -MAX_VISIBLE_MESSAGES,
-        ),
-      );
-    } catch (requestError) {
-      const isLocalHost =
-        typeof window !== "undefined" &&
-        /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "");
-      const rawMessage = String(requestError?.message || "").trim();
-      const fallbackMessage =
-        isLocalHost && (!rawMessage || rawMessage === "Failed to fetch")
-          ? "Local chat functions are unreachable. Start the site with netlify dev and open the Netlify local URL."
-          : "The concierge is unavailable right now.";
+      const nextMessages = [...messages, { role: "user", content: value }].slice(-MAX_VISIBLE_MESSAGES);
+      setMessages(nextMessages);
+      setDraft("");
+      setError("");
+      setNotice("");
       setMode("live");
-      setError(rawMessage || fallbackMessage);
-    } finally {
-      setIsSending(false);
-    }
-  };
+      setIsOpen(true);
+      setIsSending(true);
+
+      try {
+        const response = await fetch(`${apiBase}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: nextMessages,
+            pageContext,
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || "The concierge is unavailable right now.");
+        }
+
+        const reply = String(payload?.reply || "").trim();
+        if (!reply) {
+          throw new Error("The concierge returned an empty reply.");
+        }
+
+        setMode(payload?.mode === "fallback" ? "fallback" : "live");
+        setNotice(String(payload?.notice || "").trim());
+
+        setMessages((current) =>
+          [...current.slice(-MAX_VISIBLE_MESSAGES + 1), { role: "assistant", content: reply }].slice(
+            -MAX_VISIBLE_MESSAGES,
+          ),
+        );
+      } catch (requestError) {
+        const isLocalHost =
+          typeof window !== "undefined" &&
+          /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "");
+        const rawMessage = String(requestError?.message || "").trim();
+        const fallbackMessage =
+          isLocalHost && (!rawMessage || rawMessage === "Failed to fetch")
+            ? "Local chat functions are unreachable. Start the site with netlify dev and open the Netlify local URL."
+            : "The concierge is unavailable right now.";
+        setMode("live");
+        setError(rawMessage || fallbackMessage);
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [isSending, messages, pageContext],
+  );
+
+  useEffect(() => {
+    if (!isOpen || isSending) return;
+    if (!autoAvailability) return;
+    if (messages.length > 0) return;
+
+    const key = [
+      pageContext.pathname,
+      autoAvailability.checkIn,
+      autoAvailability.checkOut,
+      String(autoAvailability.guests),
+    ].join("|");
+    if (autoRunKeyRef.current === key) return;
+    autoRunKeyRef.current = key;
+
+    const autoPrompt = `Check availability for ${autoAvailability.checkIn} to ${autoAvailability.checkOut} for ${autoAvailability.guests} guest${autoAvailability.guests > 1 ? "s" : ""} in ${pageContext.city || "this city"}.`;
+    sendMessage(autoPrompt);
+  }, [autoAvailability, isOpen, isSending, messages.length, pageContext.city, pageContext.pathname, sendMessage]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -188,6 +291,7 @@ function ChatConcierge() {
   };
 
   const handleClear = () => {
+    autoRunKeyRef.current = "";
     setMessages([]);
     setDraft("");
     setError("");
@@ -208,7 +312,7 @@ function ChatConcierge() {
               <p className="chat-concierge__eyebrow">One Lux Stay</p>
               <h2 className="chat-concierge__title">AI Concierge</h2>
               <p className="chat-concierge__subtitle">
-                Ask about stays, cities, booking steps, or what page you are on now.
+                Ask about stays, booking status, availability by dates, or what page you are on now.
               </p>
             </div>
             <div className="chat-concierge__header-actions">
@@ -246,8 +350,8 @@ function ChatConcierge() {
               <div className="chat-concierge__welcome">
                 <p className="chat-concierge__welcome-title">How can I help today?</p>
                 <p className="chat-concierge__welcome-copy">
-                  I can point guests to the right city, explain your booking flow, and help them
-                  understand the current page.
+                  I can check booking status by reservation code, find available units for your
+                  dates, and link you to the right unit page.
                 </p>
               </div>
             )}
@@ -257,7 +361,7 @@ function ChatConcierge() {
                 key={`${message.role}-${index}-${message.content.slice(0, 24)}`}
                 className={`chat-concierge__message chat-concierge__message--${message.role}`}
               >
-                <p>{message.content}</p>
+                <p>{renderMessageContent(message.content)}</p>
               </article>
             ))}
 

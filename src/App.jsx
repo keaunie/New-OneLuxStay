@@ -84,6 +84,9 @@ function RootRoute() {
 
 function AppRoutes() {
   const { appLoaded, shouldShowLoader } = useCityRouteLoading();
+  const isAiAgentConsoleEnabled =
+    import.meta.env.DEV ||
+    String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -160,7 +163,7 @@ function AppRoutes() {
           <Route path="/california-privacy" element={renderLazyRoute(CaliforniaPrivacyPolicy)} />
           <Route path="/acknowledge" element={renderLazyRoute(AcknowledgementPage)} />
           <Route path="/booking-confirmation" element={renderLazyRoute(BookingConfirmationPage)} />
-          <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />
+          {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

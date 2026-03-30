@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import defaultConciergeKnowledge from "../../src/data/conciergeKnowledge.js";
 import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
+import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
 
 dotenv.config();
 
@@ -80,23 +81,14 @@ const getConciergeKnowledge = async () => {
   return normalizeConciergeKnowledge(value);
 };
 
-const baseHeaders = {
-  "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const getCorsHeaders = (event = {}) => buildAiCorsHeaders(event);
 
-const getCorsHeaders = (event = {}) => ({
-  ...baseHeaders,
-  "Access-Control-Allow-Headers":
-    event?.headers?.["access-control-request-headers"] ||
-    event?.headers?.["Access-Control-Request-Headers"] ||
-    "Content-Type, Authorization, Accept, Origin, X-Requested-With",
-});
-
-const jsonResponse = (statusCode, body, event) => ({
+const jsonResponse = (statusCode, body, event, extraHeaders = {}) => ({
   statusCode,
-  headers: getCorsHeaders(event),
+  headers: {
+    ...getCorsHeaders(event),
+    ...extraHeaders,
+  },
   body: JSON.stringify(body),
 });
 
@@ -195,6 +187,394 @@ const isUnitInfoQuestion = (text = "") =>
   /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location)\b/i.test(
     String(text || ""),
   );
+
+const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
+  const source = String(text || "");
+  if (/\b(availability|available|vacan(?:cy|cies)|open units?|which units? are open)\b/i.test(source)) {
+    return true;
+  }
+  if (/\b(check[- ]?in|check[- ]?out|dates?)\b/i.test(source)) {
+    return true;
+  }
+  if (hasDateRange && /\b(book|booking|reserve|reservation|stay)\b/i.test(source)) {
+    return true;
+  }
+  return false;
+};
+
+const isBookingStatusQuestion = (text = "") => {
+  const source = String(text || "");
+  const hasBookingContext = /\b(booking|reservation|confirmation)\b/i.test(source);
+  if (!hasBookingContext) return false;
+
+  if (/\b(my booking|my reservation|reservation status|booking status)\b/i.test(source)) {
+    return true;
+  }
+
+  const hasStatusIntent = /\b(status|confirmed|track|lookup|find|where is|check my)\b/i.test(source);
+  const hasCodeReference = /\b(code|id|number|res\.?)\b/i.test(source);
+  return hasStatusIntent || hasCodeReference;
+};
+
+const toIsoDate = (year, month, day) => {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return "";
+  if (m < 1 || m > 12 || d < 1 || d > 31) return "";
+  const mm = String(m).padStart(2, "0");
+  const dd = String(d).padStart(2, "0");
+  return `${String(y).padStart(4, "0")}-${mm}-${dd}`;
+};
+
+const monthToNumber = (value = "") => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, "");
+  const monthMap = {
+    jan: 1,
+    january: 1,
+    feb: 2,
+    february: 2,
+    mar: 3,
+    march: 3,
+    apr: 4,
+    april: 4,
+    may: 5,
+    jun: 6,
+    june: 6,
+    jul: 7,
+    july: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    september: 9,
+    oct: 10,
+    october: 10,
+    nov: 11,
+    november: 11,
+    dec: 12,
+    december: 12,
+  };
+  return monthMap[normalized] || 0;
+};
+
+const toIsoFromLocalDate = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return toIsoDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+};
+
+const addDays = (date, days) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const next = new Date(date.getTime());
+  next.setDate(next.getDate() + Number(days || 0));
+  return next;
+};
+
+const inferYearForMonthDay = ({ month, day, explicitYear = "", now = new Date() }) => {
+  const parsedYear = Number(explicitYear);
+  if (Number.isFinite(parsedYear) && parsedYear >= 2000 && parsedYear <= 2100) {
+    return parsedYear;
+  }
+
+  const currentYear = now.getFullYear();
+  const candidateThisYear = toIsoDate(currentYear, month, day);
+  const todayIso = toIsoFromLocalDate(now);
+  if (candidateThisYear && todayIso && candidateThisYear >= todayIso) {
+    return currentYear;
+  }
+
+  return currentYear + 1;
+};
+
+const isValidIsoDate = (value = "") => {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.toISOString().slice(0, 10) === text;
+};
+
+const extractDatesFromText = (text = "") => {
+  const source = String(text || "");
+  const matches = [];
+  const seen = new Set();
+  const now = new Date();
+
+  const push = (value, index = 0, priority = 0) => {
+    if (!isValidIsoDate(value)) return;
+    matches.push({ value, index: Number(index) || 0, priority });
+  };
+
+  const pushUnique = (value) => {
+    if (seen.has(value)) return;
+    seen.add(value);
+    ordered.push(value);
+  };
+
+  const ordered = [];
+
+  const isoRegex = /\b(20\d{2})-(\d{2})-(\d{2})\b/g;
+  let isoMatch;
+  while ((isoMatch = isoRegex.exec(source)) !== null) {
+    push(toIsoDate(isoMatch[1], isoMatch[2], isoMatch[3]), isoMatch.index, 1);
+  }
+
+  const slashRegex = /\b(0?[1-9]|1[0-2])[/-](0?[1-9]|[12]\d|3[01])[/-](20\d{2})\b/g;
+  let slashMatch;
+  while ((slashMatch = slashRegex.exec(source)) !== null) {
+    push(toIsoDate(slashMatch[3], slashMatch[1], slashMatch[2]), slashMatch.index, 1);
+  }
+
+  const relativeRegex = /\b(day after tomorrow|tomorrow|today)\b/gi;
+  let relativeMatch;
+  while ((relativeMatch = relativeRegex.exec(source)) !== null) {
+    const token = String(relativeMatch[1] || "").toLowerCase();
+    const offset = token === "day after tomorrow" ? 2 : token === "tomorrow" ? 1 : 0;
+    const value = toIsoFromLocalDate(addDays(now, offset));
+    push(value, relativeMatch.index, 2);
+  }
+
+  const monthNamePattern =
+    "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+
+  const monthDayRegex = new RegExp(`\\b${monthNamePattern}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\b`, "gi");
+  let monthDayMatch;
+  while ((monthDayMatch = monthDayRegex.exec(source)) !== null) {
+    const month = monthToNumber(monthDayMatch[1]);
+    const day = Number(monthDayMatch[2]);
+    const year = inferYearForMonthDay({
+      month,
+      day,
+      explicitYear: monthDayMatch[3] || "",
+      now,
+    });
+    push(toIsoDate(year, month, day), monthDayMatch.index, 3);
+  }
+
+  const dayMonthRegex = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${monthNamePattern}\\.?\\s*(?:,?\\s*(20\\d{2}))?\\b`, "gi");
+  let dayMonthMatch;
+  while ((dayMonthMatch = dayMonthRegex.exec(source)) !== null) {
+    const day = Number(dayMonthMatch[1]);
+    const month = monthToNumber(dayMonthMatch[2]);
+    const year = inferYearForMonthDay({
+      month,
+      day,
+      explicitYear: dayMonthMatch[3] || "",
+      now,
+    });
+    push(toIsoDate(year, month, day), dayMonthMatch.index, 3);
+  }
+
+  matches
+    .sort((a, b) => {
+      if (a.index !== b.index) return a.index - b.index;
+      return a.priority - b.priority;
+    })
+    .forEach((item) => pushUnique(item.value));
+
+  return ordered;
+};
+
+const extractDateRange = ({ prompt = "", search = "" }) => {
+  const fromPrompt = extractDatesFromText(prompt);
+  if (fromPrompt.length >= 2) {
+    const checkIn = fromPrompt[0];
+    const checkOut = fromPrompt[1];
+    if (checkIn < checkOut) return { checkIn, checkOut };
+  }
+
+  try {
+    const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+    const checkIn = sanitizeString(
+      params.get("checkIn") || params.get("check_in") || params.get("startDate") || "",
+      20,
+    );
+    const checkOut = sanitizeString(
+      params.get("checkOut") || params.get("check_out") || params.get("endDate") || "",
+      20,
+    );
+    if (isValidIsoDate(checkIn) && isValidIsoDate(checkOut) && checkIn < checkOut) {
+      return { checkIn, checkOut };
+    }
+  } catch {
+    // ignore malformed search strings
+  }
+
+  return null;
+};
+
+const normalizeReservationToken = (value = "") =>
+  String(value || "")
+    .trim()
+    .replace(/^res(?:ervation)?[.\-:\s]*/i, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toUpperCase();
+
+const looksLikeReservationCode = (value = "") => {
+  const raw = String(value || "")
+    .trim()
+    .replace(/^res(?:ervation)?[.\-:\s]*/i, "");
+  if (!raw || raw.length < 5 || raw.length > 50) return false;
+  if (!/[A-Za-z]/.test(raw) || !/\d/.test(raw)) return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
+  return /^[A-Za-z0-9._-]+$/.test(raw);
+};
+
+const sanitizeReservationCode = (value = "") =>
+  String(value || "")
+    .trim()
+    .replace(/^res(?:ervation)?[.\-:\s]*/i, "")
+    .replace(/[^A-Za-z0-9._-]/g, "")
+    .slice(0, 64);
+
+const extractReservationCodeFromPrompt = (prompt = "") => {
+  const source = String(prompt || "");
+  const patterns = [
+    /\bres\.?\s*([A-Za-z0-9._-]{5,64})\b/i,
+    /\b(?:reservation|booking|confirmation)\s*(?:id|code|number)?\s*[:#]?\s*([A-Za-z0-9._-]{5,64})\b/i,
+    /\bcode\s*[:#]?\s*([A-Za-z0-9._-]{5,64})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    const candidate = sanitizeReservationCode(match?.[1] || "");
+    if (looksLikeReservationCode(candidate)) return candidate;
+  }
+
+  const tokens = source.match(/\b[A-Za-z0-9._-]{6,64}\b/g) || [];
+  for (const token of tokens) {
+    const candidate = sanitizeReservationCode(token);
+    if (looksLikeReservationCode(candidate)) return candidate;
+  }
+
+  return "";
+};
+
+const extractReservationCode = ({ prompt = "", search = "" }) => {
+  const fromPrompt = extractReservationCodeFromPrompt(prompt);
+  if (fromPrompt) return fromPrompt;
+
+  try {
+    const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+    const candidates = [
+      params.get("reservationId"),
+      params.get("reservation_id"),
+      params.get("bookingId"),
+      params.get("booking_id"),
+      params.get("confirmationCode"),
+      params.get("confirmation"),
+      params.get("code"),
+      params.get("res"),
+    ];
+    for (const value of candidates) {
+      const candidate = sanitizeReservationCode(value || "");
+      if (looksLikeReservationCode(candidate)) return candidate;
+    }
+  } catch {
+    // ignore malformed query string
+  }
+
+  return "";
+};
+
+const extractGuests = (text = "", fallback = 1) => {
+  const source = String(text || "").toLowerCase();
+  const match = source.match(/\b(\d{1,2})\s*(guest|guests|adult|adults|people|pax|person)\b/);
+  if (match) {
+    const parsed = Number(match[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.min(16, parsed);
+  }
+  const fallbackValue = Number(fallback);
+  return Number.isFinite(fallbackValue) && fallbackValue > 0 ? Math.min(16, fallbackValue) : 1;
+};
+
+const slugifyCity = (value = "") => {
+  const city = String(value || "").trim().toLowerCase();
+  if (!city) return "";
+  if (city.includes("los angeles")) return "los-angeles";
+  if (city.includes("redondo")) return "redondo-beach";
+  if (city.includes("miami")) return "miami";
+  if (city.includes("antwerp") || city.includes("antwerpen")) return "antwerp";
+  if (city.includes("dubai")) return "dubai";
+  return city
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
+
+const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
+  const source = String(prompt || "").toLowerCase();
+  if (!source) return "";
+
+  const aliases = [
+    { label: "Antwerp", patterns: [/\bantwerp\b/i, /\bantwerpen\b/i] },
+    { label: "Los Angeles", patterns: [/\blos angeles\b/i, /\blosangeles\b/i, /\bla\b/i] },
+    { label: "Miami", patterns: [/\bmiami\b/i, /\bmiami beach\b/i] },
+    { label: "Redondo Beach", patterns: [/\bredondo\b/i, /\bredondo beach\b/i] },
+    { label: "Dubai", patterns: [/\bdubai\b/i] },
+  ];
+
+  for (const entry of aliases) {
+    if (entry.patterns.some((pattern) => pattern.test(source))) {
+      return entry.label;
+    }
+  }
+
+  const candidates = Array.isArray(supportedCities) ? supportedCities : [];
+  for (const city of candidates) {
+    const normalized = String(city || "").trim();
+    if (!normalized) continue;
+    const pattern = new RegExp(`\\b${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (pattern.test(source)) return normalized;
+  }
+
+  return "";
+};
+
+const resolvePublicSiteBase = (event = {}) => {
+  const configured = sanitizeString(
+    getEnv("PUBLIC_SITE_URL") || process.env.URL || process.env.DEPLOY_URL || "",
+    500,
+  );
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // ignore invalid configured base
+    }
+  }
+
+  const headers = event.headers || {};
+  const originHeader = sanitizeString(headers.origin || headers.Origin || "", 500);
+  if (originHeader) {
+    try {
+      return new URL(originHeader).origin;
+    } catch {
+      // ignore
+    }
+  }
+
+  const proto = headers["x-forwarded-proto"] || headers["X-Forwarded-Proto"] || "https";
+  const host = headers["x-forwarded-host"] || headers["X-Forwarded-Host"] || headers.host || headers.Host || "";
+  if (host) return `${proto}://${host}`;
+
+  return "https://oneluxstay.com";
+};
+
+const buildListingInfoUrl = ({ event, listing, checkIn, checkOut, guests, pageContext }) => {
+  const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
+  if (!listingId) return "";
+
+  const citySlug = slugifyCity(listing?.city || listing?.address?.city || pageContext?.city || "");
+  const base = resolvePublicSiteBase(event);
+  const safeGuests = Math.max(1, Math.round(Number(guests) || 1));
+  const path = citySlug
+    ? `/${citySlug}/listing/${encodeURIComponent(listingId)}/${checkIn}/${checkOut}/${safeGuests}`
+    : `/listings`;
+  return `${base}${path}`;
+};
 
 const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge, supportedCities }) => {
   const prompt = String(latestUserMessage?.content || "").toLowerCase();
@@ -565,39 +945,348 @@ const buildDeterministicPolicyReply = ({ rows = [], question = "" }) => {
   ].join("\n");
 };
 
-const resolveFunctionsBase = (event = {}) => {
-  const configured = sanitizeString(getEnv("AI_QUERY_FUNCTIONS_BASE"), 500);
-  if (configured) return configured.replace(/\/+$/, "");
+const normalizeFunctionsBase = (value = "") => {
+  const raw = sanitizeString(value, 500);
+  if (!raw) return "";
 
-  const envBase = sanitizeString(process.env.URL || process.env.DEPLOY_URL || "", 500);
-  if (envBase) return `${envBase.replace(/\/+$/, "")}/.netlify/functions`;
+  try {
+    const parsed = new URL(raw);
+    const pathname = String(parsed.pathname || "").replace(/\/+$/, "");
+    const marker = "/.netlify/functions";
+    const markerIndex = pathname.indexOf(marker);
+    const basePath = markerIndex >= 0 ? pathname.slice(0, markerIndex + marker.length) : marker;
+    return `${parsed.origin}${basePath}`.replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+};
 
+const toFunctionsBaseFromOrigin = (value = "") => {
+  const raw = sanitizeString(value, 500);
+  if (!raw) return "";
+  try {
+    return `${new URL(raw).origin}/.netlify/functions`;
+  } catch {
+    return "";
+  }
+};
+
+const resolveFunctionsBaseCandidates = (event = {}, preferredBase = "") => {
   const headers = event.headers || {};
-  const proto = headers["x-forwarded-proto"] || headers["X-Forwarded-Proto"] || "http";
+  const proto = headers["x-forwarded-proto"] || headers["X-Forwarded-Proto"] || "https";
   const host = headers["x-forwarded-host"] || headers["X-Forwarded-Host"] || headers.host || headers.Host || "";
-  if (host) return `${proto}://${host}/.netlify/functions`;
 
-  return "http://localhost:8888/.netlify/functions";
+  const candidates = [
+    normalizeFunctionsBase(preferredBase),
+    normalizeFunctionsBase(getEnv("AI_QUERY_FUNCTIONS_BASE")),
+    toFunctionsBaseFromOrigin(process.env.DEPLOY_URL),
+    toFunctionsBaseFromOrigin(process.env.URL),
+    toFunctionsBaseFromOrigin(process.env.DEPLOY_PRIME_URL),
+    toFunctionsBaseFromOrigin(getEnv("PUBLIC_SITE_URL")),
+    host ? normalizeFunctionsBase(`${proto}://${host}/.netlify/functions`) : "",
+    "http://localhost:8888/.netlify/functions",
+  ].filter(Boolean);
+
+  return [...new Set(candidates)];
+};
+
+const fetchFunctionJson = async ({
+  event,
+  path = "",
+  timeoutMs = 20_000,
+  preferredBase = "",
+}) => {
+  const normalizedPath = String(path || "").startsWith("/") ? String(path || "") : `/${String(path || "")}`;
+  const bases = resolveFunctionsBaseCandidates(event, preferredBase);
+  let lastError = null;
+
+  for (const base of bases) {
+    const url = `${base}${normalizedPath}`;
+    try {
+      const response = await fetchWithTimeout(url, { method: "GET" }, timeoutMs);
+      const raw = await response.text();
+      let payload = null;
+      try {
+        payload = raw ? JSON.parse(raw) : {};
+      } catch {
+        lastError = new Error(`Non-JSON response from ${url}`);
+        continue;
+      }
+
+      if (!response.ok) {
+        lastError = new Error(
+          `Request failed (${response.status}) for ${url}: ${sanitizeString(
+            payload?.message || payload?.error || "",
+            240,
+          )}`,
+        );
+        continue;
+      }
+
+      return {
+        base,
+        url,
+        payload: payload && typeof payload === "object" ? payload : {},
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error(`Unable to reach internal function path: ${normalizedPath}`);
+};
+
+const fetchAvailableListingsForDates = async ({
+  event,
+  pageContext,
+  cityHint = "",
+  checkIn,
+  checkOut,
+  guests = 1,
+  maxLinks = 5,
+}) => {
+  if (!isValidIsoDate(checkIn) || !isValidIsoDate(checkOut) || checkIn >= checkOut) {
+    return { results: [], searched: 0 };
+  }
+
+  const listingsLookup = await fetchFunctionJson({
+    event,
+    path: "/listings?limit=200",
+    timeoutMs: 20_000,
+  });
+  const base = listingsLookup.base;
+  const listingsPayload = listingsLookup.payload || {};
+
+  const allListings = Array.isArray(listingsPayload?.results) ? listingsPayload.results : [];
+  const requestedCity = sanitizeString(cityHint || pageContext?.city, 120).toLowerCase();
+  const normalizedRequestedCity = requestedCity.includes("antwerpen")
+    ? "antwerp"
+    : requestedCity.includes("miami beach")
+      ? "miami"
+      : requestedCity;
+  const candidateListings = normalizedRequestedCity && normalizedRequestedCity !== "global"
+    ? allListings.filter((listing) => {
+        const listingCityRaw = sanitizeString(listing?.city || listing?.address?.city, 120).toLowerCase();
+        const listingCity = listingCityRaw.includes("antwerpen")
+          ? "antwerp"
+          : listingCityRaw.includes("miami beach")
+            ? "miami"
+            : listingCityRaw;
+        return listingCity.includes(normalizedRequestedCity);
+      })
+    : allListings;
+
+  const ids = candidateListings
+    .map((listing) => sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120))
+    .filter(Boolean);
+  if (!ids.length) return { results: [], searched: 0 };
+  const minOccupancy = String(Math.max(1, Math.round(Number(guests) || 1)));
+  const chunks = [];
+  for (let index = 0; index < ids.length; index += 60) {
+    chunks.push(ids.slice(index, index + 60));
+  }
+  const availableIds = new Set();
+
+  for (const chunk of chunks) {
+    const availabilityQs = new URLSearchParams({
+      ids: chunk.join(","),
+      checkIn,
+      checkOut,
+      minOccupancy,
+    });
+    let availabilityPayload = {};
+    try {
+      const availabilityLookup = await fetchFunctionJson({
+        event,
+        path: `/check-units/listings/availability-query?${availabilityQs.toString()}`,
+        timeoutMs: 25_000,
+        preferredBase: base,
+      });
+      availabilityPayload = availabilityLookup.payload || {};
+    } catch (availabilityError) {
+      console.warn("Availability chunk lookup failed", {
+        message: availabilityError?.message || String(availabilityError),
+        chunkSize: chunk.length,
+      });
+      continue;
+    }
+
+    (Array.isArray(availabilityPayload?.results) ? availabilityPayload.results : [])
+      .filter((item) => item && item.available)
+      .map((item) => sanitizeString(item.id, 120))
+      .filter(Boolean)
+      .forEach((id) => availableIds.add(id));
+  }
+
+  const availableListings = candidateListings
+    .filter((listing) => {
+      const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
+      return listingId && availableIds.has(listingId);
+    })
+    .slice(0, Math.max(1, Math.min(10, Number(maxLinks) || 5)));
+
+  const results = availableListings.map((listing) => {
+    const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
+    const title = sanitizeString(listing?.title || listing?.nickname || `Unit ${listingId}`, 220);
+    const city = sanitizeString(listing?.city || listing?.address?.city, 120);
+    const url = buildListingInfoUrl({
+      event,
+      listing,
+      checkIn,
+      checkOut,
+      guests,
+      pageContext,
+    });
+    return { id: listingId, title, city, url };
+  });
+
+  return { results, searched: ids.length };
+};
+
+const buildAvailabilityLinksReply = ({ checkIn, checkOut, guests, matches = [], searched = 0 }) => {
+  if (!Array.isArray(matches) || !matches.length) {
+    return `I checked availability for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}) and I could not find available units in the current search scope. If you want, I can try another date range or guest count.`;
+  }
+
+  const lines = [
+    `Great news. I found ${matches.length} available unit${matches.length > 1 ? "s" : ""} for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}).`,
+    "",
+  ];
+  matches.forEach((item, index) => {
+    const title = sanitizeString(item?.title, 220) || `Unit ${item?.id || index + 1}`;
+    const city = sanitizeString(item?.city, 120);
+    const url = sanitizeString(item?.url, 500);
+    lines.push(`${index + 1}. ${title}${city ? ` (${city})` : ""}`);
+    if (url) lines.push(url);
+  });
+  if (searched > matches.length) {
+    lines.push("");
+    lines.push(`I checked ${searched} candidate unit${searched > 1 ? "s" : ""}.`);
+  }
+  lines.push("");
+  lines.push("Open any link above to view the unit information page and continue booking.");
+  return lines.join("\n");
+};
+
+const fetchReservationStatusForChat = async ({ event, reservationCode }) => {
+  const code = sanitizeReservationCode(reservationCode);
+  if (!looksLikeReservationCode(code)) {
+    return { results: [], error: "invalid_reservation_code" };
+  }
+
+  let payload = {};
+  try {
+    const lookup = await fetchFunctionJson({
+      event,
+      path: `/getReservation?reservationId=${encodeURIComponent(code)}`,
+      timeoutMs: 20_000,
+    });
+    payload = lookup.payload || {};
+  } catch (error) {
+    return {
+      results: [],
+      error: "reservation_lookup_failed",
+      details: { message: sanitizeString(error?.message || String(error), 240) },
+    };
+  }
+
+  return {
+    results: Array.isArray(payload?.results) ? payload.results : [],
+    attempted: Array.isArray(payload?.attempted) ? payload.attempted : [],
+    raw: payload?.raw || null,
+  };
+};
+
+const pickBestReservationMatch = ({ results = [], reservationCode = "" }) => {
+  const list = Array.isArray(results) ? results : [];
+  if (!list.length) return null;
+
+  const needle = normalizeReservationToken(reservationCode);
+  if (!needle) return list[0];
+
+  const exact = list.find((item) => {
+    const candidates = [
+      item?._id,
+      item?.id,
+      item?.confirmationCode,
+      item?.number,
+      item?.integration?.airbnb2?.id,
+    ];
+    return candidates.some((value) => normalizeReservationToken(value) === needle);
+  });
+
+  return exact || list[0];
+};
+
+const formatReservationDate = (value = "") => {
+  const source = sanitizeString(value, 80);
+  if (!source) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(source)) return source.slice(0, 10);
+
+  const parsed = new Date(source);
+  if (Number.isNaN(parsed.getTime())) return source;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const formatReservationStatus = (value = "") => {
+  const normalized = sanitizeString(value, 80).toLowerCase();
+  if (!normalized) return "Unknown";
+  return normalized
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const buildReservationStatusReply = ({ reservationCode = "", reservation = null }) => {
+  const safeCode = sanitizeReservationCode(reservationCode);
+  if (!reservation) {
+    return `I could not find a booking for reservation code ${safeCode || "(missing)"}. Please verify the code and try again. If it still fails, contact reservations@oneluxstay.com for manual verification.`;
+  }
+
+  const status = formatReservationStatus(reservation?.status);
+  const confirmationCode = sanitizeReservationCode(
+    reservation?.confirmationCode || reservation?._id || reservation?.id || safeCode,
+  );
+  const listingTitle = sanitizeString(reservation?.listing?.title || reservation?.listing?.nickname, 220);
+  const listingId = sanitizeString(reservation?.listing?._id || reservation?.listingId, 120);
+  const checkIn =
+    formatReservationDate(reservation?.checkInDateLocalized || reservation?.checkIn) || "Unknown";
+  const checkOut =
+    formatReservationDate(reservation?.checkOutDateLocalized || reservation?.checkOut) || "Unknown";
+
+  const lines = [
+    "I found your booking details:",
+    `- Reservation code: ${confirmationCode || safeCode || "Unknown"}`,
+    `- Status: ${status}`,
+    `- Check-in: ${checkIn}`,
+    `- Check-out: ${checkOut}`,
+  ];
+
+  if (listingTitle) lines.push(`- Unit: ${listingTitle}`);
+  else if (listingId) lines.push(`- Listing ID: ${listingId}`);
+
+  lines.push("");
+  lines.push("If you want, I can also check availability for new dates and share direct unit-page links.");
+  return lines.join("\n");
 };
 
 const fetchListingForChat = async ({ event, listingId }) => {
   const safeListingId = sanitizeString(listingId, 120);
   if (!safeListingId) return null;
 
-  const base = resolveFunctionsBase(event);
-  const url = `${base}/listings?onlyIds=${encodeURIComponent(safeListingId)}&limit=1`;
-  const response = await fetchWithTimeout(url, { method: "GET" }, 20_000);
-  if (!response.ok) return null;
-
-  let payload = {};
   try {
-    payload = JSON.parse(await response.text());
+    const lookup = await fetchFunctionJson({
+      event,
+      path: `/listings?onlyIds=${encodeURIComponent(safeListingId)}&limit=1`,
+      timeoutMs: 20_000,
+    });
+    const payload = lookup.payload || {};
+    const listing = Array.isArray(payload?.results) ? payload.results[0] : null;
+    return listing || null;
   } catch {
-    payload = {};
+    return null;
   }
-
-  const listing = Array.isArray(payload?.results) ? payload.results[0] : null;
-  return listing || null;
 };
 
 const extractNearestLandmarks = (listing = {}) => {
@@ -708,6 +1397,16 @@ export async function handler(event) {
     return jsonResponse(405, { error: "Method not allowed" }, event);
   }
 
+  const protection = verifyAiRequest(event, { endpoint: "chat" });
+  if (!protection.ok) {
+    return jsonResponse(
+      protection.status || 403,
+      { error: protection.error || "Request blocked" },
+      event,
+      protection.retryAfter ? { "Retry-After": String(protection.retryAfter) } : {},
+    );
+  }
+
   let payload;
   try {
     payload = JSON.parse(event.body || "{}");
@@ -731,36 +1430,143 @@ export async function handler(event) {
   const apiKey = getEnv("OPENAI_API_KEY");
   const model = getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini";
   const embeddingModel = getEnv("OPENAI_EMBEDDING_MODEL") || "text-embedding-3-small";
-  if (!apiKey) {
-    return fallbackResponse({
-      event,
-      latestUserMessage,
-      pageContext,
-      reason: "missing_api_key",
-      conciergeKnowledge,
-      supportedCities,
-    });
-  }
 
   try {
     let retrievedPolicyText = "";
     const latestPrompt = String(latestUserMessage?.content || "");
+    const dateRange = extractDateRange({
+      prompt: latestPrompt,
+      search: pageContext?.search || "",
+    });
+    const reservationCode = extractReservationCode({
+      prompt: latestPrompt,
+      search: pageContext?.search || "",
+    });
     const asksPolicy = isPolicyQuestion(latestPrompt);
     const asksUnitInfo = isUnitInfoQuestion(latestPrompt);
+    const asksAvailability = Boolean(dateRange) || isAvailabilityQuestion(latestPrompt, Boolean(dateRange));
+    const asksBookingStatus = isBookingStatusQuestion(latestPrompt);
+    const promptCityHint = extractCityHintFromPrompt(latestPrompt, supportedCities);
     let policyRows = [];
+
+    if (asksBookingStatus) {
+      if (!reservationCode) {
+        return jsonResponse(
+          200,
+          {
+            reply:
+              "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).",
+            model,
+          },
+          event,
+        );
+      }
+
+      try {
+        const lookup = await fetchReservationStatusForChat({
+          event,
+          reservationCode,
+        });
+        const reservation = pickBestReservationMatch({
+          results: lookup?.results,
+          reservationCode,
+        });
+        return jsonResponse(
+          200,
+          {
+            reply: buildReservationStatusReply({
+              reservationCode,
+              reservation,
+            }),
+            model,
+          },
+          event,
+        );
+      } catch (reservationError) {
+        console.warn("Reservation lookup failed in chat flow", {
+          message: reservationError?.message || String(reservationError),
+        });
+        return jsonResponse(
+          200,
+          {
+            reply:
+              "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help.",
+            model,
+          },
+          event,
+        );
+      }
+    }
+
+    if (asksAvailability) {
+      const guests = extractGuests(latestPrompt, 1);
+
+      if (!dateRange) {
+        return jsonResponse(
+          200,
+          {
+            reply:
+              "I can check availability for you. Share check-in and check-out dates (examples: 2026-04-15 to 2026-04-20, or today to April 5) plus guest count.",
+            model,
+          },
+          event,
+        );
+      }
+
+      try {
+        const availabilityMatches = await fetchAvailableListingsForDates({
+          event,
+          pageContext,
+          cityHint: promptCityHint,
+          checkIn: dateRange.checkIn,
+          checkOut: dateRange.checkOut,
+          guests,
+          maxLinks: 5,
+        });
+        return jsonResponse(
+          200,
+          {
+            reply: buildAvailabilityLinksReply({
+              checkIn: dateRange.checkIn,
+              checkOut: dateRange.checkOut,
+              guests,
+              matches: availabilityMatches.results,
+              searched: availabilityMatches.searched,
+            }),
+            model,
+          },
+          event,
+        );
+      } catch (availabilityError) {
+        console.warn("Availability search failed in chat flow", {
+          message: availabilityError?.message || String(availabilityError),
+        });
+        return jsonResponse(
+          200,
+          {
+            reply:
+              "I had trouble reaching live availability right now. Please try again in a moment. If this keeps happening, contact reservations@oneluxstay.com and we’ll confirm dates manually.",
+            model,
+          },
+          event,
+        );
+      }
+    }
 
     if (asksPolicy) {
       let queryEmbedding = null;
-      try {
-        queryEmbedding = await createEmbedding({
-          apiKey,
-          model: embeddingModel,
-          text: latestPrompt,
-        });
-      } catch (embeddingError) {
-        console.warn("Policy embedding generation failed; using keyword retrieval only", {
-          message: embeddingError?.message || String(embeddingError),
-        });
+      if (apiKey) {
+        try {
+          queryEmbedding = await createEmbedding({
+            apiKey,
+            model: embeddingModel,
+            text: latestPrompt,
+          });
+        } catch (embeddingError) {
+          console.warn("Policy embedding generation failed; using keyword retrieval only", {
+            message: embeddingError?.message || String(embeddingError),
+          });
+        }
       }
 
       try {
@@ -817,6 +1623,17 @@ export async function handler(event) {
           message: listingError?.message || String(listingError),
         });
       }
+    }
+
+    if (!apiKey) {
+      return fallbackResponse({
+        event,
+        latestUserMessage,
+        pageContext,
+        reason: "missing_api_key",
+        conciergeKnowledge,
+        supportedCities,
+      });
     }
 
     const response = await fetchWithTimeout(OPENAI_API_URL, {

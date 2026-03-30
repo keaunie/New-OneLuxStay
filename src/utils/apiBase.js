@@ -23,13 +23,34 @@ const isLocalHost =
   typeof window !== "undefined" &&
   /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "");
 
+const isNetlifyLikeHost =
+  typeof window !== "undefined" &&
+  /(^|\.)netlify\.app$/i.test(window.location.hostname || "");
+
+const isOneLuxStayDomain =
+  typeof window !== "undefined" &&
+  /(^|\.)oneluxstay\.com$/i.test(window.location.hostname || "");
+
+const forceRemoteFunctionsBase =
+  String(import.meta.env.VITE_FORCE_REMOTE_FUNCTIONS || "").trim().toLowerCase() === "true";
+
+const shouldUseRelativeFunctionsBase =
+  !forceRemoteFunctionsBase && (isLocalHost || isNetlifyLikeHost || isOneLuxStayDomain);
+
 // On localhost, keep relative paths so `netlify dev` / local proxies still work.
-// On external hosts (Hostinger), force absolute Netlify function endpoints.
-const rawApiBase = isLocalHost
-  ? LOCAL_FUNCTIONS_BASE
-  : configuredApiBase
-    ? (isRelativeBase(configuredApiBase) ? remoteFunctionsBase : configuredApiBase)
-    : remoteFunctionsBase;
+// On Netlify-hosted domains, prefer same-origin function paths.
+// On external hosts (for example Hostinger), force absolute Netlify function endpoints by default.
+let rawApiBase = LOCAL_FUNCTIONS_BASE;
+
+if (configuredApiBase) {
+  rawApiBase = isRelativeBase(configuredApiBase)
+    ? shouldUseRelativeFunctionsBase
+      ? configuredApiBase
+      : `${resolvedNetlifySiteUrl}${configuredApiBase}`
+    : configuredApiBase;
+} else {
+  rawApiBase = shouldUseRelativeFunctionsBase ? LOCAL_FUNCTIONS_BASE : remoteFunctionsBase;
+}
 
 export const apiBase = normalizeBase(rawApiBase);
 export default apiBase;

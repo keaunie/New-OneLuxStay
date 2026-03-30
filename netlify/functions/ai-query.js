@@ -1,5 +1,6 @@
 import { fetchWithTimeout, getBaseUrl, jsonResponse } from "./_shared/http.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
+import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
@@ -8,6 +9,13 @@ const MAX_QUERY_LENGTH = 1200;
 const DEFAULT_MATCH_RPC = "match_document_sections";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
+const parseBoolean = (value, fallback = false) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
 
 const sanitizeString = (value, maxLength = 3000) =>
   String(value || "")
@@ -90,6 +98,12 @@ const parseJson = (text) => {
     return {};
   }
 };
+
+const respond = (event, statusCode, body, extraHeaders = {}) =>
+  jsonResponse(statusCode, body, {
+    ...buildAiCorsHeaders(event),
+    ...extraHeaders,
+  });
 
 const createEmbedding = async (text, { apiKey, model }) => {
   const response = await fetchWithTimeout(
@@ -389,23 +403,38 @@ const createAssistantReply = async ({ apiKey, model, input, instructions }) => {
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
-    return jsonResponse(200, { ok: true });
+    return respond(event, 200, { ok: true });
   }
 
   if (event.httpMethod !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return respond(event, 405, { error: "Method not allowed" });
+  }
+
+  const aiQueryEnabled = parseBoolean(getEnv("AI_QUERY_ENABLED"), process.env.NODE_ENV !== "production");
+  if (!aiQueryEnabled) {
+    return respond(event, 404, { error: "Not found" });
+  }
+
+  const protection = verifyAiRequest(event, { endpoint: "ai-query" });
+  if (!protection.ok) {
+    return respond(
+      event,
+      protection.status || 403,
+      { error: protection.error || "Request blocked" },
+      protection.retryAfter ? { "Retry-After": String(protection.retryAfter) } : {},
+    );
   }
 
   let payload;
   try {
     payload = JSON.parse(event.body || "{}");
   } catch {
-    return jsonResponse(400, { error: "Invalid JSON body" });
+    return respond(event, 400, { error: "Invalid JSON body" });
   }
 
   const query = sanitizeString(payload?.query, MAX_QUERY_LENGTH);
   if (!query) {
-    return jsonResponse(400, { error: "Query is required" });
+    return respond(event, 400, { error: "Query is required" });
   }
 
   const pageContext = sanitizePageContext(payload?.pageContext || {});
@@ -415,7 +444,7 @@ export async function handler(event) {
 
   const apiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
   if (!apiKey) {
-    return jsonResponse(500, { error: "OPENAI_API_KEY is missing" });
+    return respond(event, 500, { error: "OPENAI_API_KEY is missing" });
   }
 
   const embeddingModel = sanitizeString(getEnv("OPENAI_EMBEDDING_MODEL") || "text-embedding-3-small", 120);
@@ -477,7 +506,7 @@ export async function handler(event) {
         checkout,
       });
 
-    return jsonResponse(200, {
+    return respond(event, 200, {
       answer,
       model: replyModel,
       sources: sections.map((row) => ({
@@ -496,7 +525,7 @@ export async function handler(event) {
       checkout: checkout || null,
     });
   } catch (error) {
-    return jsonResponse(500, {
+    return respond(event, 500, {
       error: error?.message || "AI query failed",
     });
   }

@@ -32,9 +32,36 @@ const PROPERTIES_SELECT = [
   "updated_at",
   "property_images(url,is_primary,sort_order)",
   "property_amenities(amenity)",
+  "property_tags(tag)",
   "property_pricing(base_price,currency,cleaning_fee,security_deposit,extra_guest_fee,created_at)",
   "property_features(key,value)",
   "property_descriptions(language,title,description)",
+].join(",");
+
+const PROPERTIES_SELECT_CORE = [
+  "id",
+  "guesty_id",
+  "name",
+  "property_code",
+  "address",
+  "city",
+  "country",
+  "latitude",
+  "longitude",
+  "room_type",
+  "bedrooms",
+  "bathrooms",
+  "accommodates",
+  "size_sqm",
+  "has_balcony",
+  "has_parking",
+  "has_wifi",
+  "status",
+  "created_at",
+  "updated_at",
+  "property_images(*)",
+  "property_amenities(*)",
+  "property_tags(*)",
 ].join(",");
 
 const normalizeString = (value) => String(value || "").trim();
@@ -178,6 +205,15 @@ const pickPricingRow = (pricingRows = []) => {
   })[0];
 };
 
+const readImageUrl = (image = {}) =>
+  normalizeString(image?.url || image?.image_url || image?.imageUrl || image?.src || image?.path);
+
+const readAmenityValue = (item = {}) =>
+  normalizeString(item?.amenity || item?.name || item?.value || item?.label);
+
+const readTagValue = (item = {}) =>
+  normalizeString(item?.tag || item?.name || item?.value || item?.label);
+
 const mapPropertyRowToListing = (property = {}) => {
   const propertyId = normalizeString(property.id);
   const guestyId = normalizeString(property.guesty_id);
@@ -205,12 +241,16 @@ const mapPropertyRowToListing = (property = {}) => {
 
   const images = sortImages(Array.isArray(property.property_images) ? property.property_images : []);
   const imageUrls = images
-    .map((image) => normalizeString(image?.url))
+    .map((image) => readImageUrl(image))
     .filter(Boolean);
   const pictures = imageUrls.map((url) => ({ original: url }));
 
   const amenities = (Array.isArray(property.property_amenities) ? property.property_amenities : [])
-    .map((item) => normalizeString(item?.amenity))
+    .map((item) => readAmenityValue(item))
+    .filter(Boolean);
+
+  const propertyTags = (Array.isArray(property.property_tags) ? property.property_tags : [])
+    .map((item) => readTagValue(item))
     .filter(Boolean);
 
   const features = Array.isArray(property.property_features) ? property.property_features : [];
@@ -277,7 +317,16 @@ const mapPropertyRowToListing = (property = {}) => {
     picture: pictures[0] || null,
     pictures,
     amenities,
-    tags: [...new Set([...featureTags, ...Object.keys(featureMap).filter((key) => key.startsWith("tag:"))])],
+    tags: [
+      ...new Set([
+        ...propertyTags,
+        ...featureTags,
+        ...Object.keys(featureMap)
+          .filter((key) => key.startsWith("tag:"))
+          .map((key) => key.replace(/^tag:/i, "").trim())
+          .filter(Boolean),
+      ]),
+    ],
     publicDescription: {
       summary: descriptionBody,
       description: descriptionBody,
@@ -316,31 +365,32 @@ const querySupabaseListings = async ({ query, propertiesMode }) => {
     return supabaseRestRequest(SUPABASE_LISTINGS_TABLE, { query });
   }
 
-  const enrichedQuery = {
-    ...query,
-    select: PROPERTIES_SELECT,
-  };
+  const selectCandidates = [PROPERTIES_SELECT, PROPERTIES_SELECT_CORE, "*"];
+  let lastError = null;
 
-  try {
-    return await supabaseRestRequest(SUPABASE_LISTINGS_TABLE, { query: enrichedQuery });
-  } catch (error) {
-    const message = String(error?.message || "");
-    const relationMissing =
-      message.includes("Could not find a relationship") ||
-      message.includes("schema cache") ||
-      message.includes("column") ||
-      message.includes("select");
+  for (const select of selectCandidates) {
+    const enrichedQuery = {
+      ...query,
+      select,
+    };
 
-    if (!relationMissing) throw error;
+    try {
+      return await supabaseRestRequest(SUPABASE_LISTINGS_TABLE, { query: enrichedQuery });
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || "");
+      const relationMissing =
+        message.includes("Could not find a relationship") ||
+        message.includes("schema cache") ||
+        message.includes("column") ||
+        message.includes("select");
 
-    // Fall back to flat property rows if relational selects are unavailable.
-    return supabaseRestRequest(SUPABASE_LISTINGS_TABLE, {
-      query: {
-        ...query,
-        select: "*",
-      },
-    });
+      if (!relationMissing) throw error;
+      // Try the next select candidate.
+    }
   }
+
+  throw lastError || new Error("Unable to query Supabase listings.");
 };
 
 const SUPABASE_PROVIDER_VALUES = new Set(["supabase", "sb", "postgres", "postgresql"]);

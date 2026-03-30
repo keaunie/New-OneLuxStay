@@ -22,6 +22,13 @@ Required environment variables:
 - `OPENAI_CHAT_MODEL`: optional override for the default model (`gpt-5-mini`)
 - `VITE_API_BASE`: optional frontend functions base override
 - `VITE_NETLIFY_SITE_URL`: optional absolute Netlify site URL used when the frontend is hosted away from Netlify
+- `AI_ALLOWED_ORIGINS`: comma-separated allowed origins for AI endpoints
+- `AI_RATE_LIMIT_MAX_REQUESTS`: max AI requests per window (default `20`)
+- `AI_RATE_LIMIT_WINDOW_MS`: AI rate-limit window in ms (default `60000`)
+- `AI_BLOCK_BOT_UA`: block obvious bot user-agents (`true`/`false`)
+- `AI_QUERY_ENABLED`: set `true` to enable `/.netlify/functions/ai-query` in production
+- `VITE_ENABLE_AI_AGENT_CONSOLE`: set `true` only when `/ai-agent` should be publicly routable
+- `VITE_FORCE_REMOTE_FUNCTIONS`: set `true` only if frontend is hosted outside Netlify and must call an absolute Netlify functions origin
 
 Behavior notes:
 
@@ -65,7 +72,8 @@ Frontend test console route:
 
 ## Development
 
-- `npm run dev` runs the client and local server processes
+- `npm run dev` runs local Vite + Netlify Functions via Netlify Dev
+- `npm run dev:client` runs Vite only (no Netlify function proxy)
 - `npm run lint` runs ESLint
 - `npm run build` builds the frontend bundle
 

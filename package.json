@@ -4,10 +4,10 @@
 	"version": "0.0.0",
 	"type": "module",
 	"scripts": {
-		"dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
+		"dev": "npx netlify dev --command \"npm run dev:client\" --targetPort 5174",
 		"dev:client": "vite --port 5174",
-		"dev:server": "node server/index.js",
-		"start": "node server/index.js",
+		"dev:netlify": "npx netlify dev --command \"npm run dev:client\" --targetPort 5174",
+		"start": "npm run preview -- --host --port 4173",
 		"sitemap:generate": "node scripts/generate-sitemap.js",
 		"build": "npm run sitemap:generate && vite build",
 		"lint": "eslint .",

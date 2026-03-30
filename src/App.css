@@ -448,6 +448,18 @@ body {
   line-height: 1.5;
 }
 
+.chat-concierge__message-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.chat-concierge__message-link:hover,
+.chat-concierge__message-link:focus-visible {
+  opacity: 0.88;
+}
+
 .chat-concierge__message--user {
   justify-self: end;
   border-bottom-right-radius: 6px;
