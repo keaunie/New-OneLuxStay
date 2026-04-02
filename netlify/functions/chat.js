@@ -58,22 +58,37 @@ const getSupportedCities = (knowledge) =>
     .filter(Boolean);
 
 const buildSiteContext = (supportedCities = []) => `
-You are the One Lux Stay AI concierge for a hospitality website.
+You are the AI Concierge for One Lux Stay, a modern aparthotel hospitality brand.
 
-Brand scope:
-- Help visitors understand One Lux Stay properties and the booking journey.
-- Supported city pages on this website include ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}, and a global listings view.
-- You can explain the general purpose of pages, help narrow down destinations, and guide users toward booking.
+Supported city pages on this website include ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}, plus a global listings view.
 
-Behavior rules:
-- Be warm, concise, and hospitality-focused.
-- Use only the information in this prompt and the supplied page context.
-- If retrieved policy knowledge is present in the prompt, prioritize it for legal/policy answers.
-- Do not invent live pricing, live availability, fees, amenities, policies, or guarantees.
-- If a user asks for details you cannot verify, say you are not certain and direct them to the listing page or the One Lux Stay team.
-- Never request or handle payment card details, passport numbers, or sensitive identity data.
-- If someone wants to book, encourage them to continue through the site's booking flow.
-- If someone needs a human for anything sensitive or uncertain, suggest contacting the One Lux Stay team directly through the website.
+Main goals:
+1) Help guests book their stay.
+2) Provide clear and accurate information.
+3) Deliver a smooth, friendly guest experience.
+
+Tone and style:
+- Friendly, professional, modern hospitality voice.
+- Never robotic.
+- Keep responses concise, usually 2-4 sentences unless a short list is clearly needed.
+
+Booking assistance rules:
+- If a guest asks about availability, price, or rooms for a stay, ask for check-in and check-out dates plus guest count.
+- After dates are provided, guide them toward the official secure booking flow/page.
+- Always encourage the next booking step when intent is present.
+
+FAQ support:
+- You can answer common questions about check-in/check-out, amenities, WiFi, parking, house rules, location, directions, and general property details.
+- If you cannot verify details, say so clearly and offer help from support.
+
+Security rules:
+- Never ask for or accept credit card numbers, CVV, expiration dates, passwords, or other sensitive information.
+- If payment info is shared, instruct the guest to use the secure booking page and avoid sharing sensitive details in chat.
+
+Accuracy and escalation:
+- Do not guess.
+- Use only provided context and retrieved knowledge.
+- If uncertain or outside scope, offer to connect the guest with support.
 `;
 
 const getConciergeKnowledge = async () => {
@@ -202,6 +217,32 @@ const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
   return false;
 };
 
+const isCheckInOutTimeQuestion = (text = "") => {
+  const source = String(text || "");
+  const mentionsCheckInOut = /\b(check[- ]?in|check[- ]?out|arrival|departure)\b/i.test(source);
+  if (!mentionsCheckInOut) return false;
+  const mentionsTimeIntent =
+    /\b(what time|time|when)\b/i.test(source) ||
+    /\b(check[- ]?in time|check[- ]?out time)\b/i.test(source);
+  return mentionsTimeIntent;
+};
+
+const isBookingLeadQuestion = (text = "") => {
+  const source = String(text || "");
+  const asksPrice = /\b(price|pricing|rate|rates|cost|how much)\b/i.test(source);
+  const mentionsRooms = /\b(room|rooms|unit|units)\b/i.test(source);
+  const hasBookingContext =
+    /\b(available|availability|vacan(?:cy|cies)|open|book|booking|reserve|reservation|stay|weekend|tonight|check[- ]?in|check[- ]?out|dates?)\b/i.test(
+      source,
+    );
+  return asksPrice || (mentionsRooms && hasBookingContext);
+};
+
+const hasSensitivePaymentData = (text = "") => {
+  const source = String(text || "");
+  return /\b(credit card|card number|cvv|cvc|expiration|expiry|exp date|password|passcode)\b/i.test(source);
+};
+
 const isBookingStatusQuestion = (text = "") => {
   const source = String(text || "");
   const hasBookingContext = /\b(booking|reservation|confirmation)\b/i.test(source);
@@ -215,6 +256,11 @@ const isBookingStatusQuestion = (text = "") => {
   const hasCodeReference = /\b(code|id|number|res\.?)\b/i.test(source);
   return hasStatusIntent || hasCodeReference;
 };
+
+const hasExistingBookingContext = (text = "") =>
+  /\b(already booked|already have (a )?(booking|reservation)|our booking|my booking|my reservation|reservation|confirmation|confirmed booking|booking code|reservation code)\b/i.test(
+    String(text || ""),
+  );
 
 const toIsoDate = (year, month, day) => {
   const y = Number(year);
@@ -594,7 +640,10 @@ const looksLikeReservationCode = (value = "") => {
     .trim()
     .replace(/^res(?:ervation)?[.\-:\s]*/i, "");
   if (!raw || raw.length < 5 || raw.length > 50) return false;
-  if (!/[A-Za-z]/.test(raw) || !/\d/.test(raw)) return false;
+  if (!/[A-Za-z]/.test(raw)) return false;
+  const hasDigit = /\d/.test(raw);
+  const hasSeparator = /[._-]/.test(raw);
+  if (!hasDigit && !hasSeparator) return false;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
   return /^[A-Za-z0-9._-]+$/.test(raw);
 };
@@ -605,6 +654,22 @@ const sanitizeReservationCode = (value = "") =>
     .replace(/^res(?:ervation)?[.\-:\s]*/i, "")
     .replace(/[^A-Za-z0-9._-]/g, "")
     .slice(0, 64);
+
+const extractStrictReservationCode = (text = "") => {
+  const source = String(text || "");
+  const patterns = [
+    /\bres\.?\s*([A-Za-z0-9._-]{5,64})\b/i,
+    /\b(?:reservation|booking|confirmation)\s*(?:id|code|number)?\s*[:#]?\s*([A-Za-z0-9._-]{5,64})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    const candidate = sanitizeReservationCode(match?.[1] || "");
+    if (looksLikeReservationCode(candidate)) return candidate;
+  }
+
+  return "";
+};
 
 const extractReservationCodeFromPrompt = (prompt = "") => {
   const source = String(prompt || "");
@@ -707,6 +772,31 @@ const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
   }
 
   return "";
+};
+
+const normalizeCityLabel = (value = "") => {
+  const source = sanitizeString(value, 120);
+  if (!source) return "";
+  const lower = source.toLowerCase();
+  if (lower.includes("antwerpen") || lower.includes("antwerp")) return "Antwerp";
+  if (lower.includes("los angeles") || lower === "la" || lower.includes("losangeles")) return "Los Angeles";
+  if (lower.includes("dubai")) return "Dubai";
+  if (lower.includes("redondo")) return "Redondo Beach";
+  if (lower.includes("miami")) return "Miami";
+  return source;
+};
+
+const extractAssistantReservationCity = (text = "", supportedCities = []) => {
+  const source = String(text || "");
+  const cityPattern = /\bcity\s*:\s*([^\n\r]+)/gi;
+  let match;
+  let latest = "";
+  while ((match = cityPattern.exec(source)) !== null) {
+    latest = sanitizeString(match?.[1] || "", 120);
+  }
+  if (!latest) return "";
+  const hinted = extractCityHintFromPrompt(latest, supportedCities);
+  return normalizeCityLabel(hinted || latest);
 };
 
 const resolvePublicSiteBase = (event = {}) => {
@@ -1893,7 +1983,25 @@ const formatReservationStatus = (value = "") => {
     .join(" ");
 };
 
-const buildReservationStatusReply = ({ reservationCode = "", reservation = null }) => {
+const inferCityFromReservation = (reservation = {}, supportedCities = []) =>
+  normalizeCityLabel(
+    extractCityHintFromPrompt(
+      [
+        reservation?.listing?.city,
+        reservation?.listing?.address?.city,
+        reservation?.address?.city,
+        reservation?.city,
+        reservation?.listing?.title,
+        reservation?.listing?.nickname,
+      ]
+        .map((value) => sanitizeString(value, 220))
+        .filter(Boolean)
+        .join(" "),
+      supportedCities,
+    ),
+  );
+
+const buildReservationStatusReply = ({ reservationCode = "", reservation = null, supportedCities = [] }) => {
   const safeCode = sanitizeReservationCode(reservationCode);
   if (!reservation) {
     return `I could not find a booking for reservation code ${safeCode || "(missing)"}. Please verify the code and try again. If it still fails, contact reservations@oneluxstay.com for manual verification.`;
@@ -1905,6 +2013,7 @@ const buildReservationStatusReply = ({ reservationCode = "", reservation = null 
   );
   const listingTitle = sanitizeString(reservation?.listing?.title || reservation?.listing?.nickname, 220);
   const listingId = sanitizeString(reservation?.listing?._id || reservation?.listingId, 120);
+  const reservationCity = inferCityFromReservation(reservation, supportedCities);
   const checkIn =
     formatReservationDate(reservation?.checkInDateLocalized || reservation?.checkIn) || "Unknown";
   const checkOut =
@@ -1920,6 +2029,7 @@ const buildReservationStatusReply = ({ reservationCode = "", reservation = null 
 
   if (listingTitle) lines.push(`- Unit: ${listingTitle}`);
   else if (listingId) lines.push(`- Listing ID: ${listingId}`);
+  if (reservationCity) lines.push(`- City: ${reservationCity}`);
 
   lines.push("");
   lines.push("If you want, I can also check availability for new dates and share direct unit-page links.");
@@ -2166,6 +2276,20 @@ export async function handler(event) {
   try {
     let retrievedPolicyText = "";
     const latestPrompt = String(latestUserMessage?.content || "");
+    const previousAssistantMessage = [...messages]
+      .slice(0, -1)
+      .reverse()
+      .find((message) => message.role === "assistant");
+    const assistantConversationText = messages
+      .filter((message) => message.role === "assistant")
+      .map((message) => String(message.content || ""))
+      .join("\n");
+    const latestAssistantText = String(previousAssistantMessage?.content || "");
+    const userConversationText = messages
+      .filter((message) => message.role === "user")
+      .map((message) => String(message.content || ""))
+      .join(" ");
+    const guestAlreadyBooked = hasExistingBookingContext(userConversationText);
     const promptDateRange = extractDateRange({
       prompt: latestPrompt,
       search: "",
@@ -2187,13 +2311,48 @@ export async function handler(event) {
       prompt: latestPrompt,
       search: pageContext?.search || "",
     });
+    const conversationReservationCode = extractStrictReservationCode(userConversationText);
+    const assistantReservationCode = extractStrictReservationCode(latestAssistantText);
+    const promptCityHint = extractCityHintFromPrompt(latestPrompt, supportedCities);
+    const normalizedPromptCity = normalizeCityLabel(promptCityHint);
+    const conversationCityHint = extractCityHintFromPrompt(userConversationText, supportedCities);
+    const normalizedConversationCity = normalizeCityLabel(conversationCityHint);
+    const assistantReservationCity = extractAssistantReservationCity(assistantConversationText, supportedCities);
+    const pageContextCityHint = extractCityHintFromPrompt(
+      [pageContext?.city, pageContext?.title, pageContext?.pathname].filter(Boolean).join(" "),
+      supportedCities,
+    );
+    const normalizedPageContextCity = normalizeCityLabel(pageContextCityHint);
+    const previousAssistantAskedCheckInOutLocation = /\b(which|what)\s+location\s+(are\s+you\s+planning\s+to\s+book(?:\s+first)?|is\s+your\s+booking\s+in)\b/i.test(
+      String(previousAssistantMessage?.content || ""),
+    );
+    const followsUpWithLocationOnly =
+      previousAssistantAskedCheckInOutLocation && Boolean(normalizedPromptCity);
     const asksPolicy = isPolicyQuestion(latestPrompt);
     const asksUnitInfo = isUnitInfoQuestion(latestPrompt);
+    const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPrompt) || followsUpWithLocationOnly;
     const asksAvailabilityWindow = Boolean(dateRange || monthRange);
-    const asksAvailability = asksAvailabilityWindow || isAvailabilityQuestion(latestPrompt, asksAvailabilityWindow);
-    const asksBookingStatus = isBookingStatusQuestion(latestPrompt);
-    const promptCityHint = extractCityHintFromPrompt(latestPrompt, supportedCities);
+    const asksBookingLead = isBookingLeadQuestion(latestPrompt);
+    const asksAvailability =
+      asksAvailabilityWindow ||
+      isAvailabilityQuestion(latestPrompt, asksAvailabilityWindow) ||
+      asksBookingLead;
+    const hasReservationCode = Boolean(reservationCode);
+    const asksBookingStatus = isBookingStatusQuestion(latestPrompt) || hasReservationCode;
+    const includesSensitivePaymentData = hasSensitivePaymentData(latestPrompt);
     let policyRows = [];
+
+    if (includesSensitivePaymentData) {
+      return jsonResponse(
+        200,
+        {
+          reply:
+            "For your security, please don’t share payment details here. All payments should be completed through our secure booking page.",
+          model,
+        },
+        event,
+      );
+    }
 
     if (asksBookingStatus) {
       if (!reservationCode) {
@@ -2217,12 +2376,40 @@ export async function handler(event) {
           results: lookup?.results,
           reservationCode,
         });
+        let reservationForReply = reservation;
+        const knownReservationCity = inferCityFromReservation(reservationForReply, supportedCities);
+        if (!knownReservationCity) {
+          const reservationListingId = sanitizeString(
+            reservationForReply?.listing?._id || reservationForReply?.listingId,
+            120,
+          );
+          if (reservationListingId) {
+            const reservationListing = await fetchListingForChat({
+              event,
+              listingId: reservationListingId,
+            });
+            const listingCity = sanitizeString(
+              reservationListing?.city || reservationListing?.address?.city,
+              120,
+            );
+            if (listingCity) {
+              reservationForReply = {
+                ...reservationForReply,
+                listing: {
+                  ...(reservationForReply?.listing || {}),
+                  city: listingCity,
+                },
+              };
+            }
+          }
+        }
         return jsonResponse(
           200,
           {
             reply: buildReservationStatusReply({
               reservationCode,
-              reservation,
+              reservation: reservationForReply,
+              supportedCities,
             }),
             model,
           },
@@ -2244,6 +2431,94 @@ export async function handler(event) {
       }
     }
 
+    if (asksCheckInOutTime && !dateRange && !monthRange) {
+      const codeForTimeContext = reservationCode || conversationReservationCode || assistantReservationCode;
+      let cityForTimeReply = normalizedPromptCity || assistantReservationCity;
+
+      if (!cityForTimeReply && codeForTimeContext) {
+        try {
+          const timeLookup = await fetchReservationStatusForChat({
+            event,
+            reservationCode: codeForTimeContext,
+          });
+          const timeReservation = pickBestReservationMatch({
+            results: timeLookup?.results,
+            reservationCode: codeForTimeContext,
+          });
+          cityForTimeReply = inferCityFromReservation(timeReservation, supportedCities);
+
+          if (!cityForTimeReply) {
+            const timeListingId = sanitizeString(
+              timeReservation?.listing?._id || timeReservation?.listingId,
+              120,
+            );
+            if (timeListingId) {
+              const timeListing = await fetchListingForChat({
+                event,
+                listingId: timeListingId,
+              });
+              cityForTimeReply = normalizeCityLabel(
+                extractCityHintFromPrompt(
+                  [timeListing?.city, timeListing?.address?.city, timeListing?.title].filter(Boolean).join(" "),
+                  supportedCities,
+                ),
+              );
+            }
+          }
+        } catch (timeContextError) {
+          console.warn("Unable to resolve reservation city for check-in/out reply", {
+            message: timeContextError?.message || String(timeContextError),
+          });
+        }
+      }
+
+      if (!cityForTimeReply) {
+        cityForTimeReply = normalizedConversationCity || normalizedPageContextCity;
+      }
+
+      if (!cityForTimeReply) {
+        if (guestAlreadyBooked || Boolean(codeForTimeContext)) {
+          return jsonResponse(
+            200,
+            {
+              reply:
+                "For your booking, standard check-in is 3:00 PM and check-out is 11:00 AM. If you share your city, I can confirm the location in the same message as well.",
+              model,
+            },
+            event,
+          );
+        }
+        const visibleCities = supportedCities.length
+          ? supportedCities
+          : ["Los Angeles", "Dubai", "Antwerp"];
+        const cityOptions = visibleCities
+          .map((city) => normalizeCityLabel(city))
+          .filter(Boolean)
+          .slice(0, 5)
+          .join(", ");
+        return jsonResponse(
+          200,
+          {
+            reply: guestAlreadyBooked
+              ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
+              : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
+            model,
+          },
+          event,
+        );
+      }
+      return jsonResponse(
+        200,
+        {
+          reply: guestAlreadyBooked
+            ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
+            : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
+          model,
+        },
+        event,
+      );
+    }
+
     if (asksAvailability) {
       const guests = extractGuests(latestPrompt, 1);
 
@@ -2252,7 +2527,7 @@ export async function handler(event) {
           200,
           {
             reply:
-              "I can check availability for you. Share check-in and check-out dates (examples: 2026-04-15 to 2026-04-20, or today to April 5) plus guest count, or ask for a whole month (example: what dates are available in April 2026?).",
+              "I’d be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
             model,
           },
           event,

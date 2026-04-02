@@ -270,7 +270,9 @@ body {
 
 .chat-concierge__panel {
   width: min(390px, calc(100vw - 24px));
-  max-height: min(76vh, 720px);
+  height: min(84vh, 820px);
+  min-height: 620px;
+  max-height: calc(100dvh - 96px);
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   gap: 14px;
@@ -405,7 +407,7 @@ body {
 }
 
 .chat-concierge__messages {
-  min-height: 0;
+  min-height: 120px;
   max-height: none;
   overflow-y: auto;
   display: grid;
@@ -526,6 +528,9 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: min(24vh, 140px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .chat-concierge__suggestion {
@@ -653,6 +658,8 @@ body {
 
   .chat-concierge__panel {
     width: 100%;
+    height: min(88dvh, 860px);
+    min-height: 560px;
     max-height: calc(100dvh - 84px);
     padding: 16px;
     border-radius: 22px;
@@ -698,6 +705,18 @@ body {
 
   .chat-concierge__input {
     min-height: 72px;
+  }
+}
+
+@media (max-height: 800px) {
+  .chat-concierge__panel {
+    min-height: 0;
+    height: auto;
+    max-height: calc(100dvh - 84px);
+  }
+
+  .chat-concierge__messages {
+    min-height: 90px;
   }
 }
 

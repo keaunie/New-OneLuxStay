@@ -50,8 +50,8 @@ export const conciergeKnowledge = {
     },
   ],
   policies: {
-    checkIn: "Add your standard check-in guidance here.",
-    checkOut: "Add your standard check-out guidance here.",
+    checkIn: "Standard check-in time is 3:00 PM for One Lux Stay units.",
+    checkOut: "Standard check-out time is 11:00 AM for One Lux Stay units.",
     cancellation: "Add your cancellation policy here.",
     pets: "Add your pet policy here.",
     parking: "Add your parking guidance here.",
