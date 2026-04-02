@@ -97,6 +97,7 @@ export async function handler(event) {
     numberOfNights: availability.nights,
     cleaningFee: availability.cleaningFee,
     taxes: availability.taxes,
+    securityDeposit: availability.securityDeposit || 0,
     currency: availability.currency,
   });
 
@@ -186,6 +187,7 @@ export async function handler(event) {
         fees: String(calculatedPrice.fees),
         cleaning_fee: String(calculatedPrice.cleaning_fee),
         taxes: String(calculatedPrice.taxes),
+        security_deposit: String(calculatedPrice.security_deposit || 0),
         grand_total: String(calculatedPrice.grand_total),
         currency: calculatedPrice.currency,
       },

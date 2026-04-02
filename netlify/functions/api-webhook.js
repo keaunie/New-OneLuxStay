@@ -157,6 +157,7 @@ export async function handler(event) {
         fees: Number(metadata.fees || 0) || 0,
         cleaning_fee: Number(metadata.cleaning_fee || 0) || 0,
         taxes: Number(metadata.taxes || 0) || 0,
+        security_deposit: Number(metadata.security_deposit || 0) || 0,
         grand_total: Number(metadata.grand_total || 0) || 0,
         currency: metadata.currency || session.currency || "USD",
       },

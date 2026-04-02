@@ -297,12 +297,19 @@ const buildGuestyReservationPayload = ({
   cleaningFee,
   taxes,
   fees,
+  securityDeposit,
 } = {}) => {
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
   const nameParts = guestName.split(/\s+/).filter(Boolean);
   const firstName = guest?.firstName || nameParts[0] || "Guest";
   const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
-  const miscFees = roundMoney((Number(fees) || 0) - (Number(cleaningFee) || 0) - (Number(taxes) || 0));
+  const normalizedSecurityDeposit = roundMoney(Number(securityDeposit) || 0);
+  const miscFees = roundMoney(
+    (Number(fees) || 0) -
+      (Number(cleaningFee) || 0) -
+      (Number(taxes) || 0) -
+      (Number(normalizedSecurityDeposit) || 0),
+  );
 
   return {
     listingId: String(propertyId),
@@ -322,6 +329,9 @@ const buildGuestyReservationPayload = ({
       fareCleaning: roundMoney(cleaningFee),
       invoiceItems: [
         ...(Number(taxes) > 0 ? [{ title: "Occupancy Tax", amount: roundMoney(taxes), normalType: "OCT" }] : []),
+        ...(normalizedSecurityDeposit > 0
+          ? [{ title: "Security Deposit", amount: normalizedSecurityDeposit, normalType: "OTHER" }]
+          : []),
         ...(miscFees > 0 ? [{ title: "Fees", amount: miscFees, normalType: "OTHER" }] : []),
       ],
       total: roundMoney(amount),
@@ -347,6 +357,7 @@ export const createBooking = async ({
     cleaningFee: price?.cleaning_fee,
     taxes: price?.taxes,
     fees: price?.fees,
+    securityDeposit: price?.security_deposit,
   });
 
   const reservation = await guestyRequest("/reservations", {

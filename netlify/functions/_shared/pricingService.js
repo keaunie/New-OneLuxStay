@@ -18,6 +18,7 @@ export const calculatePrice = ({
   numberOfNights,
   cleaningFee = 0,
   taxes = 0,
+  securityDeposit = 0,
   currency = "USD",
 } = {}) => {
   const normalizedCurrency = normalizeCurrency(currency);
@@ -25,8 +26,9 @@ export const calculatePrice = ({
   const nightly = roundMoney(nightlyRate);
   const cleaning = roundMoney(cleaningFee);
   const taxTotal = roundMoney(taxes);
+  const securityDepositTotal = roundMoney(securityDeposit);
   const roomTotal = roundMoney(nightly * nights);
-  const fees = roundMoney(cleaning + taxTotal);
+  const fees = roundMoney(cleaning + taxTotal + securityDepositTotal);
   const grandTotal = roundMoney(roomTotal + fees);
 
   return {
@@ -35,6 +37,7 @@ export const calculatePrice = ({
     nightly_rate: nightly,
     cleaning_fee: cleaning,
     taxes: taxTotal,
+    security_deposit: securityDepositTotal,
     room_total: roomTotal,
     fees,
     grand_total: grandTotal,

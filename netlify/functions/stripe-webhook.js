@@ -958,6 +958,7 @@ const buildReservationPayload = (session) => {
   const accommodation = toNumber(metadata.bd_accommodation);
   const cleaning = toNumber(metadata.bd_cleaning);
   const taxes = toNumber(metadata.bd_taxes);
+  const securityDeposit = toNumber(metadata.bd_security_deposit ?? metadata.security_deposit);
   const vat = toNumber(metadata.bd_vat);
   const cityTax = toNumber(metadata.bd_city_tax);
   const taxProfile = String(metadata.bd_tax_profile || "").trim().toUpperCase();
@@ -969,7 +970,13 @@ const buildReservationPayload = (session) => {
     Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
   const cleaningValue = cleaning !== null ? roundMoney(cleaning) : null;
   const taxesValue = taxes !== null ? roundMoney(taxes) : null;
+  const securityDepositValue =
+    securityDeposit !== null ? roundMoney(securityDeposit) : null;
   const feesValue = fees !== null ? roundMoney(fees) : null;
+  const miscFeesValue =
+    feesValue !== null
+      ? roundMoney((feesValue || 0) - (securityDepositValue || 0))
+      : null;
   const vatValue = vat !== null ? roundMoney(vat) : null;
   const cityTaxValue = cityTax !== null ? roundMoney(cityTax) : null;
   const checkInDate = new Date(String(checkIn || ""));
@@ -1000,7 +1007,8 @@ const buildReservationPayload = (session) => {
     const nonAccommodation =
       (cleaningValue && cleaningValue > 0 ? cleaningValue : 0) +
       (taxesValue && taxesValue > 0 ? taxesValue : 0) +
-      (feesValue && feesValue > 0 ? feesValue : 0);
+      (securityDepositValue && securityDepositValue > 0 ? securityDepositValue : 0) +
+      (miscFeesValue && miscFeesValue > 0 ? miscFeesValue : 0);
     fareAccommodation = roundMoney(Math.max(amount - nonAccommodation, 0));
   }
   if (fareAccommodation !== null) {
@@ -1035,8 +1043,11 @@ const buildReservationPayload = (session) => {
       invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
     }
   }
-  if (feesValue !== null && feesValue > 0) {
-    invoiceItems.push({ title: "Fees", amount: feesValue, normalType: "OTHER" });
+  if (miscFeesValue !== null && miscFeesValue > 0) {
+    invoiceItems.push({ title: "Fees", amount: miscFeesValue, normalType: "OTHER" });
+  }
+  if (securityDepositValue !== null && securityDepositValue > 0) {
+    invoiceItems.push({ title: "Security Deposit", amount: securityDepositValue, normalType: "OTHER" });
   }
 
   if (

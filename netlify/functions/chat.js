@@ -184,7 +184,7 @@ const isPolicyQuestion = (text = "") =>
   );
 
 const isUnitInfoQuestion = (text = "") =>
-  /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location)\b/i.test(
+  /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|feature|features|parking|pool|wifi|wi-fi|internet|gym|fitness|kitchen|laundry|washer|dryer|washing machine|hot tub|jacuzzi|pet|pets|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location)\b/i.test(
     String(text || ""),
   );
 
@@ -260,6 +260,9 @@ const monthToNumber = (value = "") => {
   };
   return monthMap[normalized] || 0;
 };
+
+const MONTH_NAME_PATTERN =
+  "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
 
 const toIsoFromLocalDate = (date) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
@@ -337,10 +340,7 @@ const extractDatesFromText = (text = "") => {
     push(value, relativeMatch.index, 2);
   }
 
-  const monthNamePattern =
-    "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
-
-  const monthDayRegex = new RegExp(`\\b${monthNamePattern}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\b`, "gi");
+  const monthDayRegex = new RegExp(`\\b${MONTH_NAME_PATTERN}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\b`, "gi");
   let monthDayMatch;
   while ((monthDayMatch = monthDayRegex.exec(source)) !== null) {
     const month = monthToNumber(monthDayMatch[1]);
@@ -354,7 +354,7 @@ const extractDatesFromText = (text = "") => {
     push(toIsoDate(year, month, day), monthDayMatch.index, 3);
   }
 
-  const dayMonthRegex = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${monthNamePattern}\\.?\\s*(?:,?\\s*(20\\d{2}))?\\b`, "gi");
+  const dayMonthRegex = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_NAME_PATTERN}\\.?\\s*(?:,?\\s*(20\\d{2}))?\\b`, "gi");
   let dayMonthMatch;
   while ((dayMonthMatch = dayMonthRegex.exec(source)) !== null) {
     const day = Number(dayMonthMatch[1]);
@@ -404,6 +404,182 @@ const extractDateRange = ({ prompt = "", search = "" }) => {
   }
 
   return null;
+};
+
+const inferYearForMonthOnly = ({ month, explicitYear = "", now = new Date() }) => {
+  const parsedYear = Number(explicitYear);
+  if (Number.isFinite(parsedYear) && parsedYear >= 2000 && parsedYear <= 2100) {
+    return parsedYear;
+  }
+
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  return month >= currentMonth ? currentYear : currentYear + 1;
+};
+
+const buildMonthRange = ({ year, month }) => {
+  const numericYear = Number(year);
+  const numericMonth = Number(month);
+  if (!Number.isFinite(numericYear) || !Number.isFinite(numericMonth)) return null;
+  if (numericMonth < 1 || numericMonth > 12) return null;
+
+  const firstDate = new Date(Date.UTC(numericYear, numericMonth - 1, 1));
+  const lastDate = new Date(Date.UTC(numericYear, numericMonth, 0));
+  const firstDay = toIsoDate(firstDate.getUTCFullYear(), firstDate.getUTCMonth() + 1, firstDate.getUTCDate());
+  const lastDay = toIsoDate(lastDate.getUTCFullYear(), lastDate.getUTCMonth() + 1, lastDate.getUTCDate());
+  if (!isValidIsoDate(firstDay) || !isValidIsoDate(lastDay)) return null;
+
+  const label = new Date(Date.UTC(numericYear, numericMonth - 1, 1)).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+  return {
+    year: numericYear,
+    month: numericMonth,
+    startDate: firstDay,
+    endDate: lastDay,
+    label,
+  };
+};
+
+const extractMonthRange = ({ prompt = "", search = "" }) => {
+  const source = String(prompt || "");
+  const normalizedSource = source.toLowerCase();
+  const now = new Date();
+
+  const fromPromptParams = (month, year) => {
+    const range = buildMonthRange({ month, year });
+    if (range) return range;
+    return null;
+  };
+
+  if (/\bthis month\b/i.test(normalizedSource)) {
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    return fromPromptParams(month, year);
+  }
+
+  if (/\bnext month\b/i.test(normalizedSource)) {
+    const base = new Date(now.getTime());
+    base.setMonth(base.getMonth() + 1);
+    const month = base.getMonth() + 1;
+    const year = base.getFullYear();
+    return fromPromptParams(month, year);
+  }
+
+  const hasMonthIntent = /\b(availability|available|dates?|month|within|during|throughout|all of)\b/i.test(
+    normalizedSource,
+  );
+
+  if (hasMonthIntent) {
+    const monthOnlyRegex = new RegExp(`\\b${MONTH_NAME_PATTERN}\\b(?:\\s+(20\\d{2}))?`, "gi");
+    let monthMatch;
+    while ((monthMatch = monthOnlyRegex.exec(source)) !== null) {
+      const trailingText = source.slice(monthMatch.index + monthMatch[0].length, monthMatch.index + monthMatch[0].length + 12);
+      // Ignore explicit day mentions right after the month token (e.g. "April 7").
+      if (/^\s+\d{1,2}(?:st|nd|rd|th)?\b/i.test(trailingText)) continue;
+      const month = monthToNumber(monthMatch[1]);
+      if (!month) continue;
+      const year = inferYearForMonthOnly({
+        month,
+        explicitYear: monthMatch[2] || "",
+        now,
+      });
+      const range = fromPromptParams(month, year);
+      if (range) return range;
+    }
+  }
+
+  try {
+    const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+    const explicitMonth = monthToNumber(params.get("month") || params.get("monthName") || "");
+    const explicitYear = Number(params.get("year") || params.get("monthYear"));
+    if (explicitMonth) {
+      const year = Number.isFinite(explicitYear) ? explicitYear : inferYearForMonthOnly({
+        month: explicitMonth,
+        explicitYear: "",
+        now,
+      });
+      const range = fromPromptParams(explicitMonth, year);
+      if (range) return range;
+    }
+  } catch {
+    // ignore malformed search strings
+  }
+
+  return null;
+};
+
+const toUtcDateFromIso = (isoDate = "") => {
+  const safe = sanitizeString(isoDate, 20);
+  if (!isValidIsoDate(safe)) return null;
+  return new Date(`${safe}T00:00:00.000Z`);
+};
+
+const addIsoDays = (isoDate = "", days = 0) => {
+  const base = toUtcDateFromIso(isoDate);
+  if (!base) return "";
+  base.setUTCDate(base.getUTCDate() + Number(days || 0));
+  return toIsoDate(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate());
+};
+
+const formatMonthDayLabel = (isoDate = "") => {
+  const date = toUtcDateFromIso(isoDate);
+  if (!date) return "";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+};
+
+const collapseIsoDatesToRanges = (isoDates = []) => {
+  const ordered = [...new Set((Array.isArray(isoDates) ? isoDates : []).filter((value) => isValidIsoDate(value)))].sort();
+  if (!ordered.length) return [];
+
+  const ranges = [];
+  let rangeStart = ordered[0];
+  let previous = ordered[0];
+
+  for (let index = 1; index < ordered.length; index += 1) {
+    const current = ordered[index];
+    const previousDate = toUtcDateFromIso(previous);
+    const currentDate = toUtcDateFromIso(current);
+    if (!previousDate || !currentDate) continue;
+    const dayDiff = Math.round((currentDate.getTime() - previousDate.getTime()) / (24 * 60 * 60 * 1000));
+    if (dayDiff === 1) {
+      previous = current;
+      continue;
+    }
+    ranges.push({ start: rangeStart, end: previous });
+    rangeStart = current;
+    previous = current;
+  }
+
+  ranges.push({ start: rangeStart, end: previous });
+  return ranges;
+};
+
+const formatAvailabilityDateRanges = (isoDates = [], limit = 8) => {
+  const ranges = collapseIsoDatesToRanges(isoDates);
+  if (!ranges.length) return "";
+
+  const maxItems = Math.max(1, Math.min(20, Number(limit) || 8));
+  const formatted = ranges.slice(0, maxItems).map((range) => {
+    const start = formatMonthDayLabel(range.start);
+    const end = formatMonthDayLabel(range.end);
+    if (!start) return "";
+    if (!end || range.start === range.end) return start;
+    return `${start} - ${end}`;
+  }).filter(Boolean);
+
+  const remaining = ranges.length - formatted.length;
+  if (remaining > 0) {
+    formatted.push(`+${remaining} more range${remaining > 1 ? "s" : ""}`);
+  }
+  return formatted.join(", ");
 };
 
 const normalizeReservationToken = (value = "") =>
@@ -574,6 +750,46 @@ const buildListingInfoUrl = ({ event, listing, checkIn, checkOut, guests, pageCo
     ? `/${citySlug}/listing/${encodeURIComponent(listingId)}/${checkIn}/${checkOut}/${safeGuests}`
     : `/listings`;
   return `${base}${path}`;
+};
+
+const buildListingPageUrl = ({ event, listing, pageContext, guests = 1 }) => {
+  const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
+  if (!listingId) return "";
+
+  const citySlug = slugifyCity(listing?.city || listing?.address?.city || pageContext?.city || "");
+  const base = resolvePublicSiteBase(event);
+  const safeGuests = Math.max(1, Math.round(Number(guests) || 1));
+  const path = citySlug
+    ? `/${citySlug}/listing/${encodeURIComponent(listingId)}`
+    : "/listings";
+  const qs = new URLSearchParams({
+    listingId,
+    city: sanitizeString(listing?.city || listing?.address?.city || pageContext?.city || "", 120),
+    guests: String(safeGuests),
+    adults: String(safeGuests),
+    rooms: "1",
+  });
+  return `${base}${path}?${qs.toString()}`;
+};
+
+const getListingIdForChat = (listing = {}) =>
+  sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
+
+const getParentListingIdForChat = (listing = {}) => {
+  const listingId = getListingIdForChat(listing);
+  const parentCandidate = [
+    listing?.parentId,
+    listing?.parentListingId,
+    listing?.parentListing?._id,
+    listing?.parent?._id,
+    listing?.unitTypeId,
+    listing?.unitType?._id,
+  ]
+    .map((value) => sanitizeString(value, 120))
+    .find(Boolean);
+
+  if (parentCandidate && parentCandidate !== listingId) return parentCandidate;
+  return listingId || parentCandidate || "";
 };
 
 const extractListingImageUrls = (listing = {}, limit = 3) => {
@@ -1121,8 +1337,48 @@ const fetchAvailableListingsForDates = async ({
       })
     : allListings;
 
-  const ids = candidateListings
-    .map((listing) => sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120))
+  const listingById = new Map();
+  const parentByListingId = new Map();
+  const listingIdsByParent = new Map();
+
+  candidateListings.forEach((listing) => {
+    const listingId = getListingIdForChat(listing);
+    if (!listingId) return;
+    const parentId = getParentListingIdForChat(listing) || listingId;
+
+    if (!listingById.has(listingId)) listingById.set(listingId, listing);
+    parentByListingId.set(listingId, parentId);
+
+    if (!listingIdsByParent.has(parentId)) {
+      listingIdsByParent.set(parentId, new Set());
+    }
+    listingIdsByParent.get(parentId).add(listingId);
+  });
+
+  let scopedListings = candidateListings;
+  const currentListingId = sanitizeString(pageContext?.listingId, 120);
+  const hasExplicitCityHint = Boolean(sanitizeString(cityHint, 120));
+
+  if (pageContext?.pageType === "listing" && currentListingId && !hasExplicitCityHint) {
+    const targetParentId = parentByListingId.get(currentListingId) || currentListingId;
+    const familyIds = new Set(listingIdsByParent.get(targetParentId) || []);
+    familyIds.add(targetParentId);
+
+    if (!familyIds.has(currentListingId)) familyIds.add(currentListingId);
+
+    scopedListings = candidateListings.filter((listing) => {
+      const listingId = getListingIdForChat(listing);
+      return listingId && familyIds.has(listingId);
+    });
+
+    if (!scopedListings.length) {
+      const fallbackListing = candidateListings.find((listing) => getListingIdForChat(listing) === currentListingId);
+      if (fallbackListing) scopedListings = [fallbackListing];
+    }
+  }
+
+  const ids = scopedListings
+    .map((listing) => getListingIdForChat(listing))
     .filter(Boolean);
   if (!ids.length) return { results: [], searched: 0 };
   const minOccupancy = String(Math.max(1, Math.round(Number(guests) || 1)));
@@ -1163,16 +1419,30 @@ const fetchAvailableListingsForDates = async ({
       .forEach((id) => availableIds.add(id));
   }
 
-  const availableListings = candidateListings
-    .filter((listing) => {
-      const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
-      return listingId && availableIds.has(listingId);
-    })
-    .slice(0, Math.max(1, Math.min(10, Number(maxLinks) || 5)));
+  const availableParentIds = new Set();
+  availableIds.forEach((listingId) => {
+    const parentId = parentByListingId.get(listingId) || listingId;
+    if (parentId) availableParentIds.add(parentId);
+  });
 
-  const results = availableListings.map((listing) => {
-    const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
-    const title = sanitizeString(listing?.title || listing?.nickname || `Unit ${listingId}`, 220);
+  const parentListingsOrdered = [];
+  const seenParents = new Set();
+  scopedListings.forEach((listing) => {
+    const listingId = getListingIdForChat(listing);
+    if (!listingId) return;
+    const parentId = parentByListingId.get(listingId) || listingId;
+    if (!availableParentIds.has(parentId) || seenParents.has(parentId)) return;
+
+    const parentListing = listingById.get(parentId) || listing;
+    parentListingsOrdered.push({ parentId, listing: parentListing });
+    seenParents.add(parentId);
+  });
+
+  const limitedParentListings = parentListingsOrdered.slice(0, Math.max(1, Math.min(10, Number(maxLinks) || 5)));
+
+  const results = limitedParentListings.map(({ parentId, listing }) => {
+    const listingId = getListingIdForChat(listing) || parentId;
+    const title = sanitizeString(listing?.title || listing?.nickname || `Unit ${parentId || listingId}`, 220);
     const city = sanitizeString(listing?.city || listing?.address?.city, 120);
     const imageUrls = extractListingImageUrls(listing, 3);
     const url = buildListingInfoUrl({
@@ -1183,10 +1453,349 @@ const fetchAvailableListingsForDates = async ({
       guests,
       pageContext,
     });
-    return { id: listingId, title, city, url, imageUrls };
+    return { id: parentId || listingId, title, city, url, imageUrls };
   });
 
   return { results, searched: ids.length };
+};
+
+const getChatListingCapacity = (listing = {}) => {
+  const candidates = [
+    listing?.accommodates,
+    listing?.occupancy,
+    listing?.maxOccupancy,
+    listing?.guestsIncludedInRegularFee,
+    listing?.guestCapacity,
+  ];
+
+  for (const value of candidates) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
+
+const hasCalendarDayAvailabilitySignal = (day = {}) =>
+  Boolean(
+    typeof day?.allotment === "number" ||
+    typeof day?.available === "boolean" ||
+    typeof day?.isAvailable === "boolean" ||
+    typeof day?.status === "string",
+  );
+
+const isCalendarDayOpen = (day = {}, { forCheckIn = false } = {}) => {
+  if (!day || typeof day !== "object") return false;
+  const date = sanitizeString(day?.date || day?.day || day?.dateLocalized || "", 20);
+  if (!isValidIsoDate(date)) return false;
+  if (!hasCalendarDayAvailabilitySignal(day)) return false;
+
+  let available = false;
+  if (typeof day?.allotment === "number") {
+    available = day.allotment > 0;
+  } else if (typeof day?.available === "boolean") {
+    available = day.available;
+  } else if (typeof day?.isAvailable === "boolean") {
+    available = day.isAvailable;
+  } else if (typeof day?.status === "string") {
+    available = day.status.toLowerCase() === "available";
+  }
+  if (!available) return false;
+
+  if (forCheckIn && day?.restrictions?.closedToArrival) return false;
+
+  return true;
+};
+
+const getCalendarMinNights = (day = {}) => {
+  const raw = Number(
+    day?.restrictions?.minNights ??
+      day?.minNights ??
+      day?.minimumStay ??
+      day?.minStay ??
+      1,
+  );
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  return Math.max(1, Math.min(60, Math.round(raw)));
+};
+
+const isBookableCheckInDate = (daysByIsoDate = new Map(), checkInIso = "") => {
+  if (!checkInIso || !(daysByIsoDate instanceof Map)) return false;
+  const checkInDay = daysByIsoDate.get(checkInIso);
+  if (!isCalendarDayOpen(checkInDay, { forCheckIn: true })) return false;
+
+  const minNights = getCalendarMinNights(checkInDay);
+  for (let offset = 1; offset < minNights; offset += 1) {
+    const stayDate = addIsoDays(checkInIso, offset);
+    const stayDay = daysByIsoDate.get(stayDate);
+    if (!isCalendarDayOpen(stayDay, { forCheckIn: false })) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const fetchAvailableDatesForMonth = async ({
+  event,
+  pageContext,
+  cityHint = "",
+  monthRange = null,
+  guests = 1,
+  maxLinks = 5,
+}) => {
+  if (!monthRange || !isValidIsoDate(monthRange.startDate) || !isValidIsoDate(monthRange.endDate)) {
+    return { results: [], searched: 0 };
+  }
+
+  const listingsLookup = await fetchFunctionJson({
+    event,
+    path: "/listings?limit=200",
+    timeoutMs: 20_000,
+  });
+  const base = listingsLookup.base;
+  const listingsPayload = listingsLookup.payload || {};
+
+  const requiredGuests = Math.max(1, Math.round(Number(guests) || 1));
+  const allListings = Array.isArray(listingsPayload?.results) ? listingsPayload.results : [];
+  const requestedCity = sanitizeString(cityHint || pageContext?.city, 120).toLowerCase();
+  const normalizedRequestedCity = requestedCity.includes("antwerpen")
+    ? "antwerp"
+    : requestedCity.includes("miami beach")
+      ? "miami"
+      : requestedCity;
+
+  const candidateListings = (normalizedRequestedCity && normalizedRequestedCity !== "global"
+    ? allListings.filter((listing) => {
+        const listingCityRaw = sanitizeString(listing?.city || listing?.address?.city, 120).toLowerCase();
+        const listingCity = listingCityRaw.includes("antwerpen")
+          ? "antwerp"
+          : listingCityRaw.includes("miami beach")
+            ? "miami"
+            : listingCityRaw;
+        return listingCity.includes(normalizedRequestedCity);
+      })
+    : allListings).filter((listing) => {
+      const capacity = getChatListingCapacity(listing);
+      if (!Number.isFinite(capacity)) return true;
+      return capacity >= requiredGuests;
+    });
+
+  const listingById = new Map();
+  const parentByListingId = new Map();
+  const listingIdsByParent = new Map();
+
+  candidateListings.forEach((listing) => {
+    const listingId = getListingIdForChat(listing);
+    if (!listingId) return;
+    const parentId = getParentListingIdForChat(listing) || listingId;
+
+    if (!listingById.has(listingId)) listingById.set(listingId, listing);
+    parentByListingId.set(listingId, parentId);
+
+    if (!listingIdsByParent.has(parentId)) {
+      listingIdsByParent.set(parentId, new Set());
+    }
+    listingIdsByParent.get(parentId).add(listingId);
+  });
+
+  let scopedListings = candidateListings;
+  const currentListingId = sanitizeString(pageContext?.listingId, 120);
+  const hasExplicitCityHint = Boolean(sanitizeString(cityHint, 120));
+
+  if (pageContext?.pageType === "listing" && currentListingId && !hasExplicitCityHint) {
+    const targetParentId = parentByListingId.get(currentListingId) || currentListingId;
+    const familyIds = new Set(listingIdsByParent.get(targetParentId) || []);
+    familyIds.add(targetParentId);
+    if (!familyIds.has(currentListingId)) familyIds.add(currentListingId);
+
+    scopedListings = candidateListings.filter((listing) => {
+      const listingId = getListingIdForChat(listing);
+      return listingId && familyIds.has(listingId);
+    });
+
+    if (!scopedListings.length) {
+      const fallbackListing = candidateListings.find((listing) => getListingIdForChat(listing) === currentListingId);
+      if (fallbackListing) scopedListings = [fallbackListing];
+    }
+  }
+
+  const ids = scopedListings.map((listing) => getListingIdForChat(listing)).filter(Boolean);
+  if (!ids.length) {
+    return { results: [], searched: 0 };
+  }
+
+  const chunks = [];
+  for (let index = 0; index < ids.length; index += 60) {
+    chunks.push(ids.slice(index, index + 60));
+  }
+
+  const openDatesByListingId = new Map();
+  const chunkRange = {
+    startDate: monthRange.startDate,
+    // Fetch extra trailing days so min-night checks near month-end are still accurate.
+    endDate: addIsoDays(monthRange.endDate, 31) || monthRange.endDate,
+  };
+
+  for (const chunk of chunks) {
+    const qs = new URLSearchParams({
+      listingIds: chunk.join(","),
+      startDate: chunkRange.startDate,
+      endDate: chunkRange.endDate,
+      includeAllotment: "true",
+    });
+
+    let payload = {};
+    try {
+      const lookup = await fetchFunctionJson({
+        event,
+        path: `/check-units/listings/calendar-multi?${qs.toString()}`,
+        timeoutMs: 30_000,
+        preferredBase: base,
+      });
+      payload = lookup.payload || {};
+    } catch (calendarError) {
+      console.warn("Monthly calendar lookup failed", {
+        message: calendarError?.message || String(calendarError),
+        chunkSize: chunk.length,
+      });
+      continue;
+    }
+
+    const normalizedCalendars =
+      payload?.normalizedCalendars && typeof payload.normalizedCalendars === "object"
+        ? payload.normalizedCalendars
+        : {};
+
+    chunk.forEach((listingId) => {
+      const days = Array.isArray(normalizedCalendars?.[listingId])
+        ? normalizedCalendars[listingId]
+        : [];
+      const daysByIsoDate = new Map();
+      days.forEach((day) => {
+        const isoDate = sanitizeString(day?.date || "", 20);
+        if (!isValidIsoDate(isoDate)) return;
+        daysByIsoDate.set(isoDate, day);
+      });
+
+      const dateSet = openDatesByListingId.get(listingId) || new Set();
+      const monthStartDate = toUtcDateFromIso(monthRange.startDate);
+      const monthEndDate = toUtcDateFromIso(monthRange.endDate);
+      const todayIso = toIsoFromLocalDate(new Date());
+      if (monthStartDate && monthEndDate) {
+        for (
+          let cursor = new Date(monthStartDate.getTime());
+          cursor.getTime() <= monthEndDate.getTime();
+          cursor.setUTCDate(cursor.getUTCDate() + 1)
+        ) {
+          const isoDate = toIsoDate(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, cursor.getUTCDate());
+          if (!isValidIsoDate(isoDate)) continue;
+          if (todayIso && isoDate < todayIso) continue;
+          if (isBookableCheckInDate(daysByIsoDate, isoDate)) {
+            dateSet.add(isoDate);
+          }
+        }
+      }
+      openDatesByListingId.set(listingId, dateSet);
+    });
+  }
+
+  const parentListingsOrdered = [];
+  const seenParents = new Set();
+  scopedListings.forEach((listing) => {
+    const listingId = getListingIdForChat(listing);
+    if (!listingId) return;
+    const parentId = parentByListingId.get(listingId) || listingId;
+    if (seenParents.has(parentId)) return;
+    seenParents.add(parentId);
+
+    const familyIds = Array.from(listingIdsByParent.get(parentId) || []);
+    if (!familyIds.length) familyIds.push(parentId);
+
+    const parentDates = new Set();
+    familyIds.forEach((familyId) => {
+      const dateSet = openDatesByListingId.get(familyId);
+      if (!dateSet) return;
+      dateSet.forEach((isoDate) => parentDates.add(isoDate));
+    });
+
+    const availableDates = [...parentDates].sort();
+    if (!availableDates.length) return;
+
+    const parentListing = listingById.get(parentId) || listing;
+    parentListingsOrdered.push({
+      parentId,
+      listing: parentListing,
+      availableDates,
+    });
+  });
+
+  const limited = parentListingsOrdered.slice(0, Math.max(1, Math.min(10, Number(maxLinks) || 5)));
+  const results = limited.map(({ parentId, listing, availableDates }) => {
+    const listingId = getListingIdForChat(listing) || parentId;
+    const title = sanitizeString(listing?.title || listing?.nickname || `Unit ${parentId || listingId}`, 220);
+    const city = sanitizeString(listing?.city || listing?.address?.city, 120);
+    const imageUrls = extractListingImageUrls(listing, 3);
+    const url = buildListingPageUrl({
+      event,
+      listing,
+      pageContext,
+      guests: requiredGuests,
+    });
+    return {
+      id: parentId || listingId,
+      title,
+      city,
+      url,
+      imageUrls,
+      availableDates,
+    };
+  });
+
+  return {
+    results,
+    searched: ids.length,
+  };
+};
+
+const buildMonthAvailabilityReply = ({
+  monthLabel = "",
+  guests = 1,
+  matches = [],
+  searched = 0,
+}) => {
+  const label = sanitizeString(monthLabel, 60) || "the selected month";
+  const safeGuests = Math.max(1, Math.round(Number(guests) || 1));
+  if (!Array.isArray(matches) || !matches.length) {
+    return `I checked available check-in dates in ${label} (${safeGuests} guest${safeGuests > 1 ? "s" : ""}) and could not find open units in the current search scope. If you want, I can try a different month or guest count.`;
+  }
+
+  const lines = [
+    `I checked available check-in dates in ${label} for ${safeGuests} guest${safeGuests > 1 ? "s" : ""}.`,
+    "",
+  ];
+
+  matches.forEach((item, index) => {
+    const title = sanitizeString(item?.title, 220) || `Unit ${item?.id || index + 1}`;
+    const city = sanitizeString(item?.city, 120);
+    const url = sanitizeString(item?.url, 500);
+    const ranges = formatAvailabilityDateRanges(item?.availableDates, 8) || "No open dates found";
+
+    lines.push(`${index + 1}. ${title}${city ? ` (${city})` : ""}`);
+    lines.push(`Available dates: ${ranges}`);
+    if (url) lines.push(url);
+    lines.push("");
+  });
+
+  if (searched > matches.length) {
+    lines.push(`I checked ${searched} candidate unit${searched > 1 ? "s" : ""}.`);
+    lines.push("");
+  }
+
+  lines.push("These are current check-in date signals and can still be affected by minimum-night rules.");
+  return lines.join("\n");
 };
 
 const buildAvailabilityLinksReply = ({ checkIn, checkOut, guests, matches = [], searched = 0 }) => {
@@ -1357,7 +1966,10 @@ const buildUnitInfoReply = ({ listing, question }) => {
   const q = String(question || "").toLowerCase();
   const wantsSize = /\b(size|square|sqft|square feet|square meter|sqm)\b/.test(q);
   const wantsLandmarks = /\b(near|nearby|landmark|landmarks|what is near|nearest)\b/.test(q);
-  const wantsAmenities = /\b(amenit(?:y|ies)|features?|what does it have|parking|wifi|pool|gym)\b/.test(q);
+  const wantsAmenities =
+    /\b(amenit(?:y|ies)|features?|what does it have|parking|wifi|pool|gym|kitchen|laundry|washer|dryer|washing machine)\b/.test(
+      q,
+    );
 
   const title = sanitizeString(listing?.title || listing?.nickname, 220);
   const city = sanitizeString(listing?.address?.city || "", 120);
@@ -1368,9 +1980,74 @@ const buildUnitInfoReply = ({ listing, question }) => {
   const beds = Number(listing?.beds);
   const fullAddress = sanitizeString(listing?.address?.full || "", 240);
   const summary = sanitizeString(listing?.publicDescription?.summary || "", 260);
-  const amenities = Array.isArray(listing?.amenities)
-    ? listing.amenities.map((item) => sanitizeString(item, 80)).filter(Boolean).slice(0, 12)
+  const allAmenities = Array.isArray(listing?.amenities)
+    ? listing.amenities
+        .map((item) => {
+          if (typeof item === "string") return sanitizeString(item, 80);
+          if (item && typeof item === "object") {
+            return sanitizeString(item.amenity || item.name || item.label || item.title || item.value, 80);
+          }
+          return "";
+        })
+        .filter(Boolean)
     : [];
+  const amenities = allAmenities.slice(0, 12);
+  const amenityText = allAmenities.join(" ").toLowerCase();
+  const hasAmenity = (pattern) => pattern.test(amenityText);
+  const amenityChecks = [
+    {
+      key: "washer",
+      label: "Washer",
+      questionPattern: /\b(washer|washing machine)\b/,
+      valuePattern: /\b(washer|washing machine)\b/,
+    },
+    {
+      key: "dryer",
+      label: "Dryer",
+      questionPattern: /\b(dryer|tumble dryer)\b/,
+      valuePattern: /\b(dryer|tumble dryer)\b/,
+    },
+    {
+      key: "laundry",
+      label: "Laundry",
+      questionPattern: /\blaundry\b/,
+      valuePattern: /\b(laundry|washer|washing machine|dryer|tumble dryer)\b/,
+    },
+    {
+      key: "wifi",
+      label: "Wi-Fi",
+      questionPattern: /\b(wifi|wi-fi|internet)\b/,
+      valuePattern: /\b(wifi|wi-fi|internet)\b/,
+    },
+    {
+      key: "parking",
+      label: "Parking",
+      questionPattern: /\bparking\b/,
+      valuePattern: /\bparking\b/,
+    },
+    {
+      key: "pool",
+      label: "Pool",
+      questionPattern: /\bpool\b/,
+      valuePattern: /\bpool\b/,
+    },
+    {
+      key: "gym",
+      label: "Gym",
+      questionPattern: /\b(gym|fitness)\b/,
+      valuePattern: /\b(gym|fitness)\b/,
+    },
+    {
+      key: "kitchen",
+      label: "Kitchen",
+      questionPattern: /\bkitchen\b/,
+      valuePattern: /\bkitchen\b/,
+    },
+  ];
+  const askedAmenityChecks = amenityChecks.filter((entry) => entry.questionPattern.test(q));
+  const askedAmenityChecksUnique = askedAmenityChecks.filter(
+    (entry, index, array) => array.findIndex((candidate) => candidate.key === entry.key) === index,
+  );
   const landmarks = extractNearestLandmarks(listing);
 
   const baseOverview = [
@@ -1404,7 +2081,16 @@ const buildUnitInfoReply = ({ listing, question }) => {
   }
 
   if (wantsAmenities) {
-    if (amenities.length) {
+    if (askedAmenityChecksUnique.length) {
+      if (!amenities.length) {
+        lines.push("I can’t verify that amenity right now because this unit’s amenities data is missing.");
+      } else {
+        lines.push("Amenity check:");
+        askedAmenityChecksUnique.forEach((entry) => {
+          lines.push(`- ${entry.label}: ${hasAmenity(entry.valuePattern) ? "Yes" : "No"}`);
+        });
+      }
+    } else if (amenities.length) {
       lines.push(`Amenities listed: ${amenities.join(", ")}.`);
     } else {
       lines.push("I don’t have a complete amenities list for this unit in the current payload.");
@@ -1480,17 +2166,31 @@ export async function handler(event) {
   try {
     let retrievedPolicyText = "";
     const latestPrompt = String(latestUserMessage?.content || "");
-    const dateRange = extractDateRange({
+    const promptDateRange = extractDateRange({
       prompt: latestPrompt,
-      search: pageContext?.search || "",
+      search: "",
     });
+    const monthRange = !promptDateRange
+      ? extractMonthRange({
+          prompt: latestPrompt,
+          search: pageContext?.search || "",
+        })
+      : null;
+    const searchDateRange = !promptDateRange && !monthRange
+      ? extractDateRange({
+          prompt: "",
+          search: pageContext?.search || "",
+        })
+      : null;
+    const dateRange = promptDateRange || searchDateRange;
     const reservationCode = extractReservationCode({
       prompt: latestPrompt,
       search: pageContext?.search || "",
     });
     const asksPolicy = isPolicyQuestion(latestPrompt);
     const asksUnitInfo = isUnitInfoQuestion(latestPrompt);
-    const asksAvailability = Boolean(dateRange) || isAvailabilityQuestion(latestPrompt, Boolean(dateRange));
+    const asksAvailabilityWindow = Boolean(dateRange || monthRange);
+    const asksAvailability = asksAvailabilityWindow || isAvailabilityQuestion(latestPrompt, asksAvailabilityWindow);
     const asksBookingStatus = isBookingStatusQuestion(latestPrompt);
     const promptCityHint = extractCityHintFromPrompt(latestPrompt, supportedCities);
     let policyRows = [];
@@ -1547,16 +2247,64 @@ export async function handler(event) {
     if (asksAvailability) {
       const guests = extractGuests(latestPrompt, 1);
 
-      if (!dateRange) {
+      if (!dateRange && !monthRange) {
         return jsonResponse(
           200,
           {
             reply:
-              "I can check availability for you. Share check-in and check-out dates (examples: 2026-04-15 to 2026-04-20, or today to April 5) plus guest count.",
+              "I can check availability for you. Share check-in and check-out dates (examples: 2026-04-15 to 2026-04-20, or today to April 5) plus guest count, or ask for a whole month (example: what dates are available in April 2026?).",
             model,
           },
           event,
         );
+      }
+
+      if (monthRange && !dateRange) {
+        try {
+          const monthMatches = await fetchAvailableDatesForMonth({
+            event,
+            pageContext,
+            cityHint: promptCityHint,
+            monthRange,
+            guests,
+            maxLinks: 5,
+          });
+          return jsonResponse(
+            200,
+            {
+              reply: buildMonthAvailabilityReply({
+                monthLabel: monthRange.label,
+                guests,
+                matches: monthMatches.results,
+                searched: monthMatches.searched,
+              }),
+              cards: (Array.isArray(monthMatches.results) ? monthMatches.results : []).map((item) => ({
+                id: sanitizeString(item?.id, 120),
+                title: sanitizeString(item?.title, 220),
+                city: sanitizeString(item?.city, 120),
+                url: sanitizeString(item?.url, 500),
+                images: Array.isArray(item?.imageUrls)
+                  ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
+                  : [],
+              })),
+              model,
+            },
+            event,
+          );
+        } catch (monthAvailabilityError) {
+          console.warn("Monthly availability search failed in chat flow", {
+            message: monthAvailabilityError?.message || String(monthAvailabilityError),
+          });
+          return jsonResponse(
+            200,
+            {
+              reply:
+                "I had trouble checking month-wide availability right now. Please try again in a moment, or share exact check-in and check-out dates so I can retry with a direct date range.",
+              model,
+            },
+            event,
+          );
+        }
       }
 
       try {

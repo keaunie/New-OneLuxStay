@@ -37,6 +37,7 @@ export async function handler(event) {
         nightly_rate: 0,
         cleaning_fee: 0,
         taxes: 0,
+        security_deposit: 0,
         currency: "USD",
         room_total: 0,
         fees: 0,
@@ -49,6 +50,7 @@ export async function handler(event) {
       numberOfNights: availability.nights,
       cleaningFee: availability.cleaningFee,
       taxes: availability.taxes,
+      securityDeposit: availability.securityDeposit || 0,
       currency: availability.currency,
     });
 
@@ -57,6 +59,7 @@ export async function handler(event) {
       nightly_rate: calculated.nightly_rate,
       cleaning_fee: calculated.cleaning_fee,
       taxes: calculated.taxes,
+      security_deposit: calculated.security_deposit,
       currency: calculated.currency,
       room_total: calculated.room_total,
       fees: calculated.fees,

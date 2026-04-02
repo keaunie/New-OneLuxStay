@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
+import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
@@ -18,6 +19,10 @@ const STRIPE_SESSION_PROCESSING_WAIT_MS = Number(
 const ANTWERP_BE_TAX_PROFILE = "ANTWERP_BE";
 const BELGIUM_VAT_RATE = 0.12;
 const BELGIUM_CITY_TAX_PER_GUEST_PER_NIGHT = 2.97;
+const DEFAULT_IGNORE_INACTIVE_CHILD_ALLOTMENT =
+  String(process.env.GUESTY_IGNORE_INACTIVE_CHILD_ALLOTMENT || "true").toLowerCase() !== "false";
+const DEFAULT_IGNORE_UNLISTED_CHILD_ALLOTMENT =
+  String(process.env.GUESTY_IGNORE_UNLISTED_CHILD_ALLOTMENT || "false").toLowerCase() === "true";
 
 const jsonResponse = (statusCode, body, extraHeaders = {}) => ({
   statusCode,
@@ -86,6 +91,16 @@ const toStripeAmount = (amount, currency) => {
   if (!Number.isFinite(amount)) return null;
   if (ZERO_DECIMAL_CURRENCIES.has(normalized)) return Math.round(amount);
   return Math.round(amount * 100);
+};
+
+const toBooleanQueryString = (value, fallback) => {
+  if (value === undefined || value === null || value === "") {
+    return fallback ? "true" : "false";
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return "true";
+  if (["0", "false", "no", "off"].includes(normalized)) return "false";
+  return fallback ? "true" : "false";
 };
 
 const fromStripeAmount = (amount, currency) => {
@@ -1120,6 +1135,7 @@ const buildGuestyReservationPayload = ({
   const cleaning = Number(breakdown?.cleaning);
   const fees = Number(breakdown?.fees);
   const taxes = Number(breakdown?.taxes);
+  const securityDeposit = Number(breakdown?.securityDeposit);
   const vat = Number(breakdown?.vat);
   const cityTax = Number(breakdown?.cityTax);
   const taxProfile = String(breakdown?.taxProfile || "").trim().toUpperCase();
@@ -1131,6 +1147,11 @@ const buildGuestyReservationPayload = ({
   const cleaningValue = Number.isFinite(cleaning) ? roundMoney(cleaning) : null;
   const taxesValue = Number.isFinite(taxes) ? roundMoney(taxes) : null;
   const feesValue = Number.isFinite(fees) ? roundMoney(fees) : null;
+  const securityDepositValue = Number.isFinite(securityDeposit) ? roundMoney(securityDeposit) : null;
+  const miscFeesValue =
+    feesValue !== null
+      ? roundMoney((feesValue || 0) - (securityDepositValue || 0))
+      : null;
   const vatValue = Number.isFinite(vat) ? roundMoney(vat) : null;
   const cityTaxValue = Number.isFinite(cityTax) ? roundMoney(cityTax) : null;
   const checkInDate = new Date(String(checkIn || ""));
@@ -1161,7 +1182,8 @@ const buildGuestyReservationPayload = ({
     const nonAccommodation =
       (cleaningValue && cleaningValue > 0 ? cleaningValue : 0) +
       (taxesValue && taxesValue > 0 ? taxesValue : 0) +
-      (feesValue && feesValue > 0 ? feesValue : 0);
+      (securityDepositValue && securityDepositValue > 0 ? securityDepositValue : 0) +
+      (miscFeesValue && miscFeesValue > 0 ? miscFeesValue : 0);
     fareAccommodation = roundMoney(Math.max(effectiveTotal - nonAccommodation, 0));
   }
   if (fareAccommodation !== null) {
@@ -1196,8 +1218,15 @@ const buildGuestyReservationPayload = ({
       invoiceItems.push({ title: "Occupancy Tax", amount: taxesValue, normalType: "OCT" });
     }
   }
-  if (feesValue !== null && feesValue > 0) {
-    invoiceItems.push({ title: "Fees", amount: feesValue, normalType: "OTHER" });
+  if (miscFeesValue !== null && miscFeesValue > 0) {
+    invoiceItems.push({ title: "Fees", amount: miscFeesValue, normalType: "OTHER" });
+  }
+  if (securityDepositValue !== null && securityDepositValue > 0) {
+    invoiceItems.push({
+      title: "Security Deposit",
+      amount: securityDepositValue,
+      normalType: "OTHER",
+    });
   }
 
   if (
@@ -1321,6 +1350,73 @@ const firstNumber = (...values) => {
   return null;
 };
 
+const roundMoney = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : null;
+};
+
+const normalizeCheckoutBreakdown = (breakdown = {}) => {
+  if (!breakdown || typeof breakdown !== "object") return null;
+  const safe = { ...breakdown };
+  const fields = [
+    "accommodation",
+    "cleaning",
+    "fees",
+    "taxes",
+    "vat",
+    "cityTax",
+    "discountAmount",
+    "discountRate",
+    "subtotal",
+    "total",
+    "securityDeposit",
+    "promoDiscountAmount",
+    "promoDiscountRate",
+  ];
+  fields.forEach((key) => {
+    const numeric = firstNumber(safe[key]);
+    if (numeric !== null) safe[key] = roundMoney(numeric);
+  });
+  return safe;
+};
+
+const applySecurityDepositToAmount = ({
+  numericAmount,
+  breakdown,
+  securityDepositAmount,
+  securityDepositCurrency,
+} = {}) => {
+  const deposit = roundMoney(securityDepositAmount) || 0;
+  const normalizedBreakdown = normalizeCheckoutBreakdown(breakdown);
+  const existingDeposit =
+    normalizedBreakdown && Number.isFinite(Number(normalizedBreakdown.securityDeposit))
+      ? roundMoney(normalizedBreakdown.securityDeposit) || 0
+      : 0;
+  const adjustedAmount = roundMoney((Number(numericAmount) || 0) - existingDeposit + deposit) || 0;
+
+  if (!normalizedBreakdown) {
+    return {
+      numericAmount: adjustedAmount,
+      breakdown: null,
+      securityDeposit: deposit,
+      securityDepositCurrency: securityDepositCurrency || null,
+    };
+  }
+
+  return {
+    numericAmount: adjustedAmount,
+    breakdown: {
+      ...normalizedBreakdown,
+      securityDeposit: deposit,
+      securityDepositCurrency: securityDepositCurrency || normalizedBreakdown.securityDepositCurrency || null,
+      subtotal: adjustedAmount,
+      total: adjustedAmount,
+    },
+    securityDeposit: deposit,
+    securityDepositCurrency: securityDepositCurrency || normalizedBreakdown.securityDepositCurrency || null,
+  };
+};
+
 const parseIntegerQueryParam = (value, { key, min = 0, max = Number.MAX_SAFE_INTEGER, fallback = 0 }) => {
   if (value == null || String(value).trim() === "") return fallback;
   const parsed = Number.parseInt(String(value), 10);
@@ -1393,6 +1489,36 @@ const enumerateDates = (start, end) => {
 
 const normalizeCalendarItems = (payload) => {
   if (!payload) return [];
+  if (Array.isArray(payload?.data?.days)) {
+    const grouped = {};
+    payload.data.days.forEach((day) => {
+      const listingId =
+        day?.listingId ||
+        day?.listing?._id ||
+        day?.listing?.id ||
+        day?.listing?.listingId;
+      if (!listingId) return;
+      if (!grouped[listingId]) grouped[listingId] = [];
+      grouped[listingId].push(day);
+    });
+    const entries = Object.entries(grouped).map(([listingId, days]) => ({ listingId, days }));
+    if (entries.length) return entries;
+  }
+  if (Array.isArray(payload?.days)) {
+    const grouped = {};
+    payload.days.forEach((day) => {
+      const listingId =
+        day?.listingId ||
+        day?.listing?._id ||
+        day?.listing?.id ||
+        day?.listing?.listingId;
+      if (!listingId) return;
+      if (!grouped[listingId]) grouped[listingId] = [];
+      grouped[listingId].push(day);
+    });
+    const entries = Object.entries(grouped).map(([listingId, days]) => ({ listingId, days }));
+    if (entries.length) return entries;
+  }
   if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.listings)) return payload.listings;
@@ -1478,7 +1604,13 @@ const normalizeCalendarDay = (day, fallbackCurrency) => {
 };
 
 const handleAvailabilityBulk = async (event, token, tokenSource) => {
-  const { ids = "", startDate = "", endDate = "" } = event.queryStringParameters || {};
+  const {
+    ids = "",
+    startDate = "",
+    endDate = "",
+    ignoreInactiveChildAllotment: ignoreInactiveParam,
+    ignoreUnlistedChildAllotment: ignoreUnlistedParam,
+  } = event.queryStringParameters || {};
   if (!ids || !startDate || !endDate) {
     return jsonResponse(400, { message: "Missing ids, startDate, or endDate" });
   }
@@ -1488,6 +1620,14 @@ const handleAvailabilityBulk = async (event, token, tokenSource) => {
     startDate,
     endDate,
     includeAllotment: "true",
+    ignoreInactiveChildAllotment: toBooleanQueryString(
+      ignoreInactiveParam,
+      DEFAULT_IGNORE_INACTIVE_CHILD_ALLOTMENT
+    ),
+    ignoreUnlistedChildAllotment: toBooleanQueryString(
+      ignoreUnlistedParam,
+      DEFAULT_IGNORE_UNLISTED_CHILD_ALLOTMENT
+    ),
   });
 
   const res = await fetchWithTimeout(
@@ -1587,8 +1727,8 @@ const handleCalendarMulti = async (event, token, tokenSource) => {
     startDate = "",
     endDate = "",
     includeAllotment = "false",
-    ignoreInactiveChildAllotment = "false",
-    ignoreUnlistedChildAllotment = "false",
+    ignoreInactiveChildAllotment: ignoreInactiveParam,
+    ignoreUnlistedChildAllotment: ignoreUnlistedParam,
   } = event.queryStringParameters || {};
 
   if (!listingIds || !startDate || !endDate) {
@@ -1600,8 +1740,14 @@ const handleCalendarMulti = async (event, token, tokenSource) => {
     startDate,
     endDate,
     includeAllotment,
-    ignoreInactiveChildAllotment,
-    ignoreUnlistedChildAllotment,
+    ignoreInactiveChildAllotment: toBooleanQueryString(
+      ignoreInactiveParam,
+      DEFAULT_IGNORE_INACTIVE_CHILD_ALLOTMENT
+    ),
+    ignoreUnlistedChildAllotment: toBooleanQueryString(
+      ignoreUnlistedParam,
+      DEFAULT_IGNORE_UNLISTED_CHILD_ALLOTMENT
+    ),
   });
 
   const res = await fetchWithTimeout(
@@ -1652,7 +1798,13 @@ const handleCalendarMulti = async (event, token, tokenSource) => {
 };
 
 const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
-  const { startDate, endDate, months = "1" } = event.queryStringParameters || {};
+  const {
+    startDate,
+    endDate,
+    months = "1",
+    ignoreInactiveChildAllotment: ignoreInactiveParam,
+    ignoreUnlistedChildAllotment: ignoreUnlistedParam,
+  } = event.queryStringParameters || {};
   if (!listingId || !startDate) {
     return jsonResponse(400, { message: "Missing listingId or startDate" });
   }
@@ -1666,6 +1818,14 @@ const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
     startDate: toIsoDate(start),
     endDate: endDate || end,
     includeAllotment: "true",
+    ignoreInactiveChildAllotment: toBooleanQueryString(
+      ignoreInactiveParam,
+      DEFAULT_IGNORE_INACTIVE_CHILD_ALLOTMENT
+    ),
+    ignoreUnlistedChildAllotment: toBooleanQueryString(
+      ignoreUnlistedParam,
+      DEFAULT_IGNORE_UNLISTED_CHILD_ALLOTMENT
+    ),
   });
 
   const res = await fetchWithTimeout(
@@ -1951,7 +2111,7 @@ const handleFreeCheckout = async (event) => {
     guests,
     amount,
     currency,
-    breakdown,
+    breakdown: incomingBreakdown,
     promoCode,
     promoDiscountAmount,
     promoDiscountRate,
@@ -1971,10 +2131,24 @@ const handleFreeCheckout = async (event) => {
     return jsonResponse(400, { message: "Guest email is required" });
   }
 
-  const breakdownTotal = breakdown && typeof breakdown === "object"
-    ? Number(breakdown.total ?? breakdown.subtotal)
+  const breakdownTotal = incomingBreakdown && typeof incomingBreakdown === "object"
+    ? Number(incomingBreakdown.total ?? incomingBreakdown.subtotal)
     : NaN;
-  const numericAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  const baseAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  const resolvedSecurityDeposit = await resolveSecurityDeposit({
+    listingId,
+    country: incomingBreakdown?.country || body?.country || body?.listingCountry,
+    bedrooms: incomingBreakdown?.bedrooms || body?.bedrooms || body?.listingBedrooms,
+    currency,
+  });
+  const withSecurityDeposit = applySecurityDepositToAmount({
+    numericAmount: baseAmount,
+    breakdown: incomingBreakdown,
+    securityDepositAmount: resolvedSecurityDeposit?.amount || 0,
+    securityDepositCurrency: resolvedSecurityDeposit?.currency || String(currency || "USD").toUpperCase(),
+  });
+  const numericAmount = withSecurityDeposit.numericAmount;
+  const breakdown = withSecurityDeposit.breakdown;
   if (!Number.isFinite(numericAmount) || numericAmount > 0) {
     return jsonResponse(400, {
       message: "Zero-total checkout is only available when total amount is 0.00 or below.",
@@ -2172,7 +2346,7 @@ const handleCheckout = async (event) => {
     guests,
     amount,
     currency,
-    breakdown,
+    breakdown: incomingBreakdown,
     promoCode,
     promoDiscountAmount,
     promoDiscountRate,
@@ -2189,10 +2363,24 @@ const handleCheckout = async (event) => {
     return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
   }
 
-  const breakdownTotal = breakdown && typeof breakdown === "object"
-    ? Number(breakdown.total ?? breakdown.subtotal)
+  const breakdownTotal = incomingBreakdown && typeof incomingBreakdown === "object"
+    ? Number(incomingBreakdown.total ?? incomingBreakdown.subtotal)
     : NaN;
-  const numericAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  const baseAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  const resolvedSecurityDeposit = await resolveSecurityDeposit({
+    listingId,
+    country: incomingBreakdown?.country || body?.country || body?.listingCountry,
+    bedrooms: incomingBreakdown?.bedrooms || body?.bedrooms || body?.listingBedrooms,
+    currency,
+  });
+  const withSecurityDeposit = applySecurityDepositToAmount({
+    numericAmount: baseAmount,
+    breakdown: incomingBreakdown,
+    securityDepositAmount: resolvedSecurityDeposit?.amount || 0,
+    securityDepositCurrency: resolvedSecurityDeposit?.currency || String(currency || "USD").toUpperCase(),
+  });
+  const numericAmount = withSecurityDeposit.numericAmount;
+  const breakdown = withSecurityDeposit.breakdown;
   const unitAmount = toStripeAmount(numericAmount, currency);
   if (!unitAmount || unitAmount <= 0) {
     return jsonResponse(400, { message: "Invalid amount" });
@@ -2239,6 +2427,7 @@ const handleCheckout = async (event) => {
           bd_vat: breakdown.vat,
           bd_city_tax: breakdown.cityTax,
           bd_fees: breakdown.fees,
+          bd_security_deposit: breakdown.securityDeposit,
           bd_discount: breakdown.discountAmount,
           bd_discount_rate: breakdown.discountRate,
           bd_promo_discount: resolvedPromoDiscountAmount,
@@ -2275,6 +2464,10 @@ const handleCheckout = async (event) => {
       guests: String(guests || 1),
       amount: String(numericAmount),
       currency: (currency || "USD").toLowerCase(),
+      security_deposit: String(withSecurityDeposit.securityDeposit || 0),
+      security_deposit_currency: String(
+        withSecurityDeposit.securityDepositCurrency || currency || "USD",
+      ).toUpperCase(),
       ...(consentText ? { consent_text: String(consentText) } : {}),
       ...(consentAcceptedAt ? { consent_at: String(consentAcceptedAt) } : {}),
       ...(consentSignerName ? { consent_signer_name: String(consentSignerName).slice(0, 200) } : {}),
@@ -2457,6 +2650,7 @@ const handleCheckoutSuccess = async (event) => {
     cleaning: firstNumber(metadata.bd_cleaning),
     fees: firstNumber(metadata.bd_fees),
     taxes: firstNumber(metadata.bd_taxes),
+    securityDeposit: firstNumber(metadata.bd_security_deposit, metadata.security_deposit),
     vat: firstNumber(metadata.bd_vat),
     cityTax: firstNumber(metadata.bd_city_tax),
     taxProfile: typeof metadata.bd_tax_profile === "string" ? metadata.bd_tax_profile : "",

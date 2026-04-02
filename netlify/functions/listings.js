@@ -4,6 +4,7 @@ import {
     fetchListingsFromSupabase,
     isSupabaseListingsEnabled,
 } from "./_shared/supabaseListingsService.js";
+import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
 
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
 const GUESTY_LISTINGS_URL = `${OPEN_API_HOST}/v1/listings`;
@@ -355,6 +356,37 @@ const normalizeListing = (listing) => {
 const getListingId = (listing) =>
     listing?._id || listing?.id || listing?.unitTypeId || null;
 
+const enrichListingWithSecurityDeposit = async (listing) => {
+    if (!listing || typeof listing !== "object") return listing;
+
+    const resolved = await resolveSecurityDeposit({
+        listingId: getListingId(listing),
+        country: listing?.address?.country || listing?.country,
+        bedrooms: listing?.bedrooms,
+        currency: listing?.securityDepositCurrency || listing?.prices?.currency || listing?.currency,
+        allowListingLookup: false,
+    });
+
+    if (!resolved || !(Number(resolved.amount) > 0)) {
+        return listing;
+    }
+
+    return {
+        ...listing,
+        securityDeposit: Number(resolved.amount),
+        securityDepositCurrency: resolved.currency || listing?.securityDepositCurrency || listing?.currency || "USD",
+        securityDepositSource: resolved.source || "supabase_security_deposits",
+    };
+};
+
+const enrichListingsWithSecurityDeposits = async (listings = []) => {
+    const rows = Array.isArray(listings) ? listings : [];
+    if (!rows.length) return rows;
+    return Promise.all(
+        rows.map((listing) => enrichListingWithSecurityDeposit(listing))
+    );
+};
+
 const parseBooleanFlag = (value) => {
     if (value === true || value === 1) return true;
     if (value === false || value === 0) return false;
@@ -568,7 +600,8 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
                 });
         }
 
-        const orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+        let orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+        orderedResults = await enrichListingsWithSecurityDeposits(orderedResults);
         return {
             results: orderedResults,
             count: orderedResults.length,
@@ -600,6 +633,8 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
                 });
         }
     }
+
+    enrichedResults = await enrichListingsWithSecurityDeposits(enrichedResults);
 
     return {
         ...basePayload,
@@ -667,7 +702,8 @@ export async function handler(event) {
                     onlyIdMap.set(id, listing);
                 });
 
-            const orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+            let orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+            orderedResults = await enrichListingsWithSecurityDeposits(orderedResults);
             return jsonResponse(
                 200,
                 {
@@ -740,7 +776,7 @@ export async function handler(event) {
             }
         }
 
-        const enrichedResults = baseResults
+        let enrichedResults = baseResults
             .map((listing) => normalizeListing(listing))
             .filter((listing) => isActiveAndPmsActive(listing))
             .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
@@ -764,6 +800,8 @@ export async function handler(event) {
                     });
             }
         }
+
+        enrichedResults = await enrichListingsWithSecurityDeposits(enrichedResults);
 
         return jsonResponse(
             200,

@@ -394,12 +394,6 @@ const getCalendarEntryDays = (entry) => {
 };
 
 const getCalendarLookupIdsForListings = (listings = []) => {
-  const childIds = listings
-    .filter((listing) => isChildListing(listing))
-    .map((listing) => listing?.id || listing?._id || listing?.unitTypeId)
-    .map(toLookupKey)
-    .filter(Boolean);
-  if (childIds.length) return [...new Set(childIds)];
   return [
     ...new Set(
       listings
@@ -634,6 +628,44 @@ const getListingGroupKey = (listing) => {
 const getParentListingId = (listing) =>
   listing?.unitTypeId || getListingGroupKey(listing) || getListingId(listing);
 
+const getCanonicalParentId = (listing) => {
+  if (!listing) return "";
+  const listingId = toLookupKey(getListingId(listing));
+  const unitTypeId = toLookupKey(listing?.unitTypeId);
+  if (unitTypeId && listingId && unitTypeId !== listingId) return unitTypeId;
+  return listingId || unitTypeId || "";
+};
+
+const getRelatedListingsByParentId = (listing, listings = []) => {
+  if (!listing) return [];
+  const parentId = getCanonicalParentId(listing);
+  if (!parentId) return [listing];
+
+  const allListings = Array.isArray(listings) ? listings : [];
+  const related = allListings.filter((entry) => {
+    const entryId = toLookupKey(getListingId(entry));
+    const entryUnitTypeId = toLookupKey(entry?.unitTypeId);
+    return entryId === parentId || entryUnitTypeId === parentId;
+  });
+
+  if (related.length > 1) return related;
+
+  const unitTypeId = toLookupKey(listing?.unitTypeId);
+  const hasLinkedParentChildIds = Boolean(unitTypeId);
+  if (!hasLinkedParentChildIds) {
+    const groupKey = getListingGroupKey(listing);
+    if (groupKey) {
+      const relatedByGroup = allListings.filter(
+        (entry) => getListingGroupKey(entry) === groupKey
+      );
+      if (relatedByGroup.length) return relatedByGroup;
+    }
+  }
+
+  if (related.length) return related;
+  return [listing];
+};
+
 const isParentListing = (listing) => {
   const id = getListingId(listing);
   if (listing?.unitTypeId) return listing.unitTypeId === id;
@@ -642,9 +674,20 @@ const isParentListing = (listing) => {
 
 const groupListingsByParent = (listings = []) => {
   const groups = {};
+  const toKey = (value) => (value ? String(value) : null);
+  const childParentIds = new Set(
+    listings
+      .filter((listing) => isChildListing(listing))
+      .map((listing) => toKey(listing?.unitTypeId))
+      .filter(Boolean)
+  );
   listings.forEach((listing) => {
-    const parentId = getParentListingId(listing);
     const listingId = getListingId(listing);
+    const listingIds = [listing?.id, listing?._id].map(toKey).filter(Boolean);
+    const matchedParentId = listingIds.find((id) => childParentIds.has(id));
+    const parentId = toKey(listing?.unitTypeId)
+      || matchedParentId
+      || toKey(getParentListingId(listing));
     if (!parentId || !listingId) return;
     if (!groups[parentId]) {
       groups[parentId] = { parentId, parent: null, children: [] };
@@ -660,13 +703,17 @@ const groupListingsByParent = (listings = []) => {
 
 const getCalendarListingId = (listing, listings = []) => {
   if (!listing) return null;
-  if (isChildListing(listing)) return getListingId(listing);
-  const groupKey = getListingGroupKey(listing);
-  if (!groupKey) return getListingId(listing);
-  const child = listings.find(
-    (entry) => isChildListing(entry) && getListingGroupKey(entry) === groupKey
+  if (!isChildListing(listing)) return getListingId(listing);
+  const parentId = getCanonicalParentId(listing);
+  const relatedListings = getRelatedListingsByParentId(listing, listings);
+  const parentListing = relatedListings.find((entry) => !isChildListing(entry));
+  if (parentListing) return getListingId(parentListing);
+  const linkedChild = relatedListings.find(
+    (entry) =>
+      isChildListing(entry) && toLookupKey(entry?.unitTypeId) === parentId
   );
-  return getListingId(child || listing);
+  const unlinkedChild = relatedListings.find((entry) => isChildListing(entry));
+  return getListingId(linkedChild || unlinkedChild || listing);
 };
 
 const getLowestPriceListing = (listings = []) => {
@@ -689,6 +736,13 @@ const monthKey = (date) =>
 const hasMonthData = (daysMap = {}, targetDate) => {
   const prefix = monthKey(targetDate);
   return Object.values(daysMap).some((day) => day?.date?.startsWith(prefix));
+};
+
+const hasMonthAvailabilityData = (availabilityMap = {}, targetDate) => {
+  const prefix = monthKey(targetDate);
+  return Object.entries(availabilityMap || {}).some(([dateKey, value]) => (
+    typeof value === "boolean" && String(dateKey || "").startsWith(prefix)
+  ));
 };
 
 const countMonthCalendarDays = (daysMap = {}, targetDate) => {
@@ -867,9 +921,14 @@ const DateRangePicker = ({
 
   const getDayAvailability = (isoDate, priceInfo = null) => {
     if (!isoDate) return null;
-    if (dayAvailability instanceof Map && dayAvailability.has(isoDate)) {
-      const value = dayAvailability.get(isoDate);
-      if (typeof value === "boolean") return value;
+    const hasAvailabilityMap = dayAvailability instanceof Map && dayAvailability.size > 0;
+    if (hasAvailabilityMap) {
+      if (dayAvailability.has(isoDate)) {
+        const value = dayAvailability.get(isoDate);
+        if (typeof value === "boolean") return value;
+      }
+      // When group availability map exists, avoid falling back to a single unit's day status.
+      return null;
     }
     if (priceInfo && typeof priceInfo.available === "boolean") {
       return priceInfo.available;
@@ -1331,7 +1390,8 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
       guests: effectiveGuests,
     });
     const taxes = taxBreakdown.total;
-    const fees = computeStripeAdminFee(accommodation, cleaning, taxes);
+    const securityDeposit = firstNumber(listing?.securityDeposit, 0);
+    const fees = computeStripeAdminFee(accommodation, cleaning, taxes) + securityDeposit;
     const subtotal =
       (typeof accommodation === "number" ? accommodation : 0) +
       (typeof cleaning === "number" ? cleaning : 0) +
@@ -1356,6 +1416,7 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
         vat: taxBreakdown.vat,
         cityTax: taxBreakdown.cityTax,
         taxProfile: ANTWERP_BE_TAX_PROFILE,
+        securityDeposit,
         fees,
         subtotal,
         total,
@@ -2623,6 +2684,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [buildingPrices, setBuildingPrices] = useState({});
   const [cardQuoteRates, setCardQuoteRates] = useState({});
   const [calendarPrices, setCalendarPrices] = useState(null);
+  const [calendarAvailability, setCalendarAvailability] = useState({});
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState("");
   const [calendarMinNightsOverride, setCalendarMinNightsOverride] = useState(null);
@@ -2635,6 +2697,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   });
   const calendarCacheRef = useRef({});
   const calendarDaysRef = useRef({});
+  const calendarAvailabilityRef = useRef({});
   const calendarGlobalCacheRef = useRef({});
   const calendarGlobalDaysRef = useRef({});
   const calendarGlobalInflightRef = useRef({});
@@ -2759,6 +2822,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (!Array.isArray(calendarPrices?.days)) return new Map();
     return new Map(calendarPrices.days.map((day) => [day.date, day]));
   }, [calendarPrices]);
+  const calendarAvailabilityMap = useMemo(() => (
+    new Map(
+      Object.entries(calendarAvailability || {}).filter(([, value]) => typeof value === "boolean")
+    )
+  ), [calendarAvailability]);
 
 
   const calendarCurrentMonth = useMemo(() => {
@@ -2777,6 +2845,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (!activeListing || !isListingCalendarOpen) return;
     const listingId = getCalendarListingId(activeListing, losAngelesListings);
     if (!listingId) return;
+    setCalendarAvailability(calendarAvailabilityRef.current[listingId] || {});
     const monthBase = new Date(calendarStartDate);
     monthBase.setMonth(monthBase.getMonth() + calendarMonthIndex);
     const monthStart = new Date(monthBase.getFullYear(), monthBase.getMonth(), 1);
@@ -2918,6 +2987,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     start.setHours(0, 0, 0, 0);
     setCalendarStartDate(start);
     setCalendarMonthIndex(0);
+    setCalendarAvailability(calendarAvailabilityRef.current[listingId] || {});
     const cachedDays = calendarDaysRef.current[listingId];
     if (cachedDays && Object.keys(cachedDays).length) {
       setCalendarPrices(buildCalendarPayload(cachedDays));
@@ -4197,7 +4267,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const key = `${listingId}-${monthKey(targetDate)}`;
     if (cacheRef.current[key]) {
       const cachedDays = daysRef.current[listingId] || {};
-      if (countMonthCalendarDays(cachedDays, targetDate) < 20) {
+      const cachedAvailability = calendarAvailabilityRef.current[listingId] || {};
+      const hasAvailabilityForMonth = hasMonthAvailabilityData(cachedAvailability, targetDate);
+      if (countMonthCalendarDays(cachedDays, targetDate) < 20 || !hasAvailabilityForMonth) {
         fetchCalendarMinNightsFromMulti(listingId, targetDate);
       }
       return;
@@ -4209,7 +4281,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         daysRef.current[listingId] = { ...(daysRef.current[listingId] || {}), ...sharedDays };
         setPrices(buildCalendarPayload(daysRef.current[listingId]));
       }
-      fetchCalendarMinNightsFromMulti(listingId, targetDate);
+      const cachedAvailability = calendarAvailabilityRef.current[listingId] || {};
+      const hasAvailabilityForMonth = hasMonthAvailabilityData(cachedAvailability, targetDate);
+      if (!hasAvailabilityForMonth) {
+        fetchCalendarMinNightsFromMulti(listingId, targetDate);
+      }
       return;
     }
     if (inflightRef.current[key]) return;
@@ -4302,7 +4378,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const key = `${listingId}-${monthKey(targetDate)}`;
     const existingMap = calendarDaysRef.current[listingId] || {};
     const existingMonthDays = countMonthCalendarDays(existingMap, targetDate);
-    if (calendarMinNightsCacheRef.current[key] && existingMonthDays >= 20) return;
+    const existingAvailabilityMap = calendarAvailabilityRef.current[listingId] || {};
+    const existingMonthAvailability = hasMonthAvailabilityData(existingAvailabilityMap, targetDate);
+    if (calendarMinNightsCacheRef.current[key] && existingMonthDays >= 20 && existingMonthAvailability) return;
     calendarMinNightsCacheRef.current[key] = true;
     try {
       const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
@@ -4320,15 +4398,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
               .filter(Boolean);
             return ids.includes(listingKey);
           }) || null;
-      const listingGroupKey = getListingGroupKey(baseListing);
-      const listingPool =
-        listingGroupKey
-          ? losAngelesListings.filter(
-            (listing) => getListingGroupKey(listing) === listingGroupKey
-          )
-          : baseListing
-            ? [baseListing]
-            : [];
+      const listingPool = baseListing
+        ? getRelatedListingsByParentId(baseListing, losAngelesListings)
+        : [];
       const groupedListingIds = getCalendarLookupIdsForListings(listingPool);
       const calendarListingIds = groupedListingIds.length
         ? groupedListingIds
@@ -4351,6 +4423,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         calendarListingIds,
         currencyByListingId
       );
+      const availabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
       let normalizedDays = Object.values(buildLowestPriceCalendarByDate(daysByListing));
       if (!normalizedDays.length && Array.isArray(daysByListing[listingKey])) {
         normalizedDays = daysByListing[listingKey];
@@ -4380,6 +4453,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         };
         setCalendarPrices(buildCalendarPayload(map));
       }
+      const mergedAvailability = {
+        ...(calendarAvailabilityRef.current[listingId] || {}),
+        ...availabilityByDate,
+      };
+      calendarAvailabilityRef.current[listingId] = mergedAvailability;
+      setCalendarAvailability(mergedAvailability);
     } catch {
       // ignore multi calendar failures for min nights
     }
@@ -4525,6 +4604,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setCalendarMonthIndex(0);
     const listingId = getCalendarListingId(activeListing, losAngelesListings);
     if (!listingId) return;
+    setCalendarAvailability(calendarAvailabilityRef.current[listingId] || {});
     const loadMonth = (targetMonth) => {
       fetchCalendarMonth(
         listingId,
@@ -6183,6 +6263,7 @@ const applyCheckoutPromoCode = () => {
                   <DateRangePicker
                     value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                     dayPrices={calendarDayMap}
+                    dayAvailability={calendarAvailabilityMap}
                     onValidationChange={handleSectionDateValidation}
                     onChange={({ checkIn, checkOut }) => {
                       setSectionCheckIn(checkIn);
@@ -6398,9 +6479,20 @@ const applyCheckoutPromoCode = () => {
                           <span>Taxes</span>
                           <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                         </div>
+                        {Number(breakdown.securityDeposit) > 0 && (
+                          <div>
+                            <span>Security deposit</span>
+                            <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
+                          </div>
+                        )}
                         <div>
                           <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                          <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                          <strong>
+                            {formatCurrency(
+                              Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
+                              priceCurrency,
+                            )}
+                          </strong>
                         </div>
                         <div className="la-unit-modal__total">
                           <span>Total</span>
@@ -8702,9 +8794,24 @@ const applyCheckoutPromoCode = () => {
                                             <span>Taxes</span>
                                             <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                                           </div>
+                                          {Number(breakdown.securityDeposit) > 0 && (
+                                            <div>
+                                              <span>Security deposit</span>
+                                              <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
+                                            </div>
+                                          )}
                                           <div>
                                             <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                                            <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                                            <strong>
+                                              {formatCurrency(
+                                                Math.max(
+                                                  (Number(breakdown.fees) || 0) -
+                                                    (Number(breakdown.securityDeposit) || 0),
+                                                  0,
+                                                ),
+                                                priceCurrency,
+                                              )}
+                                            </strong>
                                           </div>
                                           <div className="la-booking-table__total">
                                             <span>Total</span>
@@ -9176,9 +9283,20 @@ const applyCheckoutPromoCode = () => {
                               <span>Taxes</span>
                               <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                             </div>
+                            {Number(breakdown.securityDeposit) > 0 && (
+                              <div>
+                                <span>Security deposit</span>
+                                <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
+                              </div>
+                            )}
                             <div>
                               <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                              <strong>{formatCurrency(breakdown.fees, priceCurrency)}</strong>
+                              <strong>
+                                {formatCurrency(
+                                  Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
+                                  priceCurrency,
+                                )}
+                              </strong>
                             </div>
                             <div className="la-unit-modal__total">
                               <span>Total</span>
