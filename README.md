@@ -35,6 +35,10 @@ Behavior notes:
 - The browser never receives the OpenAI API key.
 - The assistant is page-aware and receives route context from the current page.
 - The assistant is instructed not to invent live pricing, availability, or policy details it cannot verify.
+- Optional chat learning capture is available:
+  - Turn logging endpoint: `netlify/functions/chat-learning.js`
+  - Session/messages/feedback tables: `chat_sessions`, `chat_messages`, `chat_feedback`
+  - Guests can rate assistant replies as `good`/`bad`; recent ratings are used as prompt coaching context.
 
 ## AI Agent (RAG + Booking Handoff)
 

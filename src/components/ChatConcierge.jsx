@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 
 const STORAGE_KEY = "ols-chat-concierge-v1";
+const SESSION_ID_KEY = "ols-chat-concierge-session-v1";
+const FEEDBACK_KEY = "ols-chat-concierge-feedback-v1";
 const MAX_VISIBLE_MESSAGES = 12;
 
 const DEFAULT_SUGGESTIONS = [
@@ -10,6 +12,47 @@ const DEFAULT_SUGGESTIONS = [
   "Check availability for 2026-04-15 to 2026-04-20 for 2 guests",
   "Check my booking status (I have my reservation code)",
 ];
+
+const sanitizeId = (value = "", maxLength = 120) =>
+  String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9:_-]/g, "")
+    .slice(0, maxLength);
+
+const createLocalId = (prefix = "msg") =>
+  `${sanitizeId(prefix, 16) || "msg"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+const createSessionId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return sanitizeId(crypto.randomUUID(), 80) || createLocalId("session");
+  }
+  return createLocalId("session");
+};
+
+const getOrCreateSessionId = () => {
+  if (typeof window === "undefined") return createSessionId();
+  try {
+    const existing = sanitizeId(window.sessionStorage.getItem(SESSION_ID_KEY) || "", 80);
+    if (existing) return existing;
+    const next = createSessionId();
+    window.sessionStorage.setItem(SESSION_ID_KEY, next);
+    return next;
+  } catch {
+    return createSessionId();
+  }
+};
+
+const resetSessionId = () => {
+  const next = createSessionId();
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(SESSION_ID_KEY, next);
+    } catch {
+      // ignore storage errors
+    }
+  }
+  return next;
+};
 
 const isSafeHttpUrl = (value = "") => {
   try {
@@ -140,6 +183,7 @@ const sanitizeMessages = (messages) =>
     ? messages
         .filter((message) => message && typeof message.content === "string")
         .map((message) => ({
+          id: sanitizeId(message.id, 120) || createLocalId(message.role === "assistant" ? "assistant" : "user"),
           role: message.role === "assistant" ? "assistant" : "user",
           content: message.content.trim().slice(0, 2000),
           cards: sanitizeCards(message.cards),
@@ -195,6 +239,7 @@ function ChatConcierge() {
   const pageContext = useMemo(() => getPageContext(location), [location]);
   const suggestions = useMemo(() => getSuggestions(pageContext), [pageContext]);
   const [isOpen, setIsOpen] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState(() => getOrCreateSessionId());
   const [messages, setMessages] = useState(() => {
     if (typeof window === "undefined") return [];
 
@@ -210,6 +255,21 @@ function ChatConcierge() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [mode, setMode] = useState("live");
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.sessionStorage.getItem(FEEDBACK_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== "object") return {};
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .map(([key, value]) => [sanitizeId(key, 120), String(value || "").toLowerCase()])
+          .filter(([key, value]) => key && (value === "good" || value === "bad")),
+      );
+    } catch {
+      return {};
+    }
+  });
   const scrollRef = useRef(null);
   const autoRunKeyRef = useRef("");
   const showSuggestions = messages.length === 0;
@@ -221,16 +281,97 @@ function ChatConcierge() {
   }, [messages]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(FEEDBACK_KEY, JSON.stringify(feedbackByMessageId));
+    } catch {
+      // ignore storage errors
+    }
+  }, [feedbackByMessageId]);
+
+  useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isOpen, isSending]);
+
+  const recordChatTurn = useCallback(
+    async ({ userMessage, assistantMessage, responseMode = "live", responseModel = "" } = {}) => {
+      if (!chatSessionId || !assistantMessage?.content) return;
+      try {
+        await fetch(`${apiBase}/chat-learning`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "turn",
+            chatSessionId,
+            pageContext,
+            responseMode,
+            responseModel,
+            userMessage: userMessage
+              ? {
+                  id: sanitizeId(userMessage.id, 120),
+                  content: String(userMessage.content || ""),
+                }
+              : null,
+            assistantMessage: {
+              id: sanitizeId(assistantMessage.id, 120),
+              content: String(assistantMessage.content || ""),
+              cards: Array.isArray(assistantMessage.cards) ? assistantMessage.cards : [],
+            },
+          }),
+        });
+      } catch {
+        // Non-blocking analytics capture.
+      }
+    },
+    [chatSessionId, pageContext],
+  );
+
+  const sendFeedback = useCallback(
+    async ({ messageId, rating, assistantContent = "", relatedUserContent = "" } = {}) => {
+      const normalizedMessageId = sanitizeId(messageId, 120);
+      const normalizedRating = String(rating || "").toLowerCase();
+      if (!normalizedMessageId) return;
+      if (normalizedRating !== "good" && normalizedRating !== "bad") return;
+
+      setFeedbackByMessageId((current) => ({ ...current, [normalizedMessageId]: normalizedRating }));
+
+      try {
+        await fetch(`${apiBase}/chat-learning`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "feedback",
+            chatSessionId,
+            pageContext,
+            assistantMessageId: normalizedMessageId,
+            rating: normalizedRating,
+            assistantContent: String(assistantContent || ""),
+            relatedUserContent: String(relatedUserContent || ""),
+          }),
+        });
+      } catch {
+        setError("Feedback could not be saved right now.");
+      }
+    },
+    [chatSessionId, pageContext],
+  );
 
   const sendMessage = useCallback(
     async (rawValue) => {
       const value = String(rawValue || "").trim();
       if (!value || isSending) return;
 
-      const nextMessages = [...messages, { role: "user", content: value }].slice(-MAX_VISIBLE_MESSAGES);
+      const userMessage = {
+        id: createLocalId("user"),
+        role: "user",
+        content: value,
+      };
+      const nextMessages = [...messages, userMessage].slice(-MAX_VISIBLE_MESSAGES);
       setMessages(nextMessages);
       setDraft("");
       setError("");
@@ -248,6 +389,7 @@ function ChatConcierge() {
           body: JSON.stringify({
             messages: nextMessages,
             pageContext,
+            chatSessionId,
           }),
         });
 
@@ -261,15 +403,30 @@ function ChatConcierge() {
           throw new Error("The concierge returned an empty reply.");
         }
         const cards = sanitizeCards(payload?.cards);
+        const assistantMessage = {
+          id: sanitizeId(payload?.assistantMessageId, 120) || createLocalId("assistant"),
+          role: "assistant",
+          content: reply,
+          cards,
+        };
+        const responseMode = payload?.mode === "fallback" ? "fallback" : "live";
+        const responseModel = String(payload?.model || "").trim();
 
-        setMode(payload?.mode === "fallback" ? "fallback" : "live");
+        setMode(responseMode);
         setNotice(String(payload?.notice || "").trim());
 
         setMessages((current) =>
-          [...current.slice(-MAX_VISIBLE_MESSAGES + 1), { role: "assistant", content: reply, cards }].slice(
+          [...current.slice(-MAX_VISIBLE_MESSAGES + 1), assistantMessage].slice(
             -MAX_VISIBLE_MESSAGES,
           ),
         );
+
+        void recordChatTurn({
+          userMessage,
+          assistantMessage,
+          responseMode,
+          responseModel,
+        });
       } catch (requestError) {
         const isLocalHost =
           typeof window !== "undefined" &&
@@ -285,7 +442,7 @@ function ChatConcierge() {
         setIsSending(false);
       }
     },
-    [isSending, messages, pageContext],
+    [chatSessionId, isSending, messages, pageContext, recordChatTurn],
   );
 
   useEffect(() => {
@@ -313,7 +470,9 @@ function ChatConcierge() {
 
   const handleClear = () => {
     autoRunKeyRef.current = "";
+    setChatSessionId(resetSessionId());
     setMessages([]);
+    setFeedbackByMessageId({});
     setDraft("");
     setError("");
     setNotice("");
@@ -379,7 +538,7 @@ function ChatConcierge() {
 
             {messages.map((message, index) => (
               <article
-                key={`${message.role}-${index}-${message.content.slice(0, 24)}`}
+                key={message.id || `${message.role}-${index}-${message.content.slice(0, 24)}`}
                 className={`chat-concierge__message chat-concierge__message--${message.role}`}
               >
                 <p>{renderMessageContent(message.content)}</p>
@@ -415,6 +574,52 @@ function ChatConcierge() {
                         )}
                       </a>
                     ))}
+                  </div>
+                )}
+                {message.role === "assistant" && message.id && (
+                  <div className="chat-concierge__feedback" aria-label="Rate this reply">
+                    <button
+                      type="button"
+                      className={`chat-concierge__feedback-btn${feedbackByMessageId[message.id] === "good" ? " is-active" : ""}`}
+                      data-rating="good"
+                      onClick={() =>
+                        sendFeedback({
+                          messageId: message.id,
+                          rating: "good",
+                          assistantContent: message.content,
+                          relatedUserContent:
+                            [...messages.slice(0, index)]
+                              .reverse()
+                              .find((item) => item.role === "user")
+                              ?.content || "",
+                        })
+                      }
+                      disabled={isSending}
+                      aria-label="Mark response as good"
+                    >
+                      👍 Good
+                    </button>
+                    <button
+                      type="button"
+                      className={`chat-concierge__feedback-btn${feedbackByMessageId[message.id] === "bad" ? " is-active" : ""}`}
+                      data-rating="bad"
+                      onClick={() =>
+                        sendFeedback({
+                          messageId: message.id,
+                          rating: "bad",
+                          assistantContent: message.content,
+                          relatedUserContent:
+                            [...messages.slice(0, index)]
+                              .reverse()
+                              .find((item) => item.role === "user")
+                              ?.content || "",
+                        })
+                      }
+                      disabled={isSending}
+                      aria-label="Mark response as bad"
+                    >
+                      👎 Bad
+                    </button>
                   </div>
                 )}
               </article>

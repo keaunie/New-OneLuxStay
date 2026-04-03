@@ -12,6 +12,7 @@ const MAX_MESSAGES = 10;
 const DEFAULT_MATCH_RPC = "match_document_sections";
 const DEFAULT_AI_DOCS_TABLE = "documents";
 const DEFAULT_AI_SECTIONS_TABLE = "sections";
+const DEFAULT_CHAT_FEEDBACK_TABLE = "chat_feedback";
 const POLICY_CONTENT_TYPES = [
   "terms_conditions",
   "terms_and_conditions",
@@ -20,6 +21,14 @@ const POLICY_CONTENT_TYPES = [
 ];
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
+
+const parseEnvBoolean = (value, fallback = false) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
 
 const normalizeConciergeKnowledge = (value) => {
   if (!value || typeof value !== "object") return defaultConciergeKnowledge;
@@ -143,6 +152,67 @@ const formatKnowledgeSection = (title, lines) => {
   const normalized = lines.filter(Boolean);
   if (!normalized.length) return "";
   return [`${title}:`, ...normalized.map((line) => `- ${line}`), ""].join("\n");
+};
+
+const retrieveRatedConversationExamples = async ({
+  rating = "good",
+  limit = 3,
+} = {}) => {
+  const learningEnabled = parseEnvBoolean(getEnv("SUPABASE_CHAT_LEARNING_ENABLED"), true);
+  if (!learningEnabled) return [];
+
+  const feedbackTable = sanitizeString(
+    getEnv("SUPABASE_CHAT_FEEDBACK_TABLE") || DEFAULT_CHAT_FEEDBACK_TABLE,
+    120,
+  );
+  if (!feedbackTable) return [];
+
+  try {
+    const rows = await supabaseRestRequest(feedbackTable, {
+      query: {
+        select: "user_message,assistant_message,rating,updated_at",
+        rating: `eq.${rating === "bad" ? "bad" : "good"}`,
+        order: "updated_at.desc",
+        limit: String(Math.max(1, Math.min(6, Number(limit) || 3))),
+      },
+      timeout: 8_000,
+    });
+
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((row) => ({
+        userMessage: sanitizeString(row?.user_message, 280),
+        assistantMessage: sanitizeString(row?.assistant_message, 320),
+      }))
+      .filter((row) => row.assistantMessage)
+      .slice(0, Math.max(1, Math.min(6, Number(limit) || 3)));
+  } catch {
+    return [];
+  }
+};
+
+const buildLearningText = ({ goodExamples = [], badExamples = [] } = {}) => {
+  const lines = [];
+
+  if (goodExamples.length) {
+    lines.push("Team-rated GOOD reply patterns (follow the style and structure):");
+    goodExamples.forEach((example, index) => {
+      if (example.userMessage) lines.push(`- Good Example ${index + 1} User: ${example.userMessage}`);
+      lines.push(`- Good Example ${index + 1} Assistant: ${example.assistantMessage}`);
+    });
+    lines.push("");
+  }
+
+  if (badExamples.length) {
+    lines.push("Team-rated BAD reply patterns (avoid these response patterns):");
+    badExamples.forEach((example, index) => {
+      if (example.userMessage) lines.push(`- Bad Example ${index + 1} User: ${example.userMessage}`);
+      lines.push(`- Bad Example ${index + 1} Assistant: ${example.assistantMessage}`);
+    });
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
 };
 
 const buildKnowledgeText = (conciergeKnowledge) => {
@@ -1049,7 +1119,7 @@ const formatTranscript = (messages) =>
     .map((message) => `${message.role === "assistant" ? "Assistant" : "User"}: ${message.content}`)
     .join("\n");
 
-const buildInput = ({ pageContext, messages, knowledgeText, retrievedPolicyText = "" }) => {
+const buildInput = ({ pageContext, messages, knowledgeText, retrievedPolicyText = "", learningText = "" }) => {
   const contextLines = [
     `Page title: ${pageContext.title || "Unknown"}`,
     `Pathname: ${pageContext.pathname || "/"}`,
@@ -1061,6 +1131,7 @@ const buildInput = ({ pageContext, messages, knowledgeText, retrievedPolicyText 
 
   return [
     knowledgeText,
+    learningText ? `Feedback-based coaching:\n${learningText}` : "",
     retrievedPolicyText ? `Retrieved policy knowledge:\n${retrievedPolicyText}` : "",
     "Current website context:",
     ...contextLines,
@@ -2398,6 +2469,11 @@ export async function handler(event) {
   const supportedCities = getSupportedCities(conciergeKnowledge);
   const knowledgeText = buildKnowledgeText(conciergeKnowledge);
   const siteContext = buildSiteContext(supportedCities);
+  const [goodExamples, badExamples] = await Promise.all([
+    retrieveRatedConversationExamples({ rating: "good", limit: 3 }),
+    retrieveRatedConversationExamples({ rating: "bad", limit: 2 }),
+  ]);
+  const learningText = buildLearningText({ goodExamples, badExamples });
 
   const apiKey = getEnv("OPENAI_API_KEY");
   const model = getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini";
@@ -2903,7 +2979,7 @@ export async function handler(event) {
       body: JSON.stringify({
         model,
         instructions: siteContext,
-        input: buildInput({ pageContext, messages, knowledgeText, retrievedPolicyText }),
+        input: buildInput({ pageContext, messages, knowledgeText, retrievedPolicyText, learningText }),
         reasoning: { effort: "low" },
         text: { verbosity: "low" },
         max_output_tokens: 900,
