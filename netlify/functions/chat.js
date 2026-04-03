@@ -199,7 +199,7 @@ const isPolicyQuestion = (text = "") =>
   );
 
 const isUnitInfoQuestion = (text = "") =>
-  /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|feature|features|parking|pool|wifi|wi-fi|internet|gym|fitness|kitchen|laundry|washer|dryer|washing machine|hot tub|jacuzzi|pet|pets|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location)\b/i.test(
+  /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|feature|features|parking|pool|wifi|wi-fi|internet|gym|fitness|kitchen|laundry|washer|dryer|washing machine|hot tub|jacuzzi|pet|pets|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location|house rules?|quiet hours?|quiet time|noise|smoking|parties?|minimum age|children|infants)\b/i.test(
     String(text || ""),
   );
 
@@ -237,6 +237,11 @@ const isBookingLeadQuestion = (text = "") => {
     );
   return asksPrice || (mentionsRooms && hasBookingContext);
 };
+
+const isAffirmativeFollowup = (text = "") =>
+  /^(yes|yes please|yep|yeah|sure|of course|please do|go ahead|ok|okay|sounds good|that works)[.!?\s]*$/i.test(
+    String(text || "").trim(),
+  );
 
 const hasSensitivePaymentData = (text = "") => {
   const source = String(text || "");
@@ -2054,6 +2059,26 @@ const fetchListingForChat = async ({ event, listingId }) => {
   }
 };
 
+const fetchHouseRulesForChat = async ({ event, unitTypeId }) => {
+  const safeUnitTypeId = sanitizeString(unitTypeId, 120);
+  if (!safeUnitTypeId) return null;
+
+  try {
+    const lookup = await fetchFunctionJson({
+      event,
+      path: `/house-rules?unitTypeId=${encodeURIComponent(safeUnitTypeId)}`,
+      timeoutMs: 20_000,
+    });
+    const payload = lookup.payload || {};
+    if (!payload || typeof payload !== "object") return null;
+    return payload?.houseRules && typeof payload.houseRules === "object"
+      ? payload.houseRules
+      : payload;
+  } catch {
+    return null;
+  }
+};
+
 const extractNearestLandmarks = (listing = {}) => {
   const text = String(listing?.publicDescription?.neighborhood || "");
   if (!text) return [];
@@ -2070,7 +2095,30 @@ const extractNearestLandmarks = (listing = {}) => {
     .slice(0, 5);
 };
 
-const buildUnitInfoReply = ({ listing, question }) => {
+const formatHouseRuleValueForChat = (value) => {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string" && value.trim()) return sanitizeString(value, 120);
+  return "—";
+};
+
+const formatQuietHoursForChat = (rules = {}) => {
+  const quietBetween = rules?.quietBetween;
+  if (quietBetween?.enabled) {
+    const start = sanitizeString(quietBetween?.hours?.start || "", 10) || "--:--";
+    const end = sanitizeString(quietBetween?.hours?.end || "", 10) || "--:--";
+    return `${start} - ${end}`;
+  }
+
+  const quietHours = rules?.quietHours;
+  if (!quietHours || quietHours?.set === false) return "Not set";
+  const start = sanitizeString(quietHours?.start || "", 10) || "--:--";
+  const end = sanitizeString(quietHours?.end || "", 10) || "--:--";
+  return `${start} - ${end}`;
+};
+
+const buildUnitInfoReply = ({ listing, question, houseRules = null }) => {
   if (!listing) return "";
 
   const q = String(question || "").toLowerCase();
@@ -2080,6 +2128,12 @@ const buildUnitInfoReply = ({ listing, question }) => {
     /\b(amenit(?:y|ies)|features?|what does it have|parking|wifi|pool|gym|kitchen|laundry|washer|dryer|washing machine)\b/.test(
       q,
     );
+  const wantsHouseRules =
+    /\b(house rules?|quiet hours?|quiet time|noise|smoking|party|parties|pets?|minimum age|children|infants)\b/.test(
+      q,
+    );
+  const asksQuietHours = /\b(quiet hours?|quiet time|noise)\b/.test(q);
+  const rules = houseRules && typeof houseRules === "object" ? houseRules : null;
 
   const title = sanitizeString(listing?.title || listing?.nickname, 220);
   const city = sanitizeString(listing?.address?.city || "", 120);
@@ -2207,7 +2261,45 @@ const buildUnitInfoReply = ({ listing, question }) => {
     }
   }
 
-  if (!wantsSize && !wantsLandmarks && !wantsAmenities) {
+  if (wantsHouseRules) {
+    if (!rules) {
+      lines.push(
+        "I can’t confirm the house rules for this listing right now. Please check the House rules section on this page or contact reservations@oneluxstay.com.",
+      );
+    } else if (asksQuietHours) {
+      lines.push(`Quiet hours: ${formatQuietHoursForChat(rules)}.`);
+    } else {
+      const petsAllowed = typeof rules?.petsAllowed === "object" ? rules?.petsAllowed?.enabled : rules?.petsAllowed;
+      const petsCharged = typeof rules?.petsAllowed === "object" ? rules?.petsAllowed?.charged : rules?.petsCharged;
+      const smokingAllowed =
+        typeof rules?.smokingAllowed === "object" ? rules?.smokingAllowed?.enabled : rules?.smokingAllowed;
+      const eventsAllowed =
+        typeof rules?.suitableForEvents === "object"
+          ? rules?.suitableForEvents?.enabled
+          : rules?.suitableForEvents ?? rules?.partiesAllowed;
+      const childrenRules = rules?.childrenRules || {};
+
+      lines.push("House rules:");
+      lines.push(
+        `- Suitable for children: ${formatHouseRuleValueForChat(
+          childrenRules?.suitableForChildren ?? rules?.suitableForChildren,
+        )}`,
+      );
+      lines.push(
+        `- Suitable for infants: ${formatHouseRuleValueForChat(
+          childrenRules?.suitableForInfants ?? rules?.suitableForInfants,
+        )}`,
+      );
+      lines.push(`- Pets allowed: ${formatHouseRuleValueForChat(petsAllowed)}`);
+      lines.push(`- Pets charged: ${formatHouseRuleValueForChat(petsCharged)}`);
+      lines.push(`- Smoking allowed: ${formatHouseRuleValueForChat(smokingAllowed)}`);
+      lines.push(`- Parties allowed: ${formatHouseRuleValueForChat(eventsAllowed)}`);
+      lines.push(`- Quiet hours: ${formatQuietHoursForChat(rules)}`);
+      lines.push(`- Minimum age: ${formatHouseRuleValueForChat(rules?.minimumAge)}`);
+    }
+  }
+
+  if (!wantsSize && !wantsLandmarks && !wantsAmenities && !wantsHouseRules) {
     if (summary) lines.push(summary);
     if (landmarks.length) {
       lines.push("Nearby highlights:");
@@ -2290,6 +2382,10 @@ export async function handler(event) {
       .map((message) => String(message.content || ""))
       .join(" ");
     const guestAlreadyBooked = hasExistingBookingContext(userConversationText);
+    const conversationDateRange = extractDateRange({
+      prompt: userConversationText,
+      search: "",
+    });
     const promptDateRange = extractDateRange({
       prompt: latestPrompt,
       search: "",
@@ -2307,6 +2403,13 @@ export async function handler(event) {
         })
       : null;
     const dateRange = promptDateRange || searchDateRange;
+    const availabilityDateRange = dateRange || conversationDateRange;
+    const conversationMonthRange = !availabilityDateRange
+      ? extractMonthRange({
+          prompt: userConversationText,
+          search: "",
+        })
+      : null;
     const reservationCode = extractReservationCode({
       prompt: latestPrompt,
       search: pageContext?.search || "",
@@ -2331,12 +2434,21 @@ export async function handler(event) {
     const asksPolicy = isPolicyQuestion(latestPrompt);
     const asksUnitInfo = isUnitInfoQuestion(latestPrompt);
     const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPrompt) || followsUpWithLocationOnly;
-    const asksAvailabilityWindow = Boolean(dateRange || monthRange);
+    const latestIsAffirmativeFollowup = isAffirmativeFollowup(latestPrompt);
+    const previousAssistantOfferedAvailability =
+      /\b(availability|available|check[- ]?in|check[- ]?out|dates?|month|book|booking|unit-page links?|city page link|would you like)\b/i.test(
+        String(previousAssistantMessage?.content || ""),
+      );
+    const followUpAvailabilityIntent =
+      latestIsAffirmativeFollowup && previousAssistantOfferedAvailability;
+    const effectiveMonthRange = monthRange || conversationMonthRange;
+    const asksAvailabilityWindow = Boolean(availabilityDateRange || effectiveMonthRange);
     const asksBookingLead = isBookingLeadQuestion(latestPrompt);
     const asksAvailability =
       asksAvailabilityWindow ||
       isAvailabilityQuestion(latestPrompt, asksAvailabilityWindow) ||
-      asksBookingLead;
+      asksBookingLead ||
+      followUpAvailabilityIntent;
     const hasReservationCode = Boolean(reservationCode);
     const asksBookingStatus = isBookingStatusQuestion(latestPrompt) || hasReservationCode;
     const includesSensitivePaymentData = hasSensitivePaymentData(latestPrompt);
@@ -2520,9 +2632,10 @@ export async function handler(event) {
     }
 
     if (asksAvailability) {
-      const guests = extractGuests(latestPrompt, 1);
+      const guests = extractGuests(latestPrompt, extractGuests(userConversationText, 1));
+      const availabilityCityHint = promptCityHint || conversationCityHint;
 
-      if (!dateRange && !monthRange) {
+      if (!availabilityDateRange && !effectiveMonthRange) {
         return jsonResponse(
           200,
           {
@@ -2534,13 +2647,13 @@ export async function handler(event) {
         );
       }
 
-      if (monthRange && !dateRange) {
+      if (effectiveMonthRange && !availabilityDateRange) {
         try {
           const monthMatches = await fetchAvailableDatesForMonth({
             event,
             pageContext,
-            cityHint: promptCityHint,
-            monthRange,
+            cityHint: availabilityCityHint,
+            monthRange: effectiveMonthRange,
             guests,
             maxLinks: 5,
           });
@@ -2548,7 +2661,7 @@ export async function handler(event) {
             200,
             {
               reply: buildMonthAvailabilityReply({
-                monthLabel: monthRange.label,
+                monthLabel: effectiveMonthRange.label,
                 guests,
                 matches: monthMatches.results,
                 searched: monthMatches.searched,
@@ -2586,22 +2699,22 @@ export async function handler(event) {
         const availabilityMatches = await fetchAvailableListingsForDates({
           event,
           pageContext,
-          cityHint: promptCityHint,
-          checkIn: dateRange.checkIn,
-          checkOut: dateRange.checkOut,
+          cityHint: availabilityCityHint,
+          checkIn: availabilityDateRange.checkIn,
+          checkOut: availabilityDateRange.checkOut,
           guests,
           maxLinks: 5,
         });
         return jsonResponse(
           200,
           {
-            reply: buildAvailabilityLinksReply({
-              checkIn: dateRange.checkIn,
-              checkOut: dateRange.checkOut,
-              guests,
-              matches: availabilityMatches.results,
-              searched: availabilityMatches.searched,
-            }),
+              reply: buildAvailabilityLinksReply({
+                checkIn: availabilityDateRange.checkIn,
+                checkOut: availabilityDateRange.checkOut,
+                guests,
+                matches: availabilityMatches.results,
+                searched: availabilityMatches.searched,
+              }),
             cards: (Array.isArray(availabilityMatches.results) ? availabilityMatches.results : []).map((item) => ({
               id: sanitizeString(item?.id, 120),
               title: sanitizeString(item?.title, 220),
@@ -2682,9 +2795,20 @@ export async function handler(event) {
           event,
           listingId: pageContext.listingId,
         });
+        const houseRulesUnitTypeId = sanitizeString(
+          listing?.unitTypeId || listing?.id || listing?._id || pageContext?.listingId,
+          120,
+        );
+        const houseRules = houseRulesUnitTypeId
+          ? await fetchHouseRulesForChat({
+              event,
+              unitTypeId: houseRulesUnitTypeId,
+            })
+          : null;
         const unitReply = buildUnitInfoReply({
           listing,
           question: latestPrompt,
+          houseRules,
         });
         if (unitReply) {
           return jsonResponse(
