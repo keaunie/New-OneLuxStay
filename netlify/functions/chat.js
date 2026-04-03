@@ -71,6 +71,7 @@ Tone and style:
 - Friendly, professional, modern hospitality voice.
 - Never robotic.
 - Keep responses concise, usually 2-4 sentences unless a short list is clearly needed.
+- Keep continuity with prior turns; if the user sends a short follow-up (for example "yes please"), continue the current task using earlier context.
 
 Booking assistance rules:
 - If a guest asks about availability, price, or rooms for a stay, ask for check-in and check-out dates plus guest count.
@@ -208,6 +209,9 @@ const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
   if (/\b(availability|available|vacan(?:cy|cies)|open units?|which units? are open)\b/i.test(source)) {
     return true;
   }
+  if (/\b(rent|rental|lease|long stay|monthly stay)\b/i.test(source)) {
+    return true;
+  }
   if (/\b(check[- ]?in|check[- ]?out|dates?)\b/i.test(source)) {
     return true;
   }
@@ -231,11 +235,15 @@ const isBookingLeadQuestion = (text = "") => {
   const source = String(text || "");
   const asksPrice = /\b(price|pricing|rate|rates|cost|how much)\b/i.test(source);
   const mentionsRooms = /\b(room|rooms|unit|units)\b/i.test(source);
-  const hasBookingContext =
-    /\b(available|availability|vacan(?:cy|cies)|open|book|booking|reserve|reservation|stay|weekend|tonight|check[- ]?in|check[- ]?out|dates?)\b/i.test(
+  const asksBookingHowTo =
+    /\b(how (do|can) i (book|reserve|rent)|how to (book|reserve|rent)|booking process|checkout process|can i rent)\b/i.test(
       source,
     );
-  return asksPrice || (mentionsRooms && hasBookingContext);
+  const hasBookingContext =
+    /\b(available|availability|vacan(?:cy|cies)|open|book|booking|reserve|reservation|stay|rent|rental|lease|weekend|tonight|check[- ]?in|check[- ]?out|dates?)\b/i.test(
+      source,
+    );
+  return asksPrice || asksBookingHowTo || (mentionsRooms && hasBookingContext);
 };
 
 const isAffirmativeFollowup = (text = "") =>
@@ -266,6 +274,15 @@ const hasExistingBookingContext = (text = "") =>
   /\b(already booked|already have (a )?(booking|reservation)|our booking|my booking|my reservation|reservation|confirmation|confirmed booking|booking code|reservation code)\b/i.test(
     String(text || ""),
   );
+
+const parseGuestsFromText = (text = "") => {
+  const source = String(text || "").toLowerCase();
+  const match = source.match(/\b(\d{1,2})\s*(guest|guests|adult|adults|people|pax|person)\b/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.min(16, parsed);
+};
 
 const toIsoDate = (year, month, day) => {
   const y = Number(year);
@@ -727,12 +744,8 @@ const extractReservationCode = ({ prompt = "", search = "" }) => {
 };
 
 const extractGuests = (text = "", fallback = 1) => {
-  const source = String(text || "").toLowerCase();
-  const match = source.match(/\b(\d{1,2})\s*(guest|guests|adult|adults|people|pax|person)\b/);
-  if (match) {
-    const parsed = Number(match[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return Math.min(16, parsed);
-  }
+  const parsed = parseGuestsFromText(text);
+  if (parsed !== null) return parsed;
   const fallbackValue = Number(fallback);
   return Number.isFinite(fallbackValue) && fallbackValue > 0 ? Math.min(16, fallbackValue) : 1;
 };
@@ -751,20 +764,39 @@ const slugifyCity = (value = "") => {
 };
 
 const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
-  const source = String(prompt || "").toLowerCase();
+  const source = String(prompt || "");
   if (!source) return "";
 
+  const getLastMatchIndex = (text, pattern) => {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const globalPattern = new RegExp(pattern.source, flags);
+    let latestIndex = -1;
+    let match;
+    while ((match = globalPattern.exec(text)) !== null) {
+      latestIndex = match.index;
+      if (!match[0]) globalPattern.lastIndex += 1;
+    }
+    return latestIndex;
+  };
+
   const aliases = [
-    { label: "Antwerp", patterns: [/\bantwerp\b/i, /\bantwerpen\b/i] },
-    { label: "Los Angeles", patterns: [/\blos angeles\b/i, /\blosangeles\b/i, /\bla\b/i] },
+    { label: "Antwerp", patterns: [/\bantwer\w*\b/i] },
+    {
+      label: "Los Angeles",
+      patterns: [/\blos angeles\b/i, /\blosangeles\b/i, /\bL\.?A\.?\b/, /\b(?:in|for|at)\s+la\b/i],
+    },
     { label: "Miami", patterns: [/\bmiami\b/i, /\bmiami beach\b/i] },
     { label: "Redondo Beach", patterns: [/\bredondo\b/i, /\bredondo beach\b/i] },
     { label: "Dubai", patterns: [/\bdubai\b/i] },
   ];
 
+  let bestMatch = { label: "", index: -1 };
   for (const entry of aliases) {
-    if (entry.patterns.some((pattern) => pattern.test(source))) {
-      return entry.label;
+    for (const pattern of entry.patterns) {
+      const index = getLastMatchIndex(source, pattern);
+      if (index > bestMatch.index) {
+        bestMatch = { label: entry.label, index };
+      }
     }
   }
 
@@ -772,11 +804,17 @@ const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
   for (const city of candidates) {
     const normalized = String(city || "").trim();
     if (!normalized) continue;
-    const pattern = new RegExp(`\\b${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-    if (pattern.test(source)) return normalized;
+    const pattern = new RegExp(`\\b${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "ig");
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      if (match.index > bestMatch.index) {
+        bestMatch = { label: normalized, index: match.index };
+      }
+      if (!match[0]) pattern.lastIndex += 1;
+    }
   }
 
-  return "";
+  return bestMatch.label;
 };
 
 const normalizeCityLabel = (value = "") => {
@@ -2377,15 +2415,21 @@ export async function handler(event) {
       .map((message) => String(message.content || ""))
       .join("\n");
     const latestAssistantText = String(previousAssistantMessage?.content || "");
-    const userConversationText = messages
+    const userMessages = messages
       .filter((message) => message.role === "user")
-      .map((message) => String(message.content || ""))
-      .join(" ");
+      .map((message) => String(message.content || ""));
+    const userConversationText = userMessages.join(" ");
+    const userMessagesNewestFirst = [...userMessages].reverse();
     const guestAlreadyBooked = hasExistingBookingContext(userConversationText);
-    const conversationDateRange = extractDateRange({
-      prompt: userConversationText,
-      search: "",
-    });
+    const conversationDateRange =
+      userMessagesNewestFirst
+        .map((message) =>
+          extractDateRange({
+            prompt: message,
+            search: "",
+          }),
+        )
+        .find(Boolean) || null;
     const promptDateRange = extractDateRange({
       prompt: latestPrompt,
       search: "",
@@ -2405,20 +2449,28 @@ export async function handler(event) {
     const dateRange = promptDateRange || searchDateRange;
     const availabilityDateRange = dateRange || conversationDateRange;
     const conversationMonthRange = !availabilityDateRange
-      ? extractMonthRange({
-          prompt: userConversationText,
-          search: "",
-        })
+      ? userMessagesNewestFirst
+          .map((message) =>
+            extractMonthRange({
+              prompt: message,
+              search: "",
+            }),
+          )
+          .find(Boolean) || null
       : null;
     const reservationCode = extractReservationCode({
       prompt: latestPrompt,
       search: pageContext?.search || "",
     });
-    const conversationReservationCode = extractStrictReservationCode(userConversationText);
+    const conversationReservationCode =
+      userMessagesNewestFirst.map((message) => extractStrictReservationCode(message)).find(Boolean) || "";
     const assistantReservationCode = extractStrictReservationCode(latestAssistantText);
     const promptCityHint = extractCityHintFromPrompt(latestPrompt, supportedCities);
     const normalizedPromptCity = normalizeCityLabel(promptCityHint);
-    const conversationCityHint = extractCityHintFromPrompt(userConversationText, supportedCities);
+    const conversationCityHint =
+      userMessagesNewestFirst
+        .map((message) => extractCityHintFromPrompt(message, supportedCities))
+        .find(Boolean) || "";
     const normalizedConversationCity = normalizeCityLabel(conversationCityHint);
     const assistantReservationCity = extractAssistantReservationCity(assistantConversationText, supportedCities);
     const pageContextCityHint = extractCityHintFromPrompt(
@@ -2632,15 +2684,19 @@ export async function handler(event) {
     }
 
     if (asksAvailability) {
-      const guests = extractGuests(latestPrompt, extractGuests(userConversationText, 1));
-      const availabilityCityHint = promptCityHint || conversationCityHint;
+      const conversationGuests =
+        userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) || 1;
+      const guests = extractGuests(latestPrompt, conversationGuests);
+      const availabilityCityHint = promptCityHint || conversationCityHint || pageContextCityHint;
+      const availabilityCityLabel = normalizeCityLabel(availabilityCityHint);
 
       if (!availabilityDateRange && !effectiveMonthRange) {
         return jsonResponse(
           200,
           {
-            reply:
-              "I’d be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
+            reply: availabilityCityLabel
+              ? `I’d be happy to help with that for ${availabilityCityLabel}. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.`
+              : "I’d be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
             model,
           },
           event,
