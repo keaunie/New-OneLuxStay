@@ -6324,7 +6324,6 @@ const applyCheckoutPromoCode = () => {
                 </a>
               </div>
               <div className="la-unit-modal__card la-unit-modal__price">
-                <span>From</span>
                 <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
                 <small>per night {"\u00b7"} taxes calculated at checkout</small>
                 {isListingAvailable ? (
