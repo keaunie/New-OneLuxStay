@@ -942,20 +942,14 @@ const resolvePublicSiteBase = (event = {}) => {
   return "https://oneluxstay.com";
 };
 
-const buildListingInfoUrl = ({ event, listing, checkIn, checkOut, guests, pageContext }) => {
-  const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
-  if (!listingId) return "";
-
-  const citySlug = slugifyCity(listing?.city || listing?.address?.city || pageContext?.city || "");
-  const base = resolvePublicSiteBase(event);
-  const safeGuests = Math.max(1, Math.round(Number(guests) || 1));
-  const path = citySlug
-    ? `/${citySlug}/listing/${encodeURIComponent(listingId)}/${checkIn}/${checkOut}/${safeGuests}`
-    : `/listings`;
-  return `${base}${path}`;
-};
-
-const buildListingPageUrl = ({ event, listing, pageContext, guests = 1 }) => {
+const buildListingPageUrl = ({
+  event,
+  listing,
+  pageContext,
+  guests = 1,
+  checkIn = "",
+  checkOut = "",
+} = {}) => {
   const listingId = sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
   if (!listingId) return "";
 
@@ -972,8 +966,20 @@ const buildListingPageUrl = ({ event, listing, pageContext, guests = 1 }) => {
     adults: String(safeGuests),
     rooms: "1",
   });
+  if (isValidIsoDate(checkIn)) qs.set("checkIn", checkIn);
+  if (isValidIsoDate(checkOut)) qs.set("checkOut", checkOut);
   return `${base}${path}?${qs.toString()}`;
 };
+
+const buildListingInfoUrl = ({ event, listing, checkIn, checkOut, guests, pageContext }) =>
+  buildListingPageUrl({
+    event,
+    listing,
+    pageContext,
+    guests,
+    checkIn,
+    checkOut,
+  });
 
 const getListingIdForChat = (listing = {}) =>
   sanitizeString(listing?._id || listing?.id || listing?.unitTypeId, 120);
