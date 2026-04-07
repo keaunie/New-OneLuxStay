@@ -5481,7 +5481,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
     setCheckoutGuestError("");
     const consentText =
-      "By signing and continuing to payment, you authorize OneLuxStay to charge the total amount shown for your reservation. A receipt and consent proof PDF will be emailed to you";
+      "By signing and continuing to payment, you agree to the Terms and Conditions and authorize OneLuxStay to charge the total amount shown for your reservation. A receipt and consent proof PDF will be emailed to you";
     const payload = {
       ...pendingCheckout,
       amount: numericAmount,
@@ -6123,7 +6123,7 @@ const applyCheckoutPromoCode = () => {
         <div className="la-listing-hero__intro">
           <div>
             <p className="la-listing-hero__kicker">Dubai private stay</p>
-            <h3>{formatListingLocationLabel(activeListing, "Dubai")}</h3>
+            <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Dubai")}</h3>
             <div className="la-unit-modal__chips">
               <span>Exceptional location</span>
               <span>Fast arrival</span>
@@ -7489,9 +7489,12 @@ const applyCheckoutPromoCode = () => {
                         onChange={(event) => setCheckoutConsentAccepted(event.target.checked)}
                       />
                       <span>
-                        By signing and continuing to payment, you authorize OneLuxStay to charge the
-                        total amount shown for your reservation. A receipt and consent proof PDF will
-                        be emailed to you.
+                        By signing and continuing to payment, you agree to the{" "}
+                        <a href="/terms" target="_blank" rel="noreferrer" className="la-inquiry-modal__consent-link">
+                          Terms and Conditions
+                        </a>{" "}
+                        and authorize OneLuxStay to charge the total amount shown for your reservation.
+                        A receipt and consent proof PDF will be emailed to you.
                       </span>
                     </label>
                     
@@ -9044,7 +9047,7 @@ const applyCheckoutPromoCode = () => {
             </div>
             <div className="la-unit-modal__intro">
               <div>
-                <h3>{formatListingLocationLabel(activeListing, "Dubai")}</h3>
+                <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Dubai")}</h3>
                 <div className="la-unit-modal__chips">
                   <span>Exceptional location</span>
                   <span>Fast arrival</span>

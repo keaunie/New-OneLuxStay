@@ -8637,6 +8637,17 @@ body {
   accent-color: #c6a47f;
 }
 
+.la-inquiry-modal__consent-link {
+  color: #8a6544;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.la-inquiry-modal__consent-link:hover {
+  color: #6f5036;
+}
+
 .la-inquiry-modal__step {
   display: grid;
   gap: 14px;
