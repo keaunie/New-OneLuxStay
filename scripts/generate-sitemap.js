@@ -77,6 +77,15 @@ const absoluteUrlForPath = (routePath) => {
   return `${SITE_URL}${cleanPath}`;
 };
 
+const isPublicSitemapRoute = (routePath = "") => {
+  const normalized = normalizePath(routePath).toLowerCase();
+  if (normalized === "/ai-agent") return false;
+  if (normalized === "/admins-ols") return false;
+  if (normalized === "/admins-ols/login") return false;
+  if (normalized.startsWith("/private/")) return false;
+  return true;
+};
+
 const parsePathsFromAppRoutes = async () => {
   const content = await fs.readFile(appRoutesFile, "utf8");
   const matches = [...content.matchAll(/path\s*=\s*["']([^"']+)["']/g)];
@@ -84,6 +93,7 @@ const parsePathsFromAppRoutes = async () => {
   for (const match of matches) {
     const routePath = match?.[1] || "";
     if (!routePath || routePath === "*") continue;
+    if (!isPublicSitemapRoute(routePath)) continue;
     paths.add(normalizePath(routePath));
   }
   return [...paths];

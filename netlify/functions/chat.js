@@ -13,6 +13,7 @@ const DEFAULT_MATCH_RPC = "match_document_sections";
 const DEFAULT_AI_DOCS_TABLE = "documents";
 const DEFAULT_AI_SECTIONS_TABLE = "sections";
 const DEFAULT_CHAT_FEEDBACK_TABLE = "chat_feedback";
+const DEFAULT_CHAT_SENTIMENT_TABLE = "chat_sentiment_lessons";
 const POLICY_CONTENT_TYPES = [
   "terms_conditions",
   "terms_and_conditions",
@@ -81,6 +82,7 @@ Tone and style:
 - Never robotic.
 - Keep responses concise, usually 2-4 sentences unless a short list is clearly needed.
 - Keep continuity with prior turns; if the user sends a short follow-up (for example "yes please"), continue the current task using earlier context.
+- Infer the guest's emotional tone each turn and adjust the reply calmly, especially for frustrated, anxious, or urgent guests.
 
 Booking assistance rules:
 - If a guest asks about availability, price, or rooms for a stay, ask for check-in and check-out dates plus guest count.
@@ -211,6 +213,63 @@ const buildLearningText = ({ goodExamples = [], badExamples = [] } = {}) => {
     });
     lines.push("");
   }
+
+  return lines.join("\n").trim();
+};
+
+const retrieveSentimentLessons = async ({ limit = 6 } = {}) => {
+  const sentimentTable = sanitizeString(
+    getEnv("SUPABASE_CHAT_SENTIMENT_TABLE") || DEFAULT_CHAT_SENTIMENT_TABLE,
+    120,
+  );
+  if (!sentimentTable) return [];
+
+  try {
+    const rows = await supabaseRestRequest(sentimentTable, {
+      query: {
+        select:
+          "title,sentiment_label,trigger_text,response_guidance,example_user_message,example_assistant_style,updated_at",
+        active: "eq.true",
+        order: "updated_at.desc",
+        limit: String(Math.max(1, Math.min(8, Number(limit) || 6))),
+      },
+      timeout: 8_000,
+    });
+
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((row) => ({
+        title: sanitizeString(row?.title, 160),
+        sentimentLabel: sanitizeString(row?.sentiment_label, 40).toLowerCase(),
+        triggerText: sanitizeString(row?.trigger_text, 360),
+        responseGuidance: sanitizeString(row?.response_guidance, 360),
+        exampleUserMessage: sanitizeString(row?.example_user_message, 220),
+        exampleAssistantStyle: sanitizeString(row?.example_assistant_style, 260),
+      }))
+      .filter((row) => row.responseGuidance)
+      .slice(0, Math.max(1, Math.min(8, Number(limit) || 6)));
+  } catch {
+    return [];
+  }
+};
+
+const buildSentimentLearningText = (lessons = []) => {
+  if (!Array.isArray(lessons) || !lessons.length) return "";
+
+  const lines = [
+    "Admin sentiment coaching (infer the guest's tone and adapt the reply style):",
+  ];
+
+  lessons.forEach((lesson, index) => {
+    const label = sanitizeString(lesson?.sentimentLabel, 40).toUpperCase() || "GENERAL";
+    const title = sanitizeString(lesson?.title, 160);
+    lines.push(`- Sentiment Lesson ${index + 1}${title ? ` (${title})` : ""} [${label}]`);
+    if (lesson?.triggerText) lines.push(`  Trigger signs: ${lesson.triggerText}`);
+    lines.push(`  Preferred response: ${lesson.responseGuidance}`);
+    if (lesson?.exampleUserMessage) lines.push(`  Example guest message: ${lesson.exampleUserMessage}`);
+    if (lesson?.exampleAssistantStyle) lines.push(`  Example reply style: ${lesson.exampleAssistantStyle}`);
+  });
+  lines.push("");
 
   return lines.join("\n").trim();
 };
@@ -1125,7 +1184,14 @@ const formatTranscript = (messages) =>
     .map((message) => `${message.role === "assistant" ? "Assistant" : "User"}: ${message.content}`)
     .join("\n");
 
-const buildInput = ({ pageContext, messages, knowledgeText, retrievedPolicyText = "", learningText = "" }) => {
+const buildInput = ({
+  pageContext,
+  messages,
+  knowledgeText,
+  retrievedPolicyText = "",
+  learningText = "",
+  sentimentLearningText = "",
+}) => {
   const contextLines = [
     `Page title: ${pageContext.title || "Unknown"}`,
     `Pathname: ${pageContext.pathname || "/"}`,
@@ -1137,6 +1203,7 @@ const buildInput = ({ pageContext, messages, knowledgeText, retrievedPolicyText 
 
   return [
     knowledgeText,
+    sentimentLearningText ? `Sentiment coaching:\n${sentimentLearningText}` : "",
     learningText ? `Feedback-based coaching:\n${learningText}` : "",
     retrievedPolicyText ? `Retrieved policy knowledge:\n${retrievedPolicyText}` : "",
     "Current website context:",
@@ -2475,11 +2542,13 @@ export async function handler(event) {
   const supportedCities = getSupportedCities(conciergeKnowledge);
   const knowledgeText = buildKnowledgeText(conciergeKnowledge);
   const siteContext = buildSiteContext(supportedCities);
-  const [goodExamples, badExamples] = await Promise.all([
+  const [goodExamples, badExamples, sentimentLessons] = await Promise.all([
     retrieveRatedConversationExamples({ rating: "good", limit: 3 }),
     retrieveRatedConversationExamples({ rating: "bad", limit: 2 }),
+    retrieveSentimentLessons({ limit: 6 }),
   ]);
   const learningText = buildLearningText({ goodExamples, badExamples });
+  const sentimentLearningText = buildSentimentLearningText(sentimentLessons);
 
   const apiKey = getEnv("OPENAI_API_KEY");
   const model = getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini";
@@ -2985,7 +3054,14 @@ export async function handler(event) {
       body: JSON.stringify({
         model,
         instructions: siteContext,
-        input: buildInput({ pageContext, messages, knowledgeText, retrievedPolicyText, learningText }),
+        input: buildInput({
+          pageContext,
+          messages,
+          knowledgeText,
+          retrievedPolicyText,
+          learningText,
+          sentimentLearningText,
+        }),
         reasoning: { effort: "low" },
         text: { verbosity: "low" },
         max_output_tokens: 900,

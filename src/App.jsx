@@ -21,6 +21,8 @@ const BookingConfirmationPage = lazy(routePreloaders.bookingConfirmation);
 const CheckoutCancelledPage = lazy(routePreloaders.checkoutCancelled);
 const RoadmapPrivatePage = lazy(routePreloaders.roadmapPrivate);
 const AiAgentPage = lazy(routePreloaders.aiAgent);
+const AdminsOlsPage = lazy(routePreloaders.adminsOls);
+const AdminsOlsAuthPage = lazy(routePreloaders.adminsOlsAuth);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -83,10 +85,14 @@ function RootRoute() {
 }
 
 function AppRoutes() {
+  const location = useLocation();
   const { appLoaded, shouldShowLoader } = useCityRouteLoading();
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
+  const hideChatConcierge =
+    location.pathname.startsWith("/admins-ols") ||
+    location.pathname.startsWith("/private/roadmap/");
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -163,11 +169,13 @@ function AppRoutes() {
           <Route path="/california-privacy" element={renderLazyRoute(CaliforniaPrivacyPolicy)} />
           <Route path="/acknowledge" element={renderLazyRoute(AcknowledgementPage)} />
           <Route path="/booking-confirmation" element={renderLazyRoute(BookingConfirmationPage)} />
+          <Route path="/admins-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
+          <Route path="/admins-ols" element={renderLazyRoute(AdminsOlsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        <ChatConcierge />
+        {!hideChatConcierge && <ChatConcierge />}
       </div>
     </>
   ); 

@@ -29,6 +29,9 @@ Required environment variables:
 - `AI_QUERY_ENABLED`: set `true` to enable `/.netlify/functions/ai-query` in production
 - `VITE_ENABLE_AI_AGENT_CONSOLE`: set `true` only when `/ai-agent` should be publicly routable
 - `VITE_FORCE_REMOTE_FUNCTIONS`: set `true` only if frontend is hosted outside Netlify and must call an absolute Netlify functions origin
+- `ADMINS_OLS_ACCESS_KEY`: optional legacy shared key fallback for the `/admins-ols` admin API
+- `ADMINS_OLS_SIGNUP_KEY`: required if you want to create admin accounts from `/admins-ols/login`
+- `ADMINS_OLS_ALLOWED_EMAILS`: optional comma-separated emails that should always be treated as admins
 
 Behavior notes:
 
@@ -39,6 +42,8 @@ Behavior notes:
   - Turn logging endpoint: `netlify/functions/chat-learning.js`
   - Session/messages/feedback tables: `chat_sessions`, `chat_messages`, `chat_feedback`
   - Guests can rate assistant replies as `good`/`bad`; recent ratings are used as prompt coaching context.
+  - Admins can open `/admins-ols` to review chat activity and add prompt-level sentiment lessons.
+  - Admin auth now uses `/admins-ols/login` and signs in with existing Supabase Authentication users from the same project.
 
 ## AI Agent (RAG + Booking Handoff)
 
@@ -69,6 +74,7 @@ New environment variables:
 - `SUPABASE_AI_DOCS_TABLE` (default: `documents`)
 - `SUPABASE_AI_SECTIONS_TABLE` (default: `sections`)
 - `SUPABASE_AI_MATCH_RPC` (default: `match_document_sections`)
+- `SUPABASE_CHAT_SENTIMENT_TABLE` (default: `chat_sentiment_lessons`)
 
 Frontend test console route:
 
