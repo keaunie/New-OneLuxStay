@@ -94,6 +94,8 @@ Booking assistance rules:
 - Prefer offering 2-5 easy choices the guest can pick from, such as Studio, 1 bedroom, 2 bedroom, no preference, or suggested date options.
 - If you already have enough information to check options, move forward instead of asking for extra preferences.
 - If preferences are optional, say that clearly and offer a simple default like "No preference" so the guest can continue quickly.
+- Do not ask about amenities, budget, or extra preferences unless the guest asks for that level of filtering or no good options were found.
+- When the guest already gave city, dates, and guest count, go straight to options and booking links.
 
 FAQ support:
 - You can answer common questions about check-in/check-out, amenities, WiFi, parking, house rules, location, directions, and general property details.
@@ -361,6 +363,53 @@ const parseGuestsFromText = (text = "") => {
   const parsed = Number(match[1]);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.min(16, parsed);
+};
+
+const extractBedroomPreferenceFromText = (text = "") => {
+  const source = String(text || "").toLowerCase();
+  if (!source) return null;
+
+  if (/\b(no preference|flexible|anything works|any room|any option|whatever works)\b/.test(source)) {
+    return { kind: "any", bedrooms: null, label: "no preference" };
+  }
+
+  if (/\bstudio\b/.test(source)) {
+    return { kind: "studio", bedrooms: 0, label: "studio" };
+  }
+
+  const numericMatch = source.match(/\b([1-6])\s*(?:bed(?:room)?s?|br)\b/);
+  if (numericMatch) {
+    const bedrooms = Number(numericMatch[1]);
+    if (Number.isFinite(bedrooms) && bedrooms > 0) {
+      return {
+        kind: "bedroom",
+        bedrooms,
+        label: `${bedrooms} bedroom${bedrooms > 1 ? "s" : ""}`,
+      };
+    }
+  }
+
+  const wordMap = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+  };
+  const wordMatch = source.match(/\b(one|two|three|four|five|six)\s+bed(?:room)?s?\b/);
+  if (wordMatch) {
+    const bedrooms = wordMap[wordMatch[1]] || 0;
+    if (bedrooms > 0) {
+      return {
+        kind: "bedroom",
+        bedrooms,
+        label: `${bedrooms} bedroom${bedrooms > 1 ? "s" : ""}`,
+      };
+    }
+  }
+
+  return null;
 };
 
 const toIsoDate = (year, month, day) => {
@@ -790,6 +839,26 @@ const buildAvailabilityQuickReplies = ({ city = "" } = {}) => {
   ]);
 };
 
+const buildGuestQuickReplies = ({ city = "", checkIn = "", checkOut = "", bedroomPreference = null } = {}) => {
+  const normalizedCity = normalizeCityLabel(city);
+  const locationPhrase = normalizedCity ? ` in ${normalizedCity}` : "";
+  const datePhrase =
+    isValidIsoDate(checkIn) && isValidIsoDate(checkOut) && checkIn < checkOut
+      ? ` from ${checkIn} to ${checkOut}`
+      : "";
+  const roomPhrase =
+    bedroomPreference && bedroomPreference.kind !== "any" && bedroomPreference.label
+      ? ` for a ${bedroomPreference.label}`
+      : "";
+
+  return buildQuickReplySet(
+    [1, 2, 3, 4, 5].map((guestCount) => ({
+      label: `${guestCount} guest${guestCount > 1 ? "s" : ""}`,
+      message: `Check availability${locationPhrase}${datePhrase} for ${guestCount} guest${guestCount > 1 ? "s" : ""}${roomPhrase}`,
+    })),
+  );
+};
+
 const collapseIsoDatesToRanges = (isoDates = []) => {
   const ordered = [...new Set((Array.isArray(isoDates) ? isoDates : []).filter((value) => isValidIsoDate(value)))].sort();
   if (!ordered.length) return [];
@@ -935,6 +1004,34 @@ const extractGuests = (text = "", fallback = 1) => {
   if (parsed !== null) return parsed;
   const fallbackValue = Number(fallback);
   return Number.isFinite(fallbackValue) && fallbackValue > 0 ? Math.min(16, fallbackValue) : 1;
+};
+
+const listingMatchesBedroomPreference = (listing = {}, preference = null) => {
+  if (!preference || preference.kind === "any") return true;
+
+  const bedrooms = Number(listing?.bedrooms);
+  const listingText = [
+    listing?.title,
+    listing?.nickname,
+    listing?.publicDescription?.summary,
+    listing?.publicDescription?.space,
+    listing?.propertyType,
+  ]
+    .map((value) => sanitizeString(value, 240).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+
+  if (preference.kind === "studio") {
+    if (Number.isFinite(bedrooms)) return bedrooms === 0;
+    return /\bstudio\b/.test(listingText);
+  }
+
+  if (preference.kind === "bedroom" && Number.isFinite(preference.bedrooms)) {
+    if (Number.isFinite(bedrooms)) return bedrooms === preference.bedrooms;
+    return new RegExp(`\\b${preference.bedrooms}\\s*(?:bed(?:room)?s?|br)\\b`, "i").test(listingText);
+  }
+
+  return true;
 };
 
 const slugifyCity = (value = "") => {
@@ -1631,6 +1728,7 @@ const fetchAvailableListingsForDates = async ({
   checkIn,
   checkOut,
   guests = 1,
+  bedroomPreference = null,
   maxLinks = 5,
 }) => {
   if (!isValidIsoDate(checkIn) || !isValidIsoDate(checkOut) || checkIn >= checkOut) {
@@ -1652,7 +1750,7 @@ const fetchAvailableListingsForDates = async ({
     : requestedCity.includes("miami beach")
       ? "miami"
       : requestedCity;
-  const candidateListings = normalizedRequestedCity && normalizedRequestedCity !== "global"
+  const cityScopedListings = normalizedRequestedCity && normalizedRequestedCity !== "global"
     ? allListings.filter((listing) => {
         const listingCityRaw = sanitizeString(listing?.city || listing?.address?.city, 120).toLowerCase();
         const listingCity = listingCityRaw.includes("antwerpen")
@@ -1663,6 +1761,9 @@ const fetchAvailableListingsForDates = async ({
         return listingCity.includes(normalizedRequestedCity);
       })
     : allListings;
+  const candidateListings = cityScopedListings.filter((listing) =>
+    listingMatchesBedroomPreference(listing, bedroomPreference),
+  );
 
   const listingById = new Map();
   const parentByListingId = new Map();
@@ -2125,13 +2226,17 @@ const buildMonthAvailabilityReply = ({
   return lines.join("\n");
 };
 
-const buildAvailabilityLinksReply = ({ checkIn, checkOut, guests, matches = [], searched = 0 }) => {
+const buildAvailabilityLinksReply = ({ checkIn, checkOut, guests, bedroomPreference = null, matches = [], searched = 0 }) => {
+  const roomLabel =
+    bedroomPreference && bedroomPreference.kind !== "any" && bedroomPreference.label
+      ? `${bedroomPreference.label} `
+      : "";
   if (!Array.isArray(matches) || !matches.length) {
-    return `I checked availability for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}) and I could not find available units in the current search scope. If you want, I can try another date range or guest count.`;
+    return `I checked ${roomLabel}availability for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}) and I could not find a match right now. If you want, I can try another date range or show the best options with no room preference.`;
   }
 
   const lines = [
-    `Great news. I found ${matches.length} available unit${matches.length > 1 ? "s" : ""} for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}).`,
+    `Great news. I found ${matches.length} available ${roomLabel}unit${matches.length > 1 ? "s" : ""} for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}).`,
     "",
   ];
   matches.forEach((item, index) => {
@@ -2619,6 +2724,8 @@ export async function handler(event) {
       .map((message) => String(message.content || ""));
     const userConversationText = userMessages.join(" ");
     const userMessagesNewestFirst = [...userMessages].reverse();
+    const conversationBedroomPreference =
+      userMessagesNewestFirst.map((message) => extractBedroomPreferenceFromText(message)).find(Boolean) || null;
     const guestAlreadyBooked = hasExistingBookingContext(userConversationText);
     const conversationDateRange =
       userMessagesNewestFirst
@@ -2888,10 +2995,11 @@ export async function handler(event) {
 
     if (asksAvailability) {
       const conversationGuests =
-        userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) || 1;
-      const guests = extractGuests(latestPrompt, conversationGuests);
+        userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) ?? null;
+      const guests = extractGuests(latestPrompt, conversationGuests ?? 1);
       const availabilityCityHint = promptCityHint || conversationCityHint || pageContextCityHint;
       const availabilityCityLabel = normalizeCityLabel(availabilityCityHint);
+      const bedroomPreference = extractBedroomPreferenceFromText(latestPrompt) || conversationBedroomPreference;
 
       if (!availabilityDateRange && !effectiveMonthRange) {
         return jsonResponse(
@@ -2906,6 +3014,50 @@ export async function handler(event) {
                   supportedCities,
                   prefix: "Check availability in",
                 }),
+            model,
+          },
+          event,
+        );
+      }
+
+      if (!availabilityCityLabel) {
+        return jsonResponse(
+          200,
+          {
+            reply: "Sure — which city would you like to book in?",
+            quickReplies: buildCityQuickReplies({
+              supportedCities,
+              prefix: "Check availability in",
+            }),
+            model,
+          },
+          event,
+        );
+      }
+
+      if (!effectiveMonthRange && !dateRange && !conversationDateRange && !availabilityDateRange) {
+        return jsonResponse(
+          200,
+          {
+            reply: `Sure — what dates are you looking at for ${availabilityCityLabel}?`,
+            quickReplies: buildAvailabilityQuickReplies({ city: availabilityCityLabel }),
+            model,
+          },
+          event,
+        );
+      }
+
+      if (conversationGuests === null && parseGuestsFromText(latestPrompt) === null) {
+        return jsonResponse(
+          200,
+          {
+            reply: `Perfect — ${availabilityCityLabel}, ${availabilityDateRange?.checkIn || effectiveMonthRange?.label}${availabilityDateRange?.checkOut ? ` to ${availabilityDateRange.checkOut}` : ""}. How many guests?`,
+            quickReplies: buildGuestQuickReplies({
+              city: availabilityCityLabel,
+              checkIn: availabilityDateRange?.checkIn || "",
+              checkOut: availabilityDateRange?.checkOut || "",
+              bedroomPreference,
+            }),
             model,
           },
           event,
@@ -2968,6 +3120,7 @@ export async function handler(event) {
           checkIn: availabilityDateRange.checkIn,
           checkOut: availabilityDateRange.checkOut,
           guests,
+          bedroomPreference,
           maxLinks: 5,
         });
         return jsonResponse(
@@ -2977,6 +3130,7 @@ export async function handler(event) {
                 checkIn: availabilityDateRange.checkIn,
                 checkOut: availabilityDateRange.checkOut,
                 guests,
+                bedroomPreference,
                 matches: availabilityMatches.results,
                 searched: availabilityMatches.searched,
               }),
@@ -2989,6 +3143,36 @@ export async function handler(event) {
                 ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
                 : [],
             })),
+            quickReplies:
+              Array.isArray(availabilityMatches.results) && availabilityMatches.results.length
+                ? buildQuickReplySet([
+                    {
+                      label: "1 bedroom",
+                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 1 bedroom`,
+                    },
+                    {
+                      label: "2 bedroom",
+                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
+                    },
+                    {
+                      label: "No preference",
+                      message: `Show me the best available options in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests`,
+                    },
+                  ])
+                : buildQuickReplySet([
+                    {
+                      label: "No preference",
+                      message: `Show me the best available options in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests`,
+                    },
+                    {
+                      label: "1 bedroom",
+                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 1 bedroom`,
+                    },
+                    {
+                      label: "2 bedroom",
+                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
+                    },
+                  ]),
             model,
           },
           event,
