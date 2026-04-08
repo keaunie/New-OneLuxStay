@@ -187,6 +187,7 @@ const sanitizeMessages = (messages) =>
           role: message.role === "assistant" ? "assistant" : "user",
           content: message.content.trim().slice(0, 2000),
           cards: sanitizeCards(message.cards),
+          quickReplies: sanitizeQuickReplies(message.quickReplies),
         }))
         .filter((message) => message.content)
         .slice(-MAX_VISIBLE_MESSAGES)
@@ -208,6 +209,35 @@ function sanitizeCards(cards) {
         : [],
     }))
     .filter((card) => card.title || card.url)
+    .slice(0, 6);
+}
+
+function sanitizeQuickReplies(quickReplies) {
+  if (!Array.isArray(quickReplies)) return [];
+  return quickReplies
+    .map((item, index) => {
+      if (typeof item === "string") {
+        const text = item.trim().slice(0, 120);
+        return text
+          ? {
+              id: `quick-reply-${index}`,
+              label: text,
+              message: text,
+            }
+          : null;
+      }
+
+      const label = String(item?.label || item?.message || "").trim().slice(0, 120);
+      const message = String(item?.message || item?.label || "").trim().slice(0, 240);
+      if (!label || !message) return null;
+
+      return {
+        id: sanitizeId(item?.id, 120) || `quick-reply-${index}`,
+        label,
+        message,
+      };
+    })
+    .filter(Boolean)
     .slice(0, 6);
 }
 
@@ -319,6 +349,7 @@ function ChatConcierge() {
               id: sanitizeId(assistantMessage.id, 120),
               content: String(assistantMessage.content || ""),
               cards: Array.isArray(assistantMessage.cards) ? assistantMessage.cards : [],
+              quickReplies: Array.isArray(assistantMessage.quickReplies) ? assistantMessage.quickReplies : [],
             },
           }),
         });
@@ -403,11 +434,13 @@ function ChatConcierge() {
           throw new Error("The concierge returned an empty reply.");
         }
         const cards = sanitizeCards(payload?.cards);
+        const quickReplies = sanitizeQuickReplies(payload?.quickReplies);
         const assistantMessage = {
           id: sanitizeId(payload?.assistantMessageId, 120) || createLocalId("assistant"),
           role: "assistant",
           content: reply,
           cards,
+          quickReplies,
         };
         const responseMode = payload?.mode === "fallback" ? "fallback" : "live";
         const responseModel = String(payload?.model || "").trim();
@@ -576,6 +609,23 @@ function ChatConcierge() {
                     ))}
                   </div>
                 )}
+                {message.role === "assistant" &&
+                  Array.isArray(message.quickReplies) &&
+                  message.quickReplies.length > 0 && (
+                    <div className="chat-concierge__quick-replies" aria-label="Quick reply options">
+                      {message.quickReplies.map((quickReply) => (
+                        <button
+                          key={quickReply.id}
+                          type="button"
+                          className="chat-concierge__quick-reply"
+                          onClick={() => sendMessage(quickReply.message)}
+                          disabled={isSending}
+                        >
+                          {quickReply.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 {message.role === "assistant" && message.id && (
                   <div className="chat-concierge__feedback" aria-label="Rate this reply">
                     <button

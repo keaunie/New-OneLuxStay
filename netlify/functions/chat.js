@@ -90,6 +90,10 @@ Booking assistance rules:
 - If a guest asks about availability, price, or rooms for a stay, ask for check-in and check-out dates plus guest count.
 - After dates are provided, guide them toward the official secure booking flow/page.
 - Always encourage the next booking step when intent is present.
+- Do not ask long, stressful, multi-part follow-up questions if simple options would work.
+- Prefer offering 2-5 easy choices the guest can pick from, such as Studio, 1 bedroom, 2 bedroom, no preference, or suggested date options.
+- If you already have enough information to check options, move forward instead of asking for extra preferences.
+- If preferences are optional, say that clearly and offer a simple default like "No preference" so the guest can continue quickly.
 
 FAQ support:
 - You can answer common questions about check-in/check-out, amenities, WiFi, parking, house rules, location, directions, and general property details.
@@ -522,6 +526,31 @@ const extractDatesFromText = (text = "") => {
 };
 
 const extractDateRange = ({ prompt = "", search = "" }) => {
+  const source = String(prompt || "");
+  const now = new Date();
+  const monthDayRangeRegex = new RegExp(
+    `\\b${MONTH_NAME_PATTERN}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\s*(?:to|through|thru|until|till|[-–])\\s*(\\d{1,2})(?:st|nd|rd|th)?\\b`,
+    "i",
+  );
+  const monthDayRangeMatch = source.match(monthDayRangeRegex);
+  if (monthDayRangeMatch) {
+    const month = monthToNumber(monthDayRangeMatch[1]);
+    const checkInDay = Number(monthDayRangeMatch[2]);
+    const explicitYear = monthDayRangeMatch[3] || "";
+    const checkOutDay = Number(monthDayRangeMatch[4]);
+    const year = inferYearForMonthDay({
+      month,
+      day: checkInDay,
+      explicitYear,
+      now,
+    });
+    const checkIn = toIsoDate(year, month, checkInDay);
+    const checkOut = toIsoDate(year, month, checkOutDay);
+    if (isValidIsoDate(checkIn) && isValidIsoDate(checkOut) && checkIn < checkOut) {
+      return { checkIn, checkOut };
+    }
+  }
+
   const fromPrompt = extractDatesFromText(prompt);
   if (fromPrompt.length >= 2) {
     const checkIn = fromPrompt[0];
@@ -676,6 +705,89 @@ const formatMonthDayLabel = (isoDate = "") => {
     day: "numeric",
     timeZone: "UTC",
   });
+};
+
+const buildQuickReply = (item = {}) => {
+  if (!item || typeof item !== "object") return null;
+  const { label = "", message = "" } = item;
+  const safeLabel = sanitizeString(label, 80);
+  const safeMessage = sanitizeString(message || label, 220);
+  if (!safeLabel || !safeMessage) return null;
+  return {
+    id: sanitizeString(`${safeLabel}-${safeMessage}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), 80),
+    label: safeLabel,
+    message: safeMessage,
+  };
+};
+
+const buildQuickReplySet = (items = []) =>
+  (Array.isArray(items) ? items : [])
+    .map((item) => buildQuickReply(item))
+    .filter(Boolean)
+    .slice(0, 6);
+
+const getVisibleCities = (supportedCities = []) => {
+  const fallbackCities = ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"];
+  const source = supportedCities.length ? supportedCities : fallbackCities;
+  return [...new Set(source.map((city) => normalizeCityLabel(city)).filter(Boolean))].slice(0, 5);
+};
+
+const buildCityQuickReplies = ({ supportedCities = [], prefix = "Check availability in" } = {}) =>
+  buildQuickReplySet(
+    getVisibleCities(supportedCities).map((city) => ({
+      label: city,
+      message: `${prefix} ${city}`,
+    })),
+  );
+
+const buildAvailabilityQuickReplies = ({ city = "" } = {}) => {
+  const normalizedCity = normalizeCityLabel(city);
+  const locationPhrase = normalizedCity ? ` in ${normalizedCity}` : "";
+  const today = new Date();
+  const currentDay = today.getDay();
+  let daysUntilFriday = (5 - currentDay + 7) % 7;
+  if (daysUntilFriday === 0) daysUntilFriday = 7;
+
+  const nextFriday = addDays(today, daysUntilFriday);
+  const followingFriday = addDays(nextFriday, 7);
+  const nextSunday = addDays(nextFriday, 2);
+  const followingSunday = addDays(followingFriday, 2);
+
+  const nextWeekendCheckIn = toIsoFromLocalDate(nextFriday);
+  const nextWeekendCheckOut = toIsoFromLocalDate(nextSunday);
+  const followingWeekendCheckIn = toIsoFromLocalDate(followingFriday);
+  const followingWeekendCheckOut = toIsoFromLocalDate(followingSunday);
+
+  return buildQuickReplySet([
+    nextWeekendCheckIn && nextWeekendCheckOut
+      ? {
+          label: `${formatMonthDayLabel(nextWeekendCheckIn)} - ${formatMonthDayLabel(nextWeekendCheckOut)}`,
+          message: `Check availability${locationPhrase} from ${nextWeekendCheckIn} to ${nextWeekendCheckOut} for 2 guests`,
+        }
+      : null,
+    followingWeekendCheckIn && followingWeekendCheckOut
+      ? {
+          label: `${formatMonthDayLabel(followingWeekendCheckIn)} - ${formatMonthDayLabel(followingWeekendCheckOut)}`,
+          message: `Check availability${locationPhrase} from ${followingWeekendCheckIn} to ${followingWeekendCheckOut} for 2 guests`,
+        }
+      : null,
+    {
+      label: "This month",
+      message: `Check availability${locationPhrase} this month for 2 guests`,
+    },
+    {
+      label: "No preference",
+      message: `Show me the best available options${locationPhrase}`,
+    },
+    {
+      label: "1 bedroom",
+      message: `Check availability${locationPhrase} for a 1 bedroom`,
+    },
+    {
+      label: "2 bedroom",
+      message: `Check availability${locationPhrase} for a 2 bedroom`,
+    },
+  ]);
 };
 
 const collapseIsoDatesToRanges = (isoDates = []) => {
@@ -2753,6 +2865,10 @@ export async function handler(event) {
             reply: guestAlreadyBooked
               ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
               : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
+            quickReplies: buildCityQuickReplies({
+              supportedCities,
+              prefix: guestAlreadyBooked ? "My booking is in" : "I want to book in",
+            }),
             model,
           },
           event,
@@ -2784,6 +2900,12 @@ export async function handler(event) {
             reply: availabilityCityLabel
               ? `I’d be happy to help with that for ${availabilityCityLabel}. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.`
               : "I’d be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
+            quickReplies: availabilityCityLabel
+              ? buildAvailabilityQuickReplies({ city: availabilityCityLabel })
+              : buildCityQuickReplies({
+                  supportedCities,
+                  prefix: "Check availability in",
+                }),
             model,
           },
           event,
