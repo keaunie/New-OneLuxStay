@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import apiBase from "./utils/apiBase";
 import {
@@ -104,6 +104,93 @@ const getConversationInitial = (thread = {}) => {
   return clean ? clean.charAt(0).toUpperCase() : "C";
 };
 
+const toTimestamp = (value = "") => {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getConversationMessageSenderType = (message = {}) => {
+  if (message?.role === "user") return "guest";
+  const senderType = String(message?.metadata?.senderType || "").trim().toLowerCase();
+  if (senderType === "admin") return "admin";
+  return "assistant";
+};
+
+const getConversationMessageLabel = (message = {}) => {
+  const senderType = getConversationMessageSenderType(message);
+  if (senderType === "guest") return "Guest";
+  if (senderType === "admin") return message?.metadata?.senderName || "Admin";
+  return "Assistant";
+};
+
+const getConversationMessageBubbleClass = (message = {}) => {
+  if (message?.role === "user") return "is-user";
+  return getConversationMessageSenderType(message) === "admin" ? "is-admin" : "is-assistant";
+};
+
+const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) => {
+  if (!dashboard || !message?.messageId || !threadMeta?.sessionId) return dashboard;
+
+  const fallbackThread = {
+    sessionId: threadMeta.sessionId,
+    city: threadMeta.city || "",
+    pageType: threadMeta.pageType || "",
+    listingId: threadMeta.listingId || "",
+    pathname: threadMeta.pathname || "",
+    lastSeenAt: message.createdAt || threadMeta.lastSeenAt || "",
+    messageCount: 0,
+    messages: [],
+  };
+
+  const existingThreads = Array.isArray(dashboard.recentConversations)
+    ? dashboard.recentConversations
+    : [];
+  const nextThreads = existingThreads.map((thread) => {
+    if (thread.sessionId !== threadMeta.sessionId) return thread;
+
+    const existingMessages = Array.isArray(thread.messages) ? thread.messages : [];
+    const filteredMessages = existingMessages.filter((item) => item.messageId !== message.messageId);
+    const nextMessages = [...filteredMessages, message].sort(
+      (left, right) => toTimestamp(left.createdAt) - toTimestamp(right.createdAt),
+    );
+
+    return {
+      ...thread,
+      city: thread.city || threadMeta.city || "",
+      pageType: thread.pageType || threadMeta.pageType || "",
+      listingId: thread.listingId || threadMeta.listingId || "",
+      pathname: thread.pathname || threadMeta.pathname || "",
+      lastSeenAt: message.createdAt || thread.lastSeenAt || threadMeta.lastSeenAt || "",
+      messageCount: nextMessages.length,
+      messages: nextMessages,
+    };
+  });
+
+  const hasThread = nextThreads.some((thread) => thread.sessionId === threadMeta.sessionId);
+  const mergedThreads = hasThread
+    ? nextThreads
+    : [
+        {
+          ...fallbackThread,
+          lastSeenAt: message.createdAt || fallbackThread.lastSeenAt,
+          messageCount: 1,
+          messages: [message],
+        },
+        ...nextThreads,
+      ];
+
+  return {
+    ...dashboard,
+    overview: {
+      ...(dashboard.overview || {}),
+      messagesTotal: Number(dashboard?.overview?.messagesTotal || 0) + 1,
+    },
+    recentConversations: mergedThreads
+      .sort((left, right) => toTimestamp(right.lastSeenAt) - toTimestamp(left.lastSeenAt))
+      .slice(0, 12),
+  };
+};
+
 function AdminsOlsPage() {
   const [session, setSession] = useState(() => loadAdminsOlsSession());
   const [dashboard, setDashboard] = useState(null);
@@ -114,6 +201,9 @@ function AdminsOlsPage() {
   const [savingLesson, setSavingLesson] = useState(false);
   const [busyLessonId, setBusyLessonId] = useState("");
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState("");
+  const [replyDraft, setReplyDraft] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const threadScrollRef = useRef(null);
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
@@ -199,6 +289,15 @@ function AdminsOlsPage() {
     }
   }, [recentConversations, selectedConversationSessionId]);
 
+  useEffect(() => {
+    if (!threadScrollRef.current) return;
+    threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight;
+  }, [selectedConversation?.sessionId, selectedConversation?.messageCount]);
+
+  useEffect(() => {
+    setReplyDraft("");
+  }, [selectedConversation?.sessionId]);
+
   const performAdminRequest = async ({ method = "GET", payload } = {}, sessionOverride = session) => {
     const activeSession = sessionOverride || session;
     if (!activeSession?.accessToken && !activeSession?.sharedKey) {
@@ -237,21 +336,29 @@ function AdminsOlsPage() {
     return data;
   };
 
-  const fetchDashboard = async (sessionOverride = session) => {
+  const fetchDashboard = async (sessionOverride = session, { silent = false } = {}) => {
     if (!sessionOverride?.accessToken && !sessionOverride?.sharedKey) return;
 
-    setLoading(true);
-    setError("");
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const payload = await performAdminRequest({ method: "GET" }, sessionOverride);
       setDashboard(payload);
-      setNotice(`Dashboard refreshed ${formatDateTime(payload?.generatedAt)}`);
+      if (!silent) {
+        setNotice(`Dashboard refreshed ${formatDateTime(payload?.generatedAt)}`);
+      }
     } catch (requestError) {
       const message = String(requestError?.message || "Unable to load admin dashboard.");
-      setDashboard(null);
-      setError(message);
+      if (!silent) {
+        setDashboard(null);
+        setError(message);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -259,6 +366,18 @@ function AdminsOlsPage() {
     if (!session?.accessToken && !session?.sharedKey) return;
     fetchDashboard(session);
   }, [session?.accessToken, session?.sharedKey]);
+
+  useEffect(() => {
+    if (!session?.accessToken && !session?.sharedKey) return undefined;
+    if (typeof window === "undefined") return undefined;
+
+    const intervalId = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchDashboard(session, { silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [session]);
 
   const handleAdminAction = async (payload) => performAdminRequest({ method: "POST", payload });
 
@@ -315,6 +434,57 @@ function AdminsOlsPage() {
       setError(String(requestError?.message || "Unable to delete lesson."));
     } finally {
       setBusyLessonId("");
+    }
+  };
+
+  const handleSendReply = async (event) => {
+    event.preventDefault();
+    if (!selectedConversation?.sessionId) return;
+
+    const content = String(replyDraft || "").trim();
+    if (!content) return;
+
+    setSendingReply(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await handleAdminAction({
+        action: "send_reply",
+        sessionId: selectedConversation.sessionId,
+        content,
+        pageContext: {
+          pageType: selectedConversation.pageType,
+          city: selectedConversation.city,
+          listingId: selectedConversation.listingId,
+          pathname: selectedConversation.pathname,
+        },
+      });
+
+      if (response?.message?.messageId) {
+        setDashboard((current) =>
+          injectMessageIntoDashboard(
+            current,
+            {
+              sessionId: selectedConversation.sessionId,
+              pageType: selectedConversation.pageType,
+              city: selectedConversation.city,
+              listingId: selectedConversation.listingId,
+              pathname: selectedConversation.pathname,
+              lastSeenAt: selectedConversation.lastSeenAt,
+            },
+            response.message,
+          ),
+        );
+      }
+
+      setReplyDraft("");
+      setNotice("Reply sent to the conversation.");
+      await fetchDashboard(session, { silent: true });
+    } catch (requestError) {
+      setError(String(requestError?.message || "Unable to send reply."));
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -537,15 +707,23 @@ function AdminsOlsPage() {
                       {truncate(selectedConversation.pathname, 120)}
                     </p>
                   )}
-                  <div className="admins-ols-thread">
+                  <div className="admins-ols-thread" ref={threadScrollRef}>
                     {selectedConversation.messages.map((message) => (
                       <div
                         key={`${selectedConversation.sessionId}-${message.messageId}`}
-                        className={`admins-ols-thread-bubble is-${message.role}`}
+                        className={`admins-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
                       >
                         <div className="admins-ols-thread-bubble-head">
-                          <span className={`admins-ols-badge is-${message.role === "user" ? "neutral" : "positive"}`}>
-                            {message.role === "user" ? "Guest" : "Assistant"}
+                          <span
+                            className={`admins-ols-badge is-${
+                              message.role === "user"
+                                ? "neutral"
+                                : getConversationMessageSenderType(message) === "admin"
+                                  ? "active"
+                                  : "positive"
+                            }`}
+                          >
+                            {getConversationMessageLabel(message)}
                           </span>
                           <small>{formatDateTime(message.createdAt)}</small>
                         </div>
@@ -556,6 +734,24 @@ function AdminsOlsPage() {
                       </div>
                     ))}
                   </div>
+                  <form className="admins-ols-thread-composer" onSubmit={handleSendReply}>
+                    <label htmlFor="admins-ols-reply" className="admins-ols-thread-composer-label">
+                      Reply as admin
+                    </label>
+                    <div className="admins-ols-thread-composer-row">
+                      <textarea
+                        id="admins-ols-reply"
+                        value={replyDraft}
+                        onChange={(event) => setReplyDraft(event.target.value)}
+                        placeholder="Reply to this guest conversation as the OneLuxStay team..."
+                        rows={3}
+                        disabled={sendingReply}
+                      />
+                      <button type="submit" disabled={sendingReply || !replyDraft.trim()}>
+                        {sendingReply ? "Sending..." : "Send Reply"}
+                      </button>
+                    </div>
+                  </form>
                 </>
               ) : (
                 <p className="admins-ols-empty">Select a conversation to read the thread.</p>

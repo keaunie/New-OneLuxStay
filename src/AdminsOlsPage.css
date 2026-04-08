@@ -78,7 +78,8 @@
 .admins-ols-toolbar button,
 .admins-ols-form button,
 .admins-ols-unlock button,
-.admins-ols-lesson-actions button {
+.admins-ols-lesson-actions button,
+.admins-ols-thread-composer button {
   border: 1px solid rgba(205, 167, 108, 0.25);
   border-radius: 999px;
   background: linear-gradient(135deg, #c49b5e 0%, #e6c99e 100%);
@@ -92,7 +93,8 @@
 .admins-ols-toolbar button:hover,
 .admins-ols-form button:hover,
 .admins-ols-unlock button:hover,
-.admins-ols-lesson-actions button:hover {
+.admins-ols-lesson-actions button:hover,
+.admins-ols-thread-composer button:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 30px rgba(205, 167, 108, 0.18);
 }
@@ -464,7 +466,7 @@
 
 .admins-ols-messenger-thread {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: var(--admins-ols-messenger-height);
   overflow: hidden;
 }
@@ -670,11 +672,61 @@
   background: rgba(255, 255, 255, 0.035);
 }
 
+.admins-ols-thread-bubble.is-admin {
+  justify-self: start;
+  background: linear-gradient(180deg, rgba(85, 154, 109, 0.16), rgba(85, 154, 109, 0.08));
+  border-color: rgba(111, 186, 118, 0.2);
+}
+
 .admins-ols-thread-bubble p {
   margin: 0.6rem 0 0;
   color: rgba(244, 237, 227, 0.9);
   line-height: 1.65;
   white-space: pre-wrap;
+}
+
+.admins-ols-thread-composer {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 1.2rem 1.2rem;
+  border-top: 1px solid rgba(205, 167, 108, 0.08);
+  background: linear-gradient(180deg, rgba(17, 14, 12, 0), rgba(17, 14, 12, 0.78));
+}
+
+.admins-ols-thread-composer-label {
+  color: #d8b47f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.admins-ols-thread-composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.admins-ols-thread-composer textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(205, 167, 108, 0.16);
+  background: rgba(255, 255, 255, 0.035);
+  color: #fff8ee;
+  padding: 0.95rem 1rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.admins-ols-thread-composer textarea::placeholder {
+  color: rgba(244, 237, 227, 0.46);
+}
+
+.admins-ols-thread-composer button {
+  min-width: 9.5rem;
 }
 
 .admins-ols-table-wrap {
@@ -771,9 +823,19 @@
 
   .admins-ols-conversation-head,
   .admins-ols-thread,
-  .admins-ols-conversation-path {
+  .admins-ols-conversation-path,
+  .admins-ols-thread-composer {
     padding-left: 0.9rem;
     padding-right: 0.9rem;
+  }
+
+  .admins-ols-thread-composer-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admins-ols-thread-composer button {
+    width: 100%;
+    min-width: 0;
   }
 
   .admins-ols-conversation-title {

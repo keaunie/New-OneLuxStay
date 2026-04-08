@@ -167,6 +167,9 @@ const sanitizeConversationMessageRow = (row = {}) => ({
     listingId: sanitizeString(row?.metadata?.listingId, 120),
     responseMode: sanitizeString(row?.metadata?.responseMode, 40),
     responseModel: sanitizeString(row?.metadata?.responseModel, 120),
+    senderType: sanitizeString(row?.metadata?.senderType, 40).toLowerCase(),
+    senderName: sanitizeString(row?.metadata?.senderName, 160),
+    senderEmail: sanitizeString(row?.metadata?.senderEmail, 160),
   },
   createdAt: sanitizeString(row?.created_at, 80),
 });
@@ -434,6 +437,73 @@ const deleteLesson = async (payload, tables) => {
   return { lessonId };
 };
 
+const upsertAdminReplySession = async ({ tables, sessionId, pageContext = {} }) => {
+  const nowIso = new Date().toISOString();
+
+  await supabaseRestRequest(`${tables.sessions}?on_conflict=session_id`, {
+    method: "POST",
+    body: [
+      {
+        session_id: sessionId,
+        page_type: sanitizeString(pageContext?.pageType, 80) || null,
+        city: sanitizeString(pageContext?.city, 120) || null,
+        listing_id: sanitizeString(pageContext?.listingId, 120) || null,
+        pathname: sanitizeString(pageContext?.pathname, 240) || null,
+        last_seen_at: nowIso,
+      },
+    ],
+    prefer: "resolution=merge-duplicates,return=minimal",
+    timeout: 12_000,
+  });
+};
+
+const createAdminReply = async (payload, tables, adminUser = {}) => {
+  const sessionId = sanitizeId(payload?.sessionId, 120);
+  const content = sanitizeString(payload?.content, 3000);
+  const pageContext = {
+    pageType: sanitizeString(payload?.pageContext?.pageType, 80),
+    city: sanitizeString(payload?.pageContext?.city, 120),
+    listingId: sanitizeString(payload?.pageContext?.listingId, 120),
+    pathname: sanitizeString(payload?.pageContext?.pathname, 240),
+  };
+
+  if (!sessionId) throw new Error("sessionId is required.");
+  if (!content) throw new Error("Reply content is required.");
+
+  const nowIso = new Date().toISOString();
+  const adminName = sanitizeString(adminUser?.fullName || adminUser?.name, 160);
+  const adminEmail = sanitizeString(adminUser?.email, 160);
+  const rows = await supabaseRestRequest(tables.messages, {
+    method: "POST",
+    body: [
+      {
+        session_id: sessionId,
+        message_id: `admin-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        role: "assistant",
+        content,
+        cards: null,
+        metadata: {
+          pageType: pageContext.pageType || null,
+          city: pageContext.city || null,
+          listingId: pageContext.listingId || null,
+          responseMode: "admin_reply",
+          responseModel: "human_admin",
+          senderType: "admin",
+          senderName: adminName || null,
+          senderEmail: adminEmail || null,
+        },
+        created_at: nowIso,
+      },
+    ],
+    prefer: "return=representation",
+    timeout: 12_000,
+  });
+
+  await upsertAdminReplySession({ tables, sessionId, pageContext });
+
+  return sanitizeConversationMessageRow(Array.isArray(rows) ? rows[0] : {});
+};
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: getAdminHeaders(event), body: "" };
@@ -474,6 +544,14 @@ export async function handler(event) {
 
     if (action === "delete_lesson") {
       return jsonResponse(200, { ok: true, ...(await deleteLesson(payload, tables)) }, event);
+    }
+
+    if (action === "send_reply") {
+      return jsonResponse(
+        200,
+        { ok: true, message: await createAdminReply(payload, tables, adminAccess.user) },
+        event,
+      );
     }
 
     return jsonResponse(400, { error: "Unsupported action" }, event);

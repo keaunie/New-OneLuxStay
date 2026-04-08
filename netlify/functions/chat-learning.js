@@ -62,9 +62,22 @@ const sanitizeCards = (cards = []) =>
         .slice(0, 6)
     : [];
 
+const sanitizeQuickReplies = (quickReplies = []) =>
+  Array.isArray(quickReplies)
+    ? quickReplies
+        .map((item) => ({
+          id: sanitizeId(item?.id, 120),
+          label: sanitizeString(item?.label || item?.message, 120),
+          message: sanitizeString(item?.message || item?.label, 240),
+        }))
+        .filter((item) => item.label && item.message)
+        .slice(0, 6)
+    : [];
+
 const sanitizeMessagePayload = (message, fallbackRole = "assistant") => {
   if (!message || typeof message !== "object") return null;
-  const role = message.role === "user" ? "user" : fallbackRole;
+  const normalizedRole = sanitizeString(message.role, 20).toLowerCase();
+  const role = normalizedRole === "user" ? "user" : fallbackRole;
   const content = sanitizeString(message.content, 3000);
   if (!content) return null;
 
@@ -73,6 +86,10 @@ const sanitizeMessagePayload = (message, fallbackRole = "assistant") => {
     role,
     content,
     cards: sanitizeCards(message.cards),
+    quickReplies: sanitizeQuickReplies(message.quickReplies),
+    senderType: sanitizeString(message.senderType, 40).toLowerCase(),
+    senderName: sanitizeString(message.senderName, 160),
+    senderEmail: sanitizeString(message.senderEmail, 160),
   };
 };
 
@@ -164,6 +181,11 @@ const storeTurn = async ({
       listingId: pageContext.listingId || null,
       responseMode: responseMode || null,
       responseModel: responseModel || null,
+      quickReplies: message.quickReplies?.length ? message.quickReplies : null,
+      senderType:
+        message.senderType || (message.role === "user" ? "guest" : "assistant"),
+      senderName: message.senderName || null,
+      senderEmail: message.senderEmail || null,
     },
     created_at: nowIso,
   }));
@@ -173,6 +195,32 @@ const storeTurn = async ({
     body: rows,
     prefer: "resolution=merge-duplicates,return=minimal",
   });
+};
+
+const sanitizeSyncedMessageRow = (row = {}) => ({
+  id: sanitizeId(row?.message_id, 120),
+  role: sanitizeString(row?.role, 20) === "user" ? "user" : "assistant",
+  content: sanitizeString(row?.content, 3000),
+  cards: sanitizeCards(row?.cards),
+  quickReplies: sanitizeQuickReplies(row?.metadata?.quickReplies),
+  senderType: sanitizeString(row?.metadata?.senderType, 40).toLowerCase() || "assistant",
+  senderName: sanitizeString(row?.metadata?.senderName, 160),
+  senderEmail: sanitizeString(row?.metadata?.senderEmail, 160),
+  createdAt: sanitizeString(row?.created_at, 80),
+});
+
+const fetchSessionMessages = async ({ tables, sessionId, limit = 24 }) => {
+  const rows = await supabaseRestRequest(tables.messages, {
+    query: {
+      select: "session_id,message_id,role,content,cards,metadata,created_at",
+      session_id: `eq.${sessionId}`,
+      order: "created_at.asc",
+      limit: String(Math.max(1, Math.min(50, Number(limit) || 24))),
+    },
+    timeout: 12_000,
+  });
+
+  return Array.isArray(rows) ? rows.map(sanitizeSyncedMessageRow).filter((row) => row.id && row.content) : [];
 };
 
 const storeFeedback = async ({
@@ -242,9 +290,8 @@ export async function handler(event) {
   const tables = getTables();
 
   try {
-    await upsertSession({ tables, sessionId, pageContext, event });
-
     if (action === "turn") {
+      await upsertSession({ tables, sessionId, pageContext, event });
       const userMessage = sanitizeMessagePayload(payload?.userMessage, "user");
       const assistantMessage = sanitizeMessagePayload(payload?.assistantMessage, "assistant");
       if (!assistantMessage && !userMessage) {
@@ -265,6 +312,7 @@ export async function handler(event) {
     }
 
     if (action === "feedback") {
+      await upsertSession({ tables, sessionId, pageContext, event });
       const assistantMessageId = sanitizeId(payload?.assistantMessageId, 120);
       const rating = normalizeRating(payload?.rating);
       if (!assistantMessageId || !rating) {
@@ -282,6 +330,17 @@ export async function handler(event) {
       });
 
       return jsonResponse(200, { ok: true }, event);
+    }
+
+    if (action === "sync") {
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          messages: await fetchSessionMessages({ tables, sessionId, limit: payload?.limit || 24 }),
+        },
+        event,
+      );
     }
 
     return jsonResponse(400, { error: "Unsupported action" }, event);

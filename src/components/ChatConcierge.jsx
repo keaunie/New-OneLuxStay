@@ -188,10 +188,33 @@ const sanitizeMessages = (messages) =>
           content: message.content.trim().slice(0, 2000),
           cards: sanitizeCards(message.cards),
           quickReplies: sanitizeQuickReplies(message.quickReplies),
+          senderType:
+            String(message.senderType || "").trim().toLowerCase() ||
+            (message.role === "assistant" ? "assistant" : "guest"),
+          senderName: String(message.senderName || "").trim().slice(0, 160),
+          senderEmail: String(message.senderEmail || "").trim().slice(0, 160),
+          createdAt: String(message.createdAt || "").trim().slice(0, 80),
         }))
         .filter((message) => message.content)
         .slice(-MAX_VISIBLE_MESSAGES)
     : [];
+
+const mergeSyncedMessages = (currentMessages = [], syncedMessages = []) => {
+  const current = sanitizeMessages(currentMessages);
+  const incoming = sanitizeMessages(syncedMessages);
+  if (!incoming.length) return current;
+  if (incoming.length >= current.length) return incoming;
+
+  const incomingIds = new Set(incoming.map((message) => message.id));
+  const pendingMessages = current.filter((message) => !incomingIds.has(message.id));
+  return sanitizeMessages([...incoming, ...pendingMessages]);
+};
+
+const getAssistantBadgeLabel = (message = {}) => {
+  const senderType = String(message?.senderType || "").trim().toLowerCase();
+  if (senderType === "admin") return message?.senderName || "OneLuxStay Team";
+  return "AI Concierge";
+};
 
 function sanitizeCards(cards) {
   if (!Array.isArray(cards)) return [];
@@ -324,6 +347,31 @@ function ChatConcierge() {
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isOpen, isSending]);
 
+  const fetchSyncedMessages = useCallback(async () => {
+    if (!chatSessionId) return;
+
+    try {
+      const response = await fetch(`${apiBase}/chat-learning`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "sync",
+          chatSessionId,
+          pageContext,
+          limit: MAX_VISIBLE_MESSAGES,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload?.messages)) return;
+      setMessages((current) => mergeSyncedMessages(current, payload.messages));
+    } catch {
+      // Keep sync non-blocking.
+    }
+  }, [chatSessionId, pageContext]);
+
   const recordChatTurn = useCallback(
     async ({ userMessage, assistantMessage, responseMode = "live", responseModel = "" } = {}) => {
       if (!chatSessionId || !assistantMessage?.content) return;
@@ -359,6 +407,18 @@ function ChatConcierge() {
     },
     [chatSessionId, pageContext],
   );
+
+  useEffect(() => {
+    if (!isOpen || isSending || !chatSessionId) return undefined;
+
+    void fetchSyncedMessages();
+    const intervalId = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchSyncedMessages();
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [chatSessionId, fetchSyncedMessages, isOpen, isSending]);
 
   const sendFeedback = useCallback(
     async ({ messageId, rating, assistantContent = "", relatedUserContent = "" } = {}) => {
@@ -574,6 +634,17 @@ function ChatConcierge() {
                 key={message.id || `${message.role}-${index}-${message.content.slice(0, 24)}`}
                 className={`chat-concierge__message chat-concierge__message--${message.role}`}
               >
+                {message.role === "assistant" && (
+                  <div className="chat-concierge__message-meta">
+                    <span
+                      className={`chat-concierge__message-badge${
+                        message.senderType === "admin" ? " is-admin" : ""
+                      }`}
+                    >
+                      {getAssistantBadgeLabel(message)}
+                    </span>
+                  </div>
+                )}
                 <p>{renderMessageContent(message.content)}</p>
                 {message.role === "assistant" && Array.isArray(message.cards) && message.cards.length > 0 && (
                   <div className="chat-concierge__cards">
@@ -626,7 +697,7 @@ function ChatConcierge() {
                       ))}
                     </div>
                   )}
-                {message.role === "assistant" && message.id && (
+                {message.role === "assistant" && message.id && message.senderType !== "admin" && (
                   <div className="chat-concierge__feedback" aria-label="Rate this reply">
                     <button
                       type="button"
