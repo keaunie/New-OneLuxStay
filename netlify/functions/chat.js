@@ -285,6 +285,194 @@ const buildSentimentLearningText = (lessons = []) => {
   return lines.join("\n").trim();
 };
 
+const SENTIMENT_STOP_WORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "also",
+  "and",
+  "any",
+  "are",
+  "been",
+  "before",
+  "being",
+  "book",
+  "booking",
+  "bookings",
+  "can",
+  "could",
+  "dont",
+  "from",
+  "have",
+  "here",
+  "into",
+  "just",
+  "know",
+  "more",
+  "need",
+  "please",
+  "really",
+  "reservation",
+  "reservations",
+  "still",
+  "than",
+  "that",
+  "their",
+  "them",
+  "then",
+  "they",
+  "this",
+  "want",
+  "with",
+  "would",
+  "your",
+]);
+
+const tokenizeSentimentText = (value = "", maxTokens = 48) =>
+  sanitizeString(value, 700)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 2 && !SENTIMENT_STOP_WORDS.has(token))
+    .slice(0, maxTokens);
+
+const countTokenOverlap = (sourceTokens = [], candidateTokens = []) => {
+  if (!sourceTokens.length || !candidateTokens.length) return 0;
+  const source = new Set(sourceTokens);
+  const candidate = new Set(candidateTokens);
+  let matches = 0;
+  source.forEach((token) => {
+    if (candidate.has(token)) matches += 1;
+  });
+  return matches;
+};
+
+const inferGuestSentimentLabel = (value = "") => {
+  const source = String(value || "").toLowerCase();
+  if (!source.trim()) return "neutral";
+
+  const negativePatterns = [
+    /\b(already paid|still don t know|still don't know|not confirmed|haven t received|haven't received|have not received)\b/,
+    /\b(stress|stressful|frustrat|upset|worried|concerned|anxious|urgent|asap|problem|issue|mismatch|wrong)\b/,
+    /\b(cancel|refund|charged|charge|waiting|delayed|unhappy|angry|confused|missing)\b/,
+  ];
+  if (negativePatterns.some((pattern) => pattern.test(source))) return "negative";
+
+  const positivePatterns = [
+    /\b(thanks|thank you|perfect|great|awesome|amazing|love|excellent)\b/,
+    /\b(excited|happy|wonderful)\b/,
+  ];
+  if (positivePatterns.some((pattern) => pattern.test(source))) return "positive";
+
+  return "neutral";
+};
+
+const extractReplyLeadSentence = (value = "") => {
+  const text = sanitizeString(value, 220);
+  if (!text) return "";
+  const match = text.match(/^[^.!?]+[.!?]?/);
+  return sanitizeString(match?.[0] || text, 160);
+};
+
+const defaultAcknowledgementBySentiment = {
+  negative: "I understand why that feels stressful.",
+  positive: "Happy to help with that.",
+};
+
+const findBestSentimentLesson = ({ latestUserMessage = "", lessons = [] } = {}) => {
+  if (!Array.isArray(lessons) || !lessons.length) {
+    return {
+      inferredLabel: inferGuestSentimentLabel(latestUserMessage),
+      lesson: null,
+    };
+  }
+
+  const inferredLabel = inferGuestSentimentLabel(latestUserMessage);
+  const userTokens = tokenizeSentimentText(latestUserMessage);
+  const normalizedUserText = sanitizeString(latestUserMessage, 700).toLowerCase();
+  let bestLesson = null;
+  let bestScore = 0;
+
+  lessons.forEach((lesson) => {
+    if (!lesson || typeof lesson !== "object") return;
+    const lessonLabel = sanitizeString(lesson.sentimentLabel, 40).toLowerCase();
+    const titleTokens = tokenizeSentimentText(lesson.title, 18);
+    const triggerTokens = tokenizeSentimentText(lesson.triggerText, 32);
+    const exampleTokens = tokenizeSentimentText(lesson.exampleUserMessage, 32);
+    const lessonText = [
+      lesson.title,
+      lesson.triggerText,
+      lesson.exampleUserMessage,
+      lesson.responseGuidance,
+      lesson.exampleAssistantStyle,
+    ]
+      .map((part) => sanitizeString(part, 260).toLowerCase())
+      .filter(Boolean)
+      .join(" ");
+
+    let score = 0;
+    if (lessonLabel && lessonLabel === inferredLabel) score += 4;
+    score += countTokenOverlap(userTokens, titleTokens);
+    score += countTokenOverlap(userTokens, triggerTokens) * 2;
+    score += countTokenOverlap(userTokens, exampleTokens) * 3;
+
+    if (normalizedUserText && lessonText.includes(normalizedUserText)) score += 6;
+    if (
+      lesson.exampleUserMessage &&
+      normalizedUserText &&
+      normalizedUserText.includes(sanitizeString(lesson.exampleUserMessage, 220).toLowerCase())
+    ) {
+      score += 8;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestLesson = lesson;
+    }
+  });
+
+  if (bestLesson && (bestScore >= 5 || sanitizeString(bestLesson.sentimentLabel, 40).toLowerCase() === inferredLabel)) {
+    return { inferredLabel, lesson: bestLesson };
+  }
+
+  const sameLabelLessons = lessons.filter(
+    (lesson) => sanitizeString(lesson?.sentimentLabel, 40).toLowerCase() === inferredLabel,
+  );
+  if (inferredLabel === "negative" && sameLabelLessons.length === 1) {
+    return { inferredLabel, lesson: sameLabelLessons[0] };
+  }
+
+  return { inferredLabel, lesson: null };
+};
+
+const buildSentimentAwareReply = ({
+  reply = "",
+  latestUserMessage = "",
+  lessons = [],
+} = {}) => {
+  const baseReply = String(reply || "").trim();
+  if (!baseReply) return "";
+
+  const { inferredLabel, lesson } = findBestSentimentLesson({
+    latestUserMessage,
+    lessons,
+  });
+
+  const lessonLead = extractReplyLeadSentence(lesson?.exampleAssistantStyle || "");
+  const acknowledgement = lessonLead || defaultAcknowledgementBySentiment[inferredLabel] || "";
+  if (!acknowledgement) return baseReply;
+
+  const normalizedReply = baseReply.toLowerCase();
+  const normalizedAcknowledgement = acknowledgement.toLowerCase();
+  if (normalizedReply.startsWith(normalizedAcknowledgement)) {
+    return baseReply;
+  }
+
+  const separator = baseReply.includes("\n") ? "\n\n" : " ";
+  return `${acknowledgement}${separator}${baseReply}`.trim();
+};
+
 const buildKnowledgeText = (conciergeKnowledge) => {
   const brandLines = [
     `Brand: ${conciergeKnowledge.brand.name}`,
@@ -1376,16 +1564,21 @@ const fallbackResponse = ({
   reason,
   conciergeKnowledge,
   supportedCities,
+  sentimentLessons = [],
 }) =>
   jsonResponse(
     200,
     {
-      reply: buildFallbackReply({
-        latestUserMessage,
-        pageContext,
-        reason,
-        conciergeKnowledge,
-        supportedCities,
+      reply: buildSentimentAwareReply({
+        reply: buildFallbackReply({
+          latestUserMessage,
+          pageContext,
+          reason,
+          conciergeKnowledge,
+          supportedCities,
+        }),
+        latestUserMessage: latestUserMessage?.content || "",
+        lessons: sentimentLessons,
       }),
       mode: "fallback",
       notice: fallbackNoticeFromReason(reason),
@@ -2779,6 +2972,12 @@ export async function handler(event) {
   try {
     let retrievedPolicyText = "";
     const latestPrompt = String(latestUserMessage?.content || "");
+    const buildDeterministicReply = (reply = "") =>
+      buildSentimentAwareReply({
+        reply,
+        latestUserMessage: latestPrompt,
+        lessons: sentimentLessons,
+      });
     const previousAssistantMessage = [...messages]
       .slice(0, -1)
       .reverse()
@@ -2898,8 +3097,9 @@ export async function handler(event) {
         return jsonResponse(
           200,
           {
-            reply:
+            reply: buildDeterministicReply(
               "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).",
+            ),
             model,
           },
           event,
@@ -2945,11 +3145,13 @@ export async function handler(event) {
         return jsonResponse(
           200,
           {
-            reply: buildReservationStatusReply({
-              reservationCode,
-              reservation: reservationForReply,
-              supportedCities,
-            }),
+            reply: buildDeterministicReply(
+              buildReservationStatusReply({
+                reservationCode,
+                reservation: reservationForReply,
+                supportedCities,
+              }),
+            ),
             model,
           },
           event,
@@ -2961,8 +3163,9 @@ export async function handler(event) {
         return jsonResponse(
           200,
           {
-            reply:
+            reply: buildDeterministicReply(
               "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help.",
+            ),
             model,
           },
           event,
@@ -3020,8 +3223,9 @@ export async function handler(event) {
           return jsonResponse(
             200,
             {
-              reply:
+              reply: buildDeterministicReply(
                 "For your booking, standard check-in is 3:00 PM and check-out is 11:00 AM. If you share your city, I can confirm the location in the same message as well.",
+              ),
               model,
             },
             event,
@@ -3038,9 +3242,11 @@ export async function handler(event) {
         return jsonResponse(
           200,
           {
-            reply: guestAlreadyBooked
-              ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
-              : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
+            reply: buildDeterministicReply(
+              guestAlreadyBooked
+                ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
+                : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
+            ),
             quickReplies: buildCityQuickReplies({
               supportedCities,
               prefix: guestAlreadyBooked ? "My booking is in" : "I want to book in",
@@ -3053,9 +3259,11 @@ export async function handler(event) {
       return jsonResponse(
         200,
         {
-          reply: guestAlreadyBooked
-            ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
-            : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
+          reply: buildDeterministicReply(
+            guestAlreadyBooked
+              ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
+              : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
+          ),
           model,
         },
         event,
@@ -3299,7 +3507,7 @@ export async function handler(event) {
         return jsonResponse(
           200,
           {
-            reply: deterministicPolicyReply,
+            reply: buildDeterministicReply(deterministicPolicyReply),
             model,
           },
           event,
@@ -3332,7 +3540,7 @@ export async function handler(event) {
           return jsonResponse(
             200,
             {
-              reply: unitReply,
+              reply: buildDeterministicReply(unitReply),
               model,
             },
             event,
@@ -3353,6 +3561,7 @@ export async function handler(event) {
         reason: "missing_api_key",
         conciergeKnowledge,
         supportedCities,
+        sentimentLessons,
       });
     }
 
@@ -3401,6 +3610,7 @@ export async function handler(event) {
           reason: errorCode === "insufficient_quota" ? "insufficient_quota" : "rate_limit",
           conciergeKnowledge,
           supportedCities,
+          sentimentLessons,
         });
       }
 
@@ -3412,6 +3622,7 @@ export async function handler(event) {
           reason: "service_unavailable",
           conciergeKnowledge,
           supportedCities,
+          sentimentLessons,
         });
       }
 
@@ -3434,6 +3645,7 @@ export async function handler(event) {
         reason: "service_unavailable",
         conciergeKnowledge,
         supportedCities,
+        sentimentLessons,
       });
     }
 
@@ -3453,6 +3665,7 @@ export async function handler(event) {
       reason: error?.name === "AbortError" ? "timeout" : "service_unavailable",
       conciergeKnowledge,
       supportedCities,
+      sentimentLessons,
     });
   }
 }
