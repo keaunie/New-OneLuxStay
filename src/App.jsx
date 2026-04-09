@@ -1,7 +1,8 @@
-import { Suspense, lazy, useLayoutEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
+import { trackGuestPageView } from "./utils/guestAnalytics";
 import "./App.css";
 
 const LoadingScreen = lazy(() => import("./components/LoadingScreen"));
@@ -24,6 +25,7 @@ const AiAgentPage = lazy(routePreloaders.aiAgent);
 const AdminsOlsPage = lazy(routePreloaders.adminsOls);
 const AdminsOlsAuthPage = lazy(routePreloaders.adminsOlsAuth);
 const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
+const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -100,6 +102,13 @@ function AppRoutes() {
     </Suspense>
   );
 
+  useEffect(() => {
+    const pathname = String(location.pathname || "").toLowerCase();
+    if (!pathname || pathname.startsWith("/admins-ols") || pathname.startsWith("/private/")) return;
+    if (pathname === "/ai-agent") return;
+    trackGuestPageView().catch(() => null);
+  }, [location.pathname, location.search]);
+
   return (
     <>
       {shouldShowLoader && (
@@ -173,6 +182,7 @@ function AppRoutes() {
           <Route path="/admins-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
           <Route path="/admins-ols" element={renderLazyRoute(AdminsOlsPage)} />
           <Route path="/admins-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
+          <Route path="/admins-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -45,6 +45,14 @@ const normalizeSentimentLabel = (value = "") => {
   return "";
 };
 
+const normalizeGuestEventType = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["city_click", "listing_click", "page_view", "search_submit"].includes(normalized)) {
+    return normalized;
+  }
+  return "";
+};
+
 const getAdminHeaders = (event = {}) => ({
   ...buildAiCorsHeaders(event),
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -67,6 +75,9 @@ const getTables = () => ({
     sanitizeId(getEnv("SUPABASE_CHAT_MESSAGES_TABLE") || "chat_messages", 120) || "chat_messages",
   feedback:
     sanitizeId(getEnv("SUPABASE_CHAT_FEEDBACK_TABLE") || "chat_feedback", 120) || "chat_feedback",
+  guestCityClicks:
+    sanitizeId(getEnv("SUPABASE_GUEST_CITY_CLICKS_TABLE") || "guest_city_click_events", 120) ||
+    "guest_city_click_events",
   sentiment:
     sanitizeId(getEnv("SUPABASE_CHAT_SENTIMENT_TABLE") || DEFAULT_SENTIMENT_TABLE, 120) ||
     DEFAULT_SENTIMENT_TABLE,
@@ -197,6 +208,22 @@ const sanitizeLessonRow = (row = {}) => ({
   updatedAt: sanitizeString(row?.updated_at, 80),
 });
 
+const sanitizeGuestJourneyRow = (row = {}) => ({
+  id: sanitizeId(row?.id, 120),
+  sessionId: sanitizeId(row?.session_id, 120),
+  eventType: normalizeGuestEventType(row?.event_type) || "city_click",
+  city: sanitizeString(row?.city, 120),
+  listingId: sanitizeString(row?.listing_id, 120),
+  listingTitle: sanitizeString(row?.listing_title, 220),
+  destinationPath: sanitizeString(row?.destination_path, 240),
+  sourceSection: sanitizeString(row?.source_section, 120),
+  sourceLabel: sanitizeString(row?.source_label, 160),
+  pathname: sanitizeString(row?.pathname, 240),
+  pageType: sanitizeString(row?.page_type, 80),
+  sourceOrigin: sanitizeString(row?.source_origin, 240),
+  createdAt: sanitizeString(row?.created_at, 80),
+});
+
 const buildCreatedAtFilter = ({ startAt = "", endAt = "" } = {}) => {
   const start = sanitizeString(startAt, 80);
   const end = sanitizeString(endAt, 80);
@@ -232,6 +259,37 @@ const buildActorNameFilter = (value = "") => {
   return {
     actor_name: `ilike.*${escaped}*`,
   };
+};
+
+const buildGuestJourneyFilters = (payload = {}) => {
+  const query = {
+    ...buildCreatedAtFilter({
+      startAt: payload?.startAt,
+      endAt: payload?.endAt,
+    }),
+  };
+
+  const eventType = normalizeGuestEventType(payload?.eventType);
+  if (eventType) {
+    query.event_type = `eq.${eventType}`;
+  }
+
+  const pageType = sanitizeString(payload?.pageType, 80).toLowerCase();
+  if (pageType) {
+    query.page_type = `eq.${pageType}`;
+  }
+
+  const city = sanitizeString(payload?.city, 120).replace(/[%,]/g, "").trim();
+  if (city) {
+    query.city = `ilike.*${city}*`;
+  }
+
+  const pathname = sanitizeString(payload?.pathname, 240).replace(/[%,]/g, "").trim();
+  if (pathname) {
+    query.pathname = `ilike.*${pathname}*`;
+  }
+
+  return query;
 };
 
 const safeLogAdminsOlsActivity = async (input) => {
@@ -316,6 +374,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
     countRows(tables.feedback, { select: "id" }),
     countRows(tables.feedback, { select: "id", query: { rating: "eq.good" } }),
     countRows(tables.feedback, { select: "id", query: { rating: "eq.bad" } }),
+    countRows(tables.guestCityClicks, { select: "id" }),
     countRows(tables.sentiment, { select: "id" }),
     countRows(tables.sentiment, { select: "id", query: { active: "eq.true" } }),
     supabaseRestRequest(tables.sessions, {
@@ -359,6 +418,14 @@ const getDashboardData = async (tables, adminUser = {}) => {
       },
       timeout: 12_000,
     }),
+    supabaseRestRequest(tables.guestCityClicks, {
+      query: {
+        select: "id,session_id,event_type,city,listing_id,listing_title,destination_path,source_section,source_label,pathname,page_type,source_origin,created_at",
+        order: "created_at.desc",
+        limit: "30",
+      },
+      timeout: 12_000,
+    }),
     adminUser?.isSuperAdmin
       ? supabaseRestRequest(tables.activity, {
           query: {
@@ -377,6 +444,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
     feedbackTotal,
     goodFeedbackTotal,
     badFeedbackTotal,
+    guestCityClicksTotal,
     lessonsTotal,
     activeLessonsTotal,
     recentSessionsRaw,
@@ -384,6 +452,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
     recentAssistantMessagesRaw,
     recentConversationMessagesRaw,
     sentimentLessonsRaw,
+    recentGuestCityClicksRaw,
     recentAdminActivityRaw,
   ] = await Promise.all(dashboardQueries);
 
@@ -396,6 +465,9 @@ const getDashboardData = async (tables, adminUser = {}) => {
     ? recentConversationMessagesRaw.map(sanitizeConversationMessageRow)
     : [];
   const sentimentLessons = Array.isArray(sentimentLessonsRaw) ? sentimentLessonsRaw.map(sanitizeLessonRow) : [];
+  const recentGuestJourneyEvents = Array.isArray(recentGuestCityClicksRaw)
+    ? recentGuestCityClicksRaw.map(sanitizeGuestJourneyRow)
+    : [];
   const recentConversations = buildRecentConversationThreads({
     conversationMessages: recentConversationMessages,
     recentSessions,
@@ -414,6 +486,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
       feedbackTotal,
       goodFeedbackTotal,
       badFeedbackTotal,
+      guestJourneyEventsTotal: guestCityClicksTotal,
       lessonsTotal,
       activeLessonsTotal,
     },
@@ -431,12 +504,16 @@ const getDashboardData = async (tables, adminUser = {}) => {
     rollups: {
       topCities: sortAndCountValues(recentSessions, (row) => row.city || "Unknown"),
       topPageTypes: sortAndCountValues(recentSessions, (row) => row.pageType || "Unknown"),
+      topGuestCities: sortAndCountValues(recentGuestJourneyEvents, (row) => row.city || "Unknown"),
+      topGuestPages: sortAndCountValues(recentGuestJourneyEvents, (row) => row.pathname || row.destinationPath || "Unknown"),
+      topGuestEventTypes: sortAndCountValues(recentGuestJourneyEvents, (row) => row.eventType || "Unknown"),
       lessonsBySentiment: sortAndCountValues(sentimentLessons, (row) => row.sentimentLabel || "Unknown"),
     },
     recentSessions,
     recentFeedback,
     recentAssistantMessages,
     recentConversations,
+    recentGuestJourneyEvents,
     ...(adminUser?.isSuperAdmin ? { recentAdminActivity } : {}),
     sentimentLessons,
   };
@@ -531,6 +608,22 @@ const getAdminActivity = async (payload, tables, adminUser = {}) => {
   });
 
   return Array.isArray(rows) ? rows.map(sanitizeAdminsOlsActivityRow) : [];
+};
+
+const getGuestJourneyEvents = async (payload, tables) => {
+  const limit = Math.max(1, Math.min(250, Number(payload?.limit) || 80));
+  const rows = await supabaseRestRequest(tables.guestCityClicks, {
+    query: {
+      select:
+        "id,session_id,event_type,city,listing_id,listing_title,destination_path,source_section,source_label,pathname,page_type,source_origin,created_at",
+      order: "created_at.desc",
+      limit: String(limit),
+      ...buildGuestJourneyFilters(payload),
+    },
+    timeout: 12_000,
+  });
+
+  return Array.isArray(rows) ? rows.map(sanitizeGuestJourneyRow) : [];
 };
 
 const upsertAdminReplySession = async ({ tables, sessionId, pageContext = {} }) => {
@@ -708,6 +801,18 @@ export async function handler(event) {
           ok: true,
           currentAdmin: adminAccess.user,
           activity: await getAdminActivity(payload, tables, adminAccess.user),
+        },
+        event,
+      );
+    }
+
+    if (action === "get_guest_journey_events") {
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          currentAdmin: adminAccess.user,
+          events: await getGuestJourneyEvents(payload, tables),
         },
         event,
       );

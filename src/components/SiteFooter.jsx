@@ -1,4 +1,14 @@
 import { Link } from "react-router-dom";
+import { trackGuestCityClick } from "../utils/guestAnalytics";
+
+const handleFooterCityClick = (city, href) => {
+  trackGuestCityClick({
+    city,
+    destinationPath: href,
+    sourceSection: "site_footer",
+    sourceLabel: "footer_city_link",
+  });
+};
 
 function SiteFooter() {
   return (
@@ -33,11 +43,11 @@ function SiteFooter() {
         <div className="policy-footer-col">
           <h3>Cities</h3>
           <ul>
-            <li><Link to="/antwerp">Antwerp</Link></li>
-            <li><Link to="/dubai">Dubai</Link></li>
-            <li><Link to="/los-angeles">Los Angeles</Link></li>
-            <li><Link to="/miami">Miami</Link></li>
-            <li><Link to="/redondo-beach">Redondo Beach</Link></li>
+            <li><Link to="/antwerp" onClick={() => handleFooterCityClick("Antwerp", "/antwerp")}>Antwerp</Link></li>
+            <li><Link to="/dubai" onClick={() => handleFooterCityClick("Dubai", "/dubai")}>Dubai</Link></li>
+            <li><Link to="/los-angeles" onClick={() => handleFooterCityClick("Los Angeles", "/los-angeles")}>Los Angeles</Link></li>
+            <li><Link to="/miami" onClick={() => handleFooterCityClick("Miami", "/miami")}>Miami</Link></li>
+            <li><Link to="/redondo-beach" onClick={() => handleFooterCityClick("Redondo Beach", "/redondo-beach")}>Redondo Beach</Link></li>
           </ul>
         </div>
         <div className="policy-footer-col">

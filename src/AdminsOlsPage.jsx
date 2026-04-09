@@ -64,6 +64,24 @@ const formatPageLabel = (value = "") => {
   return titleCase(normalized);
 };
 
+const formatGuestClickSourceLabel = (item = {}) => {
+  const sourceSection = String(item?.sourceSection || "").trim();
+  const sourceLabel = String(item?.sourceLabel || "").trim();
+  const parts = [];
+  if (sourceSection) parts.push(titleCase(sourceSection));
+  if (sourceLabel) parts.push(titleCase(sourceLabel));
+  return parts.join(" / ") || "City click";
+};
+
+const formatGuestJourneyEventLabel = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "page_view") return "Page View";
+  if (normalized === "listing_click") return "Listing Click";
+  if (normalized === "city_click") return "City Click";
+  if (normalized === "search_submit") return "Search Submit";
+  return titleCase(normalized) || "Guest Event";
+};
+
 const shortenId = (value = "", start = 6, end = 4) => {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -296,6 +314,9 @@ function AdminsOlsPage() {
     : [];
   const recentConversations = Array.isArray(dashboard?.recentConversations)
     ? dashboard.recentConversations
+    : [];
+  const recentGuestJourneyEvents = Array.isArray(dashboard?.recentGuestJourneyEvents)
+    ? dashboard.recentGuestJourneyEvents
     : [];
   const recentAdminActivity = Array.isArray(dashboard?.recentAdminActivity)
     ? dashboard.recentAdminActivity
@@ -682,6 +703,7 @@ function AdminsOlsPage() {
   const navItems = [
     { id: "overview", label: "Overview" },
     { id: "system", label: "System" },
+    { id: "guest-interest", label: "Guest Interest" },
     { id: "conversations", label: "Conversations" },
     { id: "lessons", label: "Lessons" },
     { id: "feedback", label: "Feedback" },
@@ -750,6 +772,12 @@ function AdminsOlsPage() {
                       </span>
                     </Link>
                   )}
+                  <Link className="admins-ols-side-nav-link" to="/admins-ols/guest-journeys">
+                    <span>Guest Journey Log</span>
+                    <span className="admins-ols-side-nav-count">
+                      {recentGuestJourneyEvents.length || "Go"}
+                    </span>
+                  </Link>
                 </div>
               </section>
             </div>
@@ -882,6 +910,68 @@ function AdminsOlsPage() {
                   ))}
                 </ul>
               </div>
+              <div>
+                <h3>Top guest cities</h3>
+                <ul>
+                  {(rollups.topGuestCities || []).map((item) => (
+                    <li key={`guest-city-${item.label}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.count}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3>Top guest events</h3>
+                <ul>
+                  {(rollups.topGuestEventTypes || []).map((item) => (
+                    <li key={`guest-event-${item.label}`}>
+                      <span>{formatGuestJourneyEventLabel(item.label)}</span>
+                      <strong>{item.count}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section id="guest-interest" className="admins-ols-grid admins-ols-grid--two">
+          <article className="admins-ols-card admins-ols-stat">
+            <span>Guest Journey Events</span>
+            <strong>{overview.guestJourneyEventsTotal ?? 0}</strong>
+            <small>Tracked guest page views, listing clicks, city clicks, and search submits</small>
+          </article>
+
+          <article className="admins-ols-card">
+            <div className="admins-ols-card-head">
+              <h2>Recent Guest Journey Events</h2>
+              <span className="admins-ols-pill">{recentGuestJourneyEvents.length} rows</span>
+            </div>
+            <div className="admins-ols-stack">
+              {recentGuestJourneyEvents.map((item) => (
+                <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
+                  <div className="admins-ols-log-meta">
+                    <span className="admins-ols-badge is-neutral">
+                      {formatGuestJourneyEventLabel(item.eventType)}
+                    </span>
+                    <small>{formatDateTime(item.createdAt)}</small>
+                  </div>
+                  <p>
+                    <strong>
+                      {item.listingTitle || item.city || item.pathname || item.destinationPath || "Guest activity"}
+                    </strong>
+                  </p>
+                  <p>{formatGuestClickSourceLabel(item)}</p>
+                  <small>
+                    {(item.pathname || item.destinationPath || "No path captured.")} |{" "}
+                    {item.pageType || "Unknown page"} | {item.city || "Unknown city"}
+                  </small>
+                </article>
+              ))}
+              {!recentGuestJourneyEvents.length && (
+                <p className="admins-ols-empty">No guest journey events tracked yet.</p>
+              )}
             </div>
           </article>
         </section>

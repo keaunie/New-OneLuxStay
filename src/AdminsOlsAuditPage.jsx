@@ -165,6 +165,7 @@ function AdminsOlsAuditPage() {
   const [accessState, setAccessState] = useState(() =>
     session?.accessToken || session?.sharedKey ? "checking" : "signed_out",
   );
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
   const signInChartData = useMemo(() => {
@@ -401,6 +402,14 @@ function AdminsOlsAuditPage() {
     navigate("/admins-ols/login", { replace: true });
   };
 
+  const handleNavigateToSection = (sectionId = "") => {
+    if (typeof document !== "undefined") {
+      const section = document.getElementById(sectionId);
+      section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }
+    setIsSidebarOpen(false);
+  };
+
   if (!session?.accessToken && !session?.sharedKey) {
     return <Navigate to="/admins-ols/login" replace />;
   }
@@ -428,159 +437,216 @@ function AdminsOlsAuditPage() {
   return (
     <div className="admins-ols-page">
       <div className="admins-ols-shell">
-        <header className="admins-ols-hero">
-          <div className="admins-ols-hero-content">
-            <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
-            <h1>Superadmin Audit Log</h1>
-            <p className="admins-ols-hero-copy">
-              Review sensitive admin access history with exact date and time filters.
-            </p>
-            <p className="admins-ols-note">
-              Signed in as <strong>{currentAdmin.fullName || currentAdmin.email || "Superadmin"}</strong>
-              {currentAdmin.email ? ` (${currentAdmin.email})` : ""}
-            </p>
+        <div className="admins-ols-mobile-nav">
+          <button
+            type="button"
+            className={`admins-ols-mobile-nav-toggle${isSidebarOpen ? " is-active" : ""}`}
+            onClick={() => setIsSidebarOpen((current) => !current)}
+            aria-expanded={isSidebarOpen}
+            aria-controls="admins-ols-audit-sidebar"
+          >
+            {isSidebarOpen ? "Close Panel" : "Open Panel"}
+          </button>
+          <div>
+            <strong>Audit Navigation</strong>
+            <small>Dashboard return, page sections, and audit access</small>
           </div>
-          <div className="admins-ols-toolbar">
-            <button type="button" onClick={() => fetchAuditActivity()} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-            <button type="button" className="is-secondary" onClick={handleLogout}>
-              Sign Out
-            </button>
-          </div>
-        </header>
+        </div>
 
-        {notice && <div className="admins-ols-banner">{notice}</div>}
-        {error && <div className="admins-ols-error">{error}</div>}
+        <div className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}`}>
+          <aside
+            id="admins-ols-audit-sidebar"
+            className="admins-ols-sidebar"
+            aria-label="Audit navigation"
+          >
+            <div className="admins-ols-side-sticky">
+              <section className="admins-ols-side-section">
+                <p className="admins-ols-eyebrow">Admin Access</p>
+                <h2>{currentAdmin.fullName || currentAdmin.email || "Superadmin"}</h2>
+                <p className="admins-ols-note">
+                  Signed in with {session?.sharedKey ? "shared key access" : "Supabase authentication"}.
+                </p>
+              </section>
 
-        <section className="admins-ols-grid admins-ols-grid--two">
-          <article className="admins-ols-card">
-            <div className="admins-ols-card-head">
-              <h2>Filters</h2>
-              <Link className="admins-ols-inline-link" to="/admins-ols">
-                Back to Dashboard
-              </Link>
-            </div>
-            <form className="admins-ols-form" onSubmit={handleApplyFilters}>
-              <label>
-                Admin name
-                <input
-                  type="text"
-                  value={filters.actorName}
-                  onChange={handleFilterChange("actorName")}
-                  placeholder="Filter by admin name"
-                  autoComplete="off"
-                />
-              </label>
-              <div className="admins-ols-filter-group">
-                <span className="admins-ols-filter-group-label">Start</span>
-                <div className="admins-ols-filter-row">
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={filters.startDate}
-                      onChange={handleFilterChange("startDate")}
-                      aria-label="Start date"
-                    />
-                  </label>
-                  <label>
-                    Time
-                    <input
-                      type="time"
-                      value={filters.startTime}
-                      onChange={handleFilterChange("startTime")}
-                      aria-label="Start time"
-                    />
-                  </label>
+              <section className="admins-ols-side-section">
+                <div className="admins-ols-card-head">
+                  <h3>Quick Jump</h3>
                 </div>
-              </div>
-              <div className="admins-ols-filter-group">
-                <span className="admins-ols-filter-group-label">End</span>
-                <div className="admins-ols-filter-row">
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={filters.endDate}
-                      onChange={handleFilterChange("endDate")}
-                      aria-label="End date"
-                    />
-                  </label>
-                  <label>
-                    Time
-                    <input
-                      type="time"
-                      value={filters.endTime}
-                      onChange={handleFilterChange("endTime")}
-                      aria-label="End time"
-                    />
-                  </label>
-                </div>
-              </div>
-              <button type="submit" disabled={loading}>
-                {loading ? "Loading..." : "Apply Filters"}
-              </button>
-              <button type="button" className="is-secondary" disabled={loading} onClick={handleResetFilters}>
-                Reset to Last 7 Days
-              </button>
-            </form>
-          </article>
-
-          <article className="admins-ols-card admins-ols-stat">
-            <span>Visible audit events</span>
-            <strong>{activity.length}</strong>
-            <small>Filtered superadmin activity entries in the selected date range</small>
-            <div className="admins-ols-chart-card">
-              <div className="admins-ols-chart-head">
-                <h3>Admin Logins By Date</h3>
-                <span className="admins-ols-pill">{signInChartData.length} days</span>
-              </div>
-              {signInChartData.length ? (
-                <div className="admins-ols-bar-chart" aria-label="Bar chart of admin logins by date">
-                  {signInChartData.map((item) => (
-                    <div key={item.key} className="admins-ols-bar-chart-item">
-                      <div className="admins-ols-bar-chart-value">{item.count}</div>
-                      <div className="admins-ols-bar-chart-track">
-                        <div
-                          className="admins-ols-bar-chart-bar"
-                          style={{ height: `${item.heightPercent}%` }}
-                          title={`${item.label}: ${item.count} logins`}
-                        />
-                      </div>
-                      <div className="admins-ols-bar-chart-label">{item.label}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="admins-ols-empty">No sign-in events in this filtered range yet.</p>
-              )}
-            </div>
-          </article>
-        </section>
-
-        <section className="admins-ols-card">
-          <div className="admins-ols-card-head">
-            <h2>Audit Entries</h2>
-            <span className="admins-ols-pill">{activity.length} rows</span>
-          </div>
-          <div className="admins-ols-stack">
-            {activity.map((item) => (
-              <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
-                <div className="admins-ols-log-meta">
-                  <span className={`admins-ols-badge is-${getAdminActivityTone(item)}`}>
-                    {formatAdminActivityEventLabel(item.eventType)}
+                <div className="admins-ols-side-nav">
+                  <Link className="admins-ols-side-nav-link" to="/admins-ols">
+                    <span>Back to Dashboard</span>
+                  </Link>
+                  <button type="button" onClick={() => handleNavigateToSection("audit-filters")}>
+                    Filters
+                  </button>
+                  <button type="button" onClick={() => handleNavigateToSection("audit-summary")}>
+                    Summary
+                  </button>
+                  <button type="button" onClick={() => handleNavigateToSection("audit-entries")}>
+                    Audit Entries
+                  </button>
+                  <span className="admins-ols-side-nav-link is-current" aria-current="page">
+                    <span>Superadmin Audit Log</span>
+                    <span className="admins-ols-side-nav-count">{activity.length}</span>
                   </span>
-                  <small>{formatDateTime(item.createdAt)}</small>
                 </div>
-                <p><strong>{getAdminActivityActorLabel(item)}</strong></p>
-                <p>{item.message || formatAdminActivityEventLabel(item.eventType)}</p>
-                <small>{getAdminActivityMetaLine(item) || item.authMode || "No additional details"}</small>
+              </section>
+            </div>
+          </aside>
+
+          <main className="admins-ols-main">
+            <header className="admins-ols-hero">
+              <div className="admins-ols-hero-content">
+                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <h1>Superadmin Audit Log</h1>
+                <p className="admins-ols-hero-copy">
+                  Review sensitive admin access history with exact date and time filters.
+                </p>
+                <p className="admins-ols-note">
+                  Signed in as <strong>{currentAdmin.fullName || currentAdmin.email || "Superadmin"}</strong>
+                  {currentAdmin.email ? ` (${currentAdmin.email})` : ""}
+                </p>
+              </div>
+              <div className="admins-ols-toolbar">
+                <button type="button" onClick={() => fetchAuditActivity()} disabled={loading}>
+                  {loading ? "Refreshing..." : "Refresh"}
+                </button>
+                <button type="button" className="is-secondary" onClick={handleLogout}>
+                  Sign Out
+                </button>
+              </div>
+            </header>
+
+            {notice && <div className="admins-ols-banner">{notice}</div>}
+            {error && <div className="admins-ols-error">{error}</div>}
+
+            <section className="admins-ols-grid admins-ols-grid--two">
+              <article id="audit-filters" className="admins-ols-card">
+                <div className="admins-ols-card-head">
+                  <h2>Filters</h2>
+                </div>
+                <form className="admins-ols-form" onSubmit={handleApplyFilters}>
+                  <label>
+                    Admin name
+                    <input
+                      type="text"
+                      value={filters.actorName}
+                      onChange={handleFilterChange("actorName")}
+                      placeholder="Filter by admin name"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <div className="admins-ols-filter-group">
+                    <span className="admins-ols-filter-group-label">Start</span>
+                    <div className="admins-ols-filter-row">
+                      <label>
+                        Date
+                        <input
+                          type="date"
+                          value={filters.startDate}
+                          onChange={handleFilterChange("startDate")}
+                          aria-label="Start date"
+                        />
+                      </label>
+                      <label>
+                        Time
+                        <input
+                          type="time"
+                          value={filters.startTime}
+                          onChange={handleFilterChange("startTime")}
+                          aria-label="Start time"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="admins-ols-filter-group">
+                    <span className="admins-ols-filter-group-label">End</span>
+                    <div className="admins-ols-filter-row">
+                      <label>
+                        Date
+                        <input
+                          type="date"
+                          value={filters.endDate}
+                          onChange={handleFilterChange("endDate")}
+                          aria-label="End date"
+                        />
+                      </label>
+                      <label>
+                        Time
+                        <input
+                          type="time"
+                          value={filters.endTime}
+                          onChange={handleFilterChange("endTime")}
+                          aria-label="End time"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <button type="submit" disabled={loading}>
+                    {loading ? "Loading..." : "Apply Filters"}
+                  </button>
+                  <button type="button" className="is-secondary" disabled={loading} onClick={handleResetFilters}>
+                    Reset to Last 7 Days
+                  </button>
+                </form>
               </article>
-            ))}
-            {!activity.length && <p className="admins-ols-empty">No audit entries in that date range yet.</p>}
-          </div>
-        </section>
+
+              <article id="audit-summary" className="admins-ols-card admins-ols-stat">
+                <span>Visible audit events</span>
+                <strong>{activity.length}</strong>
+                <small>Filtered superadmin activity entries in the selected date range</small>
+                <div className="admins-ols-chart-card">
+                  <div className="admins-ols-chart-head">
+                    <h3>Admin Logins By Date</h3>
+                    <span className="admins-ols-pill">{signInChartData.length} days</span>
+                  </div>
+                  {signInChartData.length ? (
+                    <div className="admins-ols-bar-chart" aria-label="Bar chart of admin logins by date">
+                      {signInChartData.map((item) => (
+                        <div key={item.key} className="admins-ols-bar-chart-item">
+                          <div className="admins-ols-bar-chart-value">{item.count}</div>
+                          <div className="admins-ols-bar-chart-track">
+                            <div
+                              className="admins-ols-bar-chart-bar"
+                              style={{ height: `${item.heightPercent}%` }}
+                              title={`${item.label}: ${item.count} logins`}
+                            />
+                          </div>
+                          <div className="admins-ols-bar-chart-label">{item.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="admins-ols-empty">No sign-in events in this filtered range yet.</p>
+                  )}
+                </div>
+              </article>
+            </section>
+
+            <section id="audit-entries" className="admins-ols-card">
+              <div className="admins-ols-card-head">
+                <h2>Audit Entries</h2>
+                <span className="admins-ols-pill">{activity.length} rows</span>
+              </div>
+              <div className="admins-ols-stack">
+                {activity.map((item) => (
+                  <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
+                    <div className="admins-ols-log-meta">
+                      <span className={`admins-ols-badge is-${getAdminActivityTone(item)}`}>
+                        {formatAdminActivityEventLabel(item.eventType)}
+                      </span>
+                      <small>{formatDateTime(item.createdAt)}</small>
+                    </div>
+                    <p><strong>{getAdminActivityActorLabel(item)}</strong></p>
+                    <p>{item.message || formatAdminActivityEventLabel(item.eventType)}</p>
+                    <small>{getAdminActivityMetaLine(item) || item.authMode || "No additional details"}</small>
+                  </article>
+                ))}
+                {!activity.length && <p className="admins-ols-empty">No audit entries in that date range yet.</p>}
+              </div>
+            </section>
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,56 @@
 const STORAGE_KEY = "ols-admins-ols-session";
 
-const canUseStorage = () => typeof window !== "undefined" && Boolean(window.sessionStorage);
+const canUseStorage = () =>
+  typeof window !== "undefined" && (Boolean(window.localStorage) || Boolean(window.sessionStorage));
+
+const readBrowserStorage = (key) => {
+  if (!canUseStorage()) return "";
+
+  try {
+    const localValue = window.localStorage?.getItem(key);
+    if (localValue) return localValue;
+  } catch {
+    // ignore localStorage read failures
+  }
+
+  try {
+    return window.sessionStorage?.getItem(key) || "";
+  } catch {
+    return "";
+  }
+};
+
+const writeBrowserStorage = (key, value) => {
+  if (!canUseStorage()) return;
+
+  try {
+    window.localStorage?.setItem(key, value);
+  } catch {
+    // ignore localStorage write failures
+  }
+
+  try {
+    window.sessionStorage?.setItem(key, value);
+  } catch {
+    // ignore sessionStorage write failures
+  }
+};
+
+const removeBrowserStorage = (key) => {
+  if (!canUseStorage()) return;
+
+  try {
+    window.localStorage?.removeItem(key);
+  } catch {
+    // ignore localStorage remove failures
+  }
+
+  try {
+    window.sessionStorage?.removeItem(key);
+  } catch {
+    // ignore sessionStorage remove failures
+  }
+};
 
 const sanitizeString = (value = "", maxLength = 4000) =>
   String(value || "")
@@ -35,9 +85,13 @@ export const loadAdminsOlsSession = () => {
   if (!canUseStorage()) return null;
 
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    const raw = readBrowserStorage(STORAGE_KEY);
     if (!raw) return null;
-    return normalizeSession(JSON.parse(raw));
+    const session = normalizeSession(JSON.parse(raw));
+    if (session) {
+      writeBrowserStorage(STORAGE_KEY, JSON.stringify(session));
+    }
+    return session;
   } catch {
     return null;
   }
@@ -49,10 +103,10 @@ export const saveAdminsOlsSession = (value) => {
 
   try {
     if (!session) {
-      window.sessionStorage.removeItem(STORAGE_KEY);
+      removeBrowserStorage(STORAGE_KEY);
       return null;
     }
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    writeBrowserStorage(STORAGE_KEY, JSON.stringify(session));
   } catch {
     // ignore storage failures
   }
@@ -63,7 +117,7 @@ export const saveAdminsOlsSession = (value) => {
 export const clearAdminsOlsSession = () => {
   if (!canUseStorage()) return;
   try {
-    window.sessionStorage.removeItem(STORAGE_KEY);
+    removeBrowserStorage(STORAGE_KEY);
   } catch {
     // ignore storage failures
   }

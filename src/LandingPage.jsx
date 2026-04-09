@@ -5,6 +5,7 @@ import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
+import { trackGuestCityClick, trackGuestListingClick, trackGuestJourneyEvent } from "./utils/guestAnalytics";
 
 const Silk = lazy(() => import("./components/Silk"));
 const CircularGallery = lazy(() => import("./components/CircularGallery"));
@@ -814,6 +815,9 @@ function LandingPage() {
         return {
           image: getListingImage(listing),
           text: formatGalleryLabel(listing, quotePricing[listingId], quoteLoading),
+          city: cityParam || city || "",
+          listingId,
+          title: listing?.title || listing?.nickname || "One Lux Stay unit",
           href,
         };
       })
@@ -840,6 +844,12 @@ function LandingPage() {
     if (route) {
       setCityNotice("");
       prefetchCityRoute(route);
+      trackGuestCityClick({
+        city,
+        destinationPath: route,
+        sourceSection: "hero_shortcuts",
+        sourceLabel: "landing_chip",
+      });
       navigate(route);
       return;
     }
@@ -1196,6 +1206,14 @@ function LandingPage() {
   const handleGallerySelect = useCallback((index) => {
     const selected = galleryItems[index];
     if (!selected?.href) return;
+    trackGuestListingClick({
+      city: selected.city || "",
+      listingId: selected.listingId || "",
+      listingTitle: selected.title || "",
+      destinationPath: selected.href,
+      sourceSection: "hero_featured_units",
+      sourceLabel: "circular_gallery",
+    });
     prefetchRouteByPath(selected.href);
     navigate(selected.href);
   }, [galleryItems, navigate]);
@@ -1305,6 +1323,13 @@ function LandingPage() {
       return "/global";
     })();
     const hash = targetRoute === "/listings" ? "#listings" : "";
+    trackGuestJourneyEvent({
+      eventType: "search_submit",
+      city: cityParam,
+      destinationPath: `${targetRoute}${query ? `?${query}` : ""}${hash}`,
+      sourceSection: "hero_booking_form",
+      sourceLabel: "book_button",
+    });
     prefetchRouteByPath(targetRoute);
     navigate(`${targetRoute}${query ? `?${query}` : ""}${hash}`);
   };

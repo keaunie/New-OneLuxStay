@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
+import { trackGuestListingClick } from "./utils/guestAnalytics";
 import "./App.css";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 
@@ -717,6 +718,18 @@ function GlobalUnitsPage() {
     return `${pathname}${query ? `?${query}` : ""}`;
   };
 
+  const handleListingNavigation = (listing, link, sourceLabel = "") => {
+    trackGuestListingClick({
+      city: normalizeCity(listing),
+      listingId: getListingId(listing),
+      listingTitle: listing?.title || listing?.nickname || "One Lux Stay unit",
+      destinationPath: link,
+      sourceSection: "global_units",
+      sourceLabel,
+    });
+    navigate(link);
+  };
+
   const filteredListings = useMemo(() => {
     if (!stayDates.checkIn || !stayDates.checkOut || !availableListingIds) {
       return cityAndSearchFilteredListings;
@@ -934,7 +947,7 @@ function GlobalUnitsPage() {
                     if (target instanceof Element && target.closest("a,button,input,select,textarea,[role='button']")) {
                       return;
                     }
-                    navigate(link);
+                    handleListingNavigation(listing, link, "listing_card");
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
@@ -943,7 +956,7 @@ function GlobalUnitsPage() {
                       return;
                     }
                     event.preventDefault();
-                    navigate(link);
+                    handleListingNavigation(listing, link, "listing_card_keyboard");
                   }}
                   className="cursor-pointer overflow-hidden rounded-2xl border border-[rgba(201,181,156,0.55)] bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-amber)]"
                 >
@@ -1025,6 +1038,10 @@ function GlobalUnitsPage() {
                       <p className="text-sm font-semibold text-[var(--ink)]">{nightlyLabel}</p>
                       <Link
                         to={link}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          handleListingNavigation(listing, link, "view_unit_button");
+                        }}
                         className="rounded-lg border border-[var(--landing-amber)] bg-[var(--landing-amber-soft)] px-3 py-2 text-sm font-semibold text-[var(--ink)] transition hover:bg-[rgba(201,181,156,0.3)]"
                       >
                         View unit

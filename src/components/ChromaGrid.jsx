@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import "./ChromaGrid.css";
+import { trackGuestCityClick } from "../utils/guestAnalytics";
 
 const optimizeChromaImage = (url, width = 900) => {
   if (!url) return "";
@@ -53,6 +54,14 @@ export default function ChromaGrid({ items = DEFAULT_ITEMS }) {
               to={item.href || "/"}
               aria-label={`Explore ${item.title}`}
               className="chroma-grid-card"
+              onClick={() =>
+                trackGuestCityClick({
+                  city: item.title,
+                  destinationPath: item.href || "/",
+                  sourceSection: "featured_destinations",
+                  sourceLabel: "chroma_grid",
+                })
+              }
             >
               <div className="chroma-grid-card__media">
                 <img

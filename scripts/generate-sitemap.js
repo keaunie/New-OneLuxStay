@@ -82,6 +82,8 @@ const isPublicSitemapRoute = (routePath = "") => {
   if (normalized === "/ai-agent") return false;
   if (normalized === "/admins-ols") return false;
   if (normalized === "/admins-ols/login") return false;
+  if (normalized === "/admins-ols/audit") return false;
+  if (normalized === "/admins-ols/guest-journeys") return false;
   if (normalized.startsWith("/private/")) return false;
   return true;
 };
