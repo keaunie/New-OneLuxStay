@@ -32,6 +32,7 @@ Required environment variables:
 - `ADMINS_OLS_ACCESS_KEY`: optional legacy shared key fallback for the `/admins-ols` admin API
 - `ADMINS_OLS_SIGNUP_KEY`: required if you want to create admin accounts from `/admins-ols/login`
 - `ADMINS_OLS_ALLOWED_EMAILS`: optional comma-separated emails that should always be treated as admins
+- `ADMINS_OLS_SUPERADMIN_EMAILS`: optional comma-separated emails allowed to see the hidden admin audit log
 
 Behavior notes:
 

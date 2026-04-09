@@ -16,6 +16,7 @@ const preloadRoadmapPrivatePage = () => import("../RoadmapPrivatePage");
 const preloadAiAgentPage = () => import("../AiAgentPage");
 const preloadAdminsOlsPage = () => import("../AdminsOlsPage");
 const preloadAdminsOlsAuthPage = () => import("../AdminsOlsAuthPage");
+const preloadAdminsOlsAuditPage = () => import("../AdminsOlsAuditPage");
 
 export const routePreloaders = {
   landing: preloadLandingPage,
@@ -36,6 +37,7 @@ export const routePreloaders = {
   aiAgent: preloadAiAgentPage,
   adminsOls: preloadAdminsOlsPage,
   adminsOlsAuth: preloadAdminsOlsAuthPage,
+  adminsOlsAudit: preloadAdminsOlsAuditPage,
 };
 
 const normalizePathname = (value = "") => {
@@ -107,6 +109,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/admins-ols/login") {
     return routePreloaders.adminsOlsAuth().then(() => undefined);
+  }
+  if (normalized === "/admins-ols/audit") {
+    return routePreloaders.adminsOlsAudit().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };

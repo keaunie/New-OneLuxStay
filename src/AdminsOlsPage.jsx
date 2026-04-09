@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import apiBase from "./utils/apiBase";
 import {
   clearAdminsOlsSession,
@@ -9,6 +9,9 @@ import {
   refreshAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
 import "./AdminsOlsPage.css";
+
+const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
+const DASHBOARD_ACTIVITY_DEDUPE_WINDOW_MS = 5000;
 
 const DEFAULT_FORM = {
   title: "",
@@ -140,6 +143,47 @@ const getAssistantTurnSourceLabel = (item = {}) => {
   return "AI-Agent";
 };
 
+const formatAdminActivityEventLabel = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "Activity";
+  if (normalized === "sign_in") return "Signed In";
+  if (normalized === "sign_out") return "Signed Out";
+  if (normalized === "sign_up") return "Admin Created";
+  if (normalized === "session_refresh") return "Session Refreshed";
+  if (normalized === "dashboard_opened") return "Dashboard Opened";
+  if (normalized === "manual_refresh") return "Manual Refresh";
+  if (normalized === "conversation_reply") return "Admin Reply";
+  if (normalized === "lesson_created") return "Lesson Created";
+  if (normalized === "lesson_activated") return "Lesson Activated";
+  if (normalized === "lesson_deactivated") return "Lesson Deactivated";
+  if (normalized === "lesson_deleted") return "Lesson Deleted";
+  return titleCase(normalized);
+};
+
+const getAdminActivityTone = (item = {}) => {
+  const normalized = String(item?.eventType || "").trim().toLowerCase();
+  if (["sign_in", "sign_up", "dashboard_opened", "conversation_reply", "lesson_created", "lesson_activated"].includes(normalized)) {
+    return "positive";
+  }
+  if (["lesson_deleted", "lesson_deactivated"].includes(normalized)) return "negative";
+  return "neutral";
+};
+
+const getAdminActivityActorLabel = (item = {}) =>
+  item?.actorName || item?.actorEmail || "Admin";
+
+const getAdminActivityMetaLine = (item = {}) => {
+  const details = item?.details || {};
+  const parts = [];
+
+  if (details.city) parts.push(details.city);
+  if (details.pageType) parts.push(formatPageLabel(details.pageType));
+  if (details.lessonTitle) parts.push(details.lessonTitle);
+  if (details.sessionId) parts.push(`Session ${shortenId(details.sessionId, 4, 4)}`);
+
+  return parts.join(" | ");
+};
+
 const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) => {
   if (!dashboard || !message?.messageId || !threadMeta?.sessionId) return dashboard;
 
@@ -203,6 +247,22 @@ const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) =>
   };
 };
 
+const shouldLogDashboardOpen = () => {
+  if (typeof window === "undefined" || !window.sessionStorage) return true;
+
+  try {
+    const previous = Number(window.sessionStorage.getItem(DASHBOARD_ACTIVITY_DEDUPE_KEY) || 0);
+    const now = Date.now();
+    if (Number.isFinite(previous) && previous > 0 && now - previous < DASHBOARD_ACTIVITY_DEDUPE_WINDOW_MS) {
+      return false;
+    }
+    window.sessionStorage.setItem(DASHBOARD_ACTIVITY_DEDUPE_KEY, String(now));
+    return true;
+  } catch {
+    return true;
+  }
+};
+
 function AdminsOlsPage() {
   const [session, setSession] = useState(() => loadAdminsOlsSession());
   const [dashboard, setDashboard] = useState(null);
@@ -215,12 +275,20 @@ function AdminsOlsPage() {
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarDocked, setIsSidebarDocked] = useState(false);
+  const [sidebarDockedStyle, setSidebarDockedStyle] = useState(null);
+  const [sidebarPlaceholderHeight, setSidebarPlaceholderHeight] = useState(0);
+  const sidebarRef = useRef(null);
   const threadScrollRef = useRef(null);
+  const sideStickyRef = useRef(null);
+  const hasLoggedDashboardOpenRef = useRef(false);
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
   const rollups = dashboard?.rollups || {};
   const currentAdmin = dashboard?.currentAdmin || session?.user || {};
+  const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
   const recentSessions = Array.isArray(dashboard?.recentSessions) ? dashboard.recentSessions : [];
   const recentFeedback = Array.isArray(dashboard?.recentFeedback) ? dashboard.recentFeedback : [];
   const recentAssistantMessages = Array.isArray(dashboard?.recentAssistantMessages)
@@ -228,6 +296,9 @@ function AdminsOlsPage() {
     : [];
   const recentConversations = Array.isArray(dashboard?.recentConversations)
     ? dashboard.recentConversations
+    : [];
+  const recentAdminActivity = Array.isArray(dashboard?.recentAdminActivity)
+    ? dashboard.recentAdminActivity
     : [];
   const sentimentLessons = Array.isArray(dashboard?.sentimentLessons) ? dashboard.sentimentLessons : [];
   const selectedConversation =
@@ -391,7 +462,99 @@ function AdminsOlsPage() {
     return () => window.clearInterval(intervalId);
   }, [session]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const desktopBreakpoint = 1080;
+    let frameId = 0;
+
+    const resetDocking = () => {
+      setIsSidebarDocked(false);
+      setSidebarDockedStyle(null);
+      setSidebarPlaceholderHeight(0);
+    };
+
+    const updateDockedSidebar = () => {
+      frameId = 0;
+
+      const sidebarElement = sidebarRef.current;
+      const stickyElement = sideStickyRef.current;
+
+      if (!sidebarElement || !stickyElement || window.innerWidth <= desktopBreakpoint) {
+        resetDocking();
+        return;
+      }
+
+      const sidebarRect = sidebarElement.getBoundingClientRect();
+      const stickyHeight = stickyElement.offsetHeight || 0;
+
+      setIsSidebarDocked(true);
+      setSidebarPlaceholderHeight(stickyHeight);
+      setSidebarDockedStyle({
+        position: "fixed",
+        top: "1rem",
+        left: `${Math.round(sidebarRect.left)}px`,
+        width: `${Math.round(sidebarRect.width)}px`,
+      });
+    };
+
+    const requestDockUpdate = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateDockedSidebar);
+    };
+
+    requestDockUpdate();
+    window.addEventListener("resize", requestDockUpdate);
+
+    return () => {
+      window.removeEventListener("resize", requestDockUpdate);
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [recentAdminActivity.length]);
+
   const handleAdminAction = async (payload) => performAdminRequest({ method: "POST", payload });
+
+  useEffect(() => {
+    if (!session?.accessToken && !session?.sharedKey) {
+      hasLoggedDashboardOpenRef.current = false;
+      return;
+    }
+    if (hasLoggedDashboardOpenRef.current) return;
+    if (!shouldLogDashboardOpen()) return;
+
+    hasLoggedDashboardOpenRef.current = true;
+    handleAdminAction({
+      action: "log_activity",
+      eventType: "dashboard_opened",
+      message: "Opened the Concierge Intelligence Panel.",
+      details: {
+        source: "dashboard_ui",
+      },
+    }).catch(() => null);
+  }, [session?.accessToken, session?.sharedKey]);
+
+  const handleNavigateToSection = (sectionId = "") => {
+    if (typeof document !== "undefined") {
+      const section = document.getElementById(sectionId);
+      section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }
+    setIsSidebarOpen(false);
+  };
+
+  const handleManualRefresh = async () => {
+    await fetchDashboard();
+    await handleAdminAction({
+      action: "log_activity",
+      eventType: "manual_refresh",
+      message: "Manually refreshed the admin dashboard.",
+      details: {
+        source: "dashboard_ui",
+      },
+    }).catch(() => null);
+    await fetchDashboard(session, { silent: true });
+  };
 
   const handleSaveLesson = async (event) => {
     event.preventDefault();
@@ -500,13 +663,30 @@ function AdminsOlsPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await handleAdminAction({
+      action: "log_activity",
+      eventType: "sign_out",
+      message: "Signed out from the Concierge Intelligence Panel.",
+      details: {
+        source: "dashboard_ui",
+      },
+    }).catch(() => null);
     clearAdminsOlsSession();
     setSession(null);
     setDashboard(null);
     setNotice("");
     setError("");
   };
+
+  const navItems = [
+    { id: "overview", label: "Overview" },
+    { id: "system", label: "System" },
+    { id: "conversations", label: "Conversations" },
+    { id: "lessons", label: "Lessons" },
+    { id: "feedback", label: "Feedback" },
+    { id: "assistant-turns", label: "Assistant Turns" },
+  ];
 
   if (!session?.accessToken && !session?.sharedKey) {
     return <Navigate to="/admins-ols/login" replace />;
@@ -515,33 +695,94 @@ function AdminsOlsPage() {
   return (
     <div className="admins-ols-page">
       <div className="admins-ols-shell">
-        <header className="admins-ols-hero">
-          <div className="admins-ols-hero-content">
-            <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
-            <h1>Concierge Intelligence Panel</h1>
-            <p className="admins-ols-hero-copy">
-              Monitor the concierge, review what guests are asking, and teach the AI how to handle
-              guest sentiment with better tone and response structure.
-            </p>
-            <p className="admins-ols-note">
-              Signed in as <strong>{currentAdmin.fullName || currentAdmin.email || "Admin"}</strong>
-              {currentAdmin.email ? ` (${currentAdmin.email})` : ""}
-            </p>
+        <div className="admins-ols-mobile-nav">
+          <button
+            type="button"
+            className={`admins-ols-mobile-nav-toggle${isSidebarOpen ? " is-active" : ""}`}
+            onClick={() => setIsSidebarOpen((current) => !current)}
+            aria-expanded={isSidebarOpen}
+            aria-controls="admins-ols-sidebar"
+          >
+            {isSidebarOpen ? "Close Panel" : "Open Panel"}
+          </button>
+          <div>
+            <strong>Admin Navigation</strong>
+            <small>{isSuperAdmin ? "Quick jump, admin tools, and superadmin audit access" : "Quick jump and admin tools"}</small>
           </div>
-          <div className="admins-ols-toolbar">
-            <button type="button" onClick={() => fetchDashboard()} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-            <button type="button" className="is-secondary" onClick={handleLogout}>
-              Sign Out
-            </button>
-          </div>
-        </header>
+        </div>
 
-        {notice && <div className="admins-ols-banner">{notice}</div>}
-        {error && <div className="admins-ols-error">{error}</div>}
+        <div className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}`}>
+          <aside
+            id="admins-ols-sidebar"
+            className={`admins-ols-sidebar${isSidebarDocked ? " is-docked" : ""}`}
+            aria-label="Admin navigation and activity"
+            ref={sidebarRef}
+            style={isSidebarDocked && sidebarPlaceholderHeight ? { minHeight: `${sidebarPlaceholderHeight}px` } : undefined}
+          >
+            <div
+              className={`admins-ols-side-sticky${isSidebarDocked ? " is-docked" : ""}`}
+              ref={sideStickyRef}
+              style={sidebarDockedStyle || undefined}
+            >
+              <section className="admins-ols-side-section">
+                <p className="admins-ols-eyebrow">Admin Access</p>
+                <h2>{currentAdmin.fullName || currentAdmin.email || "Admin"}</h2>
+                <p className="admins-ols-note">
+                  Signed in with {session?.sharedKey ? "shared key access" : "Supabase authentication"}.
+                </p>
+              </section>
 
-        <section className="admins-ols-grid admins-ols-grid--stats">
+              <section className="admins-ols-side-section">
+                <div className="admins-ols-card-head">
+                  <h3>Quick Jump</h3>
+                </div>
+                <div className="admins-ols-side-nav">
+                  {navItems.map((item) => (
+                    <button key={item.id} type="button" onClick={() => handleNavigateToSection(item.id)}>
+                      {item.label}
+                    </button>
+                  ))}
+                  {isSuperAdmin && (
+                    <Link className="admins-ols-side-nav-link" to="/admins-ols/audit">
+                      <span>Superadmin Audit Log</span>
+                      <span className="admins-ols-side-nav-count">
+                        {recentAdminActivity.length || "Go"}
+                      </span>
+                    </Link>
+                  )}
+                </div>
+              </section>
+            </div>
+          </aside>
+
+          <main className="admins-ols-main">
+            <header id="overview" className="admins-ols-hero">
+              <div className="admins-ols-hero-content">
+                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <h1>Concierge Intelligence Panel</h1>
+                <p className="admins-ols-hero-copy">
+                  Monitor the concierge, review what guests are asking, and teach the AI how to handle
+                  guest sentiment with better tone and response structure.
+                </p>
+                <p className="admins-ols-note">
+                  Signed in as <strong>{currentAdmin.fullName || currentAdmin.email || "Admin"}</strong>
+                  {currentAdmin.email ? ` (${currentAdmin.email})` : ""}
+                </p>
+              </div>
+              <div className="admins-ols-toolbar">
+                <button type="button" onClick={handleManualRefresh} disabled={loading}>
+                  {loading ? "Refreshing..." : "Refresh"}
+                </button>
+                <button type="button" className="is-secondary" onClick={handleLogout}>
+                  Sign Out
+                </button>
+              </div>
+            </header>
+
+            {notice && <div className="admins-ols-banner">{notice}</div>}
+            {error && <div className="admins-ols-error">{error}</div>}
+
+            <section className="admins-ols-grid admins-ols-grid--stats">
           <article className="admins-ols-card admins-ols-stat">
             <span>Total Sessions</span>
             <strong>{overview.sessionsTotal ?? "--"}</strong>
@@ -566,7 +807,7 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section className="admins-ols-grid admins-ols-grid--two">
+        <section id="system" className="admins-ols-grid admins-ols-grid--two">
           <article className="admins-ols-card">
             <div className="admins-ols-card-head">
               <h2>AI System Status</h2>
@@ -645,7 +886,7 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section className="admins-ols-card">
+        <section id="conversations" className="admins-ols-card">
           <div className="admins-ols-card-head">
             <h2>Recent Conversations</h2>
             <span className="admins-ols-pill">{recentConversations.length} sessions</span>
@@ -780,7 +1021,7 @@ function AdminsOlsPage() {
           </div>
         </section>
 
-        <section className="admins-ols-grid admins-ols-grid--two">
+        <section id="lessons" className="admins-ols-grid admins-ols-grid--two">
           <article className="admins-ols-card admins-ols-card--teacher">
             <div className="admins-ols-card-head">
               <h2>Teach AI Sentiment</h2>
@@ -962,7 +1203,7 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section className="admins-ols-grid admins-ols-grid--two">
+        <section id="feedback" className="admins-ols-grid admins-ols-grid--two">
           <article className="admins-ols-card">
             <div className="admins-ols-card-head">
               <h2>Recent Feedback</h2>
@@ -1022,7 +1263,7 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section className="admins-ols-card">
+        <section id="assistant-turns" className="admins-ols-card">
           <div className="admins-ols-card-head">
             <h2>Recent Assistant Turns</h2>
             <span className="admins-ols-pill">{recentAssistantMessages.length} turns</span>
@@ -1048,6 +1289,8 @@ function AdminsOlsPage() {
             {!recentAssistantMessages.length && <p className="admins-ols-empty">No assistant turns found yet.</p>}
           </div>
         </section>
+          </main>
+        </div>
       </div>
     </div>
   );

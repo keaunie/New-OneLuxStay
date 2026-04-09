@@ -111,7 +111,7 @@ function AdminsOlsAuthPage() {
             <h1>Admin Access</h1>
             <p>
               Sign in with your existing Supabase Authentication user to open the admin
-              intelligence panel, review concierge activity, and manage sentiment coaching for the
+              concierge intelligence panel, review concierge activity, and manage sentiment coaching for the
               AI concierge.
             </p>
             <div className="admins-ols-auth-highlights">

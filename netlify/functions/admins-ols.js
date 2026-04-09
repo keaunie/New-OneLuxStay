@@ -1,5 +1,10 @@
 import dotenv from "dotenv";
 import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
+import {
+  getAdminsOlsActivityTable,
+  logAdminsOlsActivity,
+  sanitizeAdminsOlsActivityRow,
+} from "./_shared/adminsOlsActivity.js";
 import { fetchWithTimeout } from "./_shared/http.js";
 import {
   buildSupabaseRestUrl,
@@ -65,6 +70,7 @@ const getTables = () => ({
   sentiment:
     sanitizeId(getEnv("SUPABASE_CHAT_SENTIMENT_TABLE") || DEFAULT_SENTIMENT_TABLE, 120) ||
     DEFAULT_SENTIMENT_TABLE,
+  activity: getAdminsOlsActivityTable(),
 });
 
 const getServiceHeaders = () => {
@@ -191,6 +197,51 @@ const sanitizeLessonRow = (row = {}) => ({
   updatedAt: sanitizeString(row?.updated_at, 80),
 });
 
+const buildCreatedAtFilter = ({ startAt = "", endAt = "" } = {}) => {
+  const start = sanitizeString(startAt, 80);
+  const end = sanitizeString(endAt, 80);
+
+  if (start && end) {
+    return {
+      and: `(created_at.gte.${start},created_at.lte.${end})`,
+    };
+  }
+
+  if (start) {
+    return {
+      created_at: `gte.${start}`,
+    };
+  }
+
+  if (end) {
+    return {
+      created_at: `lte.${end}`,
+    };
+  }
+
+  return {};
+};
+
+const buildActorNameFilter = (value = "") => {
+  const normalized = sanitizeString(value, 160);
+  if (!normalized) return {};
+
+  const escaped = normalized.replace(/[%,]/g, "").trim();
+  if (!escaped) return {};
+
+  return {
+    actor_name: `ilike.*${escaped}*`,
+  };
+};
+
+const safeLogAdminsOlsActivity = async (input) => {
+  try {
+    await logAdminsOlsActivity(input);
+  } catch {
+    // Audit logging should not block admin workflows.
+  }
+};
+
 const buildRecentConversationThreads = ({
   conversationMessages = [],
   recentSessions = [],
@@ -258,21 +309,8 @@ const buildRecentConversationThreads = ({
     .slice(0, Math.max(1, Math.min(12, Number(maxThreads) || 8)));
 };
 
-const getDashboardData = async (tables) => {
-  const [
-    sessionsTotal,
-    messagesTotal,
-    feedbackTotal,
-    goodFeedbackTotal,
-    badFeedbackTotal,
-    lessonsTotal,
-    activeLessonsTotal,
-    recentSessionsRaw,
-    recentFeedbackRaw,
-    recentAssistantMessagesRaw,
-    recentConversationMessagesRaw,
-    sentimentLessonsRaw,
-  ] = await Promise.all([
+const getDashboardData = async (tables, adminUser = {}) => {
+  const dashboardQueries = [
     countRows(tables.sessions, { select: "session_id" }),
     countRows(tables.messages, { select: "id" }),
     countRows(tables.feedback, { select: "id" }),
@@ -321,7 +359,33 @@ const getDashboardData = async (tables) => {
       },
       timeout: 12_000,
     }),
-  ]);
+    adminUser?.isSuperAdmin
+      ? supabaseRestRequest(tables.activity, {
+          query: {
+            select: "id,event_type,actor_id,actor_email,actor_name,auth_mode,message,details,created_at",
+            order: "created_at.desc",
+            limit: "30",
+          },
+          timeout: 12_000,
+        })
+      : Promise.resolve([]),
+  ];
+
+  const [
+    sessionsTotal,
+    messagesTotal,
+    feedbackTotal,
+    goodFeedbackTotal,
+    badFeedbackTotal,
+    lessonsTotal,
+    activeLessonsTotal,
+    recentSessionsRaw,
+    recentFeedbackRaw,
+    recentAssistantMessagesRaw,
+    recentConversationMessagesRaw,
+    sentimentLessonsRaw,
+    recentAdminActivityRaw,
+  ] = await Promise.all(dashboardQueries);
 
   const recentSessions = Array.isArray(recentSessionsRaw) ? recentSessionsRaw.map(sanitizeSessionRow) : [];
   const recentFeedback = Array.isArray(recentFeedbackRaw) ? recentFeedbackRaw.map(sanitizeFeedbackRow) : [];
@@ -338,6 +402,9 @@ const getDashboardData = async (tables) => {
     maxThreads: 8,
     maxMessagesPerThread: 12,
   });
+  const recentAdminActivity = Array.isArray(recentAdminActivityRaw)
+    ? recentAdminActivityRaw.map(sanitizeAdminsOlsActivityRow)
+    : [];
 
   return {
     generatedAt: new Date().toISOString(),
@@ -370,6 +437,7 @@ const getDashboardData = async (tables) => {
     recentFeedback,
     recentAssistantMessages,
     recentConversations,
+    ...(adminUser?.isSuperAdmin ? { recentAdminActivity } : {}),
     sentimentLessons,
   };
 };
@@ -438,6 +506,31 @@ const deleteLesson = async (payload, tables) => {
   });
 
   return { lessonId };
+};
+
+const getAdminActivity = async (payload, tables, adminUser = {}) => {
+  if (!adminUser?.isSuperAdmin) {
+    const error = new Error("Superadmin access required.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const limit = Math.max(1, Math.min(250, Number(payload?.limit) || 50));
+  const rows = await supabaseRestRequest(tables.activity, {
+    query: {
+      select: "id,event_type,actor_id,actor_email,actor_name,auth_mode,message,details,created_at",
+      order: "created_at.desc",
+      limit: String(limit),
+      ...buildActorNameFilter(payload?.actorName),
+      ...buildCreatedAtFilter({
+        startAt: payload?.startAt,
+        endAt: payload?.endAt,
+      }),
+    },
+    timeout: 12_000,
+  });
+
+  return Array.isArray(rows) ? rows.map(sanitizeAdminsOlsActivityRow) : [];
 };
 
 const upsertAdminReplySession = async ({ tables, sessionId, pageContext = {} }) => {
@@ -520,7 +613,7 @@ export async function handler(event) {
     if (event.httpMethod === "GET") {
       return jsonResponse(
         200,
-        { ok: true, currentAdmin: adminAccess.user, ...(await getDashboardData(tables)) },
+        { ok: true, currentAdmin: adminAccess.user, ...(await getDashboardData(tables, adminAccess.user)) },
         event,
       );
     }
@@ -538,23 +631,98 @@ export async function handler(event) {
 
     const action = sanitizeString(payload?.action, 60).toLowerCase();
     if (action === "create_lesson") {
-      return jsonResponse(200, { ok: true, lesson: await createLesson(payload, tables) }, event);
+      const lesson = await createLesson(payload, tables);
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: "lesson_created",
+        message: `Created sentiment lesson "${lesson.title}".`,
+        details: {
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          sentimentLabel: lesson.sentimentLabel,
+        },
+      });
+      return jsonResponse(200, { ok: true, lesson }, event);
     }
 
     if (action === "set_lesson_active") {
-      return jsonResponse(200, { ok: true, lesson: await updateLessonActive(payload, tables) }, event);
+      const lesson = await updateLessonActive(payload, tables);
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: lesson.active ? "lesson_activated" : "lesson_deactivated",
+        message: `${lesson.active ? "Activated" : "Deactivated"} sentiment lesson "${lesson.title}".`,
+        details: {
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          sentimentLabel: lesson.sentimentLabel,
+        },
+      });
+      return jsonResponse(200, { ok: true, lesson }, event);
     }
 
     if (action === "delete_lesson") {
-      return jsonResponse(200, { ok: true, ...(await deleteLesson(payload, tables)) }, event);
+      const result = await deleteLesson(payload, tables);
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: "lesson_deleted",
+        message: "Deleted a sentiment lesson.",
+        details: {
+          lessonId: result.lessonId,
+        },
+      });
+      return jsonResponse(200, { ok: true, ...result }, event);
     }
 
     if (action === "send_reply") {
+      const message = await createAdminReply(payload, tables, adminAccess.user);
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: "conversation_reply",
+        message: "Sent an admin reply to a guest conversation.",
+        details: {
+          sessionId: message.sessionId,
+          city: message?.metadata?.city,
+          pageType: message?.metadata?.pageType,
+          listingId: message?.metadata?.listingId,
+        },
+      });
       return jsonResponse(
         200,
-        { ok: true, message: await createAdminReply(payload, tables, adminAccess.user) },
+        { ok: true, message },
         event,
       );
+    }
+
+    if (action === "get_admin_activity") {
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          currentAdmin: adminAccess.user,
+          activity: await getAdminActivity(payload, tables, adminAccess.user),
+        },
+        event,
+      );
+    }
+
+    if (action === "log_activity") {
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: sanitizeString(payload?.eventType, 80).toLowerCase() || "activity",
+        message: sanitizeString(payload?.message, 400),
+        details: payload?.details,
+      });
+      return jsonResponse(200, { ok: true }, event);
     }
 
     return jsonResponse(400, { error: "Unsupported action" }, event);

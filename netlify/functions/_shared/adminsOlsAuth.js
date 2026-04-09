@@ -1,6 +1,8 @@
 import { fetchWithTimeout, getHeaderValue } from "./http.js";
 
 const ADMINS_OLS_ROLE = "admins_ols";
+const ADMINS_OLS_SUPERADMIN_ROLE = "admins_ols_superadmin";
+const SUPERADMIN_ROLE = "superadmin";
 
 const trimTrailingSlash = (value = "") => String(value || "").trim().replace(/\/+$/, "");
 
@@ -48,11 +50,20 @@ const parseAllowedAdminEmails = () =>
       .filter(Boolean),
   );
 
+const parseAllowedSuperAdminEmails = () =>
+  new Set(
+    String(getEnv("ADMINS_OLS_SUPERADMIN_EMAILS") || "")
+      .split(",")
+      .map((value) => normalizeEmail(value))
+      .filter(Boolean),
+  );
+
 const getSharedKeyUser = () => ({
   id: "shared-key-admin",
   email: "shared-key@internal.local",
   fullName: "Shared Key Admin",
   role: ADMINS_OLS_ROLE,
+  isSuperAdmin: true,
 });
 
 const summarizeUser = (user = {}) => ({
@@ -63,17 +74,39 @@ const summarizeUser = (user = {}) => ({
     160,
   ),
   role: sanitizeString(user?.role || user?.app_metadata?.role || "", 80),
+  isSuperAdmin: userIsSuperAdmin(user),
 });
+
+const userIsSuperAdmin = (user = {}) => {
+  const email = normalizeEmail(user?.email);
+  const appMetadata = user?.app_metadata || {};
+  const userMetadata = user?.user_metadata || {};
+  const superAdminEmails = parseAllowedSuperAdminEmails();
+  const appRole = sanitizeString(appMetadata?.role, 80);
+  const userRole = sanitizeString(userMetadata?.role, 80);
+
+  if (appMetadata?.superadmin === true) return true;
+  if (userMetadata?.superadmin === true) return true;
+  if (appMetadata?.admins_ols_superadmin === true) return true;
+  if (userMetadata?.admins_ols_superadmin === true) return true;
+  if ([ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(appRole)) return true;
+  if ([ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(userRole)) return true;
+  if (superAdminEmails.size) return Boolean(email && superAdminEmails.has(email));
+  return false;
+};
 
 const userHasAdminRole = (user = {}) => {
   const email = normalizeEmail(user?.email);
   const appMetadata = user?.app_metadata || {};
   const userMetadata = user?.user_metadata || {};
   const allowedEmails = parseAllowedAdminEmails();
+  const appRole = sanitizeString(appMetadata?.role, 80);
+  const userRole = sanitizeString(userMetadata?.role, 80);
 
   if (appMetadata?.admins_ols === true) return true;
   if (userMetadata?.admins_ols === true) return true;
-  if (sanitizeString(appMetadata?.role, 80) === ADMINS_OLS_ROLE) return true;
+  if ([ADMINS_OLS_ROLE, ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(appRole)) return true;
+  if ([ADMINS_OLS_ROLE, ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(userRole)) return true;
   if (allowedEmails.size) return Boolean(email && allowedEmails.has(email));
 
   // If no allowlist is configured, trust authenticated users from this Supabase project.

@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
+import { logAdminsOlsActivity } from "./_shared/adminsOlsActivity.js";
 import {
   createAdminsOlsUser,
   formatAdminsOlsSession,
@@ -27,6 +28,14 @@ const jsonResponse = (statusCode, body, event) => ({
   headers: getHeaders(event),
   body: JSON.stringify(body),
 });
+
+const safeLogAdminsOlsActivity = async (input) => {
+  try {
+    await logAdminsOlsActivity(input);
+  } catch {
+    // Audit logging should never block admin auth flows.
+  }
+};
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
@@ -56,6 +65,16 @@ export async function handler(event) {
         email: payload?.email,
         password: payload?.password,
       });
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: session?.user,
+        authMode: "supabase_auth",
+        eventType: "sign_in",
+        message: "Signed in to the Concierge Intelligence Panel.",
+        details: {
+          entryPoint: "admins_ols_auth",
+        },
+      });
       return jsonResponse(200, { ok: true, session: formatAdminsOlsSession(session) }, event);
     }
 
@@ -66,6 +85,16 @@ export async function handler(event) {
         fullName: payload?.fullName,
         inviteCode: payload?.inviteCode,
       });
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: session?.user,
+        authMode: "supabase_auth",
+        eventType: "sign_up",
+        message: "Created and signed in with a new admin account.",
+        details: {
+          entryPoint: "admins_ols_auth",
+        },
+      });
       return jsonResponse(200, { ok: true, session: formatAdminsOlsSession(session) }, event);
     }
 
@@ -73,12 +102,32 @@ export async function handler(event) {
       const session = await refreshAdminsOlsSession({
         refreshToken: payload?.refreshToken,
       });
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: session?.user,
+        authMode: "supabase_auth",
+        eventType: "session_refresh",
+        message: "Refreshed the admin authentication session.",
+        details: {
+          entryPoint: "admins_ols_auth",
+        },
+      });
       return jsonResponse(200, { ok: true, session: formatAdminsOlsSession(session) }, event);
     }
 
     if (action === "shared_key") {
       const session = await signInAdminsOlsSharedKey({
         accessKey: payload?.accessKey,
+      });
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: session?.user,
+        authMode: "shared_key",
+        eventType: "sign_in",
+        message: "Signed in with the shared admin key.",
+        details: {
+          entryPoint: "admins_ols_auth",
+        },
       });
       return jsonResponse(200, { ok: true, session: formatAdminsOlsSession(session) }, event);
     }

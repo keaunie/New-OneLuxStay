@@ -26,6 +26,7 @@ const normalizeSession = (value = {}) => {
       email: sanitizeString(value?.user?.email, 200),
       fullName: sanitizeString(value?.user?.fullName, 160),
       role: sanitizeString(value?.user?.role, 80),
+      isSuperAdmin: value?.user?.isSuperAdmin === true,
     },
   };
 };
