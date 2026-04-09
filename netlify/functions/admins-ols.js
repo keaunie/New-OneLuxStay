@@ -151,6 +151,9 @@ const sanitizeAssistantMessageRow = (row = {}) => ({
     listingId: sanitizeString(row?.metadata?.listingId, 120),
     responseMode: sanitizeString(row?.metadata?.responseMode, 40),
     responseModel: sanitizeString(row?.metadata?.responseModel, 120),
+    senderType: sanitizeString(row?.metadata?.senderType, 40).toLowerCase(),
+    senderName: sanitizeString(row?.metadata?.senderName, 160),
+    senderEmail: sanitizeString(row?.metadata?.senderEmail, 160),
   },
   createdAt: sanitizeString(row?.created_at, 80),
 });

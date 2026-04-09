@@ -7,6 +7,49 @@ const SESSION_ID_KEY = "ols-chat-concierge-session-v1";
 const FEEDBACK_KEY = "ols-chat-concierge-feedback-v1";
 const MAX_VISIBLE_MESSAGES = 12;
 
+const readBrowserStorage = (key) => {
+  if (typeof window === "undefined") return "";
+  try {
+    const localValue = window.localStorage.getItem(key);
+    if (localValue != null) return localValue;
+  } catch {
+    // ignore localStorage errors
+  }
+  try {
+    return window.sessionStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+};
+
+const writeBrowserStorage = (key, value) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore localStorage errors
+  }
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // ignore sessionStorage errors
+  }
+};
+
+const removeBrowserStorage = (key) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // ignore localStorage errors
+  }
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // ignore sessionStorage errors
+  }
+};
+
 const DEFAULT_SUGGESTIONS = [
   "Can you help me choose a property?",
   "Check availability for 2026-04-15 to 2026-04-20 for 2 guests",
@@ -32,10 +75,13 @@ const createSessionId = () => {
 const getOrCreateSessionId = () => {
   if (typeof window === "undefined") return createSessionId();
   try {
-    const existing = sanitizeId(window.sessionStorage.getItem(SESSION_ID_KEY) || "", 80);
-    if (existing) return existing;
+    const existing = sanitizeId(readBrowserStorage(SESSION_ID_KEY) || "", 80);
+    if (existing) {
+      writeBrowserStorage(SESSION_ID_KEY, existing);
+      return existing;
+    }
     const next = createSessionId();
-    window.sessionStorage.setItem(SESSION_ID_KEY, next);
+    writeBrowserStorage(SESSION_ID_KEY, next);
     return next;
   } catch {
     return createSessionId();
@@ -45,11 +91,7 @@ const getOrCreateSessionId = () => {
 const resetSessionId = () => {
   const next = createSessionId();
   if (typeof window !== "undefined") {
-    try {
-      window.sessionStorage.setItem(SESSION_ID_KEY, next);
-    } catch {
-      // ignore storage errors
-    }
+    writeBrowserStorage(SESSION_ID_KEY, next);
   }
   return next;
 };
@@ -297,7 +339,7 @@ function ChatConcierge() {
     if (typeof window === "undefined") return [];
 
     try {
-      const raw = window.sessionStorage.getItem(STORAGE_KEY);
+      const raw = readBrowserStorage(STORAGE_KEY);
       return sanitizeMessages(raw ? JSON.parse(raw) : []);
     } catch {
       return [];
@@ -311,7 +353,7 @@ function ChatConcierge() {
   const [feedbackByMessageId, setFeedbackByMessageId] = useState(() => {
     if (typeof window === "undefined") return {};
     try {
-      const raw = window.sessionStorage.getItem(FEEDBACK_KEY);
+      const raw = readBrowserStorage(FEEDBACK_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
       if (!parsed || typeof parsed !== "object") return {};
       return Object.fromEntries(
@@ -330,17 +372,58 @@ function ChatConcierge() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    writeBrowserStorage(STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      window.sessionStorage.setItem(FEEDBACK_KEY, JSON.stringify(feedbackByMessageId));
+      writeBrowserStorage(FEEDBACK_KEY, JSON.stringify(feedbackByMessageId));
     } catch {
       // ignore storage errors
     }
   }, [feedbackByMessageId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleStorage = (event) => {
+      if (!event.key) return;
+      if (event.key === STORAGE_KEY && event.newValue) {
+        try {
+          setMessages(sanitizeMessages(JSON.parse(event.newValue)));
+        } catch {
+          // ignore malformed storage updates
+        }
+      }
+
+      if (event.key === FEEDBACK_KEY && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (!parsed || typeof parsed !== "object") return;
+          setFeedbackByMessageId(
+            Object.fromEntries(
+              Object.entries(parsed)
+                .map(([key, value]) => [sanitizeId(key, 120), String(value || "").toLowerCase()])
+                .filter(([key, value]) => key && (value === "good" || value === "bad")),
+            ),
+          );
+        } catch {
+          // ignore malformed storage updates
+        }
+      }
+
+      if (event.key === SESSION_ID_KEY) {
+        const nextSessionId = sanitizeId(event.newValue || "", 80);
+        if (nextSessionId) {
+          setChatSessionId(nextSessionId);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -570,6 +653,8 @@ function ChatConcierge() {
     setError("");
     setNotice("");
     setMode("live");
+    removeBrowserStorage(STORAGE_KEY);
+    removeBrowserStorage(FEEDBACK_KEY);
   };
 
   return (

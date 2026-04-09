@@ -128,6 +128,18 @@ const getConversationMessageBubbleClass = (message = {}) => {
   return getConversationMessageSenderType(message) === "admin" ? "is-admin" : "is-assistant";
 };
 
+const getAssistantTurnSourceLabel = (item = {}) => {
+  const metadata = item?.metadata || {};
+  const senderType = String(metadata.senderType || "").trim().toLowerCase();
+  const responseMode = String(metadata.responseMode || "").trim().toLowerCase();
+
+  if (senderType === "admin" || responseMode === "admin_reply") {
+    return metadata.senderName || metadata.senderEmail || "Admin";
+  }
+
+  return "AI-Agent";
+};
+
 const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) => {
   if (!dashboard || !message?.messageId || !threadMeta?.sessionId) return dashboard;
 
@@ -504,9 +516,9 @@ function AdminsOlsPage() {
     <div className="admins-ols-page">
       <div className="admins-ols-shell">
         <header className="admins-ols-hero">
-          <div>
+          <div className="admins-ols-hero-content">
             <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
-            <h1>Admin Intelligence Panel</h1>
+            <h1>Concierge Intelligence Panel</h1>
             <p className="admins-ols-hero-copy">
               Monitor the concierge, review what guests are asking, and teach the AI how to handle
               guest sentiment with better tone and response structure.
@@ -746,6 +758,14 @@ function AdminsOlsPage() {
                         placeholder="Reply to this guest conversation as the OneLuxStay team..."
                         rows={3}
                         disabled={sendingReply}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            if (!sendingReply && replyDraft.trim()) {
+                              handleSendReply(event);
+                            }
+                          }
+                        }}
                       />
                       <button type="submit" disabled={sendingReply || !replyDraft.trim()}>
                         {sendingReply ? "Sending..." : "Send Reply"}
@@ -1020,7 +1040,7 @@ function AdminsOlsPage() {
                 </div>
                 <p>{truncate(item.content, 320)}</p>
                 <small>
-                  {item.metadata.responseModel || "Unknown model"} | {item.metadata.city || "Unknown city"} |{" "}
+                  {getAssistantTurnSourceLabel(item)} | {item.metadata.city || "Unknown city"} |{" "}
                   {item.metadata.pageType || "Unknown page"}
                 </small>
               </article>
