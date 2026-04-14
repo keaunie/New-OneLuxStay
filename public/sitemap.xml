@@ -2,67 +2,121 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://oneluxstay.com/</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/acknowledge</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://oneluxstay.com/ai-agent</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerp</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerp/antwerpcentral</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerp/antwerpcentral/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerp/antwerpcentral/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerp/citycentre</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerp/citycentre/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerp/citycentre/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerp/diamonddistrict</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerp/diamonddistrict/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerp/diamonddistrict/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerp/fashiondistrict</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerp/fashiondistrict/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerp/fashiondistrict/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -944,67 +998,116 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerp/nearcentral</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerp/nearcentral/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerp/nearcentral/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerpen</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerpen/antwerpcentral</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerpen/antwerpcentral/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerpen/antwerpcentral/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerpen/citycentre</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerpen/citycentre/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerpen/citycentre/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerpen/diamonddistrict</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerpen/diamonddistrict/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerpen/diamonddistrict/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerpen/fashiondistrict</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerpen/fashiondistrict/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerpen/fashiondistrict/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1886,85 +1989,146 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/antwerpen/nearcentral</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/antwerpen/nearcentral/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/antwerpen/nearcentral/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/booking-confirmation</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/california-privacy</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/california-privacy-policy</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/dubai</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/dubai/businessbay</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/dubai/businessbay/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/dubai/businessbay/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/dubai/downtowndubai</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/dubai/downtowndubai/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/dubai/downtowndubai/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/dubai/dubai</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/dubai/dubai/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/dubai/dubai/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/dubai/dubaimarina</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/dubai/dubaimarina/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/dubai/dubaimarina/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -2102,73 +2266,125 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/dubai/palmjumeirah</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/dubai/palmjumeirah/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/dubai/palmjumeirah/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/global</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/global-units</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/listings</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/los-angeles</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/los-angeles/downtownla</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/los-angeles/downtownla/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/los-angeles/downtownla/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/los-angeles/hollywood</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/los-angeles/hollywood/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/los-angeles/hollywood/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/los-angeles/hwh</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/los-angeles/hwh/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/los-angeles/hwh/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3026,55 +3242,95 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/los-angeles/neardodger</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/los-angeles/neardodger/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/los-angeles/neardodger/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/losangeles</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/losangeles/downtownla</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/losangeles/downtownla/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/losangeles/downtownla/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/losangeles/hollywood</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/losangeles/hollywood/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/losangeles/hollywood/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/losangeles/hwh</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/losangeles/hwh/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/losangeles/hwh/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3932,49 +4188,84 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/losangeles/neardodger</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/losangeles/neardodger/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/losangeles/neardodger/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami-beach</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami-beach/brickell</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami-beach/brickell/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami-beach/brickell/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami-beach/designdistrict</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami-beach/designdistrict/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami-beach/designdistrict/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4004,49 +4295,85 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/miami-beach/miami</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami-beach/miami/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami-beach/miami/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami-beach/wynwood</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami-beach/wynwood/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami-beach/wynwood/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami/brickell</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami/brickell/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami/brickell/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami/designdistrict</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami/designdistrict/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami/designdistrict/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4076,55 +4403,93 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/miami/miami</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami/miami/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami/miami/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/miami/wynwood</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/miami/wynwood/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/miami/wynwood/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/one-lux-stay-global</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/privacy</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/privacy-policy</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo-beach</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4310,49 +4675,85 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo-beach/pier</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo-beach/pier/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo-beach/pier/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo-beach/redondo</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo-beach/redondo/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo-beach/redondo/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo-beach/rivieravillage</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo-beach/rivieravillage/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo-beach/rivieravillage/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo-beach/southbay</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo-beach/southbay/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo-beach/southbay/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4538,55 +4939,95 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo/pier</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo/pier/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo/pier/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo/redondo</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo/redondo/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo/redondo/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo/rivieravillage</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo/rivieravillage/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo/rivieravillage/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo/southbay</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
+<<<<<<< HEAD
     <loc>https://oneluxstay.com/redondo/southbay/2026-04-23&amp;2026-04-26&amp;2</loc>
     <lastmod>2026-04-09</lastmod>
+=======
+    <loc>https://oneluxstay.com/redondo/southbay/2026-04-27&amp;2026-04-30&amp;2</loc>
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://oneluxstay.com/terms</loc>
+<<<<<<< HEAD
     <lastmod>2026-04-09</lastmod>
+=======
+    <lastmod>2026-04-13</lastmod>
+>>>>>>> 16b7754 ( new footer)
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
