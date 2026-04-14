@@ -1389,7 +1389,6 @@ function LandingPage() {
             Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Belgium; Dubai, UAE; Los
             Angeles, CA; Miami, FL; and Redondo Beach, CA.
           </p>
-          
 
           <div className="landing-chip-row" data-tour-target="destination-shortcuts">
             {HERO_CITY_SHORTCUTS.map((city) => (
