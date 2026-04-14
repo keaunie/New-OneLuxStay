@@ -363,6 +363,57 @@ const buildLessonUpdaterFields = (adminUser = {}) => {
   };
 };
 
+const inferDeployContext = () => {
+  const explicitContext = sanitizeString(process.env.CONTEXT || "", 120).toLowerCase();
+  if (explicitContext) return explicitContext;
+
+  const nodeEnv = sanitizeString(process.env.NODE_ENV || "", 120).toLowerCase();
+  if (nodeEnv === "development" || nodeEnv === "production" || nodeEnv === "test") {
+    return nodeEnv;
+  }
+
+  const branch = sanitizeString(process.env.BRANCH || "", 120).toLowerCase();
+  const siteUrl = sanitizeString(
+    process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_URL || "",
+    240,
+  );
+
+  if (siteUrl) {
+    try {
+      const parsed = new URL(siteUrl);
+      const hostname = String(parsed.hostname || "").toLowerCase();
+
+      if (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname.endsWith(".local")
+      ) {
+        return "development";
+      }
+
+      const deployPrimeUrl = sanitizeString(process.env.DEPLOY_PRIME_URL || "", 240);
+      if (deployPrimeUrl && siteUrl === deployPrimeUrl && branch && !["main", "master", "production"].includes(branch)) {
+        return "branch-deploy";
+      }
+
+      if (hostname.endsWith(".netlify.app") || hostname.endsWith(".onrender.com") || hostname.endsWith(".vercel.app")) {
+        return "production";
+      }
+
+      return "production";
+    } catch {
+      // Ignore malformed URL and continue to fallback labels.
+    }
+  }
+
+  if (branch && !["main", "master", "production"].includes(branch)) {
+    return "branch-deploy";
+  }
+
+  return "development";
+};
+
 const fetchSentimentLessonsRaw = async (tables) => {
   try {
     return await supabaseRestRequest(tables.sentiment, {
@@ -576,7 +627,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
       aiQueryModel: sanitizeString(getEnv("OPENAI_AI_QUERY_MODEL") || "gpt-5-mini", 120),
       embeddingModel: sanitizeString(getEnv("OPENAI_EMBEDDING_MODEL") || "text-embedding-3-small", 120),
       dataProvider: sanitizeString(getEnv("APP_DATA_PROVIDER") || "guesty", 120),
-      deployContext: sanitizeString(process.env.CONTEXT || process.env.NODE_ENV || "unknown", 120),
+      deployContext: inferDeployContext(),
       siteUrl: sanitizeString(process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_URL || "", 240),
       tables,
     },
