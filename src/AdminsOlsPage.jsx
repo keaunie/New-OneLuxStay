@@ -13,6 +13,7 @@ import "./AdminsOlsPage.css";
 
 const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
 const DASHBOARD_ACTIVITY_DEDUPE_WINDOW_MS = 5000;
+const TAB_TRANSITION_MS = 180;
 
 const DEFAULT_FORM = {
   title: "",
@@ -321,9 +322,14 @@ function AdminsOlsPage() {
   const [savingAccount, setSavingAccount] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarDesktopPhase, setSidebarDesktopPhase] = useState("idle");
   const [activeTabId, setActiveTabId] = useState("overview");
+  const [displayedTabId, setDisplayedTabId] = useState("overview");
+  const [tabContentPhase, setTabContentPhase] = useState("idle");
   const threadScrollRef = useRef(null);
   const hasLoggedDashboardOpenRef = useRef(false);
+  const sidebarPhaseTimeoutRef = useRef(null);
+  const tabTransitionTimeoutRef = useRef(null);
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
@@ -377,6 +383,43 @@ function AdminsOlsPage() {
       robotsMeta.remove();
     };
   }, []);
+
+  useEffect(() => () => {
+    if (sidebarPhaseTimeoutRef.current) {
+      window.clearTimeout(sidebarPhaseTimeoutRef.current);
+      sidebarPhaseTimeoutRef.current = null;
+    }
+    if (tabTransitionTimeoutRef.current) {
+      window.clearTimeout(tabTransitionTimeoutRef.current);
+      tabTransitionTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTabId === displayedTabId) return undefined;
+
+    if (tabTransitionTimeoutRef.current) {
+      window.clearTimeout(tabTransitionTimeoutRef.current);
+      tabTransitionTimeoutRef.current = null;
+    }
+
+    setTabContentPhase("is-exiting");
+    tabTransitionTimeoutRef.current = window.setTimeout(() => {
+      setDisplayedTabId(activeTabId);
+      setTabContentPhase("is-entering");
+      tabTransitionTimeoutRef.current = window.setTimeout(() => {
+        setTabContentPhase("idle");
+        tabTransitionTimeoutRef.current = null;
+      }, TAB_TRANSITION_MS + 80);
+    }, TAB_TRANSITION_MS);
+
+    return () => {
+      if (tabTransitionTimeoutRef.current) {
+        window.clearTimeout(tabTransitionTimeoutRef.current);
+        tabTransitionTimeoutRef.current = null;
+      }
+    };
+  }, [activeTabId, displayedTabId]);
 
   useEffect(() => {
     let active = true;
@@ -539,6 +582,34 @@ function AdminsOlsPage() {
     if (!sectionId) return;
     setActiveTabId(sectionId);
     setIsSidebarOpen(false);
+  };
+
+  const handleCollapseSidebar = () => {
+    if (isSidebarCollapsed || sidebarDesktopPhase === "collapsing") return;
+    if (sidebarPhaseTimeoutRef.current) {
+      window.clearTimeout(sidebarPhaseTimeoutRef.current);
+      sidebarPhaseTimeoutRef.current = null;
+    }
+    setSidebarDesktopPhase("collapsing");
+    sidebarPhaseTimeoutRef.current = window.setTimeout(() => {
+      setIsSidebarCollapsed(true);
+      setSidebarDesktopPhase("idle");
+      sidebarPhaseTimeoutRef.current = null;
+    }, 180);
+  };
+
+  const handleExpandSidebar = () => {
+    if (!isSidebarCollapsed || sidebarDesktopPhase === "expanding") return;
+    if (sidebarPhaseTimeoutRef.current) {
+      window.clearTimeout(sidebarPhaseTimeoutRef.current);
+      sidebarPhaseTimeoutRef.current = null;
+    }
+    setIsSidebarCollapsed(false);
+    setSidebarDesktopPhase("expanding");
+    sidebarPhaseTimeoutRef.current = window.setTimeout(() => {
+      setSidebarDesktopPhase("idle");
+      sidebarPhaseTimeoutRef.current = null;
+    }, 520);
   };
 
   const handleManualRefresh = async () => {
@@ -808,6 +879,8 @@ function AdminsOlsPage() {
         <div
           className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}${
             isSidebarCollapsed ? " is-sidebar-collapsed" : ""
+          }${sidebarDesktopPhase === "collapsing" ? " is-sidebar-collapsing" : ""}${
+            sidebarDesktopPhase === "expanding" ? " is-sidebar-expanding" : ""
           }`}
         >
           <aside
@@ -822,7 +895,7 @@ function AdminsOlsPage() {
                   <button
                     type="button"
                     className="admins-ols-sidebar-toggle admins-ols-sidebar-toggle--inside"
-                    onClick={() => setIsSidebarCollapsed(true)}
+                    onClick={handleCollapseSidebar}
                     aria-controls="admins-ols-sidebar"
                     aria-expanded
                     aria-label="Collapse sidebar"
@@ -886,7 +959,7 @@ function AdminsOlsPage() {
               <button
                 type="button"
                 className="admins-ols-sidebar-toggle admins-ols-sidebar-toggle--collapsed"
-                onClick={() => setIsSidebarCollapsed(false)}
+                onClick={handleExpandSidebar}
                 aria-controls="admins-ols-sidebar"
                 aria-expanded={false}
                 aria-label="Expand sidebar"
@@ -944,11 +1017,12 @@ function AdminsOlsPage() {
               </div>
             </section>
 
+            <div className={`admins-ols-tab-panels ${tabContentPhase}`}>
             <section
               id="panel-overview"
               role="tabpanel"
               aria-labelledby="tab-overview"
-              hidden={activeTabId !== "overview"}
+              hidden={displayedTabId !== "overview"}
               className="admins-ols-grid admins-ols-grid--stats"
             >
           <article className="admins-ols-card admins-ols-stat">
@@ -979,7 +1053,7 @@ function AdminsOlsPage() {
           id="panel-system"
           role="tabpanel"
           aria-labelledby="tab-system"
-          hidden={activeTabId !== "system"}
+          hidden={displayedTabId !== "system"}
           className="admins-ols-grid admins-ols-grid--two"
         >
           <article className="admins-ols-card">
@@ -1086,7 +1160,7 @@ function AdminsOlsPage() {
           id="panel-guest-interest"
           role="tabpanel"
           aria-labelledby="tab-guest-interest"
-          hidden={activeTabId !== "guest-interest"}
+          hidden={displayedTabId !== "guest-interest"}
           className="admins-ols-grid admins-ols-grid--two"
         >
           <article className="admins-ols-card admins-ols-stat">
@@ -1132,7 +1206,7 @@ function AdminsOlsPage() {
           id="panel-conversations"
           role="tabpanel"
           aria-labelledby="tab-conversations"
-          hidden={activeTabId !== "conversations"}
+          hidden={displayedTabId !== "conversations"}
           className="admins-ols-card"
         >
           <div className="admins-ols-card-head">
@@ -1273,7 +1347,7 @@ function AdminsOlsPage() {
           id="panel-lessons"
           role="tabpanel"
           aria-labelledby="tab-lessons"
-          hidden={activeTabId !== "lessons"}
+          hidden={displayedTabId !== "lessons"}
           className="admins-ols-grid admins-ols-grid--two"
         >
           <article className="admins-ols-card admins-ols-card--teacher">
@@ -1470,7 +1544,7 @@ function AdminsOlsPage() {
           id="panel-feedback"
           role="tabpanel"
           aria-labelledby="tab-feedback"
-          hidden={activeTabId !== "feedback"}
+          hidden={displayedTabId !== "feedback"}
           className="admins-ols-grid admins-ols-grid--two"
         >
           <article className="admins-ols-card">
@@ -1536,7 +1610,7 @@ function AdminsOlsPage() {
           id="panel-assistant-turns"
           role="tabpanel"
           aria-labelledby="tab-assistant-turns"
-          hidden={activeTabId !== "assistant-turns"}
+          hidden={displayedTabId !== "assistant-turns"}
           className="admins-ols-card"
         >
           <div className="admins-ols-card-head">
@@ -1569,7 +1643,7 @@ function AdminsOlsPage() {
           id="panel-account"
           role="tabpanel"
           aria-labelledby="tab-account"
-          hidden={activeTabId !== "account"}
+          hidden={displayedTabId !== "account"}
           className="admins-ols-grid admins-ols-grid--two"
         >
           <article className="admins-ols-card">
@@ -1656,6 +1730,7 @@ function AdminsOlsPage() {
             </small>
           </article>
         </section>
+            </div>
           </main>
         </div>
       </div>

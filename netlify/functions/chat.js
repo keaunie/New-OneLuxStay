@@ -3,6 +3,7 @@ import defaultConciergeKnowledge from "../../src/data/conciergeKnowledge.js";
 import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
+import { calculateNights, roundMoney } from "./_shared/pricingService.js";
 
 dotenv.config();
 
@@ -529,6 +530,11 @@ const isPolicyQuestion = (text = "") =>
 
 const isUnitInfoQuestion = (text = "") =>
   /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|feature|features|parking|pool|wifi|wi-fi|internet|gym|fitness|kitchen|laundry|washer|dryer|washing machine|hot tub|jacuzzi|pet|pets|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location|house rules?|quiet hours?|quiet time|noise|smoking|parties?|minimum age|children|infants)\b/i.test(
+    String(text || ""),
+  );
+
+const isPriceQuestion = (text = "") =>
+  /\b(price|pricing|rate|rates|cost|how much|nightly|per night|daily rate|daily price|price per night)\b/i.test(
     String(text || ""),
   );
 
@@ -2740,6 +2746,233 @@ const fetchHouseRulesForChat = async ({ event, unitTypeId }) => {
   }
 };
 
+const firstFiniteNumber = (...values) => {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+};
+
+const formatMoneyForChat = (amount, currency = "USD") => {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric)) return "";
+  const normalizedCurrency = sanitizeString(currency || "USD", 12).toUpperCase() || "USD";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numeric);
+  } catch {
+    return `${normalizedCurrency} ${numeric.toFixed(2)}`;
+  }
+};
+
+const extractQuotePricingForChat = (quote = null, { checkIn = "", checkOut = "" } = {}) => {
+  if (!quote || typeof quote !== "object") return null;
+
+  const ratePlan = quote?.rates?.ratePlans?.[0] || quote?.ratePlans?.[0] || null;
+  const quoteMoney =
+    ratePlan?.money?.money ||
+    ratePlan?.money ||
+    quote?.money?.money ||
+    quote?.money ||
+    null;
+  const quoteDays = Array.isArray(ratePlan?.days) ? ratePlan.days : [];
+  const currency = String(
+    quoteMoney?.currency || quoteDays[0]?.currency || quote?.currency || "USD",
+  ).toUpperCase();
+  const nights = quoteDays.length || calculateNights(checkIn, checkOut);
+
+  const breakdown = { accommodation: 0, cleaning: 0, taxes: 0, fees: 0 };
+  const invoiceItems = Array.isArray(quoteMoney?.invoiceItems) ? quoteMoney.invoiceItems : [];
+  invoiceItems.forEach((item) => {
+    const amount = Number(item?.amount);
+    if (!Number.isFinite(amount)) return;
+    const normalType = String(item?.normalType || item?.type || "").toUpperCase();
+    const secondType = String(item?.secondIdentifier || item?.secondType || "").toUpperCase();
+    const label = String(item?.title || item?.name || item?.description || "").toUpperCase();
+    const isCleaning =
+      normalType === "CF" ||
+      normalType === "CLEANING_FEE" ||
+      /\bCLEAN(ING)?\b/.test(normalType) ||
+      /\bCLEAN(ING)?\b/.test(secondType) ||
+      /\bCLEAN(ING)?\b/.test(label);
+    const isTax =
+      normalType === "OCT" ||
+      normalType === "TAX" ||
+      normalType === "OCCUPANCY_TAX" ||
+      /\b(TAX|VAT)\b/.test(normalType) ||
+      /\b(TAX|VAT)\b/.test(secondType) ||
+      /\b(TAX|VAT)\b/.test(label);
+
+    if (normalType === "AF" || normalType === "ACCOMMODATION_FARE") breakdown.accommodation += amount;
+    else if (isCleaning) breakdown.cleaning += amount;
+    else if (isTax) breakdown.taxes += amount;
+    else breakdown.fees += amount;
+  });
+
+  const daySum = quoteDays.reduce((sum, day) => {
+    const price = firstFiniteNumber(day?.manualPrice, day?.price, day?.basePrice);
+    return sum + (Number.isFinite(price) ? price : 0);
+  }, 0);
+
+  const accommodation = firstFiniteNumber(quoteMoney?.fareAccommodation, breakdown.accommodation, daySum) || 0;
+  const cleaningFee =
+    firstFiniteNumber(
+      quoteMoney?.fareCleaning,
+      quoteMoney?.cleaning,
+      quoteMoney?.cleaningFee,
+      breakdown.cleaning,
+      0,
+    ) || 0;
+  const taxes =
+    firstFiniteNumber(
+      quoteMoney?.fareTaxes,
+      quoteMoney?.fareTax,
+      quoteMoney?.taxes,
+      quoteMoney?.taxAmount,
+      quoteMoney?.totalTaxes,
+      breakdown.taxes,
+      0,
+    ) || 0;
+  const fees = firstFiniteNumber(breakdown.fees, 0) || 0;
+  const nightlyRate =
+    firstFiniteNumber(
+      quoteDays[0]?.manualPrice,
+      quoteDays[0]?.price,
+      quoteDays[0]?.basePrice,
+      nights > 0 ? accommodation / nights : null,
+    ) || 0;
+  const total =
+    firstFiniteNumber(
+      quoteMoney?.totalPrice,
+      quoteMoney?.total,
+      quote?.total,
+      quote?.price?.totalAmount,
+      quote?.price?.totalPrice,
+      typeof quote?.price?.total === "object" ? quote?.price?.total?.amount : quote?.price?.total,
+      accommodation + cleaningFee + taxes + fees,
+    ) || 0;
+
+  return {
+    currency,
+    nights,
+    nightlyRate: roundMoney(nightlyRate),
+    checkInNightlyRate: roundMoney(
+      firstFiniteNumber(quoteDays[0]?.manualPrice, quoteDays[0]?.price, quoteDays[0]?.basePrice, nightlyRate) || 0,
+    ),
+    cleaningFee: roundMoney(cleaningFee),
+    taxes: roundMoney(taxes),
+    fees: roundMoney(fees),
+    total: roundMoney(total),
+  };
+};
+
+const fetchListingQuoteForChat = async ({ event, listingId, checkIn, checkOut, guests = 1 }) => {
+  const safeListingId = sanitizeString(listingId, 120);
+  if (!safeListingId || !isValidIsoDate(checkIn) || !isValidIsoDate(checkOut) || checkIn >= checkOut) return null;
+
+  const requestBody = {
+    requests: [
+      {
+        listingId: safeListingId,
+        checkInDateLocalized: checkIn,
+        checkOutDateLocalized: checkOut,
+        guestsCount: Math.max(1, Number(guests) || 1),
+      },
+    ],
+  };
+
+  const bases = resolveFunctionsBaseCandidates(event, "");
+  let lastError = null;
+
+  for (const base of bases) {
+    const url = `${base}/check-units/reservations/quotes-bulk`;
+    try {
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        },
+        30_000,
+      );
+      const raw = await response.text();
+      const payload = raw ? JSON.parse(raw) : {};
+      if (!response.ok) {
+        lastError = new Error(
+          `Quote request failed (${response.status}) for ${url}: ${sanitizeString(
+            payload?.message || payload?.error || "",
+            240,
+          )}`,
+        );
+        continue;
+      }
+
+      const results = payload?.results && typeof payload.results === "object" ? payload.results : {};
+      const quote = results[safeListingId] || Object.values(results)[0] || null;
+      if (!quote) {
+        lastError = new Error(`Quote response did not contain pricing for listing ${safeListingId}`);
+        continue;
+      }
+
+      return extractQuotePricingForChat(quote, { checkIn, checkOut });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error(`Unable to retrieve quote for listing ${safeListingId}`);
+};
+
+const buildListingPriceReply = ({ listing, pricing, checkIn, checkOut, guests = 1 }) => {
+  if (!pricing) return "";
+
+  const title = sanitizeString(listing?.title || listing?.nickname, 220) || "This listing";
+  const nights = Math.max(1, Number(pricing?.nights) || calculateNights(checkIn, checkOut) || 1);
+  const guestCount = Math.max(1, Number(guests) || 1);
+  const checkInNightly = formatMoneyForChat(pricing?.checkInNightlyRate, pricing?.currency);
+  const averageNightly = formatMoneyForChat(pricing?.nightlyRate, pricing?.currency);
+  const total = formatMoneyForChat(pricing?.total, pricing?.currency);
+  const cleaningFee = formatMoneyForChat(pricing?.cleaningFee, pricing?.currency);
+  const taxes = formatMoneyForChat(pricing?.taxes, pricing?.currency);
+  const feeParts = [
+    pricing?.cleaningFee > 0 && cleaningFee ? `cleaning ${cleaningFee}` : "",
+    pricing?.taxes > 0 && taxes ? `taxes ${taxes}` : "",
+  ].filter(Boolean);
+
+  const lines = [];
+
+  if (checkInNightly) {
+    lines.push(
+      `For ${title}, the live nightly rate for ${checkIn} is currently ${checkInNightly}.`,
+    );
+  } else if (averageNightly) {
+    lines.push(
+      `For ${title}, the current nightly rate for your dates is about ${averageNightly}.`,
+    );
+  }
+
+  lines.push(
+    `For ${checkIn} to ${checkOut} (${nights} night${nights > 1 ? "s" : ""}, ${guestCount} guest${guestCount > 1 ? "s" : ""}), the current estimated stay total is ${total || "a live quoted amount"}.`,
+  );
+
+  if (averageNightly && averageNightly !== checkInNightly) {
+    lines.push(`Across the full stay, the current average nightly rate is ${averageNightly}.`);
+  }
+
+  if (feeParts.length) {
+    lines.push(`That estimate includes ${feeParts.join(" and ")}.`);
+  }
+
+  lines.push("If you want, I can also check another date range, another guest count, or help you continue to checkout.");
+  return lines.join("\n");
+};
+
 const extractNearestLandmarks = (listing = {}) => {
   const text = String(listing?.publicDescription?.neighborhood || "");
   if (!text) return [];
@@ -3123,6 +3356,7 @@ export async function handler(event) {
       previousAssistantAskedCheckInOutLocation && Boolean(normalizedPromptCity);
     const asksPolicy = isPolicyQuestion(latestPrompt);
     const asksUnitInfo = isUnitInfoQuestion(latestPrompt);
+    const asksPrice = isPriceQuestion(latestPrompt);
     const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPrompt) || followsUpWithLocationOnly;
     const latestIsAffirmativeFollowup = isAffirmativeFollowup(latestPrompt);
     const previousAssistantOfferedAvailability =
@@ -3134,11 +3368,27 @@ export async function handler(event) {
     const effectiveMonthRange = monthRange || conversationMonthRange;
     const asksAvailabilityWindow = Boolean(availabilityDateRange || effectiveMonthRange);
     const asksBookingLead = isBookingLeadQuestion(latestPrompt);
-    const asksAvailability =
-      asksAvailabilityWindow ||
+    const latestPromptGuestCount = parseGuestsFromText(latestPrompt);
+    const latestPromptBedroomPreference = extractBedroomPreferenceFromText(latestPrompt);
+    const isListingPriceQuestion =
+      Boolean(pageContext?.listingId) &&
+      asksPrice &&
+      !/\b(availability|available|open units?|which units?|best options?|show me units?|what'?s available)\b/i.test(
+        latestPrompt,
+      );
+    const hasDirectAvailabilityIntent =
       isAvailabilityQuestion(latestPrompt, asksAvailabilityWindow) ||
-      asksBookingLead ||
-      followUpAvailabilityIntent;
+      (asksBookingLead && !isListingPriceQuestion);
+    const hasAvailabilityFollowupSignal =
+      followUpAvailabilityIntent ||
+      Boolean(promptDateRange) ||
+      Boolean(monthRange) ||
+      latestPromptGuestCount !== null ||
+      Boolean(normalizedPromptCity) ||
+      Boolean(latestPromptBedroomPreference);
+    const asksAvailability =
+      hasDirectAvailabilityIntent ||
+      (asksAvailabilityWindow && hasAvailabilityFollowupSignal && !asksPolicy && !asksCheckInOutTime);
     const hasReservationCode = Boolean(reservationCode);
     const asksBookingStatus = isBookingStatusQuestion(latestPrompt) || hasReservationCode;
     const includesSensitivePaymentData = hasSensitivePaymentData(latestPrompt);
@@ -3327,6 +3577,73 @@ export async function handler(event) {
             guestAlreadyBooked
               ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
               : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
+          ),
+          model,
+        },
+        event,
+      );
+    }
+
+    if (isListingPriceQuestion && pageContext?.listingId) {
+      const conversationGuests =
+        userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) ?? null;
+      const guests = extractGuests(latestPrompt, conversationGuests ?? 1);
+
+      if (!availabilityDateRange) {
+        return jsonResponse(
+          200,
+          {
+            reply: buildDeterministicReply(
+              "I can check the live price for this listing. Please share your check-in and check-out dates plus guest count, and I’ll tell you the current quoted rate.",
+            ),
+            model,
+          },
+          event,
+        );
+      }
+
+      try {
+        const listing = await fetchListingForChat({
+          event,
+          listingId: pageContext.listingId,
+        });
+        const pricing = await fetchListingQuoteForChat({
+          event,
+          listingId: pageContext.listingId,
+          checkIn: availabilityDateRange.checkIn,
+          checkOut: availabilityDateRange.checkOut,
+          guests,
+        });
+        const priceReply = buildListingPriceReply({
+          listing,
+          pricing,
+          checkIn: availabilityDateRange.checkIn,
+          checkOut: availabilityDateRange.checkOut,
+          guests,
+        });
+
+        if (priceReply) {
+          return jsonResponse(
+            200,
+            {
+              reply: buildDeterministicReply(priceReply),
+              model,
+            },
+            event,
+          );
+        }
+      } catch (pricingError) {
+        console.warn("Listing price retrieval failed for chat", {
+          message: pricingError?.message || String(pricingError),
+          listingId: pageContext.listingId,
+        });
+      }
+
+      return jsonResponse(
+        200,
+        {
+          reply: buildDeterministicReply(
+            "I couldn’t confirm the live price for this listing right now. Please try again in a moment, or contact reservations@oneluxstay.com and we’ll confirm the exact rate for your dates.",
           ),
           model,
         },
