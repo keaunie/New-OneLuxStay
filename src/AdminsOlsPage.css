@@ -30,6 +30,40 @@
   gap: 1rem;
 }
 
+.admins-ols-sidebar-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(205, 167, 108, 0.2);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f4ede3;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.admins-ols-sidebar-toggle:hover,
+.admins-ols-sidebar-toggle:focus-visible {
+  background: rgba(205, 167, 108, 0.12);
+  border-color: rgba(205, 167, 108, 0.3);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.admins-ols-sidebar-toggle--collapsed {
+  align-self: flex-start;
+}
+
+.admins-ols-main [hidden] {
+  display: none !important;
+}
+
 .admins-ols-mobile-nav {
   display: none;
 }
@@ -42,12 +76,27 @@
 .admins-ols-side-sticky {
   display: grid;
   gap: 1rem;
-  position: relative;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding-right: 0.2rem;
   z-index: 4;
 }
 
-.admins-ols-side-sticky.is-docked {
-  z-index: 20;
+.admins-ols-side-sticky::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admins-ols-side-sticky::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.admins-ols-side-sticky::-webkit-scrollbar-thumb {
+  background: rgba(205, 167, 108, 0.3);
+  border-radius: 999px;
 }
 
 .admins-ols-side-section {
@@ -112,6 +161,13 @@
   box-shadow: inset 0 0 0 1px rgba(244, 221, 185, 0.08);
 }
 
+.admins-ols-side-nav button.is-current {
+  cursor: default;
+  background: linear-gradient(180deg, rgba(205, 167, 108, 0.16), rgba(205, 167, 108, 0.08));
+  border-color: rgba(205, 167, 108, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(244, 221, 185, 0.08);
+}
+
 .admins-ols-mobile-nav-toggle.is-active {
   background: linear-gradient(135deg, #c49b5e 0%, #e6c99e 100%);
   color: #241912;
@@ -148,6 +204,119 @@
   font-size: 0.78rem;
   line-height: 1;
   flex: 0 0 auto;
+}
+
+.admins-ols-side-section--profile {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admins-ols-profile-card {
+  border-radius: 16px;
+  border: 1px solid rgba(205, 167, 108, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.85rem;
+}
+
+.admins-ols-profile-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admins-ols-profile-avatar {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(205, 167, 108, 0.28);
+  background: linear-gradient(135deg, rgba(205, 167, 108, 0.24), rgba(205, 167, 108, 0.08));
+  color: #fff6e8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.admins-ols-profile-meta {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admins-ols-profile-meta strong {
+  color: #fff6ea;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.admins-ols-profile-meta small {
+  color: rgba(244, 237, 227, 0.68);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admins-ols-profile-card .admins-ols-badge-row {
+  margin-top: 0.7rem;
+}
+
+.admins-ols-profile-card .admins-ols-note {
+  margin: 0.7rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.admins-ols-profile-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.admins-ols-profile-action {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid rgba(205, 167, 108, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f4ede3;
+  padding: 0.78rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.admins-ols-profile-action > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admins-ols-profile-action:hover,
+.admins-ols-profile-action:focus-visible {
+  background: rgba(205, 167, 108, 0.12);
+  border-color: rgba(205, 167, 108, 0.28);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.admins-ols-profile-action.is-danger {
+  color: #ff8f8f;
+  border-color: rgba(230, 112, 112, 0.3);
+  background: rgba(159, 59, 59, 0.16);
+}
+
+.admins-ols-profile-action.is-danger:hover,
+.admins-ols-profile-action.is-danger:focus-visible {
+  background: rgba(159, 59, 59, 0.24);
+  border-color: rgba(230, 112, 112, 0.4);
 }
 
 .admins-ols-activity-item {
@@ -202,6 +371,59 @@
 .admins-ols-card {
   border-radius: 24px;
   padding: 1.35rem;
+}
+
+.admins-ols-tabs-card {
+  padding: 0.9rem;
+}
+
+.admins-ols-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  overflow: visible;
+  padding: 0.1rem;
+}
+
+.admins-ols-tablist::-webkit-scrollbar {
+  height: 8px;
+}
+
+.admins-ols-tablist::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+
+.admins-ols-tablist::-webkit-scrollbar-thumb {
+  background: rgba(205, 167, 108, 0.3);
+  border-radius: 999px;
+}
+
+.admins-ols-tab {
+  border-radius: 999px;
+  border: 1px solid rgba(205, 167, 108, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f4ede3;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.admins-ols-tab:hover,
+.admins-ols-tab:focus-visible {
+  background: rgba(205, 167, 108, 0.12);
+  border-color: rgba(205, 167, 108, 0.28);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.admins-ols-tab.is-active {
+  background: linear-gradient(180deg, rgba(205, 167, 108, 0.16), rgba(205, 167, 108, 0.08));
+  border-color: rgba(205, 167, 108, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(244, 221, 185, 0.08);
 }
 
 .admins-ols-eyebrow {
@@ -271,6 +493,15 @@
 .admins-ols-toolbar button {
   width: 100%;
   min-height: 3.25rem;
+}
+
+.admins-ols-toolbar-icon-btn {
+  width: 3.25rem !important;
+  min-width: 3.25rem;
+  padding: 0;
+  font-size: 1.35rem;
+  line-height: 1;
+  align-self: flex-end;
 }
 
 .admins-ols-toolbar button:hover,
@@ -721,6 +952,8 @@
 }
 
 .admins-ols-lesson-footer {
+  display: grid;
+  gap: 0.25rem;
   padding-top: 0.15rem;
   border-top: 1px solid rgba(205, 167, 108, 0.08);
 }
@@ -731,11 +964,19 @@
 }
 
 .admins-ols-messenger {
-  --admins-ols-messenger-height: clamp(26rem, 68vh, 38rem);
+  --admins-ols-messenger-height: clamp(32rem, 76vh, 52rem);
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
   gap: 1rem;
   align-items: stretch;
+}
+
+#panel-conversations {
+  min-height: clamp(38rem, 84vh, 62rem);
+}
+
+#panel-conversations .admins-ols-messenger {
+  --admins-ols-messenger-height: clamp(34rem, 78vh, 56rem);
 }
 
 .admins-ols-messenger-list,
@@ -758,6 +999,7 @@
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: var(--admins-ols-messenger-height);
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -845,6 +1087,8 @@
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(205, 167, 108, 0.08);
   font-size: 0.76rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .admins-ols-messenger-item p {
@@ -914,6 +1158,8 @@
   margin: 0;
   padding: 0.85rem 1.2rem 0;
   font-size: 0.88rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .admins-ols-thread {
@@ -923,6 +1169,7 @@
   padding: 1.1rem 1.2rem 1.2rem;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .admins-ols-messenger-list::-webkit-scrollbar,
@@ -945,6 +1192,8 @@
 }
 
 .admins-ols-thread-bubble {
+  min-width: 0;
+  width: fit-content;
   max-width: min(78%, 46rem);
   border-radius: 22px;
   padding: 0.95rem 1rem 1rem;
@@ -973,6 +1222,13 @@
   color: rgba(244, 237, 227, 0.9);
   line-height: 1.65;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admins-ols-thread-bubble small {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .admins-ols-thread-composer {
@@ -1020,13 +1276,14 @@
 }
 
 .admins-ols-table-wrap {
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .admins-ols-table {
   width: 100%;
-  min-width: 720px;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .admins-ols-table th,
@@ -1034,6 +1291,8 @@
   padding: 0.85rem 0.8rem;
   border-top: 1px solid rgba(205, 167, 108, 0.12);
   text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .admins-ols-table thead th {
@@ -1048,9 +1307,42 @@
   color: rgba(244, 237, 227, 0.84);
 }
 
+@media (min-width: 1081px) {
+  .admins-ols-sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .admins-ols-sidebar-toggle--inside {
+    flex: 0 0 auto;
+  }
+
+  .admins-ols-layout {
+    transition: grid-template-columns 0.24s ease;
+  }
+
+  .admins-ols-layout.is-sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admins-ols-layout.is-sidebar-collapsed .admins-ols-sidebar {
+    display: none;
+  }
+
+  .admins-ols-sidebar-toggle--collapsed {
+    position: sticky;
+    top: 1rem;
+    z-index: 5;
+    margin-bottom: -0.2rem;
+  }
+}
+
 @media (max-width: 1080px) {
   .admins-ols-layout {
     grid-template-columns: 1fr;
+  }
+
+  .admins-ols-sidebar-toggle {
+    display: none;
   }
 
   .admins-ols-mobile-nav {
@@ -1088,9 +1380,10 @@
 
   .admins-ols-side-sticky {
     position: static;
-    width: auto !important;
-    left: auto !important;
-    top: auto !important;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .admins-ols-grid--stats,

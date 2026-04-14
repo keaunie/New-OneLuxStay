@@ -6,6 +6,7 @@ const STORAGE_KEY = "ols-chat-concierge-v1";
 const SESSION_ID_KEY = "ols-chat-concierge-session-v1";
 const FEEDBACK_KEY = "ols-chat-concierge-feedback-v1";
 const MAX_VISIBLE_MESSAGES = 12;
+const AUTO_SCROLL_THRESHOLD_PX = 96;
 
 const readBrowserStorage = (key) => {
   if (typeof window === "undefined") return "";
@@ -255,7 +256,7 @@ const mergeSyncedMessages = (currentMessages = [], syncedMessages = []) => {
 const getAssistantBadgeLabel = (message = {}) => {
   const senderType = String(message?.senderType || "").trim().toLowerCase();
   if (senderType === "admin") return message?.senderName || "OneLuxStay Team";
-  return "AI Concierge";
+  return "Lucy";
 };
 
 function sanitizeCards(cards) {
@@ -366,6 +367,7 @@ function ChatConcierge() {
     }
   });
   const scrollRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
   const autoRunKeyRef = useRef("");
   const showSuggestions = messages.length === 0;
   const autoAvailability = useMemo(() => getAutoAvailabilityFromSearch(pageContext), [pageContext]);
@@ -425,9 +427,22 @@ function ChatConcierge() {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  useEffect(() => {
+  const isNearBottom = useCallback((element) => {
+    if (!element) return true;
+    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+    return remaining <= AUTO_SCROLL_THRESHOLD_PX;
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
     if (!scrollRef.current) return;
+    shouldStickToBottomRef.current = isNearBottom(scrollRef.current);
+  }, [isNearBottom]);
+
+  useEffect(() => {
+    if (!scrollRef.current || !isOpen) return;
+    if (!shouldStickToBottomRef.current && !isSending) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    shouldStickToBottomRef.current = true;
   }, [messages, isOpen, isSending]);
 
   const fetchSyncedMessages = useCallback(async () => {
@@ -545,6 +560,7 @@ function ChatConcierge() {
         role: "user",
         content: value,
       };
+      shouldStickToBottomRef.current = true;
       const nextMessages = [...messages, userMessage].slice(-MAX_VISIBLE_MESSAGES);
       setMessages(nextMessages);
       setDraft("");
@@ -663,12 +679,12 @@ function ChatConcierge() {
         <section
           className="chat-concierge__panel"
           id="chat-concierge-panel"
-          aria-label="One Lux Stay AI concierge"
+          aria-label="One Lux Stay Lucy concierge"
         >
           <header className="chat-concierge__header">
             <div>
               <p className="chat-concierge__eyebrow">One Lux Stay</p>
-              <h2 className="chat-concierge__title">AI Concierge</h2>
+              <h2 className="chat-concierge__title">Lucy</h2>
               <p className="chat-concierge__subtitle">
                 Ask about stays, booking status, availability by dates, or what page you are on now.
               </p>
@@ -694,7 +710,7 @@ function ChatConcierge() {
             {pageContext.listingId && <span>Listing {pageContext.listingId}</span>}
           </div>
 
-          {notice && (
+          {notice && mode !== "fallback" && (
             <div className={`chat-concierge__notice${mode === "fallback" ? " is-fallback" : ""}`} role="status">
               <span className="chat-concierge__notice-badge">
                 {mode === "fallback" ? "Backup mode" : "Status"}
@@ -703,7 +719,7 @@ function ChatConcierge() {
             </div>
           )}
 
-          <div className="chat-concierge__messages" ref={scrollRef}>
+          <div className="chat-concierge__messages" ref={scrollRef} onScroll={handleMessagesScroll}>
             {messages.length === 0 && (
               <div className="chat-concierge__welcome">
                 <p className="chat-concierge__welcome-title">How can I help today?</p>
@@ -733,6 +749,7 @@ function ChatConcierge() {
                 <p>{renderMessageContent(message.content)}</p>
                 {message.role === "assistant" && Array.isArray(message.cards) && message.cards.length > 0 && (
                   <div className="chat-concierge__cards">
+                    <p className="chat-concierge__cards-title">Available stays</p>
                     {message.cards.map((card) => (
                       <a
                         key={`${card.id}-${card.url}`}
@@ -756,11 +773,14 @@ function ChatConcierge() {
                           </div>
                         )}
                         <p className="chat-concierge__card-title">{card.title}</p>
-                        {(card.city || card.url) && (
-                          <p className="chat-concierge__card-meta">
-                            {card.city ? `${card.city}` : "Open listing"}
-                          </p>
-                        )}
+                        <div className="chat-concierge__card-footer">
+                          {(card.city || card.url) && (
+                            <p className="chat-concierge__card-meta">
+                              {card.city ? `${card.city}` : "Open listing"}
+                            </p>
+                          )}
+                          <span className="chat-concierge__card-cta">View stay</span>
+                        </div>
                       </a>
                     ))}
                   </div>
@@ -862,7 +882,7 @@ function ChatConcierge() {
 
           <form className="chat-concierge__composer" onSubmit={handleSubmit}>
             <label className="chat-concierge__sr-only" htmlFor="chat-concierge-input">
-              Message the AI concierge
+              Message Lucy
             </label>
             <textarea
               id="chat-concierge-input"
@@ -893,8 +913,8 @@ function ChatConcierge() {
         aria-expanded={isOpen}
         aria-controls="chat-concierge-panel"
       >
-        <span className="chat-concierge__toggle-badge">AI</span>
-        <span className="chat-concierge__toggle-copy">{isOpen ? "Close Concierge" : "Ask Concierge"}</span>
+        <span className="chat-concierge__toggle-badge">L</span>
+        <span className="chat-concierge__toggle-copy">{isOpen ? "Close Lucy" : "Ask Lucy"}</span>
       </button>
     </div>
   );

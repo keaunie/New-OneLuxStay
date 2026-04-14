@@ -216,6 +216,7 @@ export const verifyAdminsOlsAccess = async (event = {}) => {
 
   return {
     mode: "supabase_auth",
+    accessToken,
     user: verifyAdminUser(user),
   };
 };
@@ -336,6 +337,60 @@ export const signInAdminsOlsSharedKey = ({ accessKey = "" } = {}) => {
     shared_key: configuredSharedKey,
     user: getSharedKeyUser(),
   };
+};
+
+export const verifyAdminsOlsPassword = async ({ email = "", password = "" } = {}) => {
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPassword = String(password || "");
+
+  if (!normalizedEmail) throw new Error("Email is required.");
+  if (!normalizedPassword) throw new Error("Current password is required.");
+
+  await callSupabaseAuth("token?grant_type=password", {
+    method: "POST",
+    body: {
+      email: normalizedEmail,
+      password: normalizedPassword,
+    },
+    useServiceRole: false,
+  });
+
+  return { ok: true };
+};
+
+export const updateAdminsOlsUserAccount = async ({ accessToken = "", fullName = "", password = "" } = {}) => {
+  const normalizedAccessToken = sanitizeString(accessToken, 4000);
+  const normalizedFullName = sanitizeString(fullName, 160);
+  const normalizedPassword = String(password || "");
+  const updateBody = {};
+
+  if (!normalizedAccessToken) throw new Error("Authenticated admin access token is required.");
+
+  if (normalizedPassword) {
+    if (normalizedPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters.");
+    }
+    updateBody.password = normalizedPassword;
+  }
+
+  if (normalizedFullName) {
+    updateBody.data = {
+      full_name: normalizedFullName,
+      fullName: normalizedFullName,
+    };
+  }
+
+  if (!updateBody.password && !updateBody.data) {
+    throw new Error("No account updates were provided.");
+  }
+
+  const user = await callSupabaseAuth("user", {
+    method: "PUT",
+    accessToken: normalizedAccessToken,
+    body: updateBody,
+  });
+
+  return verifyAdminUser(user);
 };
 
 export const formatAdminsOlsSession = (session = {}) => ({

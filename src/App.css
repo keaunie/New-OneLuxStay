@@ -487,7 +487,18 @@ body {
 .chat-concierge__cards {
   margin-top: 10px;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
+}
+
+.chat-concierge__cards-title {
+  margin: 0 0 2px;
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgba(72, 87, 71, 0.88);
+  font-weight: 700;
 }
 
 .chat-concierge__quick-replies {
@@ -513,7 +524,9 @@ body {
 }
 
 .chat-concierge__card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px;
   border-radius: 12px;
   border: 1px solid rgba(93, 73, 57, 0.18);
@@ -545,9 +558,32 @@ body {
 }
 
 .chat-concierge__card-meta {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 0.8rem;
   opacity: 0.76;
+}
+
+.chat-concierge__card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-concierge__card-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(135, 103, 70, 0.28);
+  background: rgba(245, 233, 216, 0.52);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #5d4939;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .chat-concierge__message--user {

@@ -168,7 +168,7 @@ const storeTurn = async ({
   const messages = [userMessage, assistantMessage].filter(Boolean);
   if (!messages.length) return;
 
-  const nowIso = new Date().toISOString();
+  const now = Date.now();
   const rows = messages.map((message, index) => ({
     session_id: sessionId,
     message_id: message.id || `${message.role}-${Date.now()}-${index}`,
@@ -187,7 +187,7 @@ const storeTurn = async ({
       senderName: message.senderName || null,
       senderEmail: message.senderEmail || null,
     },
-    created_at: nowIso,
+    created_at: new Date(now + index).toISOString(),
   }));
 
   await supabaseRestRequest(`${tables.messages}?on_conflict=session_id,message_id`, {
@@ -209,6 +209,11 @@ const sanitizeSyncedMessageRow = (row = {}) => ({
   createdAt: sanitizeString(row?.created_at, 80),
 });
 
+const toTimestamp = (value = "") => {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const fetchSessionMessages = async ({ tables, sessionId, limit = 24 }) => {
   const rows = await supabaseRestRequest(tables.messages, {
     query: {
@@ -220,7 +225,23 @@ const fetchSessionMessages = async ({ tables, sessionId, limit = 24 }) => {
     timeout: 12_000,
   });
 
-  return Array.isArray(rows) ? rows.map(sanitizeSyncedMessageRow).filter((row) => row.id && row.content) : [];
+  if (!Array.isArray(rows)) return [];
+
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftTime = toTimestamp(left?.created_at);
+    const rightTime = toTimestamp(right?.created_at);
+    if (leftTime !== rightTime) return leftTime - rightTime;
+
+    const leftRole = sanitizeString(left?.role, 20) === "user" ? 0 : 1;
+    const rightRole = sanitizeString(right?.role, 20) === "user" ? 0 : 1;
+    if (leftRole !== rightRole) return leftRole - rightRole;
+
+    const leftId = sanitizeId(left?.message_id, 120);
+    const rightId = sanitizeId(right?.message_id, 120);
+    return leftId.localeCompare(rightId);
+  });
+
+  return sortedRows.map(sanitizeSyncedMessageRow).filter((row) => row.id && row.content);
 };
 
 const storeFeedback = async ({
@@ -358,4 +379,3 @@ export async function handler(event) {
     );
   }
 }
-

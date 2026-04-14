@@ -7,6 +7,7 @@ import {
   isAdminsOlsSessionExpired,
   loadAdminsOlsSession,
   refreshAdminsOlsSession,
+  saveAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
 import "./AdminsOlsPage.css";
 
@@ -87,6 +88,18 @@ const shortenId = (value = "", start = 6, end = 4) => {
   if (!text) return "";
   if (text.length <= start + end + 3) return text;
   return `${text.slice(0, start)}...${text.slice(-end)}`;
+};
+
+const getAdminInitials = (admin = {}) => {
+  const fullName = String(admin?.fullName || "").trim();
+  if (fullName) {
+    const words = fullName.split(/\s+/).filter(Boolean);
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
+  }
+  const email = String(admin?.email || "").trim();
+  if (!email) return "AD";
+  return email.slice(0, 2).toUpperCase();
 };
 
 const getConversationLatestUserMessage = (thread = {}) =>
@@ -175,6 +188,9 @@ const formatAdminActivityEventLabel = (value = "") => {
   if (normalized === "lesson_activated") return "Lesson Activated";
   if (normalized === "lesson_deactivated") return "Lesson Deactivated";
   if (normalized === "lesson_deleted") return "Lesson Deleted";
+  if (normalized === "profile_updated") return "Profile Updated";
+  if (normalized === "password_updated") return "Password Updated";
+  if (normalized === "account_updated") return "Account Updated";
   return titleCase(normalized);
 };
 
@@ -201,6 +217,9 @@ const getAdminActivityMetaLine = (item = {}) => {
 
   return parts.join(" | ");
 };
+
+const getLessonActorLabel = (actor = {}) =>
+  actor?.name || actor?.email || "";
 
 const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) => {
   if (!dashboard || !message?.messageId || !threadMeta?.sessionId) return dashboard;
@@ -293,19 +312,24 @@ function AdminsOlsPage() {
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [accountForm, setAccountForm] = useState(() => ({
+    fullName: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  }));
+  const [savingAccount, setSavingAccount] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarDocked, setIsSidebarDocked] = useState(false);
-  const [sidebarDockedStyle, setSidebarDockedStyle] = useState(null);
-  const [sidebarPlaceholderHeight, setSidebarPlaceholderHeight] = useState(0);
-  const sidebarRef = useRef(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activeTabId, setActiveTabId] = useState("overview");
   const threadScrollRef = useRef(null);
-  const sideStickyRef = useRef(null);
   const hasLoggedDashboardOpenRef = useRef(false);
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
   const rollups = dashboard?.rollups || {};
   const currentAdmin = dashboard?.currentAdmin || session?.user || {};
+  const isSharedKeySession = Boolean(session?.sharedKey && !session?.accessToken);
   const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
   const recentSessions = Array.isArray(dashboard?.recentSessions) ? dashboard.recentSessions : [];
   const recentFeedback = Array.isArray(dashboard?.recentFeedback) ? dashboard.recentFeedback : [];
@@ -402,6 +426,13 @@ function AdminsOlsPage() {
     setReplyDraft("");
   }, [selectedConversation?.sessionId]);
 
+  useEffect(() => {
+    setAccountForm((current) => ({
+      ...current,
+      fullName: currentAdmin?.fullName || "",
+    }));
+  }, [currentAdmin?.fullName]);
+
   const performAdminRequest = async ({ method = "GET", payload } = {}, sessionOverride = session) => {
     const activeSession = sessionOverride || session;
     if (!activeSession?.accessToken && !activeSession?.sharedKey) {
@@ -483,58 +514,6 @@ function AdminsOlsPage() {
     return () => window.clearInterval(intervalId);
   }, [session]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const desktopBreakpoint = 1080;
-    let frameId = 0;
-
-    const resetDocking = () => {
-      setIsSidebarDocked(false);
-      setSidebarDockedStyle(null);
-      setSidebarPlaceholderHeight(0);
-    };
-
-    const updateDockedSidebar = () => {
-      frameId = 0;
-
-      const sidebarElement = sidebarRef.current;
-      const stickyElement = sideStickyRef.current;
-
-      if (!sidebarElement || !stickyElement || window.innerWidth <= desktopBreakpoint) {
-        resetDocking();
-        return;
-      }
-
-      const sidebarRect = sidebarElement.getBoundingClientRect();
-      const stickyHeight = stickyElement.offsetHeight || 0;
-
-      setIsSidebarDocked(true);
-      setSidebarPlaceholderHeight(stickyHeight);
-      setSidebarDockedStyle({
-        position: "fixed",
-        top: "1rem",
-        left: `${Math.round(sidebarRect.left)}px`,
-        width: `${Math.round(sidebarRect.width)}px`,
-      });
-    };
-
-    const requestDockUpdate = () => {
-      if (frameId) return;
-      frameId = window.requestAnimationFrame(updateDockedSidebar);
-    };
-
-    requestDockUpdate();
-    window.addEventListener("resize", requestDockUpdate);
-
-    return () => {
-      window.removeEventListener("resize", requestDockUpdate);
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-      }
-    };
-  }, [recentAdminActivity.length]);
-
   const handleAdminAction = async (payload) => performAdminRequest({ method: "POST", payload });
 
   useEffect(() => {
@@ -557,10 +536,8 @@ function AdminsOlsPage() {
   }, [session?.accessToken, session?.sharedKey]);
 
   const handleNavigateToSection = (sectionId = "") => {
-    if (typeof document !== "undefined") {
-      const section = document.getElementById(sectionId);
-      section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    }
+    if (!sectionId) return;
+    setActiveTabId(sectionId);
     setIsSidebarOpen(false);
   };
 
@@ -684,6 +661,96 @@ function AdminsOlsPage() {
     }
   };
 
+  const handleAccountFieldChange = (field) => (event) => {
+    const value = event?.target?.value ?? "";
+    setAccountForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSaveAccount = async (event) => {
+    event.preventDefault();
+    setSavingAccount(true);
+    setError("");
+    setNotice("");
+
+    try {
+      if (isSharedKeySession) {
+        throw new Error("Account updates are disabled for shared-key sessions. Sign in with email/password instead.");
+      }
+
+      const fullName = String(accountForm.fullName || "").trim();
+      const currentPassword = String(accountForm.currentPassword || "");
+      const newPassword = String(accountForm.newPassword || "");
+      const confirmPassword = String(accountForm.confirmPassword || "");
+      const currentFullName = String(currentAdmin?.fullName || "").trim();
+      const shouldUpdateProfile = Boolean(fullName) && fullName !== currentFullName;
+      const shouldUpdatePassword = Boolean(currentPassword || newPassword || confirmPassword);
+
+      if (!shouldUpdateProfile && !shouldUpdatePassword) {
+        throw new Error("No account changes to save.");
+      }
+
+      if (shouldUpdatePassword) {
+        if (!currentPassword) throw new Error("Current password is required.");
+        if (!newPassword) throw new Error("New password is required.");
+        if (newPassword.length < 8) throw new Error("New password must be at least 8 characters.");
+        if (newPassword !== confirmPassword) throw new Error("New password and confirmation do not match.");
+      }
+
+      const response = await handleAdminAction({
+        action: "update_account",
+        fullName: shouldUpdateProfile ? fullName : "",
+        currentPassword: shouldUpdatePassword ? currentPassword : "",
+        newPassword: shouldUpdatePassword ? newPassword : "",
+        confirmPassword: shouldUpdatePassword ? confirmPassword : "",
+      });
+
+      const updatedAdmin = response?.currentAdmin || response?.account?.user || null;
+      if (updatedAdmin?.id) {
+        setSession((currentSession) => {
+          if (!currentSession) return currentSession;
+          const nextSession = saveAdminsOlsSession({
+            ...currentSession,
+            user: {
+              ...(currentSession.user || {}),
+              ...updatedAdmin,
+            },
+          });
+          return nextSession || currentSession;
+        });
+        setDashboard((current) =>
+          current
+            ? {
+                ...current,
+                currentAdmin: {
+                  ...(current.currentAdmin || {}),
+                  ...updatedAdmin,
+                },
+              }
+            : current,
+        );
+      }
+
+      setAccountForm((current) => ({
+        ...current,
+        fullName: updatedAdmin?.fullName || fullName || current.fullName,
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      }));
+
+      setNotice(
+        response?.account?.passwordUpdated
+          ? "Account updated. Password changed successfully."
+          : "Account profile updated.",
+      );
+      await fetchDashboard(session, { silent: true });
+    } catch (requestError) {
+      setError(String(requestError?.message || "Unable to update account."));
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
   const handleLogout = async () => {
     await handleAdminAction({
       action: "log_activity",
@@ -708,6 +775,7 @@ function AdminsOlsPage() {
     { id: "lessons", label: "Lessons" },
     { id: "feedback", label: "Feedback" },
     { id: "assistant-turns", label: "Assistant Turns" },
+    { id: "account", label: "Account" },
   ];
 
   if (!session?.accessToken && !session?.sharedKey) {
@@ -729,62 +797,105 @@ function AdminsOlsPage() {
           </button>
           <div>
             <strong>Admin Navigation</strong>
-            <small>{isSuperAdmin ? "Quick jump, admin tools, and superadmin audit access" : "Quick jump and admin tools"}</small>
+            <small>
+              {isSuperAdmin
+                ? "Profile menu, admin tools, and superadmin logs"
+                : "Profile menu and admin tools"}
+            </small>
           </div>
         </div>
 
-        <div className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}`}>
+        <div
+          className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}${
+            isSidebarCollapsed ? " is-sidebar-collapsed" : ""
+          }`}
+        >
           <aside
             id="admins-ols-sidebar"
-            className={`admins-ols-sidebar${isSidebarDocked ? " is-docked" : ""}`}
-            aria-label="Admin navigation and activity"
-            ref={sidebarRef}
-            style={isSidebarDocked && sidebarPlaceholderHeight ? { minHeight: `${sidebarPlaceholderHeight}px` } : undefined}
+            className="admins-ols-sidebar"
+            aria-label="Admin profile and workspace tools"
           >
-            <div
-              className={`admins-ols-side-sticky${isSidebarDocked ? " is-docked" : ""}`}
-              ref={sideStickyRef}
-              style={sidebarDockedStyle || undefined}
-            >
-              <section className="admins-ols-side-section">
-                <p className="admins-ols-eyebrow">Admin Access</p>
-                <h2>{currentAdmin.fullName || currentAdmin.email || "Admin"}</h2>
-                <p className="admins-ols-note">
-                  Signed in with {session?.sharedKey ? "shared key access" : "Supabase authentication"}.
-                </p>
-              </section>
-
-              <section className="admins-ols-side-section">
+            <div className="admins-ols-side-sticky">
+              <section className="admins-ols-side-section admins-ols-side-section--profile">
                 <div className="admins-ols-card-head">
-                  <h3>Quick Jump</h3>
+                  <h3>Profile & Tools</h3>
+                  <button
+                    type="button"
+                    className="admins-ols-sidebar-toggle admins-ols-sidebar-toggle--inside"
+                    onClick={() => setIsSidebarCollapsed(true)}
+                    aria-controls="admins-ols-sidebar"
+                    aria-expanded
+                    aria-label="Collapse sidebar"
+                    title="Collapse sidebar"
+                  >
+                    <span aria-hidden="true">«</span>
+                  </button>
                 </div>
-                <div className="admins-ols-side-nav">
-                  {navItems.map((item) => (
-                    <button key={item.id} type="button" onClick={() => handleNavigateToSection(item.id)}>
-                      {item.label}
-                    </button>
-                  ))}
+                <div className="admins-ols-profile-card">
+                  <div className="admins-ols-profile-head">
+                    <div className="admins-ols-profile-avatar">{getAdminInitials(currentAdmin)}</div>
+                    <div className="admins-ols-profile-meta">
+                      <strong>{currentAdmin.fullName || currentAdmin.email || "Admin"}</strong>
+                      <small>{currentAdmin.email || "No email available"}</small>
+                    </div>
+                  </div>
+                  <div className="admins-ols-badge-row">
+                    <span className={`admins-ols-badge ${isSuperAdmin ? "is-active" : "is-neutral"}`}>
+                      {isSuperAdmin ? "Superadmin" : "Admin"}
+                    </span>
+                    <span className="admins-ols-pill">
+                      {isSharedKeySession ? "Shared Key Session" : "Supabase Auth"}
+                    </span>
+                  </div>
+                  <p className="admins-ols-note">
+                    Tabs above control content. Use this menu for account and logs.
+                  </p>
+                </div>
+                <div className="admins-ols-profile-actions">
+                  <button
+                    type="button"
+                    className="admins-ols-profile-action"
+                    onClick={() => handleNavigateToSection("account")}
+                  >
+                    Account Settings
+                  </button>
                   {isSuperAdmin && (
-                    <Link className="admins-ols-side-nav-link" to="/admins-ols/audit">
+                    <Link className="admins-ols-profile-action" to="/admins-ols/audit">
                       <span>Superadmin Audit Log</span>
-                      <span className="admins-ols-side-nav-count">
-                        {recentAdminActivity.length || "Go"}
-                      </span>
+                      <span className="admins-ols-side-nav-count">{recentAdminActivity.length || "Go"}</span>
                     </Link>
                   )}
-                  <Link className="admins-ols-side-nav-link" to="/admins-ols/guest-journeys">
+                  <Link className="admins-ols-profile-action" to="/admins-ols/guest-journeys">
                     <span>Guest Journey Log</span>
-                    <span className="admins-ols-side-nav-count">
-                      {recentGuestJourneyEvents.length || "Go"}
-                    </span>
+                    <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
                   </Link>
+                  <button
+                    type="button"
+                    className="admins-ols-profile-action is-danger"
+                    onClick={handleLogout}
+                  >
+                    Sign Out
+                  </button>
                 </div>
               </section>
             </div>
           </aside>
 
           <main className="admins-ols-main">
-            <header id="overview" className="admins-ols-hero">
+            {isSidebarCollapsed && (
+              <button
+                type="button"
+                className="admins-ols-sidebar-toggle admins-ols-sidebar-toggle--collapsed"
+                onClick={() => setIsSidebarCollapsed(false)}
+                aria-controls="admins-ols-sidebar"
+                aria-expanded={false}
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+              >
+                <span aria-hidden="true">»</span>
+              </button>
+            )}
+            <header className="admins-ols-hero">
               <div className="admins-ols-hero-content">
                 <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
                 <h1>Concierge Intelligence Panel</h1>
@@ -798,11 +909,15 @@ function AdminsOlsPage() {
                 </p>
               </div>
               <div className="admins-ols-toolbar">
-                <button type="button" onClick={handleManualRefresh} disabled={loading}>
-                  {loading ? "Refreshing..." : "Refresh"}
-                </button>
-                <button type="button" className="is-secondary" onClick={handleLogout}>
-                  Sign Out
+                <button
+                  type="button"
+                  className="admins-ols-toolbar-icon-btn"
+                  onClick={handleManualRefresh}
+                  disabled={loading}
+                  aria-label={loading ? "Refreshing dashboard" : "Refresh dashboard"}
+                  title={loading ? "Refreshing..." : "Refresh dashboard"}
+                >
+                  {loading ? "…" : "↻"}
                 </button>
               </div>
             </header>
@@ -810,7 +925,32 @@ function AdminsOlsPage() {
             {notice && <div className="admins-ols-banner">{notice}</div>}
             {error && <div className="admins-ols-error">{error}</div>}
 
-            <section className="admins-ols-grid admins-ols-grid--stats">
+            <section className="admins-ols-card admins-ols-tabs-card" aria-label="Admin panel tabs">
+              <div className="admins-ols-tablist" role="tablist" aria-label="Admin dashboard sections">
+                {navItems.map((item) => (
+                  <button
+                    key={`tab-${item.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTabId === item.id}
+                    aria-controls={`panel-${item.id}`}
+                    id={`tab-${item.id}`}
+                    className={`admins-ols-tab${activeTabId === item.id ? " is-active" : ""}`}
+                    onClick={() => handleNavigateToSection(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section
+              id="panel-overview"
+              role="tabpanel"
+              aria-labelledby="tab-overview"
+              hidden={activeTabId !== "overview"}
+              className="admins-ols-grid admins-ols-grid--stats"
+            >
           <article className="admins-ols-card admins-ols-stat">
             <span>Total Sessions</span>
             <strong>{overview.sessionsTotal ?? "--"}</strong>
@@ -835,7 +975,13 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section id="system" className="admins-ols-grid admins-ols-grid--two">
+        <section
+          id="panel-system"
+          role="tabpanel"
+          aria-labelledby="tab-system"
+          hidden={activeTabId !== "system"}
+          className="admins-ols-grid admins-ols-grid--two"
+        >
           <article className="admins-ols-card">
             <div className="admins-ols-card-head">
               <h2>AI System Status</h2>
@@ -936,7 +1082,13 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section id="guest-interest" className="admins-ols-grid admins-ols-grid--two">
+        <section
+          id="panel-guest-interest"
+          role="tabpanel"
+          aria-labelledby="tab-guest-interest"
+          hidden={activeTabId !== "guest-interest"}
+          className="admins-ols-grid admins-ols-grid--two"
+        >
           <article className="admins-ols-card admins-ols-stat">
             <span>Guest Journey Events</span>
             <strong>{overview.guestJourneyEventsTotal ?? 0}</strong>
@@ -976,7 +1128,13 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section id="conversations" className="admins-ols-card">
+        <section
+          id="panel-conversations"
+          role="tabpanel"
+          aria-labelledby="tab-conversations"
+          hidden={activeTabId !== "conversations"}
+          className="admins-ols-card"
+        >
           <div className="admins-ols-card-head">
             <h2>Recent Conversations</h2>
             <span className="admins-ols-pill">{recentConversations.length} sessions</span>
@@ -1111,7 +1269,13 @@ function AdminsOlsPage() {
           </div>
         </section>
 
-        <section id="lessons" className="admins-ols-grid admins-ols-grid--two">
+        <section
+          id="panel-lessons"
+          role="tabpanel"
+          aria-labelledby="tab-lessons"
+          hidden={activeTabId !== "lessons"}
+          className="admins-ols-grid admins-ols-grid--two"
+        >
           <article className="admins-ols-card admins-ols-card--teacher">
             <div className="admins-ols-card-head">
               <h2>Teach AI Sentiment</h2>
@@ -1221,8 +1385,11 @@ function AdminsOlsPage() {
               {sentimentLessons.length === 0 && (
                 <p className="admins-ols-empty">No sentiment lessons yet. Add the first lesson from the form.</p>
               )}
-              {sentimentLessons.map((lesson) => (
-                <article key={lesson.id} className="admins-ols-lesson">
+              {sentimentLessons.map((lesson) => {
+                const submittedBy = getLessonActorLabel(lesson.createdBy);
+                const updatedBy = getLessonActorLabel(lesson.updatedBy);
+                return (
+                  <article key={lesson.id} className="admins-ols-lesson">
                   <div className="admins-ols-lesson-head">
                     <div className="admins-ols-lesson-head-main">
                       <h3>{lesson.title}</h3>
@@ -1285,15 +1452,27 @@ function AdminsOlsPage() {
                     )}
                   </div>
                   <div className="admins-ols-lesson-footer">
+                    <small>
+                      Submitted by {submittedBy || "legacy record"} on{" "}
+                      {formatDateTime(lesson.createdAt)}
+                    </small>
                     <small>Updated {formatDateTime(lesson.updatedAt)}</small>
+                    {updatedBy && <small>Last updated by {updatedBy}</small>}
                   </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           </article>
         </section>
 
-        <section id="feedback" className="admins-ols-grid admins-ols-grid--two">
+        <section
+          id="panel-feedback"
+          role="tabpanel"
+          aria-labelledby="tab-feedback"
+          hidden={activeTabId !== "feedback"}
+          className="admins-ols-grid admins-ols-grid--two"
+        >
           <article className="admins-ols-card">
             <div className="admins-ols-card-head">
               <h2>Recent Feedback</h2>
@@ -1353,7 +1532,13 @@ function AdminsOlsPage() {
           </article>
         </section>
 
-        <section id="assistant-turns" className="admins-ols-card">
+        <section
+          id="panel-assistant-turns"
+          role="tabpanel"
+          aria-labelledby="tab-assistant-turns"
+          hidden={activeTabId !== "assistant-turns"}
+          className="admins-ols-card"
+        >
           <div className="admins-ols-card-head">
             <h2>Recent Assistant Turns</h2>
             <span className="admins-ols-pill">{recentAssistantMessages.length} turns</span>
@@ -1378,6 +1563,98 @@ function AdminsOlsPage() {
             ))}
             {!recentAssistantMessages.length && <p className="admins-ols-empty">No assistant turns found yet.</p>}
           </div>
+        </section>
+
+        <section
+          id="panel-account"
+          role="tabpanel"
+          aria-labelledby="tab-account"
+          hidden={activeTabId !== "account"}
+          className="admins-ols-grid admins-ols-grid--two"
+        >
+          <article className="admins-ols-card">
+            <div className="admins-ols-card-head">
+              <h2>Account Settings</h2>
+              <span className="admins-ols-pill">
+                {isSharedKeySession ? "Shared Key Session" : "Supabase Auth"}
+              </span>
+            </div>
+            <p className="admins-ols-copy">
+              Update your admin profile details and password from this tab.
+            </p>
+            <form className="admins-ols-form" onSubmit={handleSaveAccount}>
+              <label>
+                Full name
+                <input
+                  type="text"
+                  value={accountForm.fullName}
+                  onChange={handleAccountFieldChange("fullName")}
+                  placeholder="Your full name"
+                  disabled={savingAccount || isSharedKeySession}
+                  autoComplete="name"
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={currentAdmin?.email || ""}
+                  disabled
+                  readOnly
+                  autoComplete="email"
+                />
+              </label>
+              <label>
+                Current password
+                <input
+                  type="password"
+                  value={accountForm.currentPassword}
+                  onChange={handleAccountFieldChange("currentPassword")}
+                  placeholder="Required to change password"
+                  disabled={savingAccount || isSharedKeySession}
+                  autoComplete="current-password"
+                />
+              </label>
+              <label>
+                New password
+                <input
+                  type="password"
+                  value={accountForm.newPassword}
+                  onChange={handleAccountFieldChange("newPassword")}
+                  placeholder="At least 8 characters"
+                  disabled={savingAccount || isSharedKeySession}
+                  autoComplete="new-password"
+                />
+              </label>
+              <label>
+                Confirm new password
+                <input
+                  type="password"
+                  value={accountForm.confirmPassword}
+                  onChange={handleAccountFieldChange("confirmPassword")}
+                  placeholder="Re-enter new password"
+                  disabled={savingAccount || isSharedKeySession}
+                  autoComplete="new-password"
+                />
+              </label>
+              <button type="submit" disabled={savingAccount || isSharedKeySession}>
+                {savingAccount ? "Saving account..." : "Save Account Changes"}
+              </button>
+            </form>
+          </article>
+
+          <article className="admins-ols-card admins-ols-stat">
+            <span>Security Notes</span>
+            <strong>{isSharedKeySession ? "Limited Mode" : "Full Account Access"}</strong>
+            <small>
+              {isSharedKeySession
+                ? "Shared key sessions cannot update profile or password. Sign in with email/password to manage your account."
+                : "Password changes require your current password and are applied to your Supabase admin account immediately."}
+            </small>
+            <small>
+              Last dashboard sync: {dashboard?.generatedAt ? formatDateTime(dashboard.generatedAt) : "Unknown"}
+            </small>
+          </article>
         </section>
           </main>
         </div>

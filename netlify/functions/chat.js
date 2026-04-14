@@ -68,7 +68,7 @@ const getSupportedCities = (knowledge) =>
     .filter(Boolean);
 
 const buildSiteContext = (supportedCities = []) => `
-You are the AI Concierge for One Lux Stay, a modern aparthotel hospitality brand.
+You are Lucy, the AI concierge for One Lux Stay, a modern aparthotel hospitality brand.
 
 Supported city pages on this website include ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}, plus a global listings view.
 
@@ -510,15 +510,15 @@ const buildKnowledgeText = (conciergeKnowledge) => {
 const fallbackNoticeFromReason = (reason) => {
   switch (reason) {
     case "missing_api_key":
-      return "Live AI is not configured yet.";
+      return "";
     case "insufficient_quota":
-      return "Live AI billing needs credits.";
+      return "";
     case "rate_limit":
-      return "Live AI is busy right now.";
+      return "";
     case "timeout":
-      return "Live AI timed out.";
+      return "";
     default:
-      return "Live AI is temporarily unavailable.";
+      return "";
   }
 };
 
@@ -589,13 +589,23 @@ const isBookingStatusQuestion = (text = "") => {
   const hasBookingContext = /\b(booking|reservation|confirmation)\b/i.test(source);
   if (!hasBookingContext) return false;
 
-  if (/\b(my booking|my reservation|reservation status|booking status)\b/i.test(source)) {
+  if (
+    /\b(my booking|my reservation|our booking|our reservation|reservation status|booking status|another reservation|other reservation|different reservation)\b/i.test(
+      source,
+    )
+  ) {
     return true;
   }
 
-  const hasStatusIntent = /\b(status|confirmed|track|lookup|find|where is|check my)\b/i.test(source);
+  const hasStatusIntent =
+    /\b(status|confirmed|track|lookup|find|where is|check my|check this|check that|check another|check other)\b/i.test(
+      source,
+    );
   const hasCodeReference = /\b(code|id|number|res\.?)\b/i.test(source);
-  return hasStatusIntent || hasCodeReference;
+  const hasCheckVerbWithBookingObject =
+    /\b(check|lookup|find|track|show)\b/i.test(source) &&
+    /\b(booking|reservation|confirmation)\b/i.test(source);
+  return hasStatusIntent || hasCodeReference || hasCheckVerbWithBookingObject;
 };
 
 const hasExistingBookingContext = (text = "") =>
@@ -605,11 +615,47 @@ const hasExistingBookingContext = (text = "") =>
 
 const parseGuestsFromText = (text = "") => {
   const source = String(text || "").toLowerCase();
-  const match = source.match(/\b(\d{1,2})\s*(guest|guests|adult|adults|people|pax|person)\b/);
-  if (!match) return null;
-  const parsed = Number(match[1]);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.min(16, parsed);
+  const parseCount = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.min(16, parsed);
+  };
+
+  const numericMatch = source.match(
+    /\b(\d{1,2})\s*(guest|guests|adult|adults|people|pax|person|persons|traveler|travelers|traveller|travellers)\b/,
+  );
+  if (numericMatch) {
+    return parseCount(numericMatch[1]);
+  }
+
+  const partyMatch = source.match(/\bparty of\s+(\d{1,2})\b/);
+  if (partyMatch) {
+    return parseCount(partyMatch[1]);
+  }
+
+  const wordToNumber = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12,
+  };
+  const wordMatch = source.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(guest|guests|adult|adults|people|pax|person|persons|traveler|travelers|traveller|travellers)\b/,
+  );
+  if (wordMatch) {
+    const mapped = wordToNumber[wordMatch[1]];
+    return parseCount(mapped);
+  }
+
+  return null;
 };
 
 const extractBedroomPreferenceFromText = (text = "") => {
@@ -1509,7 +1555,10 @@ const extractListingImageUrls = (listing = {}, limit = 3) => {
 
 const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge, supportedCities }) => {
   const prompt = String(latestUserMessage?.content || "").toLowerCase();
-  const city = pageContext.city || "One Lux Stay";
+  const cityFromPrompt = normalizeCityLabel(extractCityHintFromPrompt(prompt, supportedCities));
+  const pageCity = normalizeCityLabel(pageContext.city || "");
+  const effectiveCity = cityFromPrompt || pageCity;
+  const city = effectiveCity || "One Lux Stay";
   const onListingPage = pageContext.pageType === "listing";
   const onCityPage = pageContext.pageType === "city";
   const visibleCities = supportedCities.length
@@ -1525,6 +1574,10 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       return "You can usually book directly from this listing page by choosing dates, guest count, reviewing the stay details, and continuing through checkout. If anything looks unclear, I recommend double-checking the listing details and then contacting the One Lux Stay team for confirmation.";
     }
 
+    if (effectiveCity) {
+      return `Great choice. I can help with booking in ${effectiveCity}. Share your check-in and check-out dates plus guest count, and I’ll guide you to the best next step.`;
+    }
+
     return conciergeKnowledge.brand.bookingSummary
       ? `${conciergeKnowledge.brand.bookingSummary} If you are still deciding, I can help narrow down which city page to start from.`
       : "You can book by choosing a city or listing, selecting your dates and guest count, reviewing the stay details, and continuing through checkout on the site. If you are still deciding, I can help narrow down which city page to start from.";
@@ -1537,6 +1590,10 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
 
     if (onCityPage) {
       return `You are on the ${city} page now. If you want help choosing, tell me your trip type, guest count, and whether you care most about location, style, or space, and I can guide you from there.`;
+    }
+
+    if (effectiveCity) {
+      return `Great choice on ${effectiveCity}. Share your check-in and check-out dates plus guest count, and I can guide you to the best next booking step.`;
     }
 
     return "A good place to start is by choosing a city first: Antwerp, Los Angeles, Miami, Redondo Beach, or Dubai. Once you know the destination, I can help point you toward the right page and booking flow.";
@@ -1554,7 +1611,7 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
     return conciergeKnowledge.pageGuidance?.home || "You are on a general One Lux Stay page. From here, you can browse city pages, explore listings, and continue into booking.";
   }
 
-  return `I can still help with the basics while the live AI service is unavailable. One Lux Stay currently features stays in ${visibleCities.join(", ")}${city && city !== "One Lux Stay" && city !== "Global" ? `, and you are currently browsing ${city}` : ""}. Ask me about cities, booking steps, or how to use the page you are on.`;
+  return `I can help with the basics right now. One Lux Stay currently features stays in ${visibleCities.join(", ")}${city && city !== "One Lux Stay" && city !== "Global" ? `, and you are currently browsing ${city}` : ""}. Ask me about cities, booking steps, or how to use the page you are on.`;
 };
 
 const fallbackResponse = ({
@@ -1619,7 +1676,7 @@ const buildInput = ({
     "Conversation so far:",
     formatTranscript(messages),
     "",
-    "Reply to the latest user message as the One Lux Stay AI concierge.",
+    "Reply to the latest user message as Lucy, the One Lux Stay concierge.",
   ].join("\n");
 };
 
@@ -2460,29 +2517,32 @@ const buildMonthAvailabilityReply = ({
     return `I checked available check-in dates in ${label} (${safeGuests} guest${safeGuests > 1 ? "s" : ""}) and could not find open units in the current search scope. If you want, I can try a different month or guest count.`;
   }
 
+  const preview = matches.slice(0, 3);
   const lines = [
     `I checked available check-in dates in ${label} for ${safeGuests} guest${safeGuests > 1 ? "s" : ""}.`,
+    `I found ${matches.length} unit${matches.length > 1 ? "s" : ""} with open dates.`,
     "",
   ];
 
-  matches.forEach((item, index) => {
+  preview.forEach((item, index) => {
     const title = sanitizeString(item?.title, 220) || `Unit ${item?.id || index + 1}`;
     const city = sanitizeString(item?.city, 120);
-    const url = sanitizeString(item?.url, 500);
     const ranges = formatAvailabilityDateRanges(item?.availableDates, 8) || "No open dates found";
 
-    lines.push(`${index + 1}. ${title}${city ? ` (${city})` : ""}`);
-    lines.push(`Available dates: ${ranges}`);
-    if (url) lines.push(url);
-    lines.push("");
+    lines.push(`- ${title}${city ? ` (${city})` : ""}: ${ranges}`);
   });
+
+  if (matches.length > preview.length) {
+    lines.push(`- +${matches.length - preview.length} more option${matches.length - preview.length > 1 ? "s" : ""} shown below`);
+  }
 
   if (searched > matches.length) {
     lines.push(`I checked ${searched} candidate unit${searched > 1 ? "s" : ""}.`);
-    lines.push("");
   }
 
-  lines.push("These are current check-in date signals and can still be affected by minimum-night rules.");
+  lines.push("");
+  lines.push("Open any card below to view photos and continue booking.");
+  lines.push("These date signals can still be affected by minimum-night rules.");
   return lines.join("\n");
 };
 
@@ -2495,23 +2555,27 @@ const buildAvailabilityLinksReply = ({ checkIn, checkOut, guests, bedroomPrefere
     return `I checked ${roomLabel}availability for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}) and I could not find a match right now. If you want, I can try another date range or show the best options with no room preference.`;
   }
 
+  const preview = matches.slice(0, 3);
   const lines = [
     `Great news. I found ${matches.length} available ${roomLabel}unit${matches.length > 1 ? "s" : ""} for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}).`,
-    "",
   ];
-  matches.forEach((item, index) => {
+
+  lines.push("");
+  preview.forEach((item, index) => {
     const title = sanitizeString(item?.title, 220) || `Unit ${item?.id || index + 1}`;
     const city = sanitizeString(item?.city, 120);
-    const url = sanitizeString(item?.url, 500);
-    lines.push(`${index + 1}. ${title}${city ? ` (${city})` : ""}`);
-    if (url) lines.push(url);
+    lines.push(`- ${title}${city ? ` (${city})` : ""}`);
   });
+
+  if (matches.length > preview.length) {
+    lines.push(`- +${matches.length - preview.length} more option${matches.length - preview.length > 1 ? "s" : ""} shown below`);
+  }
+
   if (searched > matches.length) {
-    lines.push("");
     lines.push(`I checked ${searched} candidate unit${searched > 1 ? "s" : ""}.`);
   }
   lines.push("");
-  lines.push("Open any link above to view the unit information page and continue booking.");
+  lines.push("Open any card below to view details and continue booking.");
   return lines.join("\n");
 };
 

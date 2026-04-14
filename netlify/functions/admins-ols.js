@@ -11,7 +11,11 @@ import {
   getSupabaseConfig,
   supabaseRestRequest,
 } from "./_shared/supabaseClient.js";
-import { verifyAdminsOlsAccess } from "./_shared/adminsOlsAuth.js";
+import {
+  updateAdminsOlsUserAccount,
+  verifyAdminsOlsAccess,
+  verifyAdminsOlsPassword,
+} from "./_shared/adminsOlsAuth.js";
 
 dotenv.config();
 
@@ -52,6 +56,11 @@ const normalizeGuestEventType = (value = "") => {
   }
   return "";
 };
+
+const LESSON_SELECT_BASE =
+  "id,title,sentiment_label,trigger_text,response_guidance,example_user_message,example_assistant_style,admin_notes,active,created_at,updated_at";
+const LESSON_SELECT_WITH_ACTOR =
+  `${LESSON_SELECT_BASE},created_by_id,created_by_email,created_by_name,updated_by_id,updated_by_email,updated_by_name`;
 
 const getAdminHeaders = (event = {}) => ({
   ...buildAiCorsHeaders(event),
@@ -204,6 +213,16 @@ const sanitizeLessonRow = (row = {}) => ({
   exampleAssistantStyle: sanitizeString(row?.example_assistant_style, 500),
   adminNotes: sanitizeString(row?.admin_notes, 700),
   active: Boolean(row?.active),
+  createdBy: {
+    id: sanitizeId(row?.created_by_id, 120),
+    email: sanitizeString(row?.created_by_email, 160).toLowerCase(),
+    name: sanitizeString(row?.created_by_name, 160),
+  },
+  updatedBy: {
+    id: sanitizeId(row?.updated_by_id, 120),
+    email: sanitizeString(row?.updated_by_email, 160).toLowerCase(),
+    name: sanitizeString(row?.updated_by_name, 160),
+  },
   createdAt: sanitizeString(row?.created_at, 80),
   updatedAt: sanitizeString(row?.updated_at, 80),
 });
@@ -297,6 +316,73 @@ const safeLogAdminsOlsActivity = async (input) => {
     await logAdminsOlsActivity(input);
   } catch {
     // Audit logging should not block admin workflows.
+  }
+};
+
+const isMissingLessonActorColumnsError = (error) => {
+  const message = sanitizeString(error?.message || "", 500).toLowerCase();
+  const mentionsActorColumns = message.includes("created_by_") || message.includes("updated_by_");
+  if (!mentionsActorColumns) return false;
+  return (
+    message.includes("does not exist") ||
+    message.includes("schema cache") ||
+    message.includes("could not find")
+  );
+};
+
+const buildLessonActorFields = (adminUser = {}) => {
+  const actorId = sanitizeId(adminUser?.id, 120);
+  const actorEmail = sanitizeString(adminUser?.email, 160).toLowerCase();
+  const actorName = sanitizeString(
+    adminUser?.fullName || adminUser?.name || adminUser?.email || "",
+    160,
+  );
+
+  return {
+    created_by_id: actorId || null,
+    created_by_email: actorEmail || null,
+    created_by_name: actorName || null,
+    updated_by_id: actorId || null,
+    updated_by_email: actorEmail || null,
+    updated_by_name: actorName || null,
+  };
+};
+
+const buildLessonUpdaterFields = (adminUser = {}) => {
+  const actorId = sanitizeId(adminUser?.id, 120);
+  const actorEmail = sanitizeString(adminUser?.email, 160).toLowerCase();
+  const actorName = sanitizeString(
+    adminUser?.fullName || adminUser?.name || adminUser?.email || "",
+    160,
+  );
+
+  return {
+    updated_by_id: actorId || null,
+    updated_by_email: actorEmail || null,
+    updated_by_name: actorName || null,
+  };
+};
+
+const fetchSentimentLessonsRaw = async (tables) => {
+  try {
+    return await supabaseRestRequest(tables.sentiment, {
+      query: {
+        select: LESSON_SELECT_WITH_ACTOR,
+        order: "updated_at.desc",
+        limit: "40",
+      },
+      timeout: 12_000,
+    });
+  } catch (error) {
+    if (!isMissingLessonActorColumnsError(error)) throw error;
+    return supabaseRestRequest(tables.sentiment, {
+      query: {
+        select: LESSON_SELECT_BASE,
+        order: "updated_at.desc",
+        limit: "40",
+      },
+      timeout: 12_000,
+    });
   }
 };
 
@@ -410,14 +496,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
       },
       timeout: 12_000,
     }),
-    supabaseRestRequest(tables.sentiment, {
-      query: {
-        select: "id,title,sentiment_label,trigger_text,response_guidance,example_user_message,example_assistant_style,admin_notes,active,created_at,updated_at",
-        order: "updated_at.desc",
-        limit: "40",
-      },
-      timeout: 12_000,
-    }),
+    fetchSentimentLessonsRaw(tables),
     supabaseRestRequest(tables.guestCityClicks, {
       query: {
         select: "id,session_id,event_type,city,listing_id,listing_title,destination_path,source_section,source_label,pathname,page_type,source_origin,created_at",
@@ -519,7 +598,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
   };
 };
 
-const createLesson = async (payload, tables) => {
+const createLesson = async (payload, tables, adminUser = {}) => {
   const title = sanitizeString(payload?.title, 180);
   const sentimentLabel = normalizeSentimentLabel(payload?.sentimentLabel);
   const responseGuidance = sanitizeString(payload?.responseGuidance, 1000);
@@ -533,41 +612,74 @@ const createLesson = async (payload, tables) => {
   if (!sentimentLabel) throw new Error("Sentiment label must be positive, neutral, or negative.");
   if (!responseGuidance) throw new Error("Response guidance is required.");
 
-  const rows = await supabaseRestRequest(tables.sentiment, {
-    method: "POST",
-    body: [
-      {
-        title,
-        sentiment_label: sentimentLabel,
-        trigger_text: triggerText || null,
-        response_guidance: responseGuidance,
-        example_user_message: exampleUserMessage || null,
-        example_assistant_style: exampleAssistantStyle || null,
-        admin_notes: adminNotes || null,
-        active,
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    prefer: "return=representation",
-    timeout: 12_000,
-  });
+  const nowIso = new Date().toISOString();
+  const baseRow = {
+    title,
+    sentiment_label: sentimentLabel,
+    trigger_text: triggerText || null,
+    response_guidance: responseGuidance,
+    example_user_message: exampleUserMessage || null,
+    example_assistant_style: exampleAssistantStyle || null,
+    admin_notes: adminNotes || null,
+    active,
+    updated_at: nowIso,
+  };
+
+  let rows;
+  try {
+    rows = await supabaseRestRequest(tables.sentiment, {
+      method: "POST",
+      body: [
+        {
+          ...baseRow,
+          ...buildLessonActorFields(adminUser),
+        },
+      ],
+      prefer: "return=representation",
+      timeout: 12_000,
+    });
+  } catch (error) {
+    if (!isMissingLessonActorColumnsError(error)) throw error;
+    rows = await supabaseRestRequest(tables.sentiment, {
+      method: "POST",
+      body: [baseRow],
+      prefer: "return=representation",
+      timeout: 12_000,
+    });
+  }
 
   return sanitizeLessonRow(Array.isArray(rows) ? rows[0] : {});
 };
 
-const updateLessonActive = async (payload, tables) => {
+const updateLessonActive = async (payload, tables, adminUser = {}) => {
   const lessonId = sanitizeId(payload?.lessonId, 120);
   if (!lessonId) throw new Error("lessonId is required.");
 
-  const rows = await supabaseRestRequest(`${tables.sentiment}?id=eq.${encodeURIComponent(lessonId)}`, {
-    method: "PATCH",
-    body: {
-      active: Boolean(payload?.active),
-      updated_at: new Date().toISOString(),
-    },
-    prefer: "return=representation",
-    timeout: 12_000,
-  });
+  const basePatch = {
+    active: Boolean(payload?.active),
+    updated_at: new Date().toISOString(),
+  };
+
+  let rows;
+  try {
+    rows = await supabaseRestRequest(`${tables.sentiment}?id=eq.${encodeURIComponent(lessonId)}`, {
+      method: "PATCH",
+      body: {
+        ...basePatch,
+        ...buildLessonUpdaterFields(adminUser),
+      },
+      prefer: "return=representation",
+      timeout: 12_000,
+    });
+  } catch (error) {
+    if (!isMissingLessonActorColumnsError(error)) throw error;
+    rows = await supabaseRestRequest(`${tables.sentiment}?id=eq.${encodeURIComponent(lessonId)}`, {
+      method: "PATCH",
+      body: basePatch,
+      prefer: "return=representation",
+      timeout: 12_000,
+    });
+  }
 
   return sanitizeLessonRow(Array.isArray(rows) ? rows[0] : {});
 };
@@ -693,6 +805,54 @@ const createAdminReply = async (payload, tables, adminUser = {}) => {
   return sanitizeConversationMessageRow(Array.isArray(rows) ? rows[0] : {});
 };
 
+const updateAccountSettings = async (payload = {}, adminAccess = {}) => {
+  if (adminAccess?.mode !== "supabase_auth") {
+    const error = new Error("Account updates require signing in with email/password.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const accessToken = sanitizeString(adminAccess?.accessToken, 4000);
+  const fullName = sanitizeString(payload?.fullName, 160);
+  const currentPassword = String(payload?.currentPassword || "");
+  const newPassword = String(payload?.newPassword || "");
+  const confirmPassword = String(payload?.confirmPassword || "");
+  const shouldUpdatePassword = Boolean(newPassword || confirmPassword || currentPassword);
+  const shouldUpdateProfile = Boolean(fullName);
+  const email = sanitizeString(adminAccess?.user?.email, 320).toLowerCase();
+
+  if (!shouldUpdateProfile && !shouldUpdatePassword) {
+    throw new Error("No account changes were provided.");
+  }
+
+  if (shouldUpdatePassword) {
+    if (!email) throw new Error("Unable to verify your current account email.");
+    if (!currentPassword) throw new Error("Current password is required.");
+    if (!newPassword) throw new Error("New password is required.");
+    if (newPassword.length < 8) throw new Error("New password must be at least 8 characters.");
+    if (newPassword !== confirmPassword) {
+      throw new Error("New password and confirmation do not match.");
+    }
+
+    await verifyAdminsOlsPassword({
+      email,
+      password: currentPassword,
+    });
+  }
+
+  const user = await updateAdminsOlsUserAccount({
+    accessToken,
+    fullName: shouldUpdateProfile ? fullName : "",
+    password: shouldUpdatePassword ? newPassword : "",
+  });
+
+  return {
+    user,
+    profileUpdated: shouldUpdateProfile,
+    passwordUpdated: shouldUpdatePassword,
+  };
+};
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: getAdminHeaders(event), body: "" };
@@ -724,7 +884,7 @@ export async function handler(event) {
 
     const action = sanitizeString(payload?.action, 60).toLowerCase();
     if (action === "create_lesson") {
-      const lesson = await createLesson(payload, tables);
+      const lesson = await createLesson(payload, tables, adminAccess.user);
       await safeLogAdminsOlsActivity({
         event,
         actor: adminAccess.user,
@@ -741,7 +901,7 @@ export async function handler(event) {
     }
 
     if (action === "set_lesson_active") {
-      const lesson = await updateLessonActive(payload, tables);
+      const lesson = await updateLessonActive(payload, tables, adminAccess.user);
       await safeLogAdminsOlsActivity({
         event,
         actor: adminAccess.user,
@@ -794,6 +954,40 @@ export async function handler(event) {
       );
     }
 
+    if (action === "update_account") {
+      const account = await updateAccountSettings(payload, adminAccess);
+      const accountEventType =
+        account.profileUpdated && account.passwordUpdated
+          ? "account_updated"
+          : account.passwordUpdated
+            ? "password_updated"
+            : "profile_updated";
+
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: account.user,
+        authMode: adminAccess.mode,
+        eventType: accountEventType,
+        message: account.passwordUpdated
+          ? "Updated admin account profile and password."
+          : "Updated admin account profile.",
+        details: {
+          profileUpdated: account.profileUpdated,
+          passwordUpdated: account.passwordUpdated,
+        },
+      });
+
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          currentAdmin: account.user,
+          account,
+        },
+        event,
+      );
+    }
+
     if (action === "get_admin_activity") {
       return jsonResponse(
         200,
@@ -832,8 +1026,9 @@ export async function handler(event) {
 
     return jsonResponse(400, { error: "Unsupported action" }, event);
   } catch (error) {
+    const statusCode = Number(error?.statusCode);
     return jsonResponse(
-      500,
+      statusCode >= 400 && statusCode < 600 ? statusCode : 500,
       { error: sanitizeString(error?.message || "Admin request failed", 500) },
       event,
     );
