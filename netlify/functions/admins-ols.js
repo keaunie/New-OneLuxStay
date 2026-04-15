@@ -280,6 +280,18 @@ const buildActorNameFilter = (value = "") => {
   };
 };
 
+const buildLessonActorFilter = (value = "") => {
+  const normalized = sanitizeString(value, 160);
+  if (!normalized) return {};
+
+  const escaped = normalized.replace(/[%,()]/g, "").trim();
+  if (!escaped) return {};
+
+  return {
+    or: `(created_by_name.ilike.*${escaped}*,updated_by_name.ilike.*${escaped}*,created_by_email.ilike.*${escaped}*,updated_by_email.ilike.*${escaped}*)`,
+  };
+};
+
 const buildGuestJourneyFilters = (payload = {}) => {
   const query = {
     ...buildCreatedAtFilter({
@@ -773,6 +785,50 @@ const getAdminActivity = async (payload, tables, adminUser = {}) => {
   return Array.isArray(rows) ? rows.map(sanitizeAdminsOlsActivityRow) : [];
 };
 
+const getLessonEntries = async (payload, tables, adminUser = {}) => {
+  if (!adminUser?.isSuperAdmin) {
+    const error = new Error("Superadmin access required.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const limit = Math.max(1, Math.min(250, Number(payload?.limit) || 100));
+  const filteredQuery = {
+    select: LESSON_SELECT_WITH_ACTOR,
+    order: "created_at.desc",
+    limit: String(limit),
+    ...buildLessonActorFilter(payload?.actorName),
+    ...buildCreatedAtFilter({
+      startAt: payload?.startAt,
+      endAt: payload?.endAt,
+    }),
+  };
+
+  try {
+    const rows = await supabaseRestRequest(tables.sentiment, {
+      query: filteredQuery,
+      timeout: 12_000,
+    });
+    return Array.isArray(rows) ? rows.map(sanitizeLessonRow) : [];
+  } catch (error) {
+    if (!isMissingLessonActorColumnsError(error)) throw error;
+
+    const rows = await supabaseRestRequest(tables.sentiment, {
+      query: {
+        select: LESSON_SELECT_BASE,
+        order: "created_at.desc",
+        limit: String(limit),
+        ...buildCreatedAtFilter({
+          startAt: payload?.startAt,
+          endAt: payload?.endAt,
+        }),
+      },
+      timeout: 12_000,
+    });
+    return Array.isArray(rows) ? rows.map(sanitizeLessonRow) : [];
+  }
+};
+
 const getGuestJourneyEvents = async (payload, tables) => {
   const limit = Math.max(1, Math.min(250, Number(payload?.limit) || 80));
   const rows = await supabaseRestRequest(tables.guestCityClicks, {
@@ -1046,6 +1102,7 @@ export async function handler(event) {
           ok: true,
           currentAdmin: adminAccess.user,
           activity: await getAdminActivity(payload, tables, adminAccess.user),
+          lessonEntries: await getLessonEntries(payload, tables, adminAccess.user),
         },
         event,
       );

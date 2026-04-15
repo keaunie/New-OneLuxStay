@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import defaultConciergeKnowledge from "../../src/data/conciergeKnowledge.js";
+import { logAdminsOlsActivity } from "./_shared/adminsOlsActivity.js";
 import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
@@ -135,6 +136,12 @@ const sanitizeString = (value, maxLength = 1200) =>
   String(value || "")
     .replace(/\s+/g, " ")
     .trim()
+    .slice(0, maxLength);
+
+const sanitizeIdentifier = (value = "", maxLength = 120) =>
+  String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9:_-]/g, "")
     .slice(0, maxLength);
 
 const sanitizeMessages = (messages) =>
@@ -1620,34 +1627,288 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
   return `I can help with the basics right now. One Lux Stay currently features stays in ${visibleCities.join(", ")}${city && city !== "One Lux Stay" && city !== "Global" ? `, and you are currently browsing ${city}` : ""}. Ask me about cities, booking steps, or how to use the page you are on.`;
 };
 
+const localizeGuestVisibleContent = async ({
+  apiKey = "",
+  model = "gpt-5-mini",
+  latestUserMessage,
+  languageProfile,
+  reply = "",
+  notice = "",
+  quickReplies = [],
+} = {}) => {
+  const guestText = sanitizeString(
+    typeof latestUserMessage === "string" ? latestUserMessage : latestUserMessage?.content || "",
+    600,
+  );
+  const shouldTranslate =
+    Boolean(apiKey) &&
+    Boolean(guestText) &&
+    Boolean(languageProfile?.shouldTranslate) &&
+    (reply || notice || (Array.isArray(quickReplies) && quickReplies.length));
+
+  if (!shouldTranslate) {
+    return { reply, notice, quickReplies };
+  }
+
+  try {
+    const translationResponse = await fetchWithTimeout(OPENAI_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        reasoning: { effort: "low" },
+        text: { verbosity: "low" },
+        max_output_tokens: 900,
+        input: [
+          "Translate the One Lux Stay concierge text into the same language as the guest message.",
+          'Return valid JSON only using this exact shape: {"reply":"...","notice":"...","quickReplies":[{"label":"...","message":"..."}]}',
+          "Keep URLs, reservation codes, listing names, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
+          "Do not explain the translation. Do not add extra keys.",
+          `Guest message language reference: ${guestText}`,
+          `Target language hint: ${languageProfile?.label || "same as guest"}`,
+          `Payload to translate: ${JSON.stringify({
+            reply: sanitizeString(reply, 3000),
+            notice: sanitizeString(notice, 300),
+            quickReplies: Array.isArray(quickReplies)
+              ? quickReplies.map((item) => ({
+                  label: sanitizeString(item?.label, 160),
+                  message: sanitizeString(item?.message, 260),
+                }))
+              : [],
+          })}`,
+        ].join("\n"),
+      }),
+    }, 20_000);
+
+    if (!translationResponse.ok) return { reply, notice, quickReplies };
+
+    const translationData = await translationResponse.json().catch(() => ({}));
+    const translatedText = extractOutputText(translationData);
+    const translatedObject = parseJsonObjectFromText(translatedText);
+    if (!translatedObject || typeof translatedObject !== "object") {
+      return { reply, notice, quickReplies };
+    }
+
+    return {
+      reply: sanitizeString(translatedObject.reply, 3000) || reply,
+      notice: sanitizeString(translatedObject.notice, 300) || notice,
+      quickReplies: buildQuickReplySet(translatedObject.quickReplies) || quickReplies,
+    };
+  } catch {
+    return { reply, notice, quickReplies };
+  }
+};
+
+const respondWithGuestPayload = async ({
+  event,
+  apiKey = "",
+  model = "gpt-5-mini",
+  latestUserMessage,
+  languageProfile,
+  reply = "",
+  quickReplies = [],
+  notice = "",
+  cards,
+  mode,
+  translateReply = true,
+  extra = {},
+} = {}) => {
+  const localized = await localizeGuestVisibleContent({
+    apiKey,
+    model,
+    latestUserMessage,
+    languageProfile,
+    reply: translateReply ? reply : "",
+    notice,
+    quickReplies,
+  });
+
+  return jsonResponse(
+    200,
+    {
+      reply: translateReply ? localized.reply || reply : reply,
+      ...(Array.isArray(cards) ? { cards } : {}),
+      ...(Array.isArray(quickReplies) && quickReplies.length
+        ? { quickReplies: localized.quickReplies?.length ? localized.quickReplies : quickReplies }
+        : {}),
+      ...(mode ? { mode } : {}),
+      ...(notice || localized.notice ? { notice: localized.notice || notice } : {}),
+      ...(model ? { model } : {}),
+      languageCode: languageProfile?.code || "en",
+      languageLabel: languageProfile?.label || "English",
+      ...extra,
+    },
+    event,
+  );
+};
+
 const fallbackResponse = ({
   event,
   latestUserMessage,
   pageContext,
+  chatSessionId = "",
+  messages = [],
   reason,
   conciergeKnowledge,
   supportedCities,
   sentimentLessons = [],
-}) =>
-  jsonResponse(
-    200,
-    {
-      reply: buildSentimentAwareReply({
-        reply: buildFallbackReply({
-          latestUserMessage,
-          pageContext,
-          reason,
-          conciergeKnowledge,
-          supportedCities,
-        }),
-        latestUserMessage: latestUserMessage?.content || "",
-        lessons: sentimentLessons,
-      }),
-      mode: "fallback",
-      notice: fallbackNoticeFromReason(reason),
-    },
+  languageProfile,
+  apiKey = "",
+  model = "gpt-5-mini",
+}) => {
+  const baseReply = buildSentimentAwareReply({
+    reply: buildFallbackReply({
+      latestUserMessage,
+      pageContext,
+      reason,
+      conciergeKnowledge,
+      supportedCities,
+    }),
+    latestUserMessage: latestUserMessage?.content || "",
+    lessons: sentimentLessons,
+  });
+
+  return buildFallbackOrAttentionResponse({
     event,
+    latestUserMessage,
+    pageContext,
+    chatSessionId,
+    messages,
+    reason,
+    reply: baseReply,
+    languageProfile,
+    apiKey,
+    model,
+  });
+};
+
+const normalizeComparableReply = (value = "") =>
+  sanitizeString(value, 1200)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const isGenericFallbackText = (value = "") => {
+  const normalized = normalizeComparableReply(value);
+  if (!normalized) return false;
+  return (
+    normalized.includes("i can help with the basics right now") ||
+    normalized.includes("ask me about cities booking steps") ||
+    normalized.includes("how to use the page you are on")
   );
+};
+
+const shouldEscalateGuestAttention = ({ messages = [], reply = "" } = {}) => {
+  const normalizedReply = normalizeComparableReply(reply);
+  if (!normalizedReply) return false;
+
+  const assistantReplies = (messages || [])
+    .filter((message) => message?.role === "assistant")
+    .map((message) => normalizeComparableReply(message?.content || ""))
+    .filter(Boolean);
+
+  const identicalReplyCount = assistantReplies.filter((entry) => entry === normalizedReply).length;
+  const genericFallbackCount = assistantReplies.filter((entry) => isGenericFallbackText(entry)).length;
+
+  return identicalReplyCount >= 1 || genericFallbackCount >= 2;
+};
+
+const hasRecentAttentionHandoff = (messages = []) =>
+  (messages || [])
+    .filter((message) => message?.role === "assistant")
+    .some((message) =>
+      /flagged this conversation for our team|one of our team members has been notified/i.test(
+        String(message?.content || ""),
+      ),
+    );
+
+const buildAttentionReply = ({ latestUserMessage, pageContext }) => {
+  const userPrompt = sanitizeString(latestUserMessage?.content || "", 240);
+  const city = sanitizeString(pageContext?.city || "", 120);
+
+  return `I want to pause here so I do not keep repeating unhelpful information. I’ve flagged this conversation for our team${city ? ` in ${city}` : ""} so an admin can review your request${userPrompt ? ` about "${userPrompt}"` : ""} and follow up with better guidance.`;
+};
+
+const notifyAdminsOfGuestAttention = async ({
+  event,
+  chatSessionId = "",
+  pageContext = {},
+  latestUserMessage = {},
+  reason = "",
+} = {}) => {
+  await logAdminsOlsActivity({
+    event,
+    actor: {
+      id: "ai_concierge",
+      fullName: "AI Concierge",
+      email: "ai-concierge@internal.oneluxstay",
+    },
+    authMode: "system",
+    eventType: "guest_attention_needed",
+    message: "AI concierge flagged a guest conversation for admin attention.",
+    details: {
+      sessionId: sanitizeIdentifier(chatSessionId, 120) || null,
+      city: sanitizeString(pageContext?.city, 120) || null,
+      pageType: sanitizeString(pageContext?.pageType, 80) || null,
+      listingId: sanitizeString(pageContext?.listingId, 120) || null,
+      reason: sanitizeString(reason, 80) || "fallback_loop",
+      latestUserMessage: sanitizeString(latestUserMessage?.content, 220) || null,
+    },
+  });
+};
+
+const buildFallbackOrAttentionResponse = async ({
+  event,
+  latestUserMessage,
+  pageContext,
+  chatSessionId = "",
+  messages = [],
+  reason = "",
+  reply = "",
+  languageProfile,
+  apiKey = "",
+  model = "gpt-5-mini",
+}) => {
+  const shouldEscalate =
+    isGenericFallbackText(reply) &&
+    shouldEscalateGuestAttention({ messages, reply }) &&
+    !hasRecentAttentionHandoff(messages);
+
+  if (shouldEscalate) {
+    await notifyAdminsOfGuestAttention({
+      event,
+      chatSessionId,
+      pageContext,
+      latestUserMessage,
+      reason,
+    }).catch(() => null);
+
+    return respondWithGuestPayload({
+      event,
+      apiKey,
+      model,
+      latestUserMessage,
+      languageProfile,
+      reply: buildAttentionReply({ latestUserMessage, pageContext }),
+      mode: "needs_attention",
+      notice: "Admin team notified for follow-up.",
+    });
+  }
+
+  return respondWithGuestPayload({
+    event,
+    apiKey,
+    model,
+    latestUserMessage,
+    languageProfile,
+    reply,
+    mode: "fallback",
+    notice: fallbackNoticeFromReason(reason),
+  });
+};
 
 const formatTranscript = (messages) =>
   messages
@@ -1661,6 +1922,7 @@ const buildInput = ({
   retrievedPolicyText = "",
   learningText = "",
   sentimentLearningText = "",
+  languageInstruction = "",
 }) => {
   const contextLines = [
     `Page title: ${pageContext.title || "Unknown"}`,
@@ -1682,6 +1944,7 @@ const buildInput = ({
     "Conversation so far:",
     formatTranscript(messages),
     "",
+    languageInstruction ? `Language instruction: ${languageInstruction}` : "",
     "Reply to the latest user message as Lucy, the One Lux Stay concierge.",
   ].join("\n");
 };
@@ -2871,6 +3134,145 @@ const extractQuotePricingForChat = (quote = null, { checkIn = "", checkOut = "" 
   };
 };
 
+const LANGUAGE_LABELS = {
+  en: "English",
+  ja: "Japanese",
+  zh: "Chinese",
+  ko: "Korean",
+  ar: "Arabic",
+  he: "Hebrew",
+  th: "Thai",
+  hi: "Hindi",
+  el: "Greek",
+  ru: "Russian",
+  uk: "Ukrainian",
+  tr: "Turkish",
+  vi: "Vietnamese",
+  es: "Spanish",
+  fr: "French",
+  pt: "Portuguese",
+  de: "German",
+  it: "Italian",
+  nl: "Dutch",
+  id: "Indonesian",
+  tl: "Tagalog",
+  unknown: "Guest language",
+};
+
+const LATIN_LANGUAGE_HINTS = [
+  { code: "es", pattern: /[¿¡]|\b(hola|gracias|por favor|buenas|quiero|precio|reserva|fechas|cu[aá]nto|disponible)\b/i },
+  { code: "fr", pattern: /\b(bonjour|merci|s'il vous pla[iî]t|disponibilit[eé]|r[eé]servation|prix|dates)\b/i },
+  { code: "pt", pattern: /\b(ol[áa]|obrigad[oa]|por favor|reserva|preço|datas|dispon[ií]vel|quero)\b/i },
+  { code: "de", pattern: /\b(hallo|danke|bitte|buchung|preis|daten|verf[uü]gbar|zimmer)\b/i },
+  { code: "it", pattern: /\b(ciao|grazie|per favore|prenotazione|prezzo|date|disponibile|camera)\b/i },
+  { code: "nl", pattern: /\b(hallo|dank je|alsjeblieft|boeking|prijs|data|beschikbaar|kamer)\b/i },
+  { code: "tr", pattern: /\b(merhaba|te[sş]ekk[uü]rler|l[uü]tfen|rezervasyon|fiyat|tarih|m[uü]sait)\b/i },
+  { code: "vi", pattern: /\b(xin ch[aà]o|c[aả]m [ơo]n|l[aà]m [ơo]n|đặt ph[oò]ng|gi[aá]|ng[aà]y|trống)\b/i },
+  { code: "id", pattern: /\b(halo|terima kasih|tolong|pemesanan|harga|tanggal|tersedia|kamar)\b/i },
+  { code: "tl", pattern: /\b(kumusta|salamat|pakiusap|reserbasyon|presyo|petsa|kuwarto)\b/i },
+];
+
+const hasNonAsciiCharacters = (value = "") => /[^\u0000-\u007f]/.test(String(value || ""));
+
+const buildLanguageProfile = (code = "en", sample = "", confidence = "medium") => {
+  const normalizedCode = sanitizeString(code, 12).toLowerCase() || "en";
+  const label = LANGUAGE_LABELS[normalizedCode] || LANGUAGE_LABELS.unknown;
+  return {
+    code: normalizedCode,
+    label,
+    confidence,
+    sample: sanitizeString(sample, 320),
+    shouldTranslate:
+      normalizedCode !== "en" || (normalizedCode === "unknown" && hasNonAsciiCharacters(sample)),
+  };
+};
+
+const detectLanguageFromText = (value = "") => {
+  const sample = sanitizeString(value, 700);
+  if (!sample) return buildLanguageProfile("en", sample, "low");
+
+  if (/[\u3040-\u30ff]/u.test(sample)) return buildLanguageProfile("ja", sample, "high");
+  if (/[\uac00-\ud7af]/u.test(sample)) return buildLanguageProfile("ko", sample, "high");
+  if (/[\u0600-\u06ff]/u.test(sample)) return buildLanguageProfile("ar", sample, "high");
+  if (/[\u0590-\u05ff]/u.test(sample)) return buildLanguageProfile("he", sample, "high");
+  if (/[\u0e00-\u0e7f]/u.test(sample)) return buildLanguageProfile("th", sample, "high");
+  if (/[\u0900-\u097f]/u.test(sample)) return buildLanguageProfile("hi", sample, "high");
+  if (/[\u0370-\u03ff]/u.test(sample)) return buildLanguageProfile("el", sample, "high");
+  if (/[\u4e00-\u9fff]/u.test(sample)) return buildLanguageProfile("zh", sample, "high");
+
+  const lower = sample.toLowerCase();
+  if (/[\u0400-\u04ff]/u.test(sample)) {
+    if (/\b(дякую|будь ласка|бронювання|ціна|дати)\b/i.test(sample)) {
+      return buildLanguageProfile("uk", sample, "medium");
+    }
+    if (/\b(привет|здравствуйте|спасибо|пожалуйста|бронь|цена|даты)\b/i.test(sample)) {
+      return buildLanguageProfile("ru", sample, "medium");
+    }
+    return buildLanguageProfile("unknown", sample, "low");
+  }
+
+  for (const hint of LATIN_LANGUAGE_HINTS) {
+    if (hint.pattern.test(lower)) return buildLanguageProfile(hint.code, sample, "medium");
+  }
+
+  if (!hasNonAsciiCharacters(sample)) {
+    return buildLanguageProfile("en", sample, "medium");
+  }
+
+  return buildLanguageProfile("unknown", sample, "low");
+};
+
+const detectGuestLanguageProfile = ({ latestUserMessage, messages = [] } = {}) => {
+  const recentUserMessages = [latestUserMessage, ...(messages || []).filter((message) => message?.role === "user")]
+    .map((message) => (typeof message === "string" ? message : message?.content || ""))
+    .filter(Boolean)
+    .slice(0, 4);
+
+  for (const entry of recentUserMessages) {
+    const profile = detectLanguageFromText(entry);
+    if (profile.shouldTranslate || profile.code === "en") {
+      return profile;
+    }
+  }
+
+  return buildLanguageProfile("en", "", "low");
+};
+
+const buildLanguageReplyInstruction = ({ languageProfile, latestUserMessage }) => {
+  const guestText = sanitizeString(
+    typeof latestUserMessage === "string" ? latestUserMessage : latestUserMessage?.content || "",
+    500,
+  );
+  if (!guestText) return "";
+  if (languageProfile?.shouldTranslate) {
+    return [
+      `Reply in ${languageProfile?.label || "the same language as the guest"} and match the guest's language naturally.`,
+      "Do not switch to English unless the guest asks you to.",
+      "Keep reservation codes, links, listing names, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
+    ].join(" ");
+  }
+  return "Reply in clear natural English unless the guest explicitly asks for another language.";
+};
+
+const parseJsonObjectFromText = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch?.[1]?.trim() || text;
+  const firstBraceIndex = candidate.indexOf("{");
+  const lastBraceIndex = candidate.lastIndexOf("}");
+  if (firstBraceIndex === -1 || lastBraceIndex === -1 || lastBraceIndex <= firstBraceIndex) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(candidate.slice(firstBraceIndex, lastBraceIndex + 1));
+  } catch {
+    return null;
+  }
+};
+
 const fetchListingQuoteForChat = async ({ event, listingId, checkIn, checkOut, guests = 1 }) => {
   const safeListingId = sanitizeString(listingId, 120);
   if (!safeListingId || !isValidIsoDate(checkIn) || !isValidIsoDate(checkOut) || checkIn >= checkOut) return null;
@@ -3244,6 +3646,7 @@ export async function handler(event) {
 
   const messages = sanitizeMessages(payload?.messages);
   const pageContext = sanitizePageContext(payload?.pageContext);
+  const chatSessionId = sanitizeIdentifier(payload?.chatSessionId, 120);
   const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
 
   if (!latestUserMessage) {
@@ -3252,6 +3655,7 @@ export async function handler(event) {
 
   const conciergeKnowledge = await getConciergeKnowledge();
   const supportedCities = getSupportedCities(conciergeKnowledge);
+  const languageProfile = detectGuestLanguageProfile({ latestUserMessage, messages });
   const knowledgeText = buildKnowledgeText(conciergeKnowledge);
   const siteContext = buildSiteContext(supportedCities);
   const [goodExamples, badExamples, sentimentLessons] = await Promise.all([
@@ -3269,6 +3673,10 @@ export async function handler(event) {
   try {
     let retrievedPolicyText = "";
     const latestPrompt = String(latestUserMessage?.content || "");
+    const languageInstruction = buildLanguageReplyInstruction({
+      languageProfile,
+      latestUserMessage,
+    });
     const buildDeterministicReply = (reply = "") =>
       buildSentimentAwareReply({
         reply,
@@ -3395,29 +3803,29 @@ export async function handler(event) {
     let policyRows = [];
 
     if (includesSensitivePaymentData) {
-      return jsonResponse(
-        200,
-        {
-          reply:
-            "For your security, please don’t share payment details here. All payments should be completed through our secure booking page.",
-          model,
-        },
+      return respondWithGuestPayload({
         event,
-      );
+        apiKey,
+        model,
+        latestUserMessage,
+        languageProfile,
+        reply:
+          "For your security, please don't share payment details here. All payments should be completed through our secure booking page.",
+      });
     }
 
     if (asksBookingStatus) {
       if (!reservationCode) {
-        return jsonResponse(
-          200,
-          {
-            reply: buildDeterministicReply(
-              "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).",
-            ),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: buildDeterministicReply(
+            "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).",
+          ),
+        });
       }
 
       try {
@@ -3456,34 +3864,34 @@ export async function handler(event) {
             }
           }
         }
-        return jsonResponse(
-          200,
-          {
-            reply: buildDeterministicReply(
-              buildReservationStatusReply({
-                reservationCode,
-                reservation: reservationForReply,
-                supportedCities,
-              }),
-            ),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: buildDeterministicReply(
+            buildReservationStatusReply({
+              reservationCode,
+              reservation: reservationForReply,
+              supportedCities,
+            }),
+          ),
+        });
       } catch (reservationError) {
         console.warn("Reservation lookup failed in chat flow", {
           message: reservationError?.message || String(reservationError),
         });
-        return jsonResponse(
-          200,
-          {
-            reply: buildDeterministicReply(
-              "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help.",
-            ),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: buildDeterministicReply(
+            "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help.",
+          ),
+        });
       }
     }
 
@@ -3534,16 +3942,16 @@ export async function handler(event) {
 
       if (!cityForTimeReply) {
         if (guestAlreadyBooked || Boolean(codeForTimeContext)) {
-          return jsonResponse(
-            200,
-            {
-              reply: buildDeterministicReply(
-                "For your booking, standard check-in is 3:00 PM and check-out is 11:00 AM. If you share your city, I can confirm the location in the same message as well.",
-              ),
-              model,
-            },
+          return respondWithGuestPayload({
             event,
-          );
+            apiKey,
+            model,
+            latestUserMessage,
+            languageProfile,
+            reply: buildDeterministicReply(
+              "For your booking, standard check-in is 3:00 PM and check-out is 11:00 AM. If you share your city, I can confirm the location in the same message as well.",
+            ),
+          });
         }
         const visibleCities = supportedCities.length
           ? supportedCities
@@ -3553,35 +3961,35 @@ export async function handler(event) {
           .filter(Boolean)
           .slice(0, 5)
           .join(", ");
-        return jsonResponse(
-          200,
-          {
-            reply: buildDeterministicReply(
-              guestAlreadyBooked
-                ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
-                : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
-            ),
-            quickReplies: buildCityQuickReplies({
-              supportedCities,
-              prefix: guestAlreadyBooked ? "My booking is in" : "I want to book in",
-            }),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
-      }
-      return jsonResponse(
-        200,
-        {
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
           reply: buildDeterministicReply(
             guestAlreadyBooked
-              ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
-              : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
+              ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
+              : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
           ),
-          model,
-        },
+          quickReplies: buildCityQuickReplies({
+            supportedCities,
+            prefix: guestAlreadyBooked ? "My booking is in" : "I want to book in",
+          }),
+        });
+      }
+      return respondWithGuestPayload({
         event,
-      );
+        apiKey,
+        model,
+        latestUserMessage,
+        languageProfile,
+        reply: buildDeterministicReply(
+          guestAlreadyBooked
+            ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
+            : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
+        ),
+      });
     }
 
     if (isListingPriceQuestion && pageContext?.listingId) {
@@ -3590,16 +3998,16 @@ export async function handler(event) {
       const guests = extractGuests(latestPrompt, conversationGuests ?? 1);
 
       if (!availabilityDateRange) {
-        return jsonResponse(
-          200,
-          {
-            reply: buildDeterministicReply(
-              "I can check the live price for this listing. Please share your check-in and check-out dates plus guest count, and I’ll tell you the current quoted rate.",
-            ),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: buildDeterministicReply(
+            "I can check the live price for this listing. Please share your check-in and check-out dates plus guest count, and I'll tell you the current quoted rate.",
+          ),
+        });
       }
 
       try {
@@ -3623,14 +4031,14 @@ export async function handler(event) {
         });
 
         if (priceReply) {
-          return jsonResponse(
-            200,
-            {
-              reply: buildDeterministicReply(priceReply),
-              model,
-            },
+          return respondWithGuestPayload({
             event,
-          );
+            apiKey,
+            model,
+            latestUserMessage,
+            languageProfile,
+            reply: buildDeterministicReply(priceReply),
+          });
         }
       } catch (pricingError) {
         console.warn("Listing price retrieval failed for chat", {
@@ -3639,16 +4047,16 @@ export async function handler(event) {
         });
       }
 
-      return jsonResponse(
-        200,
-        {
-          reply: buildDeterministicReply(
-            "I couldn’t confirm the live price for this listing right now. Please try again in a moment, or contact reservations@oneluxstay.com and we’ll confirm the exact rate for your dates.",
-          ),
-          model,
-        },
+      return respondWithGuestPayload({
         event,
-      );
+        apiKey,
+        model,
+        latestUserMessage,
+        languageProfile,
+        reply: buildDeterministicReply(
+          "I couldn't confirm the live price for this listing right now. Please try again in a moment, or contact reservations@oneluxstay.com and we'll confirm the exact rate for your dates.",
+        ),
+      });
     }
 
     if (asksAvailability) {
@@ -3660,66 +4068,66 @@ export async function handler(event) {
       const bedroomPreference = extractBedroomPreferenceFromText(latestPrompt) || conversationBedroomPreference;
 
       if (!availabilityDateRange && !effectiveMonthRange) {
-        return jsonResponse(
-          200,
-          {
-            reply: availabilityCityLabel
-              ? `I’d be happy to help with that for ${availabilityCityLabel}. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.`
-              : "I’d be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
-            quickReplies: availabilityCityLabel
-              ? buildAvailabilityQuickReplies({ city: availabilityCityLabel })
-              : buildCityQuickReplies({
-                  supportedCities,
-                  prefix: "Check availability in",
-                }),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: availabilityCityLabel
+            ? `I'd be happy to help with that for ${availabilityCityLabel}. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.`
+            : "I'd be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
+          quickReplies: availabilityCityLabel
+            ? buildAvailabilityQuickReplies({ city: availabilityCityLabel })
+            : buildCityQuickReplies({
+                supportedCities,
+                prefix: "Check availability in",
+              }),
+        });
       }
 
       if (!availabilityCityLabel) {
-        return jsonResponse(
-          200,
-          {
-            reply: "Sure — which city would you like to book in?",
-            quickReplies: buildCityQuickReplies({
-              supportedCities,
-              prefix: "Check availability in",
-            }),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: "Sure - which city would you like to book in?",
+          quickReplies: buildCityQuickReplies({
+            supportedCities,
+            prefix: "Check availability in",
+          }),
+        });
       }
 
       if (!effectiveMonthRange && !dateRange && !conversationDateRange && !availabilityDateRange) {
-        return jsonResponse(
-          200,
-          {
-            reply: `Sure — what dates are you looking at for ${availabilityCityLabel}?`,
-            quickReplies: buildAvailabilityQuickReplies({ city: availabilityCityLabel }),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: `Sure - what dates are you looking at for ${availabilityCityLabel}?`,
+          quickReplies: buildAvailabilityQuickReplies({ city: availabilityCityLabel }),
+        });
       }
 
       if (conversationGuests === null && parseGuestsFromText(latestPrompt) === null) {
-        return jsonResponse(
-          200,
-          {
-            reply: `Perfect — ${availabilityCityLabel}, ${availabilityDateRange?.checkIn || effectiveMonthRange?.label}${availabilityDateRange?.checkOut ? ` to ${availabilityDateRange.checkOut}` : ""}. How many guests?`,
-            quickReplies: buildGuestQuickReplies({
-              city: availabilityCityLabel,
-              checkIn: availabilityDateRange?.checkIn || "",
-              checkOut: availabilityDateRange?.checkOut || "",
-              bedroomPreference,
-            }),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: `Perfect - ${availabilityCityLabel}, ${availabilityDateRange?.checkIn || effectiveMonthRange?.label}${availabilityDateRange?.checkOut ? ` to ${availabilityDateRange.checkOut}` : ""}. How many guests?`,
+          quickReplies: buildGuestQuickReplies({
+            city: availabilityCityLabel,
+            checkIn: availabilityDateRange?.checkIn || "",
+            checkOut: availabilityDateRange?.checkOut || "",
+            bedroomPreference,
+          }),
+        });
       }
 
       if (effectiveMonthRange && !availabilityDateRange) {
@@ -3732,41 +4140,41 @@ export async function handler(event) {
             guests,
             maxLinks: 5,
           });
-          return jsonResponse(
-            200,
-            {
-              reply: buildMonthAvailabilityReply({
-                monthLabel: effectiveMonthRange.label,
-                guests,
-                matches: monthMatches.results,
-                searched: monthMatches.searched,
-              }),
-              cards: (Array.isArray(monthMatches.results) ? monthMatches.results : []).map((item) => ({
-                id: sanitizeString(item?.id, 120),
-                title: sanitizeString(item?.title, 220),
-                city: sanitizeString(item?.city, 120),
-                url: sanitizeString(item?.url, 500),
-                images: Array.isArray(item?.imageUrls)
-                  ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
-                  : [],
-              })),
-              model,
-            },
+          return respondWithGuestPayload({
             event,
-          );
+            apiKey,
+            model,
+            latestUserMessage,
+            languageProfile,
+            reply: buildMonthAvailabilityReply({
+              monthLabel: effectiveMonthRange.label,
+              guests,
+              matches: monthMatches.results,
+              searched: monthMatches.searched,
+            }),
+            cards: (Array.isArray(monthMatches.results) ? monthMatches.results : []).map((item) => ({
+              id: sanitizeString(item?.id, 120),
+              title: sanitizeString(item?.title, 220),
+              city: sanitizeString(item?.city, 120),
+              url: sanitizeString(item?.url, 500),
+              images: Array.isArray(item?.imageUrls)
+                ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
+                : [],
+            })),
+          });
         } catch (monthAvailabilityError) {
           console.warn("Monthly availability search failed in chat flow", {
             message: monthAvailabilityError?.message || String(monthAvailabilityError),
           });
-          return jsonResponse(
-            200,
-            {
-              reply:
-                "I had trouble checking month-wide availability right now. Please try again in a moment, or share exact check-in and check-out dates so I can retry with a direct date range.",
-              model,
-            },
+          return respondWithGuestPayload({
             event,
-          );
+            apiKey,
+            model,
+            latestUserMessage,
+            languageProfile,
+            reply:
+              "I had trouble checking month-wide availability right now. Please try again in a moment, or share exact check-in and check-out dates so I can retry with a direct date range.",
+          });
         }
       }
 
@@ -3781,73 +4189,73 @@ export async function handler(event) {
           bedroomPreference,
           maxLinks: 5,
         });
-        return jsonResponse(
-          200,
-          {
-              reply: buildAvailabilityLinksReply({
-                checkIn: availabilityDateRange.checkIn,
-                checkOut: availabilityDateRange.checkOut,
-                guests,
-                bedroomPreference,
-                matches: availabilityMatches.results,
-                searched: availabilityMatches.searched,
-              }),
-            cards: (Array.isArray(availabilityMatches.results) ? availabilityMatches.results : []).map((item) => ({
-              id: sanitizeString(item?.id, 120),
-              title: sanitizeString(item?.title, 220),
-              city: sanitizeString(item?.city, 120),
-              url: sanitizeString(item?.url, 500),
-              images: Array.isArray(item?.imageUrls)
-                ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
-                : [],
-            })),
-            quickReplies:
-              Array.isArray(availabilityMatches.results) && availabilityMatches.results.length
-                ? buildQuickReplySet([
-                    {
-                      label: "1 bedroom",
-                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 1 bedroom`,
-                    },
-                    {
-                      label: "2 bedroom",
-                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
-                    },
-                    {
-                      label: "No preference",
-                      message: `Show me the best available options in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests`,
-                    },
-                  ])
-                : buildQuickReplySet([
-                    {
-                      label: "No preference",
-                      message: `Show me the best available options in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests`,
-                    },
-                    {
-                      label: "1 bedroom",
-                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 1 bedroom`,
-                    },
-                    {
-                      label: "2 bedroom",
-                      message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
-                    },
-                  ]),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: buildAvailabilityLinksReply({
+            checkIn: availabilityDateRange.checkIn,
+            checkOut: availabilityDateRange.checkOut,
+            guests,
+            bedroomPreference,
+            matches: availabilityMatches.results,
+            searched: availabilityMatches.searched,
+          }),
+          cards: (Array.isArray(availabilityMatches.results) ? availabilityMatches.results : []).map((item) => ({
+            id: sanitizeString(item?.id, 120),
+            title: sanitizeString(item?.title, 220),
+            city: sanitizeString(item?.city, 120),
+            url: sanitizeString(item?.url, 500),
+            images: Array.isArray(item?.imageUrls)
+              ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
+              : [],
+          })),
+          quickReplies:
+            Array.isArray(availabilityMatches.results) && availabilityMatches.results.length
+              ? buildQuickReplySet([
+                  {
+                    label: "1 bedroom",
+                    message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 1 bedroom`,
+                  },
+                  {
+                    label: "2 bedroom",
+                    message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
+                  },
+                  {
+                    label: "No preference",
+                    message: `Show me the best available options in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests`,
+                  },
+                ])
+              : buildQuickReplySet([
+                  {
+                    label: "No preference",
+                    message: `Show me the best available options in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests`,
+                  },
+                  {
+                    label: "1 bedroom",
+                    message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 1 bedroom`,
+                  },
+                  {
+                    label: "2 bedroom",
+                    message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
+                  },
+                ]),
+        });
       } catch (availabilityError) {
         console.warn("Availability search failed in chat flow", {
           message: availabilityError?.message || String(availabilityError),
         });
-        return jsonResponse(
-          200,
-          {
-            reply:
-              "I had trouble reaching live availability right now. Please try again in a moment. If this keeps happening, contact reservations@oneluxstay.com and we’ll confirm dates manually.",
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply:
+            "I had trouble reaching live availability right now. Please try again in a moment. If this keeps happening, contact reservations@oneluxstay.com and we'll confirm dates manually.",
+        });
       }
     }
 
@@ -3885,14 +4293,14 @@ export async function handler(event) {
         question: latestPrompt,
       });
       if (deterministicPolicyReply) {
-        return jsonResponse(
-          200,
-          {
-            reply: buildDeterministicReply(deterministicPolicyReply),
-            model,
-          },
+        return respondWithGuestPayload({
           event,
-        );
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: buildDeterministicReply(deterministicPolicyReply),
+        });
       }
     }
 
@@ -3918,14 +4326,14 @@ export async function handler(event) {
           houseRules,
         });
         if (unitReply) {
-          return jsonResponse(
-            200,
-            {
-              reply: buildDeterministicReply(unitReply),
-              model,
-            },
+          return respondWithGuestPayload({
             event,
-          );
+            apiKey,
+            model,
+            latestUserMessage,
+            languageProfile,
+            reply: buildDeterministicReply(unitReply),
+          });
         }
       } catch (listingError) {
         console.warn("Listing info retrieval failed for chat", {
@@ -3939,10 +4347,15 @@ export async function handler(event) {
         event,
         latestUserMessage,
         pageContext,
+        chatSessionId,
+        messages,
         reason: "missing_api_key",
         conciergeKnowledge,
         supportedCities,
         sentimentLessons,
+        languageProfile,
+        apiKey,
+        model,
       });
     }
 
@@ -3954,7 +4367,9 @@ export async function handler(event) {
       },
       body: JSON.stringify({
         model,
-        instructions: siteContext,
+        instructions: [siteContext, languageInstruction ? `Language: ${languageInstruction}` : ""]
+          .filter(Boolean)
+          .join("\n"),
         input: buildInput({
           pageContext,
           messages,
@@ -3962,6 +4377,7 @@ export async function handler(event) {
           retrievedPolicyText,
           learningText,
           sentimentLearningText,
+          languageInstruction,
         }),
         reasoning: { effort: "low" },
         text: { verbosity: "low" },
@@ -3988,10 +4404,15 @@ export async function handler(event) {
           event,
           latestUserMessage,
           pageContext,
+          chatSessionId,
+          messages,
           reason: errorCode === "insufficient_quota" ? "insufficient_quota" : "rate_limit",
           conciergeKnowledge,
           supportedCities,
           sentimentLessons,
+          languageProfile,
+          apiKey,
+          model,
         });
       }
 
@@ -4000,10 +4421,15 @@ export async function handler(event) {
           event,
           latestUserMessage,
           pageContext,
+          chatSessionId,
+          messages,
           reason: "service_unavailable",
           conciergeKnowledge,
           supportedCities,
           sentimentLessons,
+          languageProfile,
+          apiKey,
+          model,
         });
       }
 
@@ -4023,30 +4449,44 @@ export async function handler(event) {
         event,
         latestUserMessage,
         pageContext,
+        chatSessionId,
+        messages,
         reason: "service_unavailable",
         conciergeKnowledge,
         supportedCities,
         sentimentLessons,
+        languageProfile,
+        apiKey,
+        model,
       });
     }
 
-    return jsonResponse(
-      200,
-      {
-        reply,
-        model,
-      },
+    return respondWithGuestPayload({
       event,
-    );
+      apiKey,
+      model,
+      latestUserMessage,
+      languageProfile,
+      reply,
+      // If the model responds in English despite instructions, translate as a safety net.
+      translateReply: Boolean(languageProfile?.shouldTranslate),
+    });
   } catch (error) {
     return fallbackResponse({
       event,
       latestUserMessage,
       pageContext,
+      chatSessionId,
+      messages,
       reason: error?.name === "AbortError" ? "timeout" : "service_unavailable",
       conciergeKnowledge,
       supportedCities,
       sentimentLessons,
+      languageProfile,
+      apiKey,
+      model,
     });
   }
 }
+
+

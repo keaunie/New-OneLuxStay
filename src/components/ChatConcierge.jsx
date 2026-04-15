@@ -601,7 +601,13 @@ function ChatConcierge() {
           cards,
           quickReplies,
         };
-        const responseMode = payload?.mode === "fallback" ? "fallback" : "live";
+        const rawResponseMode = String(payload?.mode || "").trim().toLowerCase();
+        const responseMode =
+          rawResponseMode === "fallback"
+            ? "fallback"
+            : rawResponseMode === "needs_attention"
+              ? "needs_attention"
+              : "live";
         const responseModel = String(payload?.model || "").trim();
 
         setMode(responseMode);

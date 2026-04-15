@@ -352,6 +352,17 @@
   background: rgba(159, 59, 59, 0.16);
 }
 
+.admins-ols-profile-action.is-attention {
+  border-color: rgba(230, 112, 112, 0.24);
+  background: rgba(159, 59, 59, 0.12);
+}
+
+.admins-ols-profile-action.is-attention:hover,
+.admins-ols-profile-action.is-attention:focus-visible {
+  background: rgba(159, 59, 59, 0.2);
+  border-color: rgba(230, 112, 112, 0.34);
+}
+
 .admins-ols-profile-action.is-danger:hover,
 .admins-ols-profile-action.is-danger:focus-visible {
   background: rgba(159, 59, 59, 0.24);
@@ -463,6 +474,9 @@
 }
 
 .admins-ols-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   border-radius: 999px;
   border: 1px solid rgba(205, 167, 108, 0.16);
   background: rgba(255, 255, 255, 0.03);
@@ -536,6 +550,19 @@
   gap: 0.8rem;
   flex: 0 0 10rem;
   width: 10rem;
+}
+
+.admins-ols-toolbar-alert-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.admins-ols-toolbar-alert-btn.is-enabled {
+  background: rgba(85, 154, 109, 0.16);
+  color: #def4e1;
+  border-color: rgba(111, 186, 118, 0.26);
 }
 
 .admins-ols-toolbar button,
@@ -728,6 +755,37 @@
 .admins-ols-card h3 {
   margin: 0;
   color: #fff4e4;
+}
+
+.admins-ols-conversation-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(230, 112, 112, 0.2);
+  background: rgba(159, 59, 59, 0.12);
+}
+
+.admins-ols-conversation-alert p {
+  margin: 0;
+  color: rgba(255, 232, 232, 0.84);
+  line-height: 1.5;
+}
+
+.admins-ols-card--nested {
+  padding: 1.1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(205, 167, 108, 0.1);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.admins-ols-subsection-head {
+  margin-top: 1.25rem;
+  padding-top: 1.05rem;
+  border-top: 1px solid rgba(205, 167, 108, 0.12);
 }
 
 .admins-ols-pill,

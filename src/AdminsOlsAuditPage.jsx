@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import apiBase from "./utils/apiBase";
 import {
@@ -12,6 +12,7 @@ import "./AdminsOlsPage.css";
 
 const AUDIT_ACTIVITY_DEDUPE_KEY = "admins-ols-audit-log-opened";
 const AUDIT_ACTIVITY_DEDUPE_WINDOW_MS = 5000;
+const TAB_TRANSITION_MS = 180;
 
 const formatDateTime = (value = "") => {
   if (!value) return "Unknown";
@@ -66,6 +67,7 @@ const formatAdminActivityEventLabel = (value = "") => {
   if (normalized === "dashboard_opened") return "Dashboard Opened";
   if (normalized === "manual_refresh") return "Manual Refresh";
   if (normalized === "conversation_reply") return "Admin Reply";
+  if (normalized === "guest_attention_needed") return "Guest Needs Attention";
   if (normalized === "lesson_created") return "Lesson Created";
   if (normalized === "lesson_activated") return "Lesson Activated";
   if (normalized === "lesson_deactivated") return "Lesson Deactivated";
@@ -81,12 +83,14 @@ const getAdminActivityTone = (item = {}) => {
   if (["sign_in", "sign_up", "dashboard_opened", "conversation_reply", "lesson_created", "lesson_activated", "audit_log_opened"].includes(normalized)) {
     return "positive";
   }
-  if (["lesson_deleted", "lesson_deactivated"].includes(normalized)) return "negative";
+  if (["lesson_deleted", "lesson_deactivated", "guest_attention_needed"].includes(normalized)) return "negative";
   return "neutral";
 };
 
 const getAdminActivityActorLabel = (item = {}) =>
   item?.actorName || item?.actorEmail || "Admin";
+
+const getLessonActorLabel = (actor = {}) => actor?.name || actor?.email || "Unknown admin";
 
 const getAdminActivityMetaLine = (item = {}) => {
   const details = item?.details || {};
@@ -137,6 +141,13 @@ const buildDefaultFilters = () => {
   };
 };
 
+const AUDIT_TAB_ITEMS = [
+  { id: "filters", label: "Filters" },
+  { id: "summary", label: "Summary" },
+  { id: "lessons-entry", label: "Lessons Entry" },
+  { id: "audit-entries", label: "Audit Entries" },
+];
+
 const shouldLogAuditOpen = () => {
   if (typeof window === "undefined" || !window.sessionStorage) return true;
 
@@ -159,6 +170,7 @@ function AdminsOlsAuditPage() {
   const [currentAdmin, setCurrentAdmin] = useState(() => session?.user || {});
   const [filters, setFilters] = useState(() => buildDefaultFilters());
   const [activity, setActivity] = useState([]);
+  const [lessonEntries, setLessonEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -166,6 +178,10 @@ function AdminsOlsAuditPage() {
     session?.accessToken || session?.sharedKey ? "checking" : "signed_out",
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeTabId, setActiveTabId] = useState("filters");
+  const [displayedTabId, setDisplayedTabId] = useState("filters");
+  const [tabContentPhase, setTabContentPhase] = useState("idle");
+  const tabTransitionTimeoutRef = useRef(null);
 
   const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
   const signInChartData = useMemo(() => {
@@ -198,6 +214,59 @@ function AdminsOlsAuditPage() {
     }));
   }, [activity]);
 
+  const lessonEntryLeaderboard = useMemo(() => {
+    const grouped = new Map();
+
+    lessonEntries.forEach((entry) => {
+      const actorLabel = getLessonActorLabel(entry?.createdBy);
+      const actorKey = String(
+        entry?.createdBy?.email || entry?.createdBy?.id || actorLabel || "unknown",
+      ).toLowerCase();
+      const existing = grouped.get(actorKey) || {
+        actorKey,
+        actorLabel,
+        lessonsCount: 0,
+        latestEntryAt: "",
+      };
+      existing.lessonsCount += 1;
+      const createdAt = String(entry?.createdAt || "");
+      if (
+        createdAt &&
+        (!existing.latestEntryAt ||
+          (Date.parse(createdAt) || 0) > (Date.parse(existing.latestEntryAt) || 0))
+      ) {
+        existing.latestEntryAt = createdAt;
+      }
+      grouped.set(actorKey, existing);
+    });
+
+    return [...grouped.values()].sort(
+      (left, right) =>
+        right.lessonsCount - left.lessonsCount ||
+        (Date.parse(right.latestEntryAt) || 0) - (Date.parse(left.latestEntryAt) || 0) ||
+        left.actorLabel.localeCompare(right.actorLabel),
+    );
+  }, [lessonEntries]);
+
+  const lessonEntrySummary = useMemo(() => {
+    const activeLessons = lessonEntries.filter((entry) => entry?.active).length;
+    const uniqueCreators = new Set(
+      lessonEntries.map((entry) => getLessonActorLabel(entry?.createdBy)).filter(Boolean),
+    ).size;
+    const uniqueSubmitters = new Set(
+      lessonEntries
+        .map((entry) => getLessonActorLabel(entry?.updatedBy || entry?.createdBy))
+        .filter(Boolean),
+    ).size;
+
+    return {
+      totalLessons: lessonEntries.length,
+      activeLessons,
+      uniqueCreators,
+      uniqueSubmitters,
+    };
+  }, [lessonEntries]);
+
   useEffect(() => {
     const previousTitle = document.title;
     document.title = "OneLuxStay Superadmin Audit";
@@ -205,6 +274,39 @@ function AdminsOlsAuditPage() {
       document.title = previousTitle;
     };
   }, []);
+
+  useEffect(() => () => {
+    if (tabTransitionTimeoutRef.current) {
+      window.clearTimeout(tabTransitionTimeoutRef.current);
+      tabTransitionTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTabId === displayedTabId) return undefined;
+
+    if (tabTransitionTimeoutRef.current) {
+      window.clearTimeout(tabTransitionTimeoutRef.current);
+      tabTransitionTimeoutRef.current = null;
+    }
+
+    setTabContentPhase("is-exiting");
+    tabTransitionTimeoutRef.current = window.setTimeout(() => {
+      setDisplayedTabId(activeTabId);
+      setTabContentPhase("is-entering");
+      tabTransitionTimeoutRef.current = window.setTimeout(() => {
+        setTabContentPhase("idle");
+        tabTransitionTimeoutRef.current = null;
+      }, TAB_TRANSITION_MS + 80);
+    }, TAB_TRANSITION_MS);
+
+    return () => {
+      if (tabTransitionTimeoutRef.current) {
+        window.clearTimeout(tabTransitionTimeoutRef.current);
+        tabTransitionTimeoutRef.current = null;
+      }
+    };
+  }, [activeTabId, displayedTabId]);
 
   useEffect(() => {
     let active = true;
@@ -309,6 +411,7 @@ function AdminsOlsAuditPage() {
       });
 
       setActivity(Array.isArray(payload?.activity) ? payload.activity : []);
+      setLessonEntries(Array.isArray(payload?.lessonEntries) ? payload.lessonEntries : []);
       setCurrentAdmin((current) => payload?.currentAdmin || current);
       setAccessState("authorized");
       if (!silent) {
@@ -387,6 +490,7 @@ function AdminsOlsAuditPage() {
         },
       });
       setActivity(Array.isArray(payload?.activity) ? payload.activity : []);
+      setLessonEntries(Array.isArray(payload?.lessonEntries) ? payload.lessonEntries : []);
       setCurrentAdmin((current) => payload?.currentAdmin || current);
       setNotice("Audit filters reset to the last 7 days.");
     } catch (requestError) {
@@ -402,11 +506,9 @@ function AdminsOlsAuditPage() {
     navigate("/admins-ols/login", { replace: true });
   };
 
-  const handleNavigateToSection = (sectionId = "") => {
-    if (typeof document !== "undefined") {
-      const section = document.getElementById(sectionId);
-      section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    }
+  const handleNavigateToTab = (tabId = "") => {
+    if (!tabId) return;
+    setActiveTabId(tabId);
     setIsSidebarOpen(false);
   };
 
@@ -476,13 +578,33 @@ function AdminsOlsAuditPage() {
                   <Link className="admins-ols-side-nav-link" to="/admins-ols">
                     <span>Back to Dashboard</span>
                   </Link>
-                  <button type="button" onClick={() => handleNavigateToSection("audit-filters")}>
+                  <button
+                    type="button"
+                    className={activeTabId === "filters" ? "is-current" : ""}
+                    onClick={() => handleNavigateToTab("filters")}
+                  >
                     Filters
                   </button>
-                  <button type="button" onClick={() => handleNavigateToSection("audit-summary")}>
+                  <button
+                    type="button"
+                    className={activeTabId === "summary" ? "is-current" : ""}
+                    onClick={() => handleNavigateToTab("summary")}
+                  >
                     Summary
                   </button>
-                  <button type="button" onClick={() => handleNavigateToSection("audit-entries")}>
+                  <button
+                    type="button"
+                    className={activeTabId === "lessons-entry" ? "is-current" : ""}
+                    onClick={() => handleNavigateToTab("lessons-entry")}
+                  >
+                    Lessons Entry
+                    <span className="admins-ols-side-nav-count">{lessonEntries.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={activeTabId === "audit-entries" ? "is-current" : ""}
+                    onClick={() => handleNavigateToTab("audit-entries")}
+                  >
                     Audit Entries
                   </button>
                   <span className="admins-ols-side-nav-link is-current" aria-current="page">
@@ -520,84 +642,156 @@ function AdminsOlsAuditPage() {
             {notice && <div className="admins-ols-banner">{notice}</div>}
             {error && <div className="admins-ols-error">{error}</div>}
 
-            <section className="admins-ols-grid admins-ols-grid--two">
-              <article id="audit-filters" className="admins-ols-card">
-                <div className="admins-ols-card-head">
-                  <h2>Filters</h2>
-                </div>
-                <form className="admins-ols-form" onSubmit={handleApplyFilters}>
-                  <label>
-                    Admin name
-                    <input
-                      type="text"
-                      value={filters.actorName}
-                      onChange={handleFilterChange("actorName")}
-                      placeholder="Filter by admin name"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <div className="admins-ols-filter-group">
-                    <span className="admins-ols-filter-group-label">Start</span>
-                    <div className="admins-ols-filter-row">
-                      <label>
-                        Date
-                        <input
-                          type="date"
-                          value={filters.startDate}
-                          onChange={handleFilterChange("startDate")}
-                          aria-label="Start date"
-                        />
-                      </label>
-                      <label>
-                        Time
-                        <input
-                          type="time"
-                          value={filters.startTime}
-                          onChange={handleFilterChange("startTime")}
-                          aria-label="Start time"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  <div className="admins-ols-filter-group">
-                    <span className="admins-ols-filter-group-label">End</span>
-                    <div className="admins-ols-filter-row">
-                      <label>
-                        Date
-                        <input
-                          type="date"
-                          value={filters.endDate}
-                          onChange={handleFilterChange("endDate")}
-                          aria-label="End date"
-                        />
-                      </label>
-                      <label>
-                        Time
-                        <input
-                          type="time"
-                          value={filters.endTime}
-                          onChange={handleFilterChange("endTime")}
-                          aria-label="End time"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  <button type="submit" disabled={loading}>
-                    {loading ? "Loading..." : "Apply Filters"}
+            <section className="admins-ols-card admins-ols-tabs-card" aria-label="Superadmin audit tabs">
+              <div className="admins-ols-tablist" role="tablist" aria-label="Superadmin audit sections">
+                {AUDIT_TAB_ITEMS.map((item) => (
+                  <button
+                    key={`audit-tab-${item.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTabId === item.id}
+                    aria-controls={`audit-panel-${item.id}`}
+                    id={`audit-tab-${item.id}`}
+                    className={`admins-ols-tab${activeTabId === item.id ? " is-active" : ""}`}
+                    onClick={() => handleNavigateToTab(item.id)}
+                  >
+                    <span>{item.label}</span>
+                    {item.id === "lessons-entry" && (
+                      <span className="admins-ols-side-nav-count">{lessonEntries.length}</span>
+                    )}
+                    {item.id === "audit-entries" && (
+                      <span className="admins-ols-side-nav-count">{activity.length}</span>
+                    )}
                   </button>
-                  <button type="button" className="is-secondary" disabled={loading} onClick={handleResetFilters}>
-                    Reset to Last 7 Days
-                  </button>
-                </form>
-              </article>
+                ))}
+              </div>
+            </section>
 
-              <article id="audit-summary" className="admins-ols-card admins-ols-stat">
-                <span>Visible audit events</span>
-                <strong>{activity.length}</strong>
-                <small>Filtered superadmin activity entries in the selected date range</small>
-                <div className="admins-ols-chart-card">
-                  <div className="admins-ols-chart-head">
-                    <h3>Admin Logins By Date</h3>
+            <div className={`admins-ols-tab-panels ${tabContentPhase}`}>
+              <section
+                id="audit-panel-filters"
+                role="tabpanel"
+                aria-labelledby="audit-tab-filters"
+                hidden={displayedTabId !== "filters"}
+                className="admins-ols-grid admins-ols-grid--two"
+              >
+                <article className="admins-ols-card">
+                  <div className="admins-ols-card-head">
+                    <h2>Filters</h2>
+                  </div>
+                  <form className="admins-ols-form" onSubmit={handleApplyFilters}>
+                    <label>
+                      Admin name
+                      <input
+                        type="text"
+                        value={filters.actorName}
+                        onChange={handleFilterChange("actorName")}
+                        placeholder="Filter by admin name"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <div className="admins-ols-filter-group">
+                      <span className="admins-ols-filter-group-label">Start</span>
+                      <div className="admins-ols-filter-row">
+                        <label>
+                          Date
+                          <input
+                            type="date"
+                            value={filters.startDate}
+                            onChange={handleFilterChange("startDate")}
+                            aria-label="Start date"
+                          />
+                        </label>
+                        <label>
+                          Time
+                          <input
+                            type="time"
+                            value={filters.startTime}
+                            onChange={handleFilterChange("startTime")}
+                            aria-label="Start time"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="admins-ols-filter-group">
+                      <span className="admins-ols-filter-group-label">End</span>
+                      <div className="admins-ols-filter-row">
+                        <label>
+                          Date
+                          <input
+                            type="date"
+                            value={filters.endDate}
+                            onChange={handleFilterChange("endDate")}
+                            aria-label="End date"
+                          />
+                        </label>
+                        <label>
+                          Time
+                          <input
+                            type="time"
+                            value={filters.endTime}
+                            onChange={handleFilterChange("endTime")}
+                            aria-label="End time"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <button type="submit" disabled={loading}>
+                      {loading ? "Loading..." : "Apply Filters"}
+                    </button>
+                    <button type="button" className="is-secondary" disabled={loading} onClick={handleResetFilters}>
+                      Reset to Last 7 Days
+                    </button>
+                  </form>
+                </article>
+
+                <article className="admins-ols-card admins-ols-stat">
+                  <span>Visible audit events</span>
+                  <strong>{activity.length}</strong>
+                  <small>Filtered superadmin activity entries in the selected date range</small>
+                  <div className="admins-ols-chart-card">
+                    <div className="admins-ols-chart-head">
+                      <h3>Admin Logins By Date</h3>
+                      <span className="admins-ols-pill">{signInChartData.length} days</span>
+                    </div>
+                    {signInChartData.length ? (
+                      <div className="admins-ols-bar-chart" aria-label="Bar chart of admin logins by date">
+                        {signInChartData.map((item) => (
+                          <div key={item.key} className="admins-ols-bar-chart-item">
+                            <div className="admins-ols-bar-chart-value">{item.count}</div>
+                            <div className="admins-ols-bar-chart-track">
+                              <div
+                                className="admins-ols-bar-chart-bar"
+                                style={{ height: `${item.heightPercent}%` }}
+                                title={`${item.label}: ${item.count} logins`}
+                              />
+                            </div>
+                            <div className="admins-ols-bar-chart-label">{item.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="admins-ols-empty">No sign-in events in this filtered range yet.</p>
+                    )}
+                  </div>
+                </article>
+              </section>
+
+              <section
+                id="audit-panel-summary"
+                role="tabpanel"
+                aria-labelledby="audit-tab-summary"
+                hidden={displayedTabId !== "summary"}
+                className="admins-ols-grid admins-ols-grid--two"
+              >
+                <article className="admins-ols-card admins-ols-stat">
+                  <span>Visible audit events</span>
+                  <strong>{activity.length}</strong>
+                  <small>Filtered superadmin activity entries in the selected date range</small>
+                </article>
+                <article className="admins-ols-card">
+                  <div className="admins-ols-card-head">
+                    <h2>Admin Logins By Date</h2>
                     <span className="admins-ols-pill">{signInChartData.length} days</span>
                   </div>
                   {signInChartData.length ? (
@@ -619,32 +813,145 @@ function AdminsOlsAuditPage() {
                   ) : (
                     <p className="admins-ols-empty">No sign-in events in this filtered range yet.</p>
                   )}
-                </div>
-              </article>
-            </section>
+                </article>
+              </section>
 
-            <section id="audit-entries" className="admins-ols-card">
-              <div className="admins-ols-card-head">
-                <h2>Audit Entries</h2>
-                <span className="admins-ols-pill">{activity.length} rows</span>
-              </div>
-              <div className="admins-ols-stack">
-                {activity.map((item) => (
-                  <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
-                    <div className="admins-ols-log-meta">
-                      <span className={`admins-ols-badge is-${getAdminActivityTone(item)}`}>
-                        {formatAdminActivityEventLabel(item.eventType)}
-                      </span>
-                      <small>{formatDateTime(item.createdAt)}</small>
+              <section
+                id="audit-panel-lessons-entry"
+                role="tabpanel"
+                aria-labelledby="audit-tab-lessons-entry"
+                hidden={displayedTabId !== "lessons-entry"}
+                className="admins-ols-card"
+              >
+                <div className="admins-ols-card-head">
+                  <h2>Lessons Entry</h2>
+                  <span className="admins-ols-pill">{lessonEntries.length} lessons</span>
+                </div>
+
+                <div className="admins-ols-grid admins-ols-grid--two">
+                  <article className="admins-ols-card admins-ols-card--nested">
+                    <div className="admins-ols-card-head">
+                      <h3>Lesson Overview</h3>
                     </div>
-                    <p><strong>{getAdminActivityActorLabel(item)}</strong></p>
-                    <p>{item.message || formatAdminActivityEventLabel(item.eventType)}</p>
-                    <small>{getAdminActivityMetaLine(item) || item.authMode || "No additional details"}</small>
+                    <dl className="admins-ols-definition-list">
+                      <div>
+                        <dt>Total lesson entries</dt>
+                        <dd>{lessonEntrySummary.totalLessons}</dd>
+                      </div>
+                      <div>
+                        <dt>Active lessons</dt>
+                        <dd>{lessonEntrySummary.activeLessons}</dd>
+                      </div>
+                      <div>
+                        <dt>Admins who entered lessons</dt>
+                        <dd>{lessonEntrySummary.uniqueCreators}</dd>
+                      </div>
+                      <div>
+                        <dt>Admins who submitted updates</dt>
+                        <dd>{lessonEntrySummary.uniqueSubmitters}</dd>
+                      </div>
+                    </dl>
                   </article>
-                ))}
-                {!activity.length && <p className="admins-ols-empty">No audit entries in that date range yet.</p>}
-              </div>
-            </section>
+
+                  <article className="admins-ols-card admins-ols-card--nested">
+                    <div className="admins-ols-card-head">
+                      <h3>Most Lessons Entered</h3>
+                      <span className="admins-ols-pill">{lessonEntryLeaderboard.length} admins</span>
+                    </div>
+                    {lessonEntryLeaderboard.length ? (
+                      <div className="admins-ols-table-wrap">
+                        <table className="admins-ols-table">
+                          <thead>
+                            <tr>
+                              <th>Admin</th>
+                              <th>Lessons Entered</th>
+                              <th>Latest Entry</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lessonEntryLeaderboard.map((entry) => (
+                              <tr key={entry.actorKey}>
+                                <td>{entry.actorLabel}</td>
+                                <td>{entry.lessonsCount}</td>
+                                <td>{formatDateTime(entry.latestEntryAt)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="admins-ols-empty">No lesson entries in this filtered range yet.</p>
+                    )}
+                  </article>
+                </div>
+
+                <div className="admins-ols-card-head admins-ols-subsection-head">
+                  <h3>Lesson Entry Details</h3>
+                  <span className="admins-ols-pill">{lessonEntries.length} rows</span>
+                </div>
+                {lessonEntries.length ? (
+                  <div className="admins-ols-table-wrap">
+                    <table className="admins-ols-table">
+                      <thead>
+                        <tr>
+                          <th>Lesson</th>
+                          <th>Sentiment</th>
+                          <th>Entered By</th>
+                          <th>Submitted By</th>
+                          <th>Created</th>
+                          <th>Updated</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lessonEntries.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>{entry.title || "Untitled lesson"}</td>
+                            <td>{entry.sentimentLabel || "Unknown"}</td>
+                            <td>{getLessonActorLabel(entry.createdBy)}</td>
+                            <td>{getLessonActorLabel(entry.updatedBy || entry.createdBy)}</td>
+                            <td>{formatDateTime(entry.createdAt)}</td>
+                            <td>{formatDateTime(entry.updatedAt)}</td>
+                            <td>{entry.active ? "Active" : "Inactive"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="admins-ols-empty">No lesson entries match this filter yet.</p>
+                )}
+              </section>
+
+              <section
+                id="audit-panel-audit-entries"
+                role="tabpanel"
+                aria-labelledby="audit-tab-audit-entries"
+                hidden={displayedTabId !== "audit-entries"}
+                className="admins-ols-card"
+              >
+                <div className="admins-ols-card-head">
+                  <h2>Audit Entries</h2>
+                  <span className="admins-ols-pill">{activity.length} rows</span>
+                </div>
+                <div className="admins-ols-stack">
+                  {activity.map((item) => (
+                    <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
+                      <div className="admins-ols-log-meta">
+                        <span className={`admins-ols-badge is-${getAdminActivityTone(item)}`}>
+                          {formatAdminActivityEventLabel(item.eventType)}
+                        </span>
+                        <small>{formatDateTime(item.createdAt)}</small>
+                      </div>
+                      <p><strong>{getAdminActivityActorLabel(item)}</strong></p>
+                      <p>{item.message || formatAdminActivityEventLabel(item.eventType)}</p>
+                      <small>{getAdminActivityMetaLine(item) || item.authMode || "No additional details"}</small>
+                    </article>
+                  ))}
+                  {!activity.length && <p className="admins-ols-empty">No audit entries in that date range yet.</p>}
+                </div>
+              </section>
+            </div>
           </main>
         </div>
       </div>

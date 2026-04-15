@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import apiBase from "./utils/apiBase";
 import {
   clearAdminsOlsSession,
@@ -14,6 +14,8 @@ import "./AdminsOlsPage.css";
 const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
 const DASHBOARD_ACTIVITY_DEDUPE_WINDOW_MS = 5000;
 const TAB_TRANSITION_MS = 180;
+const ATTENTION_STORAGE_KEY_PREFIX = "admins-ols-attention-seen";
+const ATTENTION_NOTIFIED_KEY_PREFIX = "admins-ols-attention-notified";
 
 const DEFAULT_FORM = {
   title: "",
@@ -139,6 +141,39 @@ const getConversationInitial = (thread = {}) => {
   return clean ? clean.charAt(0).toUpperCase() : "C";
 };
 
+const conversationNeedsAttention = (thread = {}) =>
+  (Array.isArray(thread?.messages) ? thread.messages : []).some(
+    (message) => String(message?.metadata?.responseMode || "").trim().toLowerCase() === "needs_attention",
+  );
+
+const getConversationAttentionSignature = (thread = {}) => {
+  const sessionId = String(thread?.sessionId || "").trim();
+  const lastSeenAt = String(thread?.lastSeenAt || "").trim();
+  const messageCount = Number(thread?.messageCount || 0);
+  if (!sessionId) return "";
+  return `${sessionId}:${lastSeenAt}:${messageCount}`;
+};
+
+const loadStoredStringList = (key = "") => {
+  if (!key || typeof window === "undefined" || !window.localStorage) return [];
+  try {
+    const raw = window.localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map((entry) => String(entry || "")).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveStoredStringList = (key = "", values = []) => {
+  if (!key || typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(Array.from(new Set(values.filter(Boolean)))));
+  } catch {
+    // Ignore storage errors so alerts still work for the active session.
+  }
+};
+
 const toTimestamp = (value = "") => {
   const parsed = Date.parse(String(value || ""));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -185,6 +220,7 @@ const formatAdminActivityEventLabel = (value = "") => {
   if (normalized === "dashboard_opened") return "Dashboard Opened";
   if (normalized === "manual_refresh") return "Manual Refresh";
   if (normalized === "conversation_reply") return "Admin Reply";
+  if (normalized === "guest_attention_needed") return "Guest Needs Attention";
   if (normalized === "lesson_created") return "Lesson Created";
   if (normalized === "lesson_activated") return "Lesson Activated";
   if (normalized === "lesson_deactivated") return "Lesson Deactivated";
@@ -200,7 +236,7 @@ const getAdminActivityTone = (item = {}) => {
   if (["sign_in", "sign_up", "dashboard_opened", "conversation_reply", "lesson_created", "lesson_activated"].includes(normalized)) {
     return "positive";
   }
-  if (["lesson_deleted", "lesson_deactivated"].includes(normalized)) return "negative";
+  if (["lesson_deleted", "lesson_deactivated", "guest_attention_needed"].includes(normalized)) return "negative";
   return "neutral";
 };
 
@@ -326,10 +362,17 @@ function AdminsOlsPage() {
   const [activeTabId, setActiveTabId] = useState("overview");
   const [displayedTabId, setDisplayedTabId] = useState("overview");
   const [tabContentPhase, setTabContentPhase] = useState("idle");
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported",
+  );
+  const [attentionSeenSignatures, setAttentionSeenSignatures] = useState([]);
   const threadScrollRef = useRef(null);
   const hasLoggedDashboardOpenRef = useRef(false);
   const sidebarPhaseTimeoutRef = useRef(null);
   const tabTransitionTimeoutRef = useRef(null);
+  const attentionHydratedRef = useRef(false);
+  const audioContextRef = useRef(null);
+  const audioPrimedRef = useRef(false);
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
@@ -352,6 +395,11 @@ function AdminsOlsPage() {
     ? dashboard.recentAdminActivity
     : [];
   const sentimentLessons = Array.isArray(dashboard?.sentimentLessons) ? dashboard.sentimentLessons : [];
+  const attentionThreads = recentConversations.filter(conversationNeedsAttention);
+  const unreadAttentionThreads = attentionThreads.filter(
+    (thread) => !attentionSeenSignatures.includes(getConversationAttentionSignature(thread)),
+  );
+  const unreadAttentionCount = unreadAttentionThreads.length;
   const selectedConversation =
     recentConversations.find((thread) => thread.sessionId === selectedConversationSessionId) ||
     recentConversations[0] ||
@@ -368,9 +416,18 @@ function AdminsOlsPage() {
     };
   }, [overview.badFeedbackTotal, overview.goodFeedbackTotal]);
 
+  const attentionSeenStorageKey = useMemo(() => {
+    const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
+    return `${ATTENTION_STORAGE_KEY_PREFIX}:${identity || "shared"}`;
+  }, [currentAdmin?.email, currentAdmin?.id]);
+
+  const attentionNotifiedStorageKey = useMemo(() => {
+    const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
+    return `${ATTENTION_NOTIFIED_KEY_PREFIX}:${identity || "shared"}`;
+  }, [currentAdmin?.email, currentAdmin?.id]);
+
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "OneLuxStay Admin";
 
     const robotsMeta = document.createElement("meta");
     robotsMeta.name = "robots";
@@ -476,6 +533,163 @@ function AdminsOlsPage() {
     }));
   }, [currentAdmin?.fullName]);
 
+  useEffect(() => {
+    attentionHydratedRef.current = false;
+    const storedSeen = loadStoredStringList(attentionSeenStorageKey);
+    setAttentionSeenSignatures(storedSeen);
+  }, [attentionSeenStorageKey]);
+
+  useEffect(() => {
+    saveStoredStringList(attentionSeenStorageKey, attentionSeenSignatures);
+  }, [attentionSeenSignatures, attentionSeenStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const updatePermission = () => {
+      setNotificationPermission("Notification" in window ? window.Notification.permission : "unsupported");
+    };
+
+    updatePermission();
+    window.addEventListener("focus", updatePermission);
+    return () => window.removeEventListener("focus", updatePermission);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const primeAudio = async () => {
+      if (audioPrimedRef.current) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      try {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContextClass();
+        }
+        if (audioContextRef.current?.state === "suspended") {
+          await audioContextRef.current.resume();
+        }
+        audioPrimedRef.current = true;
+      } catch {
+        // Ignore autoplay restrictions until the next interaction.
+      }
+    };
+
+    window.addEventListener("pointerdown", primeAudio, { passive: true });
+    window.addEventListener("keydown", primeAudio);
+
+    return () => {
+      window.removeEventListener("pointerdown", primeAudio);
+      window.removeEventListener("keydown", primeAudio);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!attentionThreads.length) {
+      attentionHydratedRef.current = true;
+      return;
+    }
+
+    const currentSignatures = attentionThreads
+      .map((thread) => getConversationAttentionSignature(thread))
+      .filter(Boolean);
+
+    if (!attentionHydratedRef.current) {
+      const notified = loadStoredStringList(attentionNotifiedStorageKey);
+      saveStoredStringList(attentionNotifiedStorageKey, [...notified, ...currentSignatures]);
+      attentionHydratedRef.current = true;
+      return;
+    }
+
+    const notified = new Set(loadStoredStringList(attentionNotifiedStorageKey));
+    const newSignatures = currentSignatures.filter((signature) => !notified.has(signature));
+    if (!newSignatures.length) return;
+
+    saveStoredStringList(attentionNotifiedStorageKey, [...notified, ...newSignatures]);
+
+    const newestThread = attentionThreads
+      .filter((thread) => newSignatures.includes(getConversationAttentionSignature(thread)))
+      .sort((left, right) => toTimestamp(right.lastSeenAt) - toTimestamp(left.lastSeenAt))[0];
+
+    const playAlertTone = async () => {
+      if (typeof window === "undefined") return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      try {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContextClass();
+        }
+        const context = audioContextRef.current;
+        if (!context) return;
+        if (context.state === "suspended") {
+          await context.resume();
+        }
+
+        const startAt = context.currentTime + 0.02;
+        [0, 0.26].forEach((offset) => {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(offset === 0 ? 988 : 1318, startAt + offset);
+          gain.gain.setValueAtTime(0.0001, startAt + offset);
+          gain.gain.exponentialRampToValueAtTime(0.08, startAt + offset + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + 0.22);
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(startAt + offset);
+          oscillator.stop(startAt + offset + 0.24);
+        });
+      } catch {
+        // Ignore audio failures if the browser blocks background audio.
+      }
+    };
+
+    const showBrowserNotification = () => {
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      if (window.Notification.permission !== "granted" || !newestThread) return;
+      if (typeof document !== "undefined" && !document.hidden && document.hasFocus?.()) return;
+
+      try {
+        const notification = new window.Notification("Guest Needs Attention", {
+          body: `${getConversationTitle(newestThread)} needs a human follow-up.`,
+          tag: getConversationAttentionSignature(newestThread),
+          renotify: true,
+          requireInteraction: true,
+        });
+        notification.onclick = () => {
+          window.focus?.();
+          setActiveTabId("conversations");
+          setSelectedConversationSessionId(newestThread.sessionId);
+          notification.close();
+        };
+      } catch {
+        // Ignore notification failures.
+      }
+    };
+
+    void playAlertTone();
+    showBrowserNotification();
+  }, [attentionNotifiedStorageKey, attentionThreads]);
+
+  useEffect(() => {
+    if (displayedTabId !== "conversations" || !selectedConversation?.sessionId) return;
+    if (!conversationNeedsAttention(selectedConversation)) return;
+
+    const signature = getConversationAttentionSignature(selectedConversation);
+    if (!signature) return;
+
+    setAttentionSeenSignatures((current) =>
+      current.includes(signature) ? current : [...current, signature],
+    );
+  }, [displayedTabId, selectedConversation]);
+
+  useEffect(() => {
+    document.title =
+      unreadAttentionCount > 0 ? `(${unreadAttentionCount}) OneLuxStay Admin` : "OneLuxStay Admin";
+  }, [unreadAttentionCount]);
+
   const performAdminRequest = async ({ method = "GET", payload } = {}, sessionOverride = session) => {
     const activeSession = sessionOverride || session;
     if (!activeSession?.accessToken && !activeSession?.sharedKey) {
@@ -550,7 +764,6 @@ function AdminsOlsPage() {
     if (typeof window === "undefined") return undefined;
 
     const intervalId = window.setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
       fetchDashboard(session, { silent: true });
     }, 5000);
 
@@ -623,6 +836,25 @@ function AdminsOlsPage() {
       },
     }).catch(() => null);
     await fetchDashboard(session, { silent: true });
+  };
+
+  const handleEnableAlerts = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setError("Browser notifications are not supported in this browser.");
+      return;
+    }
+
+    try {
+      const permission = await window.Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === "granted") {
+        setNotice("Desktop alerts enabled. New attention threads can now notify you.");
+      } else {
+        setNotice("Desktop alerts were not enabled. You can still use the in-dashboard badge alerts.");
+      }
+    } catch {
+      setError("Unable to enable desktop alerts right now.");
+    }
   };
 
   const handleSaveLesson = async (event) => {
@@ -944,6 +1176,14 @@ function AdminsOlsPage() {
                   </Link>
                   <button
                     type="button"
+                    className={`admins-ols-profile-action${unreadAttentionCount > 0 ? " is-attention" : ""}`}
+                    onClick={() => handleNavigateToSection("conversations")}
+                  >
+                    <span>Attention Alerts</span>
+                    <span className="admins-ols-side-nav-count">{unreadAttentionCount}</span>
+                  </button>
+                  <button
+                    type="button"
                     className="admins-ols-profile-action is-danger"
                     onClick={handleLogout}
                   >
@@ -984,6 +1224,36 @@ function AdminsOlsPage() {
               <div className="admins-ols-toolbar">
                 <button
                   type="button"
+                  className={`admins-ols-toolbar-alert-btn${
+                    notificationPermission === "granted" ? " is-enabled" : ""
+                  }`}
+                  onClick={handleEnableAlerts}
+                  disabled={notificationPermission === "unsupported"}
+                  title={
+                    notificationPermission === "granted"
+                      ? "Desktop alerts are enabled"
+                      : notificationPermission === "denied"
+                        ? "Desktop alerts are blocked in this browser"
+                        : notificationPermission === "unsupported"
+                          ? "Desktop alerts are not supported in this browser"
+                          : "Enable desktop alerts"
+                  }
+                >
+                  <span>
+                    {notificationPermission === "granted"
+                      ? "Alerts On"
+                      : notificationPermission === "denied"
+                        ? "Alerts Blocked"
+                        : notificationPermission === "unsupported"
+                          ? "Alerts Unsupported"
+                          : "Enable Alerts"}
+                  </span>
+                  {unreadAttentionCount > 0 && (
+                    <span className="admins-ols-side-nav-count">{unreadAttentionCount}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
                   className="admins-ols-toolbar-icon-btn"
                   onClick={handleManualRefresh}
                   disabled={loading}
@@ -1011,7 +1281,10 @@ function AdminsOlsPage() {
                     className={`admins-ols-tab${activeTabId === item.id ? " is-active" : ""}`}
                     onClick={() => handleNavigateToSection(item.id)}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.id === "conversations" && unreadAttentionCount > 0 && (
+                      <span className="admins-ols-side-nav-count">{unreadAttentionCount}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1218,6 +1491,7 @@ function AdminsOlsPage() {
               {recentConversations.map((thread) => {
                 const latestMessage = thread.messages?.[thread.messages.length - 1] || null;
                 const isActive = thread.sessionId === selectedConversation?.sessionId;
+                const needsAttention = conversationNeedsAttention(thread);
 
                 return (
                   <button
@@ -1240,6 +1514,7 @@ function AdminsOlsPage() {
                       <div className="admins-ols-messenger-item-foot">
                         <span>{thread.messageCount} messages</span>
                         {latestMessage?.cardCount > 0 && <span>{latestMessage.cardCount} cards</span>}
+                        {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
                       </div>
                     </div>
                   </button>
@@ -1253,6 +1528,12 @@ function AdminsOlsPage() {
             <div className="admins-ols-messenger-thread">
               {selectedConversation ? (
                 <>
+                  {conversationNeedsAttention(selectedConversation) && (
+                    <div className="admins-ols-conversation-alert">
+                      <span className="admins-ols-badge is-negative">Needs attention</span>
+                      <p>The concierge paused this thread because it started repeating or could not answer clearly.</p>
+                    </div>
+                  )}
                   <div className="admins-ols-conversation-head">
                     <div className="admins-ols-conversation-head-main">
                       <p className="admins-ols-conversation-kicker">
@@ -1273,6 +1554,9 @@ function AdminsOlsPage() {
                             : "No listing"}
                         </span>
                         <span>{selectedConversation.messageCount} messages</span>
+                        {conversationNeedsAttention(selectedConversation) && (
+                          <span className="admins-ols-badge is-negative">Needs attention</span>
+                        )}
                       </div>
                     </div>
                     <small>{formatDateTime(selectedConversation.lastSeenAt)}</small>
@@ -1622,9 +1906,13 @@ function AdminsOlsPage() {
               <article key={`${item.sessionId}-${item.messageId}`} className="admins-ols-log">
                 <div className="admins-ols-log-meta">
                   <span
-                    className={`admins-ols-badge is-${item.metadata.responseMode === "fallback" ? "negative" : "neutral"}`}
+                    className={`admins-ols-badge is-${
+                      ["fallback", "needs_attention"].includes(String(item.metadata.responseMode || "").trim().toLowerCase())
+                        ? "negative"
+                        : "neutral"
+                    }`}
                   >
-                    {item.metadata.responseMode || "live"}
+                    {titleCase(item.metadata.responseMode || "live")}
                   </span>
                   <small>{formatDateTime(item.createdAt)}</small>
                 </div>
