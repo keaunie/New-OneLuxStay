@@ -18,6 +18,8 @@ const preloadAdminsOlsPage = () => import("../AdminsOlsPage");
 const preloadAdminsOlsAuthPage = () => import("../AdminsOlsAuthPage");
 const preloadAdminsOlsAuditPage = () => import("../AdminsOlsAuditPage");
 const preloadAdminsOlsGuestJourneysPage = () => import("../AdminsOlsGuestJourneysPage");
+const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage");
+const preloadExecutiveOlsAuthPage = () => import("../executiveOls/ExecutiveOlsAuthPage");
 
 export const routePreloaders = {
   landing: preloadLandingPage,
@@ -40,6 +42,8 @@ export const routePreloaders = {
   adminsOlsAuth: preloadAdminsOlsAuthPage,
   adminsOlsAudit: preloadAdminsOlsAuditPage,
   adminsOlsGuestJourneys: preloadAdminsOlsGuestJourneysPage,
+  executiveOls: preloadExecutiveOlsPage,
+  executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 
 const normalizePathname = (value = "") => {
@@ -117,6 +121,12 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/admins-ols/guest-journeys") {
     return routePreloaders.adminsOlsGuestJourneys().then(() => undefined);
+  }
+  if (normalized === "/executive-ols") {
+    return routePreloaders.executiveOls().then(() => undefined);
+  }
+  if (normalized === "/executive-ols/login") {
+    return routePreloaders.executiveOlsAuth().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };

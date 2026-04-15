@@ -26,6 +26,8 @@ const AdminsOlsPage = lazy(routePreloaders.adminsOls);
 const AdminsOlsAuthPage = lazy(routePreloaders.adminsOlsAuth);
 const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
+const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
+const ExecutiveOlsAuthPage = lazy(routePreloaders.executiveOlsAuth);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -95,6 +97,7 @@ function AppRoutes() {
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
   const hideChatConcierge =
     location.pathname.startsWith("/admins-ols") ||
+    location.pathname.startsWith("/executive-ols") ||
     location.pathname.startsWith("/private/roadmap/");
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
@@ -104,7 +107,14 @@ function AppRoutes() {
 
   useEffect(() => {
     const pathname = String(location.pathname || "").toLowerCase();
-    if (!pathname || pathname.startsWith("/admins-ols") || pathname.startsWith("/private/")) return;
+    if (
+      !pathname ||
+      pathname.startsWith("/admins-ols") ||
+      pathname.startsWith("/executive-ols") ||
+      pathname.startsWith("/private/")
+    ) {
+      return;
+    }
     if (pathname === "/ai-agent") return;
     trackGuestPageView().catch(() => null);
   }, [location.pathname, location.search]);
@@ -183,6 +193,8 @@ function AppRoutes() {
           <Route path="/admins-ols" element={renderLazyRoute(AdminsOlsPage)} />
           <Route path="/admins-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
           <Route path="/admins-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
+          <Route path="/executive-ols/login" element={renderLazyRoute(ExecutiveOlsAuthPage)} />
+          <Route path="/executive-ols" element={renderLazyRoute(ExecutiveOlsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
