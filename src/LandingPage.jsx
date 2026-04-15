@@ -383,32 +383,25 @@ const mobileHeroSlide = optimizeLandingImage(
 
 const offers = [
   {
-    kicker: "Last-minute 10%",
-    headline: "Spontaneous? Save 10% instantly",
-    body: "Lock in a last-minute escape and keep 10% back in your pocket.",
-    cta: "See last-minute",
-    tone: "dark",
-  },
-  {
-    kicker: "Weekly 10%",
-    headline: "Stay a week, save 10%",
-    body: "Stretch your stay to 7 nights and enjoy an effortless 10% off.",
-    cta: "Explore weekly",
+    kicker: "Last-minute",
+    headline: "Save 10% on last-minute stays",
+    body: "For flexible trips booked close to arrival.",
+    cta: "View last-minute stays",
     tone: "sand",
   },
   {
-    kicker: "Monthly 20%",
-    headline: "Live in, save 20%",
-    body: "Book 30 nights and unlock a generous 20% monthly savings.",
-    cta: "Explore monthly",
+    kicker: "Weekly",
+    headline: "Save 10% on weekly stays",
+    body: "Available on stays of 7 nights or more.",
+    cta: "View weekly stays",
+    tone: "sand",
+  },
+  {
+    kicker: "Monthly",
+    headline: "Save 20% on monthly stays",
+    body: "Available on stays of 30 nights or more.",
+    cta: "View monthly stays",
     tone: "clay",
-  },
-  {
-    kicker: "Early 5% (60 days)",
-    headline: "Plan ahead, save 5%",
-    body: "Reserve 60+ days early and secure a smart 5% discount.",
-    cta: "Plan ahead",
-    tone: "sand",
   },
 ];
 
@@ -1615,16 +1608,20 @@ function LandingPage() {
         )}
       </header>
 
-      <section id="offers" className="landing-offers-section landing-animate" aria-label="Discounts and promos">
+      <section
+        id="offers"
+        className="landing-offers-section landing-animate"
+        aria-labelledby="landing-offers-title"
+      >
         <div className="landing-offers-inner px-6 md:px-10">
           <div className="landing-offers-head">
             <div className="landing-offers-copy">
-              <p className="landing-kicker">Discounts & promos</p>
-              <h2 className="landing-display landing-collection-title">
-                Exclusive savings crafted for every stay style
+              <p className="landing-kicker">Direct booking offers</p>
+              <h2 id="landing-offers-title" className="landing-display landing-collection-title">
+                Luxury stay offers
               </h2>
               <p className="landing-collection-copy">
-                Unlock member-only value with flexible offers for spontaneous nights, weekly escapes, and long stays.
+                Save on last-minute, weekly, and monthly stays when you book direct with One Lux Stay.
               </p>
             </div>
           </div>
@@ -1632,7 +1629,7 @@ function LandingPage() {
 
         <div className="landing-offers-controls landing-offers-controls--center" aria-hidden="true">
           <div className="landing-offers-swipe">
-            <span className="landing-offers-swipe__label">Swipe offers</span>
+            <span className="landing-offers-swipe__label">{shouldUseInteractiveOffers ? "Browse offers" : "Swipe offers"}</span>
             {shouldUseInteractiveOffers && !prefersReducedMotion && (
               <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />
             )}
