@@ -56,6 +56,18 @@ const parseJson = (text) => {
   }
 };
 
+const normalizeAssistantErrorMessage = (error) => {
+  const raw = sanitizeString(error?.message || "Unknown assistant error.", 320);
+  if (!raw) return "Unknown assistant error.";
+  if (/incorrect api key provided/i.test(raw) || /invalid api key/i.test(raw)) {
+    return "Invalid OPENAI_API_KEY in the server environment.";
+  }
+  if (/openai_api_key is missing/i.test(raw) || /api key is missing/i.test(raw)) {
+    return "OPENAI_API_KEY is missing in the server environment.";
+  }
+  return raw.replace(/sk-[a-z0-9_-]+/gi, "[redacted-key]");
+};
+
 const firstNumber = (...values) => {
   for (const value of values) {
     const numeric = Number(value);
@@ -521,7 +533,7 @@ export async function handler(event) {
         snapshot,
       });
     } catch (error) {
-      assistantError = sanitizeString(error?.message || "Unknown assistant error.", 240);
+      assistantError = normalizeAssistantErrorMessage(error);
     }
 
     if (!answer) {
