@@ -371,6 +371,50 @@ const extractOutputText = (payload) => {
   return parts.join("\n").trim();
 };
 
+const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistantError = "" }) => {
+  const normalizedQuery = sanitizeString(query, 400).toLowerCase();
+  const stats = snapshot?.stats || {};
+  const rangeLabel = sanitizeString(snapshot?.filters?.rangeLabel || "the selected range", 80);
+  const revenue = formatCurrency(stats.projectedRevenue, stats.currency || "USD");
+  const reservations = Number(stats.totalReservations || 0);
+  const confirmed = Number(stats.confirmedReservations || 0);
+  const checkIns = Number(stats.upcomingCheckIns || 0);
+  const syncMessage = sanitizeString(snapshot?.syncStatus?.message || "", 240);
+  const helperNote = assistantError
+    ? ` The AI reply layer is currently unavailable: ${sanitizeString(assistantError, 220)}.`
+    : "";
+
+  if (/(wifi|wi-fi|password|internet)/i.test(normalizedQuery)) {
+    return (
+      "I do not see Wi-Fi or access-code details in the current executive snapshot. " +
+      "This dashboard currently has reservation and listing summary data, not property guide instructions." +
+      helperNote
+    );
+  }
+
+  if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
+    return (
+      `For ${rangeLabel}, projected revenue is ${revenue} across ${reservations} reservations.` +
+      (syncMessage ? ` ${syncMessage}` : "") +
+      helperNote
+    );
+  }
+
+  if (/(booking|bookings|reservation|reservations)/i.test(normalizedQuery)) {
+    return (
+      `For ${rangeLabel}, there are ${reservations} reservations, ${confirmed} confirmed bookings, and ${checkIns} upcoming check-ins.` +
+      (syncMessage ? ` ${syncMessage}` : "") +
+      helperNote
+    );
+  }
+
+  return (
+    "I could not complete a full AI reply right now, but the current executive snapshot is still available in the panel." +
+    (syncMessage ? ` ${syncMessage}` : "") +
+    helperNote
+  );
+};
+
 const createAssistantReply = async ({ query, messages, snapshot }) => {
   const apiKey = sanitizeString(process.env.OPENAI_API_KEY, 500);
   if (!apiKey) {
@@ -467,13 +511,26 @@ export async function handler(event) {
     }
 
     const messages = sanitizeMessages(payload?.messages);
-    const answer =
-      (await createAssistantReply({
+    let answer = "";
+    let assistantError = "";
+
+    try {
+      answer = await createAssistantReply({
         query,
         messages,
         snapshot,
-      }).catch(() => "")) ||
-      "I could not generate a full reply right now. Please review the current executive snapshot and try again.";
+      });
+    } catch (error) {
+      assistantError = sanitizeString(error?.message || "Unknown assistant error.", 240);
+    }
+
+    if (!answer) {
+      answer = buildDeterministicFallbackAnswer({
+        query,
+        snapshot,
+        assistantError,
+      });
+    }
 
     return jsonResponse(
       200,
