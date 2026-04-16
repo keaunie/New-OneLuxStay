@@ -1689,6 +1689,12 @@ const localizeGuestVisibleContent = async ({
     const translatedText = extractOutputText(translationData);
     const translatedObject = parseJsonObjectFromText(translatedText);
     if (!translatedObject || typeof translatedObject !== "object") {
+      // If the model ignored the JSON instruction but returned plain translated text,
+      // use it as the translated reply (best-effort) so guests still see their language.
+      const plain = sanitizeString(translatedText, 3000);
+      if (plain && reply && !plain.trim().startsWith("{")) {
+        return { reply: plain, notice, quickReplies };
+      }
       return { reply, notice, quickReplies };
     }
 
@@ -3159,15 +3165,27 @@ const LANGUAGE_LABELS = {
   unknown: "Guest language",
 };
 
+// Keep hints ASCII-heavy for reliability; NL/FR/ES matter most for Antwerp/USA guests.
 const LATIN_LANGUAGE_HINTS = [
-  { code: "es", pattern: /[¿¡]|\b(hola|gracias|por favor|buenas|quiero|precio|reserva|fechas|cu[aá]nto|disponible)\b/i },
-  { code: "fr", pattern: /\b(bonjour|merci|s'il vous pla[iî]t|disponibilit[eé]|r[eé]servation|prix|dates)\b/i },
-  { code: "pt", pattern: /\b(ol[áa]|obrigad[oa]|por favor|reserva|preço|datas|dispon[ií]vel|quero)\b/i },
-  { code: "de", pattern: /\b(hallo|danke|bitte|buchung|preis|daten|verf[uü]gbar|zimmer)\b/i },
-  { code: "it", pattern: /\b(ciao|grazie|per favore|prenotazione|prezzo|date|disponibile|camera)\b/i },
-  { code: "nl", pattern: /\b(hallo|dank je|alsjeblieft|boeking|prijs|data|beschikbaar|kamer)\b/i },
-  { code: "tr", pattern: /\b(merhaba|te[sş]ekk[uü]rler|l[uü]tfen|rezervasyon|fiyat|tarih|m[uü]sait)\b/i },
-  { code: "vi", pattern: /\b(xin ch[aà]o|c[aả]m [ơo]n|l[aà]m [ơo]n|đặt ph[oò]ng|gi[aá]|ng[aà]y|trống)\b/i },
+  {
+    code: "es",
+    pattern:
+      /\b(hola|gracias|por favor|buenas|quiero|precio|reserva|reservar|fechas|cuanto|disponible|habitacion|personas)\b/i,
+  },
+  {
+    code: "fr",
+    pattern:
+      /\b(bonjour|merci|s'il vous plait|svp|reservation|reserver|prix|dates|disponibilite|personnes|chambre)\b/i,
+  },
+  {
+    code: "nl",
+    pattern:
+      /\b(hallo|hoi|dank je|dankjewel|alsjeblieft|boeking|boeken|prijs|data|datums|beschikbaar|kamer|nachten|gasten)\b/i,
+  },
+  { code: "de", pattern: /\b(hallo|danke|bitte|buchung|preis|daten|verfuegbar|zimmer|gaeste)\b/i },
+  { code: "it", pattern: /\b(ciao|grazie|per favore|prenotazione|prezzo|date|disponibile|camera|persone)\b/i },
+  { code: "pt", pattern: /\b(ola|obrigado|obrigada|por favor|reserva|preco|datas|disponivel|quero|pessoas)\b/i },
+  { code: "tr", pattern: /\b(merhaba|tesekkur|lutfen|rezervasyon|fiyat|tarih|musait)\b/i },
   { code: "id", pattern: /\b(halo|terima kasih|tolong|pemesanan|harga|tanggal|tersedia|kamar)\b/i },
   { code: "tl", pattern: /\b(kumusta|salamat|pakiusap|reserbasyon|presyo|petsa|kuwarto)\b/i },
 ];
@@ -3201,13 +3219,8 @@ const detectLanguageFromText = (value = "") => {
   if (/[\u4e00-\u9fff]/u.test(sample)) return buildLanguageProfile("zh", sample, "high");
 
   const lower = sample.toLowerCase();
+  // Cyrillic: allow translation but don't overfit a specific language.
   if (/[\u0400-\u04ff]/u.test(sample)) {
-    if (/\b(дякую|будь ласка|бронювання|ціна|дати)\b/i.test(sample)) {
-      return buildLanguageProfile("uk", sample, "medium");
-    }
-    if (/\b(привет|здравствуйте|спасибо|пожалуйста|бронь|цена|даты)\b/i.test(sample)) {
-      return buildLanguageProfile("ru", sample, "medium");
-    }
     return buildLanguageProfile("unknown", sample, "low");
   }
 
@@ -4488,5 +4501,11 @@ export async function handler(event) {
     });
   }
 }
+
+// Optional debug helpers (no runtime impact). Useful for quick local verification in Node.
+export const __olsLanguageDebug = {
+  detectLanguageFromText,
+  detectGuestLanguageProfile,
+};
 
 
