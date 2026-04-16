@@ -113,7 +113,7 @@ function AppRoutes() {
     try {
       const hash = String(location.hash || "");
       const pathname = String(location.pathname || "");
-      if (pathname === "/" && hash.includes("access_token=") && hash.toLowerCase().includes("type=invite")) {
+      if (pathname === "/" && (hash.includes("access_token=") || hash.toLowerCase().includes("error="))) {
         navigate({ pathname: "/admins-ols/accept", hash }, { replace: true });
       }
     } catch {

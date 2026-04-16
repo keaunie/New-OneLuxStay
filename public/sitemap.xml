@@ -4495,6 +4495,18 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://oneluxstay.com/redondo-beach/listing/69e125f82a2e7400157046ae</loc>
+    <lastmod>2026-04-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://oneluxstay.com/redondo-beach/listing/69e125f82a2e7400157046ae/2026-04-30/2026-05-03/2</loc>
+    <lastmod>2026-04-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://oneluxstay.com/redondo-beach/pier</loc>
     <lastmod>2026-04-16</lastmod>
     <changefreq>monthly</changefreq>
@@ -4718,6 +4730,18 @@
   </url>
   <url>
     <loc>https://oneluxstay.com/redondo/listing/69a9a8abb2489b0013b4f402/2026-04-30/2026-05-03/2</loc>
+    <lastmod>2026-04-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://oneluxstay.com/redondo/listing/69e125f82a2e7400157046ae</loc>
+    <lastmod>2026-04-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://oneluxstay.com/redondo/listing/69e125f82a2e7400157046ae/2026-04-30/2026-05-03/2</loc>
     <lastmod>2026-04-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

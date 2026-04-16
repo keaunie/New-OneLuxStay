@@ -14,7 +14,6 @@ import {
 import {
   updateAdminsOlsUserAccount,
   generateAdminsOlsInviteLink,
-  inviteAdminsOlsUserByEmail,
   verifyAdminsOlsAccess,
   verifyAdminsOlsPassword,
 } from "./_shared/adminsOlsAuth.js";
@@ -461,6 +460,93 @@ const resolveInviteRedirectUrl = (payload = {}, event = {}) => {
   }
 };
 
+const sendAdminsOlsInviteEmail = async ({ to, invitedByName, siteOrigin, acceptUrl }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  if (!apiKey || !from || !recipients.length) {
+    return { skipped: true };
+  }
+
+  const safeAcceptUrl = sanitizeString(acceptUrl, 4000);
+  if (!safeAcceptUrl) {
+    throw new Error("Invite link was not generated.");
+  }
+
+  const title = "You have been invited";
+  const preheader = "Set your admin password to access the Concierge Intelligence Panel.";
+  const brand = "OneLuxStay";
+  const inviter = sanitizeString(invitedByName, 160) || "a OneLuxStay superadmin";
+  const originLabel = sanitizeString(siteOrigin, 200) || "the OneLuxStay site";
+
+  const html = `
+  <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; line-height: 1.45; color: #111;">
+    <div style="max-width: 560px; margin: 0 auto; padding: 28px 18px;">
+      <h1 style="margin: 0 0 8px; font-size: 22px;">${title}</h1>
+      <div style="color: #555; margin: 0 0 18px; font-size: 14px;">${preheader}</div>
+      <p style="margin: 0 0 14px; font-size: 14px;">
+        ${brand} invited you to access the Concierge Intelligence Panel on <strong>${originLabel}</strong>.
+      </p>
+      <p style="margin: 0 0 18px; font-size: 14px;">
+        Invited by: <strong>${inviter}</strong>
+      </p>
+      <div style="margin: 18px 0 20px;">
+        <a href="${safeAcceptUrl}" style="display: inline-block; background: #0b1f3b; color: #fff; text-decoration: none; padding: 12px 16px; border-radius: 10px; font-weight: 600;">
+          Accept the invite
+        </a>
+      </div>
+      <p style="margin: 0 0 12px; font-size: 12px; color: #666;">
+        This link is one-time. If it says expired, ask a superadmin to resend your invite.
+      </p>
+      <p style="margin: 0; font-size: 12px; color: #666; word-break: break-all;">
+        If the button doesn’t work, paste this link into your browser:<br/>
+        <a href="${safeAcceptUrl}" style="color: #0b1f3b;">${safeAcceptUrl}</a>
+      </p>
+    </div>
+  </div>
+  `.trim();
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: recipients,
+      subject: `${brand}: Admin invite`,
+      html,
+    }),
+  });
+
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload?.message || "Unable to send invite email.");
+  }
+  return payload;
+};
+
+const fixInviteLink = (actionLink = "", redirectTo = "") => {
+  const raw = sanitizeString(actionLink, 4000);
+  const target = sanitizeString(redirectTo, 4000);
+  if (!raw) return "";
+
+  // If the link already points to the accept page, keep it.
+  if (target && raw.toLowerCase().startsWith(target.toLowerCase())) return raw;
+
+  // If the link carries tokens in the hash (GoTrue generate_link), rebuild it onto the accept route.
+  const hashIndex = raw.indexOf("#");
+  if (hashIndex > -1 && target) {
+    const fragment = raw.slice(hashIndex + 1);
+    if (fragment && fragment.includes("access_token=")) {
+      return `${target}#${fragment}`;
+    }
+  }
+
+  return raw;
+};
+
 const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
   if (!adminUser?.isSuperAdmin) {
     const error = new Error("Superadmin access required.");
@@ -518,7 +604,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
               invite_sent_at: new Date().toISOString(),
             },
           });
-          actionLink = fixInviteLink(action?.actionLink || "");
+          actionLink = fixInviteLink(action?.actionLink || "", redirectTo);
         } catch (error) {
           actionLink = "";
           linkWarning = sanitizeString(error?.message || "Unable to generate a backup invite link.", 240);
@@ -543,43 +629,55 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
   }
 
   try {
-    const invite = await inviteAdminsOlsUserByEmail({
+    // Prefer generate_link for invites so we can send a direct /admins-ols/accept#access_token=... URL.
+    // This avoids the GoTrue /verify OTP redirect link that can show otp_expired (often due to email link scanners).
+    const invitedByName = sanitizeString(adminUser?.fullName || adminUser?.name || "", 160);
+    const siteOrigin = (() => {
+      try {
+        return new URL(redirectTo).origin;
+      } catch {
+        return sanitizeString(process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_URL || "", 240);
+      }
+    })();
+
+    const action = await generateAdminsOlsInviteLink({
       email,
-      fullName,
-      role,
       redirectTo,
-      invitedBy: adminUser,
+      data: {
+        full_name: fullName || email,
+        admins_ols: true,
+        role,
+        admins_ols_superadmin: role === "admins_ols_superadmin" || role === "superadmin",
+        invite_pending: true,
+        invited_by_email: sanitizeString(adminUser?.email || "", 160).toLowerCase() || null,
+        invited_by_name: invitedByName || null,
+        invite_sent_at: new Date().toISOString(),
+      },
     });
 
-    let backupLink = "";
-    let backupWarning = "";
+    const actionLink = fixInviteLink(action?.actionLink || "", redirectTo);
+    let emailPayload = { skipped: true };
+    let warning = "";
     try {
-      const action = await generateAdminsOlsInviteLink({
-        email,
-        redirectTo,
-        data: {
-          full_name: fullName || email,
-          admins_ols: true,
-          role,
-          admins_ols_superadmin: role === "admins_ols_superadmin" || role === "superadmin",
-          invite_pending: true,
-          invited_by_email: sanitizeString(adminUser?.email || "", 160).toLowerCase() || null,
-          invited_by_name: sanitizeString(adminUser?.fullName || adminUser?.name || "", 160) || null,
-          invite_sent_at: new Date().toISOString(),
-        },
+      emailPayload = await sendAdminsOlsInviteEmail({
+        to: email,
+        invitedByName,
+        siteOrigin,
+        acceptUrl: actionLink,
       });
-      backupLink = fixInviteLink(action?.actionLink || "");
     } catch (error) {
-      backupLink = "";
-      backupWarning = sanitizeString(error?.message || "Unable to generate a backup invite link.", 240);
+      warning = sanitizeString(error?.message || "Invite email could not be sent.", 240);
+      emailPayload = { skipped: true };
     }
 
     return {
-      ...invite,
+      email,
+      role,
+      invitedAt: new Date().toISOString(),
       redirectTo,
-      inviteSent: true,
-      actionLink: backupLink,
-      ...(backupWarning ? { warning: backupWarning } : {}),
+      inviteSent: Boolean(emailPayload && !emailPayload.skipped),
+      actionLink,
+      ...(warning ? { warning } : {}),
       forced: forceResend,
     };
   } catch (error) {
@@ -613,7 +711,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
       invitedAt: new Date().toISOString(),
       redirectTo,
       inviteSent: false,
-      actionLink: fixInviteLink(action.actionLink),
+      actionLink: fixInviteLink(action.actionLink, redirectTo),
       warning: sanitizeString(error?.message || "Invite email could not be sent.", 500),
     };
   }
@@ -1355,21 +1453,3 @@ export async function handler(event) {
     );
   }
 }
-  const fixInviteLink = (actionLink = "") => {
-    const raw = sanitizeString(actionLink, 4000);
-    if (!raw) return "";
-
-    // If the link already points to the accept page, keep it.
-    if (redirectTo && raw.toLowerCase().startsWith(redirectTo.toLowerCase())) return raw;
-
-    // If the link carries tokens in the hash (GoTrue generate_link), rebuild it onto the accept route.
-    const hashIndex = raw.indexOf("#");
-    if (hashIndex > -1 && redirectTo) {
-      const fragment = raw.slice(hashIndex + 1);
-      if (fragment && fragment.includes("access_token=")) {
-        return `${redirectTo}#${fragment}`;
-      }
-    }
-
-    return raw;
-  };

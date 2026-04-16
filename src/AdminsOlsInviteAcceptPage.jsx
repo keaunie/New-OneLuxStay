@@ -27,6 +27,12 @@ function AdminsOlsInviteAcceptPage() {
   const accessToken = sanitizeString(hashParams.get("access_token") || queryParams.get("access_token") || "", 4000);
   const refreshToken = sanitizeString(hashParams.get("refresh_token") || queryParams.get("refresh_token") || "", 4000);
   const inviteType = sanitizeString(hashParams.get("type") || queryParams.get("type") || "", 80).toLowerCase();
+  const inviteError = sanitizeString(hashParams.get("error") || queryParams.get("error") || "", 120);
+  const inviteErrorCode = sanitizeString(hashParams.get("error_code") || queryParams.get("error_code") || "", 120);
+  const inviteErrorDescription = sanitizeString(
+    hashParams.get("error_description") || queryParams.get("error_description") || "",
+    500,
+  );
 
   const [form, setForm] = useState(() => ({
     firstName: "",
@@ -125,6 +131,7 @@ function AdminsOlsInviteAcceptPage() {
   };
 
   const hasTokens = Boolean(accessToken);
+  const hasInviteError = Boolean(inviteError || inviteErrorCode || inviteErrorDescription);
 
   return (
     <div className="admins-ols-auth-page">
@@ -162,7 +169,19 @@ function AdminsOlsInviteAcceptPage() {
               </button>
             </div>
 
-            {!hasTokens ? (
+            {hasInviteError ? (
+              <>
+                <div className="admins-ols-auth-error">
+                  {inviteErrorCode === "otp_expired"
+                    ? "This invite link has expired. Ask a superadmin to resend your invite."
+                    : "This invite link could not be verified."}
+                  {inviteErrorDescription ? <div style={{ marginTop: "0.5rem" }}>{inviteErrorDescription}</div> : null}
+                </div>
+                <Link className="admins-ols-auth-back" to="/admins-ols/login">
+                  Go to admin login
+                </Link>
+              </>
+            ) : !hasTokens ? (
               <>
                 <div className="admins-ols-auth-error">
                   Missing invite token. Please open the invite email link again.

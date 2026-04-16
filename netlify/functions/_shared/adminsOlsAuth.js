@@ -448,7 +448,9 @@ export const inviteAdminsOlsUserByEmail = async ({
     body: {
       email: normalizedEmail,
       data,
+      // Compatibility: different GoTrue versions accept snake_case or camelCase.
       redirect_to: normalizedRedirectTo,
+      redirectTo: normalizedRedirectTo,
     },
   });
 
