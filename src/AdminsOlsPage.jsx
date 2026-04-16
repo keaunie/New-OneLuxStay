@@ -1132,10 +1132,10 @@ function AdminsOlsPage() {
     setLastInviteLink("");
 
     try {
-      const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/admins-ols/accept`
-          : "";
+      const inferredOrigin =
+        String(system?.siteUrl || "").trim() ||
+        (typeof window !== "undefined" ? String(window.location.origin || "").trim() : "");
+      const redirectTo = inferredOrigin ? `${inferredOrigin.replace(/\/+$/, "")}/admins-ols/accept` : "";
 
       const fullName = String(inviteForm.fullName || "").trim();
       if (!fullName) throw new Error("Full name is required.");
@@ -2238,6 +2238,9 @@ function AdminsOlsPage() {
               <p className="admins-ols-copy">
                 Send an email invitation to a new admin. They will set their own password from the invite link, then
                 sign in on <Link className="admins-ols-inline-link" to="/admins-ols/login">/admins-ols/login</Link>.
+              </p>
+              <p className="admins-ols-note" style={{ marginTop: 0 }}>
+                Invite redirect target: <strong>{system?.siteUrl || (typeof window !== "undefined" ? window.location.origin : "")}</strong>
               </p>
               <form className="admins-ols-form" onSubmit={handleSendInvite}>
                 <label>
