@@ -487,6 +487,14 @@ export const generateAdminsOlsInviteLink = async ({
         redirectTo: normalizedRedirectTo,
       },
     },
+    {
+      type: "invite",
+      email: normalizedEmail,
+      options: {
+        data,
+        redirect_to: normalizedRedirectTo,
+      },
+    },
   ];
 
   let lastError = null;
@@ -498,7 +506,14 @@ export const generateAdminsOlsInviteLink = async ({
         body,
       });
 
-      const actionLink = sanitizeString(payload?.action_link || payload?.actionLink || "", 4000);
+      const actionLink = sanitizeString(
+        payload?.action_link ||
+          payload?.actionLink ||
+          payload?.properties?.action_link ||
+          payload?.properties?.actionLink ||
+          "",
+        4000,
+      );
       if (!actionLink) {
         throw new Error("Supabase did not return an action_link for this invite.");
       }

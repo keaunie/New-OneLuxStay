@@ -361,6 +361,7 @@ function AdminsOlsPage() {
     email: "",
     fullName: "",
     role: "admins_ols",
+    forceResend: false,
   }));
   const [sendingInvite, setSendingInvite] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState("");
@@ -1108,7 +1109,7 @@ function AdminsOlsPage() {
   };
 
   const handleInviteFieldChange = (field) => (event) => {
-    const value = event.target.value;
+    const value = event?.target?.type === "checkbox" ? Boolean(event.target.checked) : event.target.value;
     setInviteForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -1154,6 +1155,7 @@ function AdminsOlsPage() {
           fullName,
           role: inviteForm.role,
           redirectTo,
+          forceResend: inviteForm.forceResend,
         }),
       });
 
@@ -1179,12 +1181,20 @@ function AdminsOlsPage() {
             ? `Invite already sent for ${payload.invite.email}. Backup invite link is ready below.`
             : `Invite already sent for ${payload.invite.email}.`,
         );
+        if (!payload?.invite?.actionLink && payload?.invite?.warning) {
+          pushToast({
+            tone: "negative",
+            title: "No backup link",
+            message: payload.invite.warning,
+          });
+        }
         return;
       }
 
       setInviteForm((current) => ({
         ...current,
         email: "",
+        forceResend: false,
       }));
 
       if (payload?.invite?.actionLink) {
@@ -1217,6 +1227,14 @@ function AdminsOlsPage() {
           message: payload?.invite?.actionLink
             ? `Invitation sent to ${payload.invite.email}. If it doesn't show up, use the backup link.`
             : `Invitation sent to ${payload.invite.email}.`,
+        });
+      }
+
+      if (payload?.invite?.actionLink === "" && payload?.invite?.warning) {
+        pushToast({
+          tone: "warning",
+          title: "Invite delivered, no link",
+          message: payload.invite.warning,
         });
       }
     } catch (requestError) {
@@ -2252,6 +2270,15 @@ function AdminsOlsPage() {
                     <option value="admins_ols">Admin</option>
                     <option value="admins_ols_superadmin">Superadmin</option>
                   </select>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(inviteForm.forceResend)}
+                    onChange={handleInviteFieldChange("forceResend")}
+                    disabled={sendingInvite}
+                  />
+                  Resend invite even if already invited recently
                 </label>
                 <button type="submit" disabled={sendingInvite}>
                   {sendingInvite ? "Sending invite..." : "Send Invite"}

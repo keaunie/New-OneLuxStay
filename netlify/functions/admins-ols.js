@@ -472,6 +472,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
   const fullName = sanitizeString(payload?.fullName, 160);
   const role = sanitizeString(payload?.role, 80) || "admins_ols";
   const redirectTo = resolveInviteRedirectUrl(payload, event);
+  const forceResend = parseBoolean(payload?.forceResend, false);
 
   if (!fullName) throw new Error("Full name is required.");
   if (fullName.split(/\s+/).filter(Boolean).length < 2) {
@@ -482,6 +483,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
   // This avoids spamming multiple invite emails by accidental clicks.
   // If the activity table isn't available, ignore and proceed.
   try {
+    if (forceResend) throw new Error("skip-dedupe");
     const candidate = await supabaseRestRequest(getAdminsOlsActivityTable(), {
       query: {
         select: "id,event_type,message,created_at",
@@ -500,6 +502,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
       const windowMs = 24 * 60 * 60 * 1000;
       if (ageMs >= 0 && ageMs < windowMs) {
         let actionLink = "";
+        let linkWarning = "";
         try {
           const action = await generateAdminsOlsInviteLink({
             email,
@@ -516,8 +519,9 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
             },
           });
           actionLink = fixInviteLink(action?.actionLink || "");
-        } catch {
+        } catch (error) {
           actionLink = "";
+          linkWarning = sanitizeString(error?.message || "Unable to generate a backup invite link.", 240);
         }
 
         return {
@@ -529,6 +533,8 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
           alreadyInvited: true,
           lastInvitedAt: row.created_at,
           actionLink,
+          ...(linkWarning ? { warning: linkWarning } : {}),
+          forced: false,
         };
       }
     }
@@ -546,6 +552,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
     });
 
     let backupLink = "";
+    let backupWarning = "";
     try {
       const action = await generateAdminsOlsInviteLink({
         email,
@@ -562,8 +569,9 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
         },
       });
       backupLink = fixInviteLink(action?.actionLink || "");
-    } catch {
+    } catch (error) {
       backupLink = "";
+      backupWarning = sanitizeString(error?.message || "Unable to generate a backup invite link.", 240);
     }
 
     return {
@@ -571,6 +579,8 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
       redirectTo,
       inviteSent: true,
       actionLink: backupLink,
+      ...(backupWarning ? { warning: backupWarning } : {}),
+      forced: forceResend,
     };
   } catch (error) {
     const rawMessage = sanitizeString(error?.message || "", 500).toLowerCase();
