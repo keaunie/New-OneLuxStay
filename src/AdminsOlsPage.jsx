@@ -1169,25 +1169,30 @@ function AdminsOlsPage() {
         if (payload?.invite?.actionLink) {
           setLastInviteLink(payload.invite.actionLink);
         }
-        pushToast({
-          tone: "warning",
-          title: "Invite already sent",
-          message: payload?.invite?.actionLink
-            ? `An invitation for ${payload.invite.email} was already sent ${sentAt}. Backup link is ready below.`
-            : `An invitation for ${payload.invite.email} was already sent ${sentAt}.`,
-        });
+        pushToast(
+          payload?.invite?.actionLink
+            ? {
+                tone: "warning",
+                title: "Invite already sent",
+                message: `An invitation for ${payload.invite.email} was already sent ${sentAt}. Backup link is ready below.`,
+              }
+            : payload?.invite?.warning
+              ? {
+                  tone: "warning",
+                  title: "Invite already sent",
+                  message: `An invitation for ${payload.invite.email} was already sent ${sentAt}. ${payload.invite.warning}`,
+                }
+              : {
+                  tone: "warning",
+                  title: "Invite already sent",
+                  message: `An invitation for ${payload.invite.email} was already sent ${sentAt}.`,
+                },
+        );
         setNotice(
           payload?.invite?.actionLink
             ? `Invite already sent for ${payload.invite.email}. Backup invite link is ready below.`
             : `Invite already sent for ${payload.invite.email}.`,
         );
-        if (!payload?.invite?.actionLink && payload?.invite?.warning) {
-          pushToast({
-            tone: "negative",
-            title: "No backup link",
-            message: payload.invite.warning,
-          });
-        }
         return;
       }
 
@@ -1216,25 +1221,23 @@ function AdminsOlsPage() {
             : "Copy the manual invite link and share it with the admin.",
         });
       } else {
+        const hasBackup = Boolean(payload?.invite?.actionLink);
+        const warning = String(payload?.invite?.warning || "").trim();
+
         setNotice(
-          payload?.invite?.actionLink
+          hasBackup
             ? `Invite sent to ${payload.invite.email}. Backup invite link is ready below in case email delivery is delayed.`
             : `Invite sent to ${payload.invite.email}.`,
         );
-        pushToast({
-          tone: "positive",
-          title: "Invite sent",
-          message: payload?.invite?.actionLink
-            ? `Invitation sent to ${payload.invite.email}. If it doesn't show up, use the backup link.`
-            : `Invitation sent to ${payload.invite.email}.`,
-        });
-      }
 
-      if (payload?.invite?.actionLink === "" && payload?.invite?.warning) {
         pushToast({
-          tone: "warning",
-          title: "Invite delivered, no link",
-          message: payload.invite.warning,
+          tone: !hasBackup && warning ? "warning" : "positive",
+          title: !hasBackup && warning ? "Invite sent (no backup link)" : "Invite sent",
+          message: hasBackup
+            ? `Invitation sent to ${payload.invite.email}. If it doesn't show up, use the backup link.`
+            : warning
+              ? `Invitation sent to ${payload.invite.email}. ${warning}`
+              : `Invitation sent to ${payload.invite.email}.`,
         });
       }
     } catch (requestError) {

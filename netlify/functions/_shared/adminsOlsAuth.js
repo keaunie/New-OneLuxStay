@@ -472,12 +472,13 @@ export const generateAdminsOlsInviteLink = async ({
 
   // Supabase/GoTrue admin generate link endpoint.
   // Payload shape can vary slightly by version, so we try a couple of known formats.
+  // Some deployments expect `redirectTo` (camelCase) instead of `redirect_to` (snake_case).
   const attempts = [
     {
       type: "invite",
       email: normalizedEmail,
       data,
-      redirect_to: normalizedRedirectTo,
+      redirectTo: normalizedRedirectTo,
     },
     {
       type: "invite",
@@ -486,6 +487,12 @@ export const generateAdminsOlsInviteLink = async ({
         data,
         redirectTo: normalizedRedirectTo,
       },
+    },
+    {
+      type: "invite",
+      email: normalizedEmail,
+      data,
+      redirect_to: normalizedRedirectTo,
     },
     {
       type: "invite",
