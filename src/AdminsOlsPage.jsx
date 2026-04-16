@@ -16,6 +16,7 @@ const DASHBOARD_ACTIVITY_DEDUPE_WINDOW_MS = 5000;
 const TAB_TRANSITION_MS = 180;
 const ATTENTION_STORAGE_KEY_PREFIX = "admins-ols-attention-seen";
 const ATTENTION_NOTIFIED_KEY_PREFIX = "admins-ols-attention-notified";
+const TOAST_LIFETIME_MS = 5200;
 
 const DEFAULT_FORM = {
   title: "",
@@ -356,6 +357,14 @@ function AdminsOlsPage() {
     confirmPassword: "",
   }));
   const [savingAccount, setSavingAccount] = useState(false);
+  const [inviteForm, setInviteForm] = useState(() => ({
+    email: "",
+    fullName: "",
+    role: "admins_ols",
+  }));
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [lastInviteLink, setLastInviteLink] = useState("");
+  const [toasts, setToasts] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sidebarDesktopPhase, setSidebarDesktopPhase] = useState("idle");
@@ -373,6 +382,7 @@ function AdminsOlsPage() {
   const attentionHydratedRef = useRef(false);
   const audioContextRef = useRef(null);
   const audioPrimedRef = useRef(false);
+  const toastTimersRef = useRef(new Map());
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
@@ -451,6 +461,41 @@ function AdminsOlsPage() {
       tabTransitionTimeoutRef.current = null;
     }
   }, []);
+
+  useEffect(
+    () => () => {
+      const timers = toastTimersRef.current;
+      timers.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      timers.clear();
+    },
+    [],
+  );
+
+  const removeToast = (id) => {
+    const key = String(id || "");
+    if (!key) return;
+    const timers = toastTimersRef.current;
+    if (timers.has(key)) {
+      window.clearTimeout(timers.get(key));
+      timers.delete(key);
+    }
+    setToasts((current) => current.filter((item) => item.id !== key));
+  };
+
+  const pushToast = ({ tone = "neutral", title = "", message = "" } = {}) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const toast = {
+      id,
+      tone: ["positive", "negative", "warning"].includes(tone) ? tone : "neutral",
+      title: String(title || "").trim(),
+      message: String(message || "").trim(),
+      createdAt: Date.now(),
+    };
+
+    setToasts((current) => [toast, ...current].slice(0, 4));
+    const timeoutId = window.setTimeout(() => removeToast(id), TOAST_LIFETIME_MS);
+    toastTimersRef.current.set(id, timeoutId);
+  };
 
   useEffect(() => {
     if (activeTabId === displayedTabId) return undefined;
@@ -532,6 +577,14 @@ function AdminsOlsPage() {
       fullName: currentAdmin?.fullName || "",
     }));
   }, [currentAdmin?.fullName]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    setInviteForm((current) => ({
+      ...current,
+      fullName: current.fullName || currentAdmin?.fullName || "",
+    }));
+  }, [currentAdmin?.fullName, isSuperAdmin]);
 
   useEffect(() => {
     attentionHydratedRef.current = false;
@@ -1054,6 +1107,131 @@ function AdminsOlsPage() {
     }
   };
 
+  const handleInviteFieldChange = (field) => (event) => {
+    const value = event.target.value;
+    setInviteForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSendInvite = async (event) => {
+    event.preventDefault();
+    if (!isSuperAdmin) return;
+    if (!session) {
+      setError("You must be signed in to invite admins.");
+      pushToast({
+        tone: "negative",
+        title: "Invite blocked",
+        message: "You must be signed in to invite admins.",
+      });
+      return;
+    }
+
+    setSendingInvite(true);
+    setError("");
+    setNotice("");
+    setLastInviteLink("");
+
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/admins-ols/accept`
+          : "";
+
+      const fullName = String(inviteForm.fullName || "").trim();
+      if (!fullName) throw new Error("Full name is required.");
+      if (fullName.split(/\s+/).filter(Boolean).length < 2) {
+        throw new Error("Full name must include first and last name.");
+      }
+
+      const response = await fetch(`${apiBase}/admins-ols`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAdminsOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({
+          action: "invite_admin",
+          email: inviteForm.email,
+          fullName,
+          role: inviteForm.role,
+          redirectTo,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.invite?.email) {
+        throw new Error(payload?.error || "Unable to send admin invite.");
+      }
+
+      if (payload?.invite?.alreadyInvited) {
+        const sentAt = payload?.invite?.lastInvitedAt ? formatDateTime(payload.invite.lastInvitedAt) : "recently";
+        if (payload?.invite?.actionLink) {
+          setLastInviteLink(payload.invite.actionLink);
+        }
+        pushToast({
+          tone: "warning",
+          title: "Invite already sent",
+          message: payload?.invite?.actionLink
+            ? `An invitation for ${payload.invite.email} was already sent ${sentAt}. Backup link is ready below.`
+            : `An invitation for ${payload.invite.email} was already sent ${sentAt}.`,
+        });
+        setNotice(
+          payload?.invite?.actionLink
+            ? `Invite already sent for ${payload.invite.email}. Backup invite link is ready below.`
+            : `Invite already sent for ${payload.invite.email}.`,
+        );
+        return;
+      }
+
+      setInviteForm((current) => ({
+        ...current,
+        email: "",
+      }));
+
+      if (payload?.invite?.actionLink) {
+        setLastInviteLink(payload.invite.actionLink);
+      }
+
+      if (payload?.invite?.inviteSent === false && payload?.invite?.actionLink) {
+        setLastInviteLink(payload.invite.actionLink);
+        setNotice(
+          payload?.invite?.warning
+            ? `Email invite could not be sent. Copy the invite link below and share it with ${payload.invite.email}.`
+            : `Copy the invite link below and share it with ${payload.invite.email}.`,
+        );
+        pushToast({
+          tone: "warning",
+          title: "Email invite failed",
+          message: payload?.invite?.warning
+            ? `${payload.invite.warning} Copy the manual invite link.`
+            : "Copy the manual invite link and share it with the admin.",
+        });
+      } else {
+        setNotice(
+          payload?.invite?.actionLink
+            ? `Invite sent to ${payload.invite.email}. Backup invite link is ready below in case email delivery is delayed.`
+            : `Invite sent to ${payload.invite.email}.`,
+        );
+        pushToast({
+          tone: "positive",
+          title: "Invite sent",
+          message: payload?.invite?.actionLink
+            ? `Invitation sent to ${payload.invite.email}. If it doesn't show up, use the backup link.`
+            : `Invitation sent to ${payload.invite.email}.`,
+        });
+      }
+    } catch (requestError) {
+      const message = String(requestError?.message || "Unable to send admin invite.");
+      setError(message);
+      pushToast({
+        tone: "negative",
+        title: "Invite error",
+        message,
+      });
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
   const handleLogout = async () => {
     await handleAdminAction({
       action: "log_activity",
@@ -1087,6 +1265,21 @@ function AdminsOlsPage() {
 
   return (
     <div className="admins-ols-page">
+      {toasts.length > 0 && (
+        <div className="admins-ols-toasts" role="status" aria-live="polite" aria-relevant="additions">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`admins-ols-toast is-${toast.tone}`}>
+              <div className="admins-ols-toast-head">
+                <strong>{toast.title || "Notification"}</strong>
+                <button type="button" onClick={() => removeToast(toast.id)} aria-label="Dismiss notification">
+                  ×
+                </button>
+              </div>
+              {toast.message && <p>{toast.message}</p>}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="admins-ols-shell">
         <div className="admins-ols-mobile-nav">
           <button
@@ -2017,6 +2210,77 @@ function AdminsOlsPage() {
               Last dashboard sync: {dashboard?.generatedAt ? formatDateTime(dashboard.generatedAt) : "Unknown"}
             </small>
           </article>
+
+          {isSuperAdmin && (
+            <article className="admins-ols-card">
+              <div className="admins-ols-card-head">
+                <h2>Invite Admin</h2>
+                <span className="admins-ols-pill">Superadmin</span>
+              </div>
+              <p className="admins-ols-copy">
+                Send an email invitation to a new admin. They will set their own password from the invite link, then
+                sign in on <Link className="admins-ols-inline-link" to="/admins-ols/login">/admins-ols/login</Link>.
+              </p>
+              <form className="admins-ols-form" onSubmit={handleSendInvite}>
+                <label>
+                  Admin email
+                  <input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={handleInviteFieldChange("email")}
+                    placeholder="newadmin@oneluxstay.com"
+                    autoComplete="email"
+                    required
+                    disabled={sendingInvite}
+                  />
+                </label>
+                <label>
+                  Full name (first + last)
+                  <input
+                    type="text"
+                    value={inviteForm.fullName}
+                    onChange={handleInviteFieldChange("fullName")}
+                    placeholder="First name Last name"
+                    autoComplete="name"
+                    required
+                    disabled={sendingInvite}
+                  />
+                </label>
+                <label>
+                  Role
+                  <select value={inviteForm.role} onChange={handleInviteFieldChange("role")} disabled={sendingInvite}>
+                    <option value="admins_ols">Admin</option>
+                    <option value="admins_ols_superadmin">Superadmin</option>
+                  </select>
+                </label>
+                <button type="submit" disabled={sendingInvite}>
+                  {sendingInvite ? "Sending invite..." : "Send Invite"}
+                </button>
+              </form>
+              {lastInviteLink && (
+                <div className="admins-ols-form" style={{ marginTop: "1rem" }}>
+                  <label>
+                    Manual invite link
+                    <input type="text" value={lastInviteLink} readOnly />
+                  </label>
+                  <button
+                    type="button"
+                    className="is-secondary"
+                    onClick={async () => {
+                      try {
+                        await window.navigator?.clipboard?.writeText?.(lastInviteLink);
+                        setNotice("Invite link copied to clipboard.");
+                      } catch {
+                        setNotice("Unable to copy automatically. Select the link and copy it manually.");
+                      }
+                    }}
+                  >
+                    Copy Invite Link
+                  </button>
+                </div>
+              )}
+            </article>
+          )}
         </section>
             </div>
           </main>

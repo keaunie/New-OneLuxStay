@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
 import { logAdminsOlsActivity } from "./_shared/adminsOlsActivity.js";
 import {
+  acceptAdminsOlsInvite,
   createAdminsOlsUser,
   formatAdminsOlsSession,
   refreshAdminsOlsSession,
@@ -125,6 +126,26 @@ export async function handler(event) {
         authMode: "shared_key",
         eventType: "sign_in",
         message: "Signed in with the shared admin key.",
+        details: {
+          entryPoint: "admins_ols_auth",
+        },
+      });
+      return jsonResponse(200, { ok: true, session: formatAdminsOlsSession(session) }, event);
+    }
+
+    if (action === "accept_invite") {
+      const session = await acceptAdminsOlsInvite({
+        accessToken: payload?.accessToken,
+        refreshToken: payload?.refreshToken,
+        fullName: payload?.fullName,
+        password: payload?.password,
+      });
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: session?.user,
+        authMode: "supabase_auth",
+        eventType: "invite_accepted",
+        message: "Accepted an admin invitation and set an account password.",
         details: {
           entryPoint: "admins_ols_auth",
         },

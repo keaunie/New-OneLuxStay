@@ -383,9 +383,32 @@ const extractReplyLeadSentence = (value = "") => {
   return sanitizeString(match?.[0] || text, 160);
 };
 
-const defaultAcknowledgementBySentiment = {
-  negative: "I understand why that feels stressful.",
-  positive: "Happy to help with that.",
+const defaultAcknowledgementBySentimentByLocale = {
+  en: {
+    negative: "I understand why that feels stressful.",
+    positive: "Happy to help with that.",
+    neutral: "",
+  },
+  ja: {
+    negative: "ご不安なお気持ち、よく分かります。",
+    positive: "承知しました。お手伝いします。",
+    neutral: "お問い合わせありがとうございます。",
+  },
+  ar: {
+    negative: "أتفهم لماذا قد يكون ذلك مزعجا.",
+    positive: "يسعدني مساعدتك.",
+    neutral: "شكرا لرسالتك.",
+  },
+  nl: {
+    negative: "Ik snap dat dat stressvol kan voelen.",
+    positive: "Graag help ik je daarmee.",
+    neutral: "Dank je voor je bericht.",
+  },
+  fr: {
+    negative: "Je comprends que cela puisse etre stressant.",
+    positive: "Je peux vous aider avec plaisir.",
+    neutral: "Merci pour votre message.",
+  },
 };
 
 const findBestSentimentLesson = ({ latestUserMessage = "", lessons = [] } = {}) => {
@@ -458,6 +481,7 @@ const buildSentimentAwareReply = ({
   reply = "",
   latestUserMessage = "",
   lessons = [],
+  languageCode = "en",
 } = {}) => {
   const baseReply = String(reply || "").trim();
   if (!baseReply) return "";
@@ -467,8 +491,11 @@ const buildSentimentAwareReply = ({
     lessons,
   });
 
+  const locale = sanitizeString(languageCode, 12).toLowerCase() || "en";
+  const defaults = defaultAcknowledgementBySentimentByLocale[locale] || defaultAcknowledgementBySentimentByLocale.en;
   const lessonLead = extractReplyLeadSentence(lesson?.exampleAssistantStyle || "");
-  const acknowledgement = lessonLead || defaultAcknowledgementBySentiment[inferredLabel] || "";
+  const useLessonLead = lessonLead && (locale === "en" || /[^\u0000-\u007f]/.test(lessonLead));
+  const acknowledgement = (useLessonLead ? lessonLead : defaults?.[inferredLabel]) || "";
   if (!acknowledgement) return baseReply;
 
   const normalizedReply = baseReply.toLowerCase();
@@ -592,6 +619,30 @@ const isAffirmativeFollowup = (text = "") =>
     String(text || "").trim(),
   );
 
+const isSmallTalkPrompt = (text = "") => {
+  const source = String(text || "").trim();
+  if (!source) return false;
+  const lower = source.toLowerCase();
+
+  // English
+  if (
+    /^(hi|hello|hey|yo|good (morning|afternoon|evening))\b/.test(lower) ||
+    /\b(how are you|how r u|hru|what's up|whats up)\b/.test(lower)
+  ) {
+    return true;
+  }
+
+  // Japanese
+  if (/(こんにちは|こんばんは|おはよう|もしもし|元気|お元気|調子|はじめまして|よろしく)/.test(source)) {
+    return true;
+  }
+
+  // Arabic (basic)
+  if (/(مرحبا|السلام عليكم|كيف حالك|شلونك)/.test(source)) return true;
+
+  return false;
+};
+
 const hasSensitivePaymentData = (text = "") => {
   const source = String(text || "");
   return /\b(credit card|card number|cvv|cvc|expiration|expiry|exp date|password|passcode)\b/i.test(source);
@@ -599,6 +650,10 @@ const hasSensitivePaymentData = (text = "") => {
 
 const isBookingStatusQuestion = (text = "") => {
   const source = String(text || "");
+  // Lightweight non-English signals (so booking-status intent works even without prompt translation).
+  if (/[予約][^ ]*(状況|確認|コード|番号)/.test(source) || /予約状況|予約確認/.test(source)) return true;
+  if (/(حجز|الحجز|حجزي|رقم الحجز|تأكيد الحجز|حالة الحجز)/i.test(source)) return true;
+
   const hasBookingContext = /\b(booking|reservation|confirmation)\b/i.test(source);
   if (!hasBookingContext) return false;
 
@@ -1566,7 +1621,7 @@ const extractListingImageUrls = (listing = {}, limit = 3) => {
   return urls.slice(0, Math.max(1, Math.min(6, Number(limit) || 3)));
 };
 
-const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge, supportedCities }) => {
+const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge, supportedCities, languageProfile }) => {
   const prompt = String(latestUserMessage?.content || "").toLowerCase();
   const cityFromPrompt = normalizeCityLabel(extractCityHintFromPrompt(prompt, supportedCities));
   const pageCity = normalizeCityLabel(pageContext.city || "");
@@ -1578,8 +1633,26 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
     ? supportedCities
     : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"];
 
+  const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+  const supportsBasicLocale = locale === "ar" || locale === "nl" || locale === "fr" || locale === "ja";
+  const citiesText = visibleCities.join(", ");
+  const currentCitySuffix =
+    city && city !== "One Lux Stay" && city !== "Global" ? city : "";
+
   if (/\b(cities|city|locations|where)\b/.test(prompt)) {
-    return `We currently feature stays in ${visibleCities.join(", ")}. If you want, tell me which vibe you want most and I can point you toward the best fit.`;
+    if (supportsBasicLocale && locale === "ar") {
+      return `نوفر حاليا إقامات في ${citiesText}. إذا أحببت، أخبرني ما الأجواء التي تفضلها وسأرشدك لأفضل خيار.`;
+    }
+    if (supportsBasicLocale && locale === "nl") {
+      return `We hebben momenteel verblijven in ${citiesText}. Als je wilt, vertel me welke sfeer je zoekt en dan help ik je de beste keuze te vinden.`;
+    }
+    if (supportsBasicLocale && locale === "fr") {
+      return `Nous proposons actuellement des sejours a ${citiesText}. Si vous le souhaitez, dites-moi quel style vous recherchez et je vous orienterai vers la meilleure option.`;
+    }
+    if (supportsBasicLocale && locale === "ja") {
+      return `現在ご利用いただける滞在先は ${citiesText} です。ご希望の雰囲気や目的（家族旅行、出張など）を教えていただければ、最適な選び方をご案内します。`;
+    }
+    return `We currently feature stays in ${citiesText}. If you want, tell me which vibe you want most and I can point you toward the best fit.`;
   }
 
   if (/\b(book|booking|reserve|reservation|checkout)\b/.test(prompt)) {
@@ -1624,7 +1697,55 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
     return conciergeKnowledge.pageGuidance?.home || "You are on a general One Lux Stay page. From here, you can browse city pages, explore listings, and continue into booking.";
   }
 
-  return `I can help with the basics right now. One Lux Stay currently features stays in ${visibleCities.join(", ")}${city && city !== "One Lux Stay" && city !== "Global" ? `, and you are currently browsing ${city}` : ""}. Ask me about cities, booking steps, or how to use the page you are on.`;
+  if (supportsBasicLocale && locale === "ar") {
+    return `شكرا لرسالتك. يمكنني المساعدة بالاساسيات الآن. توفر One Lux Stay حاليا إقامات في ${citiesText}${
+      currentCitySuffix ? `، وانت تتصفح حاليا ${currentCitySuffix}` : ""
+    }. اسألني عن المدن او خطوات الحجز او كيفية استخدام الصفحة التي انت عليها.`;
+  }
+  if (supportsBasicLocale && locale === "nl") {
+    return `Bedankt voor je bericht. Ik kan je nu helpen met de basis. One Lux Stay heeft momenteel verblijven in ${citiesText}${
+      currentCitySuffix ? `, en je bekijkt momenteel ${currentCitySuffix}` : ""
+    }. Vraag me naar steden, boekingsstappen of hoe je de pagina gebruikt waarop je bent.`;
+  }
+  if (supportsBasicLocale && locale === "fr") {
+    return `Merci pour votre message. Je peux vous aider avec l'essentiel pour le moment. One Lux Stay propose actuellement des sejours a ${citiesText}${
+      currentCitySuffix ? `, et vous consultez actuellement ${currentCitySuffix}` : ""
+    }. Demandez-moi des infos sur les villes, les etapes de reservation, ou comment utiliser la page sur laquelle vous etes.`;
+  }
+  if (supportsBasicLocale && locale === "ja") {
+    return `メッセージありがとうございます。まずは基本的なご案内が可能です。One Lux Stay では現在 ${citiesText} の滞在先をご用意しています${
+      currentCitySuffix ? `（現在は ${currentCitySuffix} を閲覧中です）` : ""
+    }。都市の選び方、予約手順、または今見ているページの使い方など、お気軽にご質問ください。`;
+  }
+  return `I can help with the basics right now. One Lux Stay currently features stays in ${citiesText}${
+    currentCitySuffix ? `, and you are currently browsing ${currentCitySuffix}` : ""
+  }. Ask me about cities, booking steps, or how to use the page you are on.`;
+};
+
+const buildSmallTalkReply = ({ languageProfile, supportedCities = [] } = {}) => {
+  const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+  const citiesText = (Array.isArray(supportedCities) && supportedCities.length
+    ? supportedCities
+    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
+  ).join(", ");
+
+  if (locale === "ja") {
+    return `こんにちは。ご連絡ありがとうございます。元気です。\n\nご用件は何でしょうか？空室確認（チェックイン/アウト日と人数）、予約状況（予約コード）、都市選び（${citiesText}）など、基本的なご案内ができます。`;
+  }
+
+  if (locale === "ar") {
+    return `مرحبا. شكرا لسؤالك. انا بخير.\n\nكيف يمكنني مساعدتك؟ يمكنني المساعدة في التوفر (تواريخ الدخول والخروج وعدد الضيوف)، حالة الحجز (رمز الحجز)، او اختيار المدينة (${citiesText}).`;
+  }
+
+  if (locale === "nl") {
+    return `Hoi. Goed dat je er bent. Met mij gaat het goed.\n\nWaarmee kan ik helpen? Ik kan beschikbaarheid checken (check-in/check-out en aantal gasten), boekingsstatus (reserveringscode) of je helpen kiezen tussen steden (${citiesText}).`;
+  }
+
+  if (locale === "fr") {
+    return `Bonjour. Merci, je vais bien.\n\nComment puis-je vous aider? Je peux verifier la disponibilite (dates + voyageurs), le statut de reservation (code), ou vous aider a choisir une ville (${citiesText}).`;
+  }
+
+  return `Hi. Thanks for asking, I'm doing well.\n\nHow can I help today? I can check availability (dates + guest count), booking status (reservation code), or help you choose a city (${citiesText}).`;
 };
 
 const localizeGuestVisibleContent = async ({
@@ -1765,17 +1886,24 @@ const fallbackResponse = ({
   apiKey = "",
   model = "gpt-5-mini",
 }) => {
-  const baseReply = buildSentimentAwareReply({
-    reply: buildFallbackReply({
-      latestUserMessage,
-      pageContext,
-      reason,
-      conciergeKnowledge,
-      supportedCities,
-    }),
-    latestUserMessage: latestUserMessage?.content || "",
-    lessons: sentimentLessons,
+  const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+  const skipLocalization = locale === "ar" || locale === "nl" || locale === "fr" || locale === "ja";
+
+  const fallbackReply = buildFallbackReply({
+    latestUserMessage,
+    pageContext,
+    reason,
+    conciergeKnowledge,
+    supportedCities,
+    languageProfile,
   });
+  const baseReply = skipLocalization
+    ? fallbackReply
+    : buildSentimentAwareReply({
+        reply: fallbackReply,
+        latestUserMessage: latestUserMessage?.content || "",
+        lessons: sentimentLessons,
+      });
 
   return buildFallbackOrAttentionResponse({
     event,
@@ -1786,7 +1914,7 @@ const fallbackResponse = ({
     reason,
     reply: baseReply,
     languageProfile,
-    apiKey,
+    apiKey: skipLocalization ? "" : apiKey,
     model,
   });
 };
@@ -1826,16 +1954,32 @@ const hasRecentAttentionHandoff = (messages = []) =>
   (messages || [])
     .filter((message) => message?.role === "assistant")
     .some((message) =>
-      /flagged this conversation for our team|one of our team members has been notified/i.test(
+      /flagged this conversation for our team|one of our team members has been notified|gemarkeerd voor ons team|signale cette conversation|cette conversation a notre equipe|チームに共有しました|担当チームに共有しました|قمت بالإشارة إلى هذه المحادثة|اشعار فريق الادارة/i.test(
         String(message?.content || ""),
       ),
     );
 
-const buildAttentionReply = ({ latestUserMessage, pageContext }) => {
-  const userPrompt = sanitizeString(latestUserMessage?.content || "", 240);
+const buildAttentionReply = ({ latestUserMessage, pageContext, languageProfile }) => {
   const city = sanitizeString(pageContext?.city || "", 120);
+  const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+  const citySuffix = city ? ` in ${city}` : "";
 
-  return `I want to pause here so I do not keep repeating unhelpful information. I’ve flagged this conversation for our team${city ? ` in ${city}` : ""} so an admin can review your request${userPrompt ? ` about "${userPrompt}"` : ""} and follow up with better guidance.`;
+  if (locale === "ar") {
+    return `شكرا لصبرك. حتى لا أكرر نفس الرد، قمت بتحويل هذه المحادثة لفريقنا${
+      city ? ` في ${city}` : ""
+    } ليراجعوا طلبك ويردوا عليك بمساعدة أدق. إذا كان سؤالك عن حالة الحجز، أرسل رمز الحجز فقط. وإذا كان عن التوفر، أرسل تواريخ الدخول والخروج وعدد الضيوف.`;
+  }
+  if (locale === "nl") {
+    return `Dank je voor je geduld. Om te voorkomen dat ik hetzelfde antwoord blijf herhalen, heb ik dit gesprek doorgestuurd naar ons team${citySuffix} zodat iemand je aanvraag kan bekijken en je gerichter kan helpen. Gaat het om boekingsstatus? Stuur dan alleen je reserveringscode. Gaat het om beschikbaarheid? Stuur je check-in/check-out en het aantal gasten.`;
+  }
+  if (locale === "fr") {
+    return `Merci pour votre patience. Pour eviter de repeter la meme reponse, j'ai transmis cette conversation a notre equipe${citySuffix} afin qu'un admin puisse examiner votre demande et vous aider plus precisement. Si c'est pour le statut de reservation, envoyez seulement votre code de reservation. Si c'est pour la disponibilite, envoyez vos dates d'arrivee/depart et le nombre de voyageurs.`;
+  }
+  if (locale === "ja") {
+    return `お待たせしてすみません。同じ返答を繰り返さないよう、この会話を担当チーム${city ? `（${city}）` : ""}に共有しました。内容を確認して、より的確にご案内します。予約状況の確認なら予約コードのみ、空室確認ならチェックイン/アウト日と人数を教えてください。`;
+  }
+
+  return `Thanks for your patience. To avoid repeating the same unhelpful reply, I’ve flagged this conversation for our team${citySuffix} so an admin can review and follow up with more specific help. If this is about booking status, please share your reservation code only. If it’s about availability, share your check-in/check-out dates and guest count.`;
 };
 
 const notifyAdminsOfGuestAttention = async ({
@@ -1892,15 +2036,28 @@ const buildFallbackOrAttentionResponse = async ({
       reason,
     }).catch(() => null);
 
+    const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+    const skipLocalization = locale === "ar" || locale === "nl" || locale === "fr" || locale === "ja";
+    const localizedNotice =
+      locale === "ar"
+        ? "تم اشعار فريق الادارة للمتابعة."
+        : locale === "nl"
+          ? "Adminteam is op de hoogte gebracht voor opvolging."
+          : locale === "fr"
+            ? "L'equipe admin a ete informee pour un suivi."
+            : locale === "ja"
+              ? "管理チームに共有しました。フォローアップいたします。"
+            : "Admin team notified for follow-up.";
+
     return respondWithGuestPayload({
       event,
-      apiKey,
+      apiKey: skipLocalization ? "" : apiKey,
       model,
       latestUserMessage,
       languageProfile,
-      reply: buildAttentionReply({ latestUserMessage, pageContext }),
+      reply: buildAttentionReply({ latestUserMessage, pageContext, languageProfile }),
       mode: "needs_attention",
-      notice: "Admin team notified for follow-up.",
+      notice: localizedNotice,
     });
   }
 
@@ -3180,7 +3337,7 @@ const LATIN_LANGUAGE_HINTS = [
   {
     code: "nl",
     pattern:
-      /\b(hallo|hoi|dank je|dankjewel|alsjeblieft|boeking|boeken|prijs|data|datums|beschikbaar|kamer|nachten|gasten)\b/i,
+      /\b(hallo|hoi|dank je|dankjewel|alsjeblieft|boeking|boeken|reserveren|reservering|prijs|data|datums|beschikbaar|beschikbaarheid|kamer|nachten|gasten)\b/i,
   },
   { code: "de", pattern: /\b(hallo|danke|bitte|buchung|preis|daten|verfuegbar|zimmer|gaeste)\b/i },
   { code: "it", pattern: /\b(ciao|grazie|per favore|prenotazione|prezzo|date|disponibile|camera|persone)\b/i },
@@ -3283,6 +3440,44 @@ const parseJsonObjectFromText = (value = "") => {
     return JSON.parse(candidate.slice(firstBraceIndex, lastBraceIndex + 1));
   } catch {
     return null;
+  }
+};
+
+const translatePromptToEnglish = async ({ apiKey = "", model = "gpt-5-mini", text = "" } = {}) => {
+  const prompt = sanitizeString(text, 900);
+  if (!apiKey || !prompt) return prompt;
+
+  try {
+    const response = await fetchWithTimeout(
+      OPENAI_API_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          reasoning: { effort: "low" },
+          text: { verbosity: "low" },
+          max_output_tokens: 160,
+          input: [
+            "Translate the guest message to English for intent detection.",
+            "Return only the translated English text (no JSON, no extra commentary).",
+            "Keep reservation codes, listing IDs, URLs, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
+            `Guest message: ${prompt}`,
+          ].join("\n"),
+        }),
+      },
+      12_000,
+    );
+
+    if (!response.ok) return prompt;
+    const data = await response.json().catch(() => ({}));
+    const translated = sanitizeString(extractOutputText(data), 900);
+    return translated || prompt;
+  } catch {
+    return prompt;
   }
 };
 
@@ -3686,6 +3881,17 @@ export async function handler(event) {
   try {
     let retrievedPolicyText = "";
     const latestPrompt = String(latestUserMessage?.content || "");
+    const translatedPromptLocale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+    const shouldTranslatePromptForIntent =
+      Boolean(apiKey) &&
+      Boolean(languageProfile?.shouldTranslate) &&
+      (translatedPromptLocale === "ar" ||
+        translatedPromptLocale === "nl" ||
+        translatedPromptLocale === "fr" ||
+        translatedPromptLocale === "ja");
+    const latestPromptForIntent = shouldTranslatePromptForIntent
+      ? await translatePromptToEnglish({ apiKey, model, text: latestPrompt })
+      : latestPrompt;
     const languageInstruction = buildLanguageReplyInstruction({
       languageProfile,
       latestUserMessage,
@@ -3695,6 +3901,7 @@ export async function handler(event) {
         reply,
         latestUserMessage: latestPrompt,
         lessons: sentimentLessons,
+        languageCode: languageProfile?.code || "en",
       });
     const previousAssistantMessage = [...messages]
       .slice(0, -1)
@@ -3757,7 +3964,7 @@ export async function handler(event) {
     const conversationReservationCode =
       userMessagesNewestFirst.map((message) => extractStrictReservationCode(message)).find(Boolean) || "";
     const assistantReservationCode = extractStrictReservationCode(latestAssistantText);
-    const promptCityHint = extractCityHintFromPrompt(latestPrompt, supportedCities);
+    const promptCityHint = extractCityHintFromPrompt(latestPromptForIntent, supportedCities);
     const normalizedPromptCity = normalizeCityLabel(promptCityHint);
     const conversationCityHint =
       userMessagesNewestFirst
@@ -3775,11 +3982,11 @@ export async function handler(event) {
     );
     const followsUpWithLocationOnly =
       previousAssistantAskedCheckInOutLocation && Boolean(normalizedPromptCity);
-    const asksPolicy = isPolicyQuestion(latestPrompt);
-    const asksUnitInfo = isUnitInfoQuestion(latestPrompt);
-    const asksPrice = isPriceQuestion(latestPrompt);
-    const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPrompt) || followsUpWithLocationOnly;
-    const latestIsAffirmativeFollowup = isAffirmativeFollowup(latestPrompt);
+    const asksPolicy = isPolicyQuestion(latestPromptForIntent);
+    const asksUnitInfo = isUnitInfoQuestion(latestPromptForIntent);
+    const asksPrice = isPriceQuestion(latestPromptForIntent);
+    const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPromptForIntent) || followsUpWithLocationOnly;
+    const latestIsAffirmativeFollowup = isAffirmativeFollowup(latestPromptForIntent);
     const previousAssistantOfferedAvailability =
       /\b(availability|available|check[- ]?in|check[- ]?out|dates?|month|book|booking|unit-page links?|city page link|would you like)\b/i.test(
         String(previousAssistantMessage?.content || ""),
@@ -3788,17 +3995,17 @@ export async function handler(event) {
       latestIsAffirmativeFollowup && previousAssistantOfferedAvailability;
     const effectiveMonthRange = monthRange || conversationMonthRange;
     const asksAvailabilityWindow = Boolean(availabilityDateRange || effectiveMonthRange);
-    const asksBookingLead = isBookingLeadQuestion(latestPrompt);
-    const latestPromptGuestCount = parseGuestsFromText(latestPrompt);
-    const latestPromptBedroomPreference = extractBedroomPreferenceFromText(latestPrompt);
+    const asksBookingLead = isBookingLeadQuestion(latestPromptForIntent);
+    const latestPromptGuestCount = parseGuestsFromText(latestPromptForIntent);
+    const latestPromptBedroomPreference = extractBedroomPreferenceFromText(latestPromptForIntent);
     const isListingPriceQuestion =
       Boolean(pageContext?.listingId) &&
       asksPrice &&
       !/\b(availability|available|open units?|which units?|best options?|show me units?|what'?s available)\b/i.test(
-        latestPrompt,
+        latestPromptForIntent,
       );
     const hasDirectAvailabilityIntent =
-      isAvailabilityQuestion(latestPrompt, asksAvailabilityWindow) ||
+      isAvailabilityQuestion(latestPromptForIntent, asksAvailabilityWindow) ||
       (asksBookingLead && !isListingPriceQuestion);
     const hasAvailabilityFollowupSignal =
       followUpAvailabilityIntent ||
@@ -3811,8 +4018,8 @@ export async function handler(event) {
       hasDirectAvailabilityIntent ||
       (asksAvailabilityWindow && hasAvailabilityFollowupSignal && !asksPolicy && !asksCheckInOutTime);
     const hasReservationCode = Boolean(reservationCode);
-    const asksBookingStatus = isBookingStatusQuestion(latestPrompt) || hasReservationCode;
-    const includesSensitivePaymentData = hasSensitivePaymentData(latestPrompt);
+    const asksBookingStatus = isBookingStatusQuestion(latestPromptForIntent) || hasReservationCode;
+    const includesSensitivePaymentData = hasSensitivePaymentData(latestPromptForIntent);
     let policyRows = [];
 
     if (includesSensitivePaymentData) {
@@ -3827,17 +4034,66 @@ export async function handler(event) {
       });
     }
 
+    const isGreeting =
+      isSmallTalkPrompt(latestPrompt) || isSmallTalkPrompt(latestPromptForIntent);
+    const greetingOnly =
+      isGreeting &&
+      !asksBookingStatus &&
+      !asksAvailability &&
+      !isListingPriceQuestion &&
+      !asksPolicy &&
+      !asksUnitInfo &&
+      !Boolean(promptDateRange) &&
+      !Boolean(monthRange) &&
+      !Boolean(reservationCode) &&
+      sanitizeString(latestPrompt, 200).length <= 80;
+
+    if (greetingOnly) {
+      const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+      const quickReplies =
+        locale === "ja"
+          ? buildQuickReplySet([
+              { label: "空室確認", message: "空室を確認したいです" },
+              { label: "予約状況", message: "予約状況を確認したいです" },
+              { label: "都市一覧", message: "利用できる都市を教えて" },
+            ])
+          : buildQuickReplySet([
+              { label: "Check availability", message: "Check availability" },
+              { label: "Booking status", message: "Check my booking status" },
+              { label: "Cities", message: "Which cities do you have?" },
+            ]);
+
+      return respondWithGuestPayload({
+        event,
+        apiKey,
+        model,
+        latestUserMessage,
+        languageProfile,
+        reply: buildSmallTalkReply({ languageProfile, supportedCities }),
+        quickReplies,
+      });
+    }
+
     if (asksBookingStatus) {
       if (!reservationCode) {
+        const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+        const bookingStatusPrompt =
+          locale === "ja"
+            ? "予約状況を確認できます。予約コードを教えてください（例: GY-aeDHKynZ）。"
+            : locale === "ar"
+              ? "يمكنني التحقق من حالة الحجز. من فضلك ارسل رمز الحجز (مثال: GY-aeDHKynZ)."
+              : locale === "nl"
+                ? "Ik kan je boekingsstatus checken. Stuur je reserveringscode (bijv. GY-aeDHKynZ)."
+                : locale === "fr"
+                  ? "Je peux verifier le statut de votre reservation. Envoyez votre code de reservation (ex: GY-aeDHKynZ)."
+                  : "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).";
         return respondWithGuestPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(
-            "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).",
-          ),
+          reply: buildDeterministicReply(bookingStatusPrompt),
         });
       }
 

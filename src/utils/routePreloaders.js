@@ -16,6 +16,7 @@ const preloadRoadmapPrivatePage = () => import("../RoadmapPrivatePage");
 const preloadAiAgentPage = () => import("../AiAgentPage");
 const preloadAdminsOlsPage = () => import("../AdminsOlsPage");
 const preloadAdminsOlsAuthPage = () => import("../AdminsOlsAuthPage");
+const preloadAdminsOlsInviteAcceptPage = () => import("../AdminsOlsInviteAcceptPage");
 const preloadAdminsOlsAuditPage = () => import("../AdminsOlsAuditPage");
 const preloadAdminsOlsGuestJourneysPage = () => import("../AdminsOlsGuestJourneysPage");
 const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage");
@@ -40,6 +41,7 @@ export const routePreloaders = {
   aiAgent: preloadAiAgentPage,
   adminsOls: preloadAdminsOlsPage,
   adminsOlsAuth: preloadAdminsOlsAuthPage,
+  adminsOlsInviteAccept: preloadAdminsOlsInviteAcceptPage,
   adminsOlsAudit: preloadAdminsOlsAuditPage,
   adminsOlsGuestJourneys: preloadAdminsOlsGuestJourneysPage,
   executiveOls: preloadExecutiveOlsPage,
@@ -115,6 +117,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/admins-ols/login") {
     return routePreloaders.adminsOlsAuth().then(() => undefined);
+  }
+  if (normalized === "/admins-ols/accept") {
+    return routePreloaders.adminsOlsInviteAccept().then(() => undefined);
   }
   if (normalized === "/admins-ols/audit") {
     return routePreloaders.adminsOlsAudit().then(() => undefined);

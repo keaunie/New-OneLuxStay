@@ -13,6 +13,8 @@ import {
 } from "./_shared/supabaseClient.js";
 import {
   updateAdminsOlsUserAccount,
+  generateAdminsOlsInviteLink,
+  inviteAdminsOlsUserByEmail,
   verifyAdminsOlsAccess,
   verifyAdminsOlsPassword,
 } from "./_shared/adminsOlsAuth.js";
@@ -424,6 +426,187 @@ const inferDeployContext = () => {
   }
 
   return "development";
+};
+
+const resolveInviteRedirectUrl = (payload = {}, event = {}) => {
+  const provided = sanitizeString(payload?.redirectTo, 4000);
+  const fallback =
+    sanitizeString(process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_URL || "", 240) ||
+    sanitizeString(event?.headers?.origin || "", 240);
+
+  const candidate = provided || (fallback ? `${fallback.replace(/\/+$/, "")}/admins-ols/accept` : "");
+  if (!candidate) throw new Error("Unable to resolve invite redirect URL.");
+
+  try {
+    const parsed = new URL(candidate);
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    if (protocol !== "https:" && protocol !== "http:") {
+      throw new Error("Unsupported redirect URL protocol.");
+    }
+
+    // Prevent open redirects: if we have a configured site URL, require the redirect to match that origin.
+    if (fallback) {
+      const fallbackOrigin = new URL(fallback).origin;
+      if (parsed.origin !== fallbackOrigin) {
+        throw new Error("Invite redirect URL must match this site's origin.");
+      }
+    }
+
+    return parsed.toString();
+  } catch (error) {
+    const message = sanitizeString(error?.message || "", 240) || "Invalid redirect URL.";
+    const err = new Error(message);
+    err.statusCode = 400;
+    throw err;
+  }
+};
+
+const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
+  if (!adminUser?.isSuperAdmin) {
+    const error = new Error("Superadmin access required.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const email = sanitizeString(payload?.email, 320).toLowerCase();
+  const fullName = sanitizeString(payload?.fullName, 160);
+  const role = sanitizeString(payload?.role, 80) || "admins_ols";
+  const redirectTo = resolveInviteRedirectUrl(payload, event);
+
+  if (!fullName) throw new Error("Full name is required.");
+  if (fullName.split(/\s+/).filter(Boolean).length < 2) {
+    throw new Error("Full name must include first and last name.");
+  }
+
+  // Soft dedupe: if we already invited this email recently, return that info so the UI can toast it.
+  // This avoids spamming multiple invite emails by accidental clicks.
+  // If the activity table isn't available, ignore and proceed.
+  try {
+    const candidate = await supabaseRestRequest(getAdminsOlsActivityTable(), {
+      query: {
+        select: "id,event_type,message,created_at",
+        order: "created_at.desc",
+        limit: "1",
+        event_type: "in.(admin_invited,admin_invite_link_generated)",
+        message: `ilike.*${email.replace(/[%,]/g, "")}*`,
+      },
+      timeout: 10_000,
+    });
+
+    const row = Array.isArray(candidate) ? candidate[0] : null;
+    const lastAt = row?.created_at ? Date.parse(String(row.created_at)) : 0;
+    if (Number.isFinite(lastAt) && lastAt > 0) {
+      const ageMs = Date.now() - lastAt;
+      const windowMs = 24 * 60 * 60 * 1000;
+      if (ageMs >= 0 && ageMs < windowMs) {
+        let actionLink = "";
+        try {
+          const action = await generateAdminsOlsInviteLink({
+            email,
+            redirectTo,
+            data: {
+              full_name: fullName || email,
+              admins_ols: true,
+              role,
+              admins_ols_superadmin: role === "admins_ols_superadmin" || role === "superadmin",
+              invite_pending: true,
+              invited_by_email: sanitizeString(adminUser?.email || "", 160).toLowerCase() || null,
+              invited_by_name: sanitizeString(adminUser?.fullName || adminUser?.name || "", 160) || null,
+              invite_sent_at: new Date().toISOString(),
+            },
+          });
+          actionLink = sanitizeString(action?.actionLink || "", 4000);
+        } catch {
+          actionLink = "";
+        }
+
+        return {
+          email,
+          role,
+          invitedAt: new Date().toISOString(),
+          redirectTo,
+          inviteSent: false,
+          alreadyInvited: true,
+          lastInvitedAt: row.created_at,
+          actionLink,
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const invite = await inviteAdminsOlsUserByEmail({
+      email,
+      fullName,
+      role,
+      redirectTo,
+      invitedBy: adminUser,
+    });
+
+    let backupLink = "";
+    try {
+      const action = await generateAdminsOlsInviteLink({
+        email,
+        redirectTo,
+        data: {
+          full_name: fullName || email,
+          admins_ols: true,
+          role,
+          admins_ols_superadmin: role === "admins_ols_superadmin" || role === "superadmin",
+          invite_pending: true,
+          invited_by_email: sanitizeString(adminUser?.email || "", 160).toLowerCase() || null,
+          invited_by_name: sanitizeString(adminUser?.fullName || adminUser?.name || "", 160) || null,
+          invite_sent_at: new Date().toISOString(),
+        },
+      });
+      backupLink = sanitizeString(action?.actionLink || "", 4000);
+    } catch {
+      backupLink = "";
+    }
+
+    return {
+      ...invite,
+      redirectTo,
+      inviteSent: true,
+      actionLink: backupLink,
+    };
+  } catch (error) {
+    const rawMessage = sanitizeString(error?.message || "", 500).toLowerCase();
+    if (rawMessage.includes("already") && rawMessage.includes("registered")) {
+      const err = new Error("That email already has an account. Ask them to sign in at /admins-ols/login (or reset their password).");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    // If Supabase cannot send email (SMTP disabled or redirect URL not allowed), generate a one-time invite link
+    // that the superadmin can copy/share manually.
+    const action = await generateAdminsOlsInviteLink({
+      email,
+      redirectTo,
+      data: {
+        full_name: fullName || email,
+        admins_ols: true,
+        role,
+        admins_ols_superadmin: role === "admins_ols_superadmin" || role === "superadmin",
+        invite_pending: true,
+        invited_by_email: sanitizeString(adminUser?.email || "", 160).toLowerCase() || null,
+        invited_by_name: sanitizeString(adminUser?.fullName || adminUser?.name || "", 160) || null,
+        invite_sent_at: new Date().toISOString(),
+      },
+    });
+
+    return {
+      email: action.email,
+      role,
+      invitedAt: new Date().toISOString(),
+      redirectTo,
+      inviteSent: false,
+      actionLink: action.actionLink,
+      warning: sanitizeString(error?.message || "Invite email could not be sent.", 500),
+    };
+  }
 };
 
 const fetchSentimentLessonsRaw = async (tables) => {
@@ -1130,6 +1313,26 @@ export async function handler(event) {
         details: payload?.details,
       });
       return jsonResponse(200, { ok: true }, event);
+    }
+
+    if (action === "invite_admin") {
+      const invite = await inviteAdminUser(payload, adminAccess.user, event);
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: invite.inviteSent ? "admin_invited" : "admin_invite_link_generated",
+        message: invite.inviteSent
+          ? `Invited ${invite.email} to join the admin panel.`
+          : `Generated an admin invite link for ${invite.email}.`,
+        details: {
+          invitedEmail: invite.email,
+          invitedRole: invite.role,
+          redirectTo: invite.redirectTo,
+          inviteSent: invite.inviteSent,
+        },
+      });
+      return jsonResponse(200, { ok: true, invite }, event);
     }
 
     return jsonResponse(400, { error: "Unsupported action" }, event);

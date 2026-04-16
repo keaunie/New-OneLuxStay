@@ -24,6 +24,7 @@ const RoadmapPrivatePage = lazy(routePreloaders.roadmapPrivate);
 const AiAgentPage = lazy(routePreloaders.aiAgent);
 const AdminsOlsPage = lazy(routePreloaders.adminsOls);
 const AdminsOlsAuthPage = lazy(routePreloaders.adminsOlsAuth);
+const AdminsOlsInviteAcceptPage = lazy(routePreloaders.adminsOlsInviteAccept);
 const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
 const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
@@ -190,6 +191,7 @@ function AppRoutes() {
           <Route path="/acknowledge" element={renderLazyRoute(AcknowledgementPage)} />
           <Route path="/booking-confirmation" element={renderLazyRoute(BookingConfirmationPage)} />
           <Route path="/admins-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
+          <Route path="/admins-ols/accept" element={renderLazyRoute(AdminsOlsInviteAcceptPage)} />
           <Route path="/admins-ols" element={renderLazyRoute(AdminsOlsPage)} />
           <Route path="/admins-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
           <Route path="/admins-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
