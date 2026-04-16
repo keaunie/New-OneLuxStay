@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
 import { trackGuestPageView } from "./utils/guestAnalytics";
@@ -92,6 +92,7 @@ function RootRoute() {
 
 function AppRoutes() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { appLoaded, shouldShowLoader } = useCityRouteLoading();
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
@@ -107,6 +108,18 @@ function AppRoutes() {
   );
 
   useEffect(() => {
+    // If Supabase invite/recovery links land on the site root with tokens in the hash,
+    // route them into the dedicated accept page so the UI can complete the flow.
+    try {
+      const hash = String(location.hash || "");
+      const pathname = String(location.pathname || "");
+      if (pathname === "/" && hash.includes("access_token=") && hash.toLowerCase().includes("type=invite")) {
+        navigate({ pathname: "/admins-ols/accept", hash }, { replace: true });
+      }
+    } catch {
+      // ignore
+    }
+
     const pathname = String(location.pathname || "").toLowerCase();
     if (
       !pathname ||
@@ -118,7 +131,7 @@ function AppRoutes() {
     }
     if (pathname === "/ai-agent") return;
     trackGuestPageView().catch(() => null);
-  }, [location.pathname, location.search]);
+  }, [location.hash, location.pathname, location.search, navigate]);
 
   return (
     <>

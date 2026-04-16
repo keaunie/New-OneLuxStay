@@ -515,7 +515,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
               invite_sent_at: new Date().toISOString(),
             },
           });
-          actionLink = sanitizeString(action?.actionLink || "", 4000);
+          actionLink = fixInviteLink(action?.actionLink || "");
         } catch {
           actionLink = "";
         }
@@ -561,7 +561,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
           invite_sent_at: new Date().toISOString(),
         },
       });
-      backupLink = sanitizeString(action?.actionLink || "", 4000);
+      backupLink = fixInviteLink(action?.actionLink || "");
     } catch {
       backupLink = "";
     }
@@ -603,7 +603,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
       invitedAt: new Date().toISOString(),
       redirectTo,
       inviteSent: false,
-      actionLink: action.actionLink,
+      actionLink: fixInviteLink(action.actionLink),
       warning: sanitizeString(error?.message || "Invite email could not be sent.", 500),
     };
   }
@@ -1345,3 +1345,21 @@ export async function handler(event) {
     );
   }
 }
+  const fixInviteLink = (actionLink = "") => {
+    const raw = sanitizeString(actionLink, 4000);
+    if (!raw) return "";
+
+    // If the link already points to the accept page, keep it.
+    if (redirectTo && raw.toLowerCase().startsWith(redirectTo.toLowerCase())) return raw;
+
+    // If the link carries tokens in the hash (GoTrue generate_link), rebuild it onto the accept route.
+    const hashIndex = raw.indexOf("#");
+    if (hashIndex > -1 && redirectTo) {
+      const fragment = raw.slice(hashIndex + 1);
+      if (fragment && fragment.includes("access_token=")) {
+        return `${redirectTo}#${fragment}`;
+      }
+    }
+
+    return raw;
+  };
