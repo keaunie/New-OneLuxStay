@@ -21,6 +21,7 @@ import {
 dotenv.config();
 
 const DEFAULT_SENTIMENT_TABLE = "chat_sentiment_lessons";
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -42,6 +43,49 @@ const parseBoolean = (value, fallback = false) => {
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
   return fallback;
+};
+
+const parseJson = (text = "") => {
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {};
+  }
+};
+
+const extractOutputText = (payload) => {
+  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
+    return payload.output_text.trim();
+  }
+
+  if (!Array.isArray(payload?.output)) return "";
+
+  const parts = [];
+  payload.output.forEach((item) => {
+    if (!Array.isArray(item?.content)) return;
+    item.content.forEach((contentPart) => {
+      if (contentPart?.type === "output_text" && typeof contentPart.text === "string") {
+        parts.push(contentPart.text);
+        return;
+      }
+
+      if (contentPart?.type === "text") {
+        if (typeof contentPart.text === "string") {
+          parts.push(contentPart.text);
+        } else if (typeof contentPart.text?.value === "string") {
+          parts.push(contentPart.text.value);
+        }
+      }
+    });
+  });
+
+  return parts.join("\n").trim();
+};
+
+const truncateText = (value = "", maxLength = 900) => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
 };
 
 const normalizeSentimentLabel = (value = "") => {
@@ -100,6 +144,191 @@ const getServiceHeaders = () => {
     apikey: serviceRoleKey,
     Authorization: `Bearer ${serviceRoleKey}`,
     Accept: "application/json",
+  };
+};
+
+const fetchConversationSessionContext = async (tables, sessionId = "") => {
+  const normalizedSessionId = sanitizeId(sessionId, 120);
+  if (!normalizedSessionId) return null;
+
+  const rows = await supabaseRestRequest(tables.sessions, {
+    query: {
+      select: "session_id,page_type,city,listing_id,pathname,first_seen_at,last_seen_at",
+      session_id: `eq.${normalizedSessionId}`,
+      limit: "1",
+    },
+    timeout: 12_000,
+  });
+
+  return Array.isArray(rows) ? rows[0] : null;
+};
+
+const fetchConversationMessages = async (tables, sessionId = "", limit = 220) => {
+  const normalizedSessionId = sanitizeId(sessionId, 120);
+  const safeLimit = Math.max(20, Math.min(260, Math.round(Number(limit) || 220)));
+  if (!normalizedSessionId) return [];
+
+  const rows = await supabaseRestRequest(tables.messages, {
+    query: {
+      select: "message_id,role,content,metadata,created_at",
+      session_id: `eq.${normalizedSessionId}`,
+      order: "created_at.asc",
+      limit: String(safeLimit),
+    },
+    timeout: 12_000,
+  });
+
+  return Array.isArray(rows) ? rows : [];
+};
+
+const buildConversationTranscript = (rows = []) => {
+  const lines = [];
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const role = sanitizeString(row?.role, 30).toLowerCase();
+    const createdAt = sanitizeString(row?.created_at, 80);
+    const metadata = row?.metadata || {};
+    const senderType = sanitizeString(metadata?.senderType, 40).toLowerCase();
+    const senderName = sanitizeString(metadata?.senderName || metadata?.senderEmail || "", 120);
+
+    let speaker = role === "user" ? "Guest" : "Assistant";
+    if (senderType === "admin") {
+      speaker = senderName ? `Admin (${senderName})` : "Admin";
+    }
+
+    const content = truncateText(sanitizeString(row?.content, 4000), 700);
+    if (!content) return;
+
+    lines.push(`[${createdAt || "unknown"}] ${speaker}: ${content}`);
+  });
+
+  return lines.join("\n");
+};
+
+const summarizeConversationForAdmin = async (payload = {}, tables = {}, adminUser = {}) => {
+  const sessionId = sanitizeId(payload?.sessionId, 120);
+  if (!sessionId) {
+    const error = new Error("sessionId is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const apiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
+  if (!apiKey) {
+    const error = new Error("OPENAI_API_KEY is missing on the server.");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const model = sanitizeString(
+    getEnv("OPENAI_ADMIN_SUMMARY_MODEL") || getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini",
+    120,
+  );
+
+  const [sessionContext, messageRows] = await Promise.all([
+    fetchConversationSessionContext(tables, sessionId),
+    fetchConversationMessages(tables, sessionId, payload?.limit),
+  ]);
+
+  const transcript = buildConversationTranscript(messageRows);
+  if (!transcript) {
+    return {
+      sessionId,
+      summary: "No conversation messages were found for this session yet.",
+      generatedAt: new Date().toISOString(),
+      model,
+      messageCount: 0,
+    };
+  }
+
+  const ctx = sessionContext || {};
+  const contextBlock = [
+    "Session context:",
+    `- session_id: ${sanitizeString(ctx?.session_id, 160) || sessionId}`,
+    `- page_type: ${sanitizeString(ctx?.page_type, 80) || "unknown"}`,
+    `- city: ${sanitizeString(ctx?.city, 120) || "unknown"}`,
+    `- listing_id: ${sanitizeString(ctx?.listing_id, 160) || "unknown"}`,
+    `- pathname: ${sanitizeString(ctx?.pathname, 240) || "unknown"}`,
+    `- first_seen_at: ${sanitizeString(ctx?.first_seen_at, 80) || "unknown"}`,
+    `- last_seen_at: ${sanitizeString(ctx?.last_seen_at, 80) || "unknown"}`,
+  ].join("\n");
+
+  const instructions = `
+You are an internal OneLuxStay admin copilot.
+
+Task: Summarize the conversation so an admin can take over quickly.
+
+Rules:
+- Use only the transcript provided. Do not guess details.
+- If key info is missing (dates, guest count, listing, reservation code), explicitly say what is missing.
+- Be concise and actionable. No fluff.
+- Output in this exact structure (keep headings):
+
+Summary:
+- (1-2 sentences)
+
+Guest intent:
+- ...
+
+What has happened so far:
+- ...
+
+Open questions / missing info:
+- ...
+
+Recommended next reply (draft):
+- ...
+`.trim();
+
+  const input = [
+    contextBlock,
+    "",
+    "Conversation transcript:",
+    transcript,
+  ].join("\n");
+
+  const response = await fetchWithTimeout(
+    OPENAI_RESPONSES_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        reasoning: { effort: "low" },
+        text: { verbosity: "low" },
+        max_output_tokens: 550,
+      }),
+    },
+    25_000,
+  );
+
+  const raw = await response.text();
+  const data = parseJson(raw);
+  if (!response.ok) {
+    const message = data?.error?.message || `OpenAI request failed (${response.status})`;
+    const error = new Error(message);
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const summaryText = sanitizeString(extractOutputText(data), 5000) || "Unable to generate summary.";
+  return {
+    sessionId,
+    summary: summaryText,
+    generatedAt: new Date().toISOString(),
+    model,
+    messageCount: Array.isArray(messageRows) ? messageRows.length : 0,
+    context: {
+      pageType: sanitizeString(ctx?.page_type, 80),
+      city: sanitizeString(ctx?.city, 120),
+      listingId: sanitizeString(ctx?.listing_id, 160),
+      pathname: sanitizeString(ctx?.pathname, 240),
+    },
   };
 };
 
@@ -898,9 +1127,10 @@ const getDashboardData = async (tables, adminUser = {}) => {
     ? recentConversationMessagesRaw.map(sanitizeConversationMessageRow)
     : [];
   const sentimentLessons = Array.isArray(sentimentLessonsRaw) ? sentimentLessonsRaw.map(sanitizeLessonRow) : [];
-  const recentGuestJourneyEvents = Array.isArray(recentGuestCityClicksRaw)
+  const rawGuestJourneyEvents = Array.isArray(recentGuestCityClicksRaw)
     ? recentGuestCityClicksRaw.map(sanitizeGuestJourneyRow)
     : [];
+  const recentGuestJourneyEvents = adminUser?.isSuperAdmin ? rawGuestJourneyEvents : [];
   const recentConversations = buildRecentConversationThreads({
     conversationMessages: recentConversationMessages,
     recentSessions,
@@ -937,9 +1167,15 @@ const getDashboardData = async (tables, adminUser = {}) => {
     rollups: {
       topCities: sortAndCountValues(recentSessions, (row) => row.city || "Unknown"),
       topPageTypes: sortAndCountValues(recentSessions, (row) => row.pageType || "Unknown"),
-      topGuestCities: sortAndCountValues(recentGuestJourneyEvents, (row) => row.city || "Unknown"),
-      topGuestPages: sortAndCountValues(recentGuestJourneyEvents, (row) => row.pathname || row.destinationPath || "Unknown"),
-      topGuestEventTypes: sortAndCountValues(recentGuestJourneyEvents, (row) => row.eventType || "Unknown"),
+      topGuestCities: adminUser?.isSuperAdmin
+        ? sortAndCountValues(recentGuestJourneyEvents, (row) => row.city || "Unknown")
+        : [],
+      topGuestPages: adminUser?.isSuperAdmin
+        ? sortAndCountValues(recentGuestJourneyEvents, (row) => row.pathname || row.destinationPath || "Unknown")
+        : [],
+      topGuestEventTypes: adminUser?.isSuperAdmin
+        ? sortAndCountValues(recentGuestJourneyEvents, (row) => row.eventType || "Unknown")
+        : [],
       lessonsBySentiment: sortAndCountValues(sentimentLessons, (row) => row.sentimentLabel || "Unknown"),
     },
     recentSessions,
@@ -1352,6 +1588,15 @@ export async function handler(event) {
       );
     }
 
+    if (action === "summarize_conversation") {
+      const summary = await summarizeConversationForAdmin(payload, tables, adminAccess.user);
+      return jsonResponse(
+        200,
+        { ok: true, currentAdmin: adminAccess.user, ...summary },
+        event,
+      );
+    }
+
     if (action === "update_account") {
       const account = await updateAccountSettings(payload, adminAccess);
       const accountEventType =
@@ -1400,6 +1645,11 @@ export async function handler(event) {
     }
 
     if (action === "get_guest_journey_events") {
+      if (!adminAccess?.user?.isSuperAdmin) {
+        const error = new Error("Superadmin access required.");
+        error.statusCode = 403;
+        throw error;
+      }
       return jsonResponse(
         200,
         {

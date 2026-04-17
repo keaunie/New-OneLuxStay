@@ -55,6 +55,14 @@ const formatGuestClickSourceLabel = (item = {}) => {
   return parts.join(" / ") || "Guest interaction";
 };
 
+const formatGuestSessionShortId = (sessionId = "") => {
+  const normalized = String(sessionId || "").trim();
+  if (!normalized || normalized === "unknown") return "unknown";
+  const cleaned = normalized.startsWith("guest-") ? normalized.slice(6) : normalized;
+  const compact = cleaned.replace(/[^a-z0-9]+/gi, "").slice(0, 8);
+  return compact || cleaned.slice(0, 8) || normalized.slice(0, 8);
+};
+
 const sanitizeDateInput = (value = "") => String(value || "").trim().slice(0, 16);
 const sanitizeDateOnlyInput = (value = "") => String(value || "").trim().slice(0, 10);
 const sanitizeTimeOnlyInput = (value = "") => String(value || "").trim().slice(0, 5);
@@ -119,10 +127,90 @@ function AdminsOlsGuestJourneysPage() {
   const [currentAdmin, setCurrentAdmin] = useState(() => session?.user || {});
   const [filters, setFilters] = useState(() => buildDefaultFilters());
   const [events, setEvents] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const guestJourneys = useMemo(() => {
+    const grouped = new Map();
+
+    for (const item of Array.isArray(events) ? events : []) {
+      const sessionId = String(item?.sessionId || "").trim() || "unknown";
+      const existing = grouped.get(sessionId);
+      if (existing) {
+        existing.steps.push(item);
+      } else {
+        grouped.set(sessionId, { sessionId, steps: [item] });
+      }
+    }
+
+    const journeys = Array.from(grouped.values()).map((journey) => {
+      const steps = (journey.steps || [])
+        .slice()
+        .sort((left, right) => new Date(left.createdAt || 0) - new Date(right.createdAt || 0));
+
+      const first = steps[0] || {};
+      const last = steps[steps.length - 1] || {};
+
+      const uniqueCities = Array.from(
+        new Set(steps.map((step) => String(step?.city || "").trim()).filter(Boolean)),
+      );
+      const uniquePages = Array.from(
+        new Set(
+          steps
+            .map((step) => String(step?.pathname || step?.destinationPath || "").trim())
+            .filter(Boolean),
+        ),
+      );
+
+      const preview =
+        String(last.listingTitle || "").trim() ||
+        String(last.city || "").trim() ||
+        String(last.pathname || "").trim() ||
+        String(last.destinationPath || "").trim() ||
+        "Guest activity";
+
+      const subtitleParts = [];
+      if (last.pageType) subtitleParts.push(formatPageLabel(last.pageType));
+      if (last.city) subtitleParts.push(last.city);
+      const subtitle = subtitleParts.join(" | ") || "Guest journey";
+
+      return {
+        sessionId: journey.sessionId,
+        title: preview,
+        preview,
+        subtitle,
+        startAt: first.createdAt || "",
+        endAt: last.createdAt || "",
+        steps,
+        stepCount: steps.length,
+        uniqueCities,
+        uniquePages,
+        lastPage: String(last?.pathname || last?.destinationPath || "").trim(),
+        lastEventType: String(last?.eventType || "").trim(),
+        lastListingId: String(last?.listingId || "").trim(),
+        shortId: formatGuestSessionShortId(journey.sessionId),
+      };
+    });
+
+    journeys.sort((left, right) => {
+      const rightTime = new Date(right.endAt || 0).getTime();
+      const leftTime = new Date(left.endAt || 0).getTime();
+      return rightTime - leftTime || String(left.sessionId).localeCompare(String(right.sessionId));
+    });
+
+    return journeys.map((journey) => ({
+      ...journey,
+      guestLabel: journey.shortId && journey.shortId !== "unknown" ? `Session ${journey.shortId}` : "Session unknown",
+    }));
+  }, [events]);
+
+  const selectedJourney = useMemo(() => {
+    if (!selectedSessionId) return null;
+    return guestJourneys.find((journey) => journey.sessionId === selectedSessionId) || null;
+  }, [guestJourneys, selectedSessionId]);
 
   const summary = useMemo(() => {
     const topPages = Object.entries(
@@ -247,6 +335,11 @@ function AdminsOlsGuestJourneysPage() {
       });
 
       setEvents(Array.isArray(payload?.events) ? payload.events : []);
+      // If the currently selected journey disappeared because of filters, clear the selection.
+      const nextSessionIds = new Set(
+        (Array.isArray(payload?.events) ? payload.events : []).map((item) => String(item?.sessionId || "").trim() || "unknown"),
+      );
+      setSelectedSessionId((current) => (current && !nextSessionIds.has(current) ? "" : current));
       setCurrentAdmin((current) => payload?.currentAdmin || current);
       if (!silent) {
         setNotice("Guest journey log refreshed.");
@@ -329,8 +422,52 @@ function AdminsOlsGuestJourneysPage() {
     setIsSidebarOpen(false);
   };
 
+  const handleSelectJourney = (journey = null) => {
+    const sessionId = String(journey?.sessionId || "").trim();
+    if (!sessionId) return;
+    setSelectedSessionId(sessionId);
+
+    // On mobile, move the user to the timeline panel so it feels like a focused drill-down.
+    if (typeof window !== "undefined" && window.innerWidth < 900) {
+      try {
+        const section = document.getElementById("journey-detail");
+        section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   if (!session?.accessToken && !session?.sharedKey) {
     return <Navigate to="/admins-ols/login" replace />;
+  }
+
+  if (currentAdmin?.isSuperAdmin !== true) {
+    return (
+      <div className="admins-ols-page">
+        <div className="admins-ols-shell">
+          <main className="admins-ols-main">
+            <header className="admins-ols-hero">
+              <div className="admins-ols-hero-content">
+                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <h1>Guest Journey Log</h1>
+                <p className="admins-ols-hero-copy">
+                  Superadmin access required.
+                </p>
+              </div>
+              <div className="admins-ols-toolbar">
+                <Link className="admins-ols-profile-action" to="/admins-ols">
+                  Back to Dashboard
+                </Link>
+              </div>
+            </header>
+            <div className="admins-ols-error">
+              This page contains detailed guest journey analytics and is restricted to superadmins.
+            </div>
+          </main>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -373,10 +510,10 @@ function AdminsOlsGuestJourneysPage() {
                   </Link>
                   <button type="button" onClick={() => handleNavigateToSection("journey-filters")}>Filters</button>
                   <button type="button" onClick={() => handleNavigateToSection("journey-summary")}>Summary</button>
-                  <button type="button" onClick={() => handleNavigateToSection("journey-entries")}>Journey Entries</button>
+                  <button type="button" onClick={() => handleNavigateToSection("journey-entries")}>Guest Journeys</button>
                   <span className="admins-ols-side-nav-link is-current" aria-current="page">
                     <span>Guest Journey Log</span>
-                    <span className="admins-ols-side-nav-count">{events.length}</span>
+                    <span className="admins-ols-side-nav-count">{guestJourneys.length}</span>
                   </span>
                 </div>
               </section>
@@ -524,28 +661,119 @@ function AdminsOlsGuestJourneysPage() {
 
             <section id="journey-entries" className="admins-ols-card">
               <div className="admins-ols-card-head">
-                <h2>Journey Entries</h2>
-                <span className="admins-ols-pill">{events.length} rows</span>
+                <h2>Journey Entries by Guests</h2>
+                <span className="admins-ols-pill">{guestJourneys.length} guests</span>
               </div>
-              <div className="admins-ols-stack">
-                {events.map((item) => (
-                  <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
-                    <div className="admins-ols-log-meta">
-                      <span className="admins-ols-badge is-neutral">{formatGuestJourneyEventLabel(item.eventType)}</span>
-                      <small>{formatDateTime(item.createdAt)}</small>
+
+              <div className="admins-ols-journey-layout">
+                <div className="admins-ols-journey-list" aria-label="Guest journeys">
+                  {guestJourneys.map((journey) => {
+                    const isActive = selectedSessionId && journey.sessionId === selectedSessionId;
+                    return (
+                      <button
+                        key={journey.sessionId}
+                        type="button"
+                        className={`admins-ols-journey-card${isActive ? " is-active" : ""}`}
+                        onClick={() => handleSelectJourney(journey)}
+                        aria-pressed={isActive}
+                      >
+                        <div className="admins-ols-journey-card-top">
+                          <div className="admins-ols-log-meta">
+                            <span className="admins-ols-badge is-neutral">
+                              {formatGuestJourneyEventLabel(journey.lastEventType)}
+                            </span>
+                            <small>{journey.endAt ? formatDateTime(journey.endAt) : "Unknown"}</small>
+                          </div>
+                          <span className="admins-ols-pill">{journey.stepCount} steps</span>
+                        </div>
+
+                        <p className="admins-ols-journey-title">
+                          <strong>{journey.guestLabel || "Session"}</strong>
+                        </p>
+                        <p className="admins-ols-journey-subtitle">{journey.preview || journey.title}</p>
+                        <p className="admins-ols-journey-subtitle">{journey.subtitle}</p>
+
+                        <div className="admins-ols-journey-meta">
+                          <small title={journey.sessionId ? `Session ${journey.sessionId}` : undefined}>
+                            Session <strong>{journey.shortId || journey.sessionId || "unknown"}</strong>
+                          </small>
+                          <small>
+                            {journey.startAt ? `Start: ${formatDateTime(journey.startAt)}` : "Start: --"}{" "}
+                            {journey.endAt ? `| Last: ${formatDateTime(journey.endAt)}` : ""}
+                          </small>
+                          <small>
+                            Cities: {journey.uniqueCities.length ? journey.uniqueCities.join(", ") : "Unknown"} | Pages:{" "}
+                            {journey.uniquePages.length || 0}
+                          </small>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  {!guestJourneys.length && (
+                    <p className="admins-ols-empty">No guest journey events found for these filters yet.</p>
+                  )}
+                </div>
+
+                <div id="journey-detail" className="admins-ols-journey-detail" aria-label="Selected guest journey">
+                  <div className="admins-ols-card-head">
+                    <h3>Journey Steps</h3>
+                    <span className="admins-ols-pill">{selectedJourney ? `${selectedJourney.stepCount} steps` : "No selection"}</span>
+                  </div>
+
+                  {!selectedJourney ? (
+                    <p className="admins-ols-empty">
+                      Select a guest card to see their journey step by step.
+                    </p>
+                  ) : (
+                    <div className="admins-ols-stack">
+                      <article className="admins-ols-log admins-ols-journey-summary-log">
+                        <div className="admins-ols-log-meta">
+                          <span className="admins-ols-badge is-neutral">Session</span>
+                          <small>{selectedJourney.endAt ? formatDateTime(selectedJourney.endAt) : "Unknown"}</small>
+                        </div>
+                        <p>
+                          <strong>{selectedJourney.guestLabel || "Session"}</strong>
+                        </p>
+                        <p>{selectedJourney.preview || selectedJourney.title}</p>
+                        <p>{selectedJourney.subtitle}</p>
+                        <small title={selectedJourney.sessionId ? `Session ${selectedJourney.sessionId}` : undefined}>
+                          Session {selectedJourney.shortId || selectedJourney.sessionId || "unknown"}
+                        </small>
+                        <small>
+                          {selectedJourney.startAt ? `Start: ${formatDateTime(selectedJourney.startAt)}` : "Start: --"}{" "}
+                          {selectedJourney.endAt ? `| Last: ${formatDateTime(selectedJourney.endAt)}` : ""}
+                        </small>
+                        {selectedJourney.lastListingId ? <small>Last listing {selectedJourney.lastListingId}</small> : null}
+                      </article>
+
+                      {selectedJourney.steps.map((item) => (
+                        <article
+                          key={item.id || `${selectedJourney.sessionId}-${item.eventType}-${item.createdAt}`}
+                          className="admins-ols-log admins-ols-journey-step"
+                        >
+                          <div className="admins-ols-log-meta">
+                            <span className="admins-ols-badge is-neutral">
+                              {formatGuestJourneyEventLabel(item.eventType)}
+                            </span>
+                            <small>{formatDateTime(item.createdAt)}</small>
+                          </div>
+                          <p>
+                            <strong>{item.listingTitle || item.city || item.pathname || item.destinationPath || "Guest activity"}</strong>
+                          </p>
+                          <p>{formatGuestClickSourceLabel(item)}</p>
+                          <small>
+                            {formatPageLabel(item.pageType)} | {item.city || "Unknown city"}
+                          </small>
+                          <small>
+                            Source: {item.pathname || "--"} | Destination: {item.destinationPath || "--"}
+                          </small>
+                          {item.listingId ? <small>Listing {item.listingId}</small> : null}
+                        </article>
+                      ))}
                     </div>
-                    <p><strong>{item.listingTitle || item.city || item.pathname || item.destinationPath || "Guest activity"}</strong></p>
-                    <p>{formatGuestClickSourceLabel(item)}</p>
-                    <small>
-                      {formatPageLabel(item.pageType)} | {item.city || "Unknown city"} | Session {item.sessionId || "Unknown"}
-                    </small>
-                    <small>
-                      Source: {item.pathname || "--"} | Destination: {item.destinationPath || "--"}
-                    </small>
-                    {item.listingId && <small>Listing {item.listingId}</small>}
-                  </article>
-                ))}
-                {!events.length && <p className="admins-ols-empty">No guest journey events found for these filters yet.</p>}
+                  )}
+                </div>
               </div>
             </section>
           </main>

@@ -17,6 +17,7 @@ const TAB_TRANSITION_MS = 180;
 const ATTENTION_STORAGE_KEY_PREFIX = "admins-ols-attention-seen";
 const ATTENTION_NOTIFIED_KEY_PREFIX = "admins-ols-attention-notified";
 const TOAST_LIFETIME_MS = 5200;
+const CONVERSATION_SUMMARY_SEEN_KEY_PREFIX = "admins-ols-conversation-summary-seen";
 
 const DEFAULT_FORM = {
   title: "",
@@ -172,6 +173,26 @@ const saveStoredStringList = (key = "", values = []) => {
     window.localStorage.setItem(key, JSON.stringify(Array.from(new Set(values.filter(Boolean)))));
   } catch {
     // Ignore storage errors so alerts still work for the active session.
+  }
+};
+
+const loadSessionStringList = (key = "") => {
+  if (!key || typeof window === "undefined" || !window.sessionStorage) return [];
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map((entry) => String(entry || "")).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSessionStringList = (key = "", values = []) => {
+  if (!key || typeof window === "undefined" || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(Array.from(new Set(values.filter(Boolean)))));
+  } catch {
+    // ignore
   }
 };
 
@@ -350,6 +371,9 @@ function AdminsOlsPage() {
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [conversationSummary, setConversationSummary] = useState(null);
+  const [conversationSummaryLoading, setConversationSummaryLoading] = useState(false);
+  const [conversationSummaryError, setConversationSummaryError] = useState("");
   const [accountForm, setAccountForm] = useState(() => ({
     fullName: "",
     currentPassword: "",
@@ -378,6 +402,7 @@ function AdminsOlsPage() {
   const [attentionSeenSignatures, setAttentionSeenSignatures] = useState([]);
   const threadScrollRef = useRef(null);
   const hasLoggedDashboardOpenRef = useRef(false);
+  const conversationSummaryAbortRef = useRef(null);
   const sidebarPhaseTimeoutRef = useRef(null);
   const tabTransitionTimeoutRef = useRef(null);
   const attentionHydratedRef = useRef(false);
@@ -415,6 +440,11 @@ function AdminsOlsPage() {
     recentConversations.find((thread) => thread.sessionId === selectedConversationSessionId) ||
     recentConversations[0] ||
     null;
+
+  const conversationSummarySeenStorageKey = useMemo(() => {
+    const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
+    return `${CONVERSATION_SUMMARY_SEEN_KEY_PREFIX}:${identity || "shared"}`;
+  }, [currentAdmin?.email, currentAdmin?.id]);
 
   const feedbackHealth = useMemo(() => {
     const good = Number(overview.goodFeedbackTotal || 0);
@@ -740,11 +770,84 @@ function AdminsOlsPage() {
   }, [displayedTabId, selectedConversation]);
 
   useEffect(() => {
+    if (displayedTabId !== "conversations") return;
+    if (!selectedConversation?.sessionId) return;
+    if (!session?.accessToken && !session?.sharedKey) return;
+
+    // Clear any previous summary so returning to a conversation later in the same session
+    // does not re-show a summary the admin already saw.
+    setConversationSummary(null);
+    setConversationSummaryError("");
+
+    try {
+      if (conversationSummaryAbortRef.current) {
+        conversationSummaryAbortRef.current.abort();
+      }
+    } catch {
+      // ignore
+    }
+
+    const sessionId = selectedConversation.sessionId;
+    const seen = loadSessionStringList(conversationSummarySeenStorageKey);
+    if (seen.includes(sessionId)) {
+      setConversationSummaryLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    conversationSummaryAbortRef.current = controller;
+    setConversationSummaryLoading(true);
+
+    performAdminRequest(
+      {
+        method: "POST",
+        payload: { action: "summarize_conversation", sessionId },
+        signal: controller.signal,
+      },
+      session,
+    )
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        const text = String(payload?.summary || "").trim();
+        if (!text) return;
+        setConversationSummary({
+          sessionId,
+          text,
+          generatedAt: String(payload?.generatedAt || ""),
+          model: String(payload?.model || ""),
+        });
+        saveSessionStringList(conversationSummarySeenStorageKey, [...seen, sessionId]);
+      })
+      .catch((requestError) => {
+        if (controller.signal.aborted) return;
+        setConversationSummaryError(String(requestError?.message || "Unable to summarize conversation."));
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setConversationSummaryLoading(false);
+      });
+
+    return () => {
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+    };
+  }, [
+    displayedTabId,
+    selectedConversation?.sessionId,
+    conversationSummarySeenStorageKey,
+    session?.accessToken,
+    session?.sharedKey,
+  ]);
+
+  useEffect(() => {
     document.title =
       unreadAttentionCount > 0 ? `(${unreadAttentionCount}) OneLuxStay Admin` : "OneLuxStay Admin";
   }, [unreadAttentionCount]);
 
-  const performAdminRequest = async ({ method = "GET", payload } = {}, sessionOverride = session) => {
+  const performAdminRequest = async ({ method = "GET", payload, signal } = {}, sessionOverride = session) => {
     const activeSession = sessionOverride || session;
     if (!activeSession?.accessToken && !activeSession?.sharedKey) {
       throw new Error("Admin session not found.");
@@ -757,6 +860,7 @@ function AdminsOlsPage() {
           "Content-Type": "application/json",
           ...getAdminsOlsAuthHeaders(resolvedSession),
         },
+        signal,
         ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
       });
 
@@ -1272,7 +1376,6 @@ function AdminsOlsPage() {
   const navItems = [
     { id: "overview", label: "Overview" },
     { id: "system", label: "System" },
-    { id: "guest-interest", label: "Guest Interest" },
     { id: "conversations", label: "Conversations" },
     { id: "lessons", label: "Lessons" },
     { id: "feedback", label: "Feedback" },
@@ -1384,10 +1487,12 @@ function AdminsOlsPage() {
                       <span className="admins-ols-side-nav-count">{recentAdminActivity.length || "Go"}</span>
                     </Link>
                   )}
-                  <Link className="admins-ols-profile-action" to="/admins-ols/guest-journeys">
-                    <span>Guest Journey Log</span>
-                    <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
-                  </Link>
+                  {isSuperAdmin && (
+                    <Link className="admins-ols-profile-action" to="/admins-ols/guest-journeys">
+                      <span>Guest Journey Log</span>
+                      <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
+                    </Link>
+                  )}
                   <button
                     type="button"
                     className={`admins-ols-profile-action${unreadAttentionCount > 0 ? " is-attention" : ""}`}
@@ -1644,52 +1749,6 @@ function AdminsOlsPage() {
         </section>
 
         <section
-          id="panel-guest-interest"
-          role="tabpanel"
-          aria-labelledby="tab-guest-interest"
-          hidden={displayedTabId !== "guest-interest"}
-          className="admins-ols-grid admins-ols-grid--two"
-        >
-          <article className="admins-ols-card admins-ols-stat">
-            <span>Guest Journey Events</span>
-            <strong>{overview.guestJourneyEventsTotal ?? 0}</strong>
-            <small>Tracked guest page views, listing clicks, city clicks, and search submits</small>
-          </article>
-
-          <article className="admins-ols-card">
-            <div className="admins-ols-card-head">
-              <h2>Recent Guest Journey Events</h2>
-              <span className="admins-ols-pill">{recentGuestJourneyEvents.length} rows</span>
-            </div>
-            <div className="admins-ols-stack">
-              {recentGuestJourneyEvents.map((item) => (
-                <article key={item.id || `${item.eventType}-${item.createdAt}`} className="admins-ols-log">
-                  <div className="admins-ols-log-meta">
-                    <span className="admins-ols-badge is-neutral">
-                      {formatGuestJourneyEventLabel(item.eventType)}
-                    </span>
-                    <small>{formatDateTime(item.createdAt)}</small>
-                  </div>
-                  <p>
-                    <strong>
-                      {item.listingTitle || item.city || item.pathname || item.destinationPath || "Guest activity"}
-                    </strong>
-                  </p>
-                  <p>{formatGuestClickSourceLabel(item)}</p>
-                  <small>
-                    {(item.pathname || item.destinationPath || "No path captured.")} |{" "}
-                    {item.pageType || "Unknown page"} | {item.city || "Unknown city"}
-                  </small>
-                </article>
-              ))}
-              {!recentGuestJourneyEvents.length && (
-                <p className="admins-ols-empty">No guest journey events tracked yet.</p>
-              )}
-            </div>
-          </article>
-        </section>
-
-        <section
           id="panel-conversations"
           role="tabpanel"
           aria-labelledby="tab-conversations"
@@ -1780,6 +1839,49 @@ function AdminsOlsPage() {
                       {truncate(selectedConversation.pathname, 120)}
                     </p>
                   )}
+                  {conversationSummaryLoading && (
+                    <div className="admins-ols-banner">
+                      Preparing a quick conversation summary for you...
+                    </div>
+                  )}
+                  {conversationSummaryError && (
+                    <div className="admins-ols-error">
+                      Conversation summary unavailable: {conversationSummaryError}
+                    </div>
+                  )}
+                  {conversationSummary &&
+                    conversationSummary.sessionId === selectedConversation.sessionId &&
+                    !conversationSummaryLoading && (
+                      <div className="admins-ols-conversation-summary">
+                        <div className="admins-ols-conversation-summary-head">
+                          <span className="admins-ols-badge is-active">Summary</span>
+                          <small>
+                            {conversationSummary.generatedAt
+                              ? `Generated ${formatDateTime(conversationSummary.generatedAt)}`
+                              : "Generated now"}
+                          </small>
+                          <button
+                            type="button"
+                            className="admins-ols-conversation-summary-dismiss"
+                            onClick={() => setConversationSummary(null)}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                        <div className="admins-ols-conversation-summary-body">
+                          {String(conversationSummary.text || "")
+                            .split(/\n+/)
+                            .map((line) => line.trim())
+                            .filter(Boolean)
+                            .map((line, index) => (
+                              <p key={`${conversationSummary.sessionId}-summary-${index}`}>{line}</p>
+                            ))}
+                        </div>
+                        <small className="admins-ols-conversation-summary-foot">
+                          This summary is shown once per admin session for this conversation.
+                        </small>
+                      </div>
+                    )}
                   <div className="admins-ols-thread" ref={threadScrollRef}>
                     {selectedConversation.messages.map((message) => (
                       <div
