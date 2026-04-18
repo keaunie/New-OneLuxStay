@@ -18,6 +18,7 @@ const ATTENTION_STORAGE_KEY_PREFIX = "admins-ols-attention-seen";
 const ATTENTION_NOTIFIED_KEY_PREFIX = "admins-ols-attention-notified";
 const TOAST_LIFETIME_MS = 5200;
 const CONVERSATION_SUMMARY_SEEN_KEY_PREFIX = "admins-ols-conversation-summary-seen";
+const CONVERSATION_SUMMARY_CACHE_PREFIX = "admins-ols-conversation-summary-cache";
 
 const DEFAULT_FORM = {
   title: "",
@@ -77,6 +78,71 @@ const formatGuestClickSourceLabel = (item = {}) => {
   if (sourceSection) parts.push(titleCase(sourceSection));
   if (sourceLabel) parts.push(titleCase(sourceLabel));
   return parts.join(" / ") || "City click";
+};
+
+const parseAdminConversationSummary = (text = "") => {
+  const lines = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const out = { tldr: "", want: "", next: "", missing: [] };
+  let section = "";
+
+  const pushLine = (target, value) => {
+    const cleaned = String(value || "")
+      .replace(/^[-*]\s+/, "")
+      .trim();
+    if (!cleaned) return;
+
+    if (target === "missing") {
+      if (!/^none$/i.test(cleaned) && out.missing.length < 6) out.missing.push(cleaned);
+      return;
+    }
+
+    if (!out[target]) out[target] = cleaned;
+    else if (out[target].length < 220) out[target] = `${out[target]} ${cleaned}`.trim();
+  };
+
+  lines.forEach((line) => {
+    const lower = line.toLowerCase();
+
+    if (lower.startsWith("tl;dr")) {
+      section = "tldr";
+      const inline = line.includes(":") ? line.split(":").slice(1).join(":").trim() : "";
+      if (inline) pushLine("tldr", inline);
+      return;
+    }
+    if (lower.startsWith("what the guest wants")) {
+      section = "want";
+      return;
+    }
+    if (lower.startsWith("what to do next")) {
+      section = "next";
+      return;
+    }
+    if (lower.startsWith("missing info")) {
+      section = "missing";
+      return;
+    }
+
+    if (!section) return;
+    pushLine(section, line);
+  });
+
+  if (!out.tldr) {
+    const first = lines.find((line) => !/^(what|missing|tl;dr)/i.test(line)) || "";
+    out.tldr = first.replace(/^[-*]\s+/, "").trim();
+  }
+
+  // Tiny cleanups to keep the card compact.
+  out.want = out.want.replace(/\s+/g, " ").trim();
+  out.next = out.next.replace(/\s+/g, " ").trim();
+  out.tldr = out.tldr.replace(/\s+/g, " ").trim();
+
+  return out;
 };
 
 const formatGuestJourneyEventLabel = (value = "") => {
@@ -374,6 +440,7 @@ function AdminsOlsPage() {
   const [conversationSummary, setConversationSummary] = useState(null);
   const [conversationSummaryLoading, setConversationSummaryLoading] = useState(false);
   const [conversationSummaryError, setConversationSummaryError] = useState("");
+  const [isConversationSummaryModalOpen, setIsConversationSummaryModalOpen] = useState(false);
   const [accountForm, setAccountForm] = useState(() => ({
     fullName: "",
     currentPassword: "",
@@ -409,6 +476,8 @@ function AdminsOlsPage() {
   const audioContextRef = useRef(null);
   const audioPrimedRef = useRef(false);
   const toastTimersRef = useRef(new Map());
+  const conversationSummaryCloseButtonRef = useRef(null);
+  const lastActiveElementRef = useRef(null);
 
   const overview = dashboard?.overview || {};
   const system = dashboard?.system || {};
@@ -445,6 +514,54 @@ function AdminsOlsPage() {
     const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
     return `${CONVERSATION_SUMMARY_SEEN_KEY_PREFIX}:${identity || "shared"}`;
   }, [currentAdmin?.email, currentAdmin?.id]);
+
+  const conversationSummaryCacheKey = useMemo(() => {
+    const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
+    return `${CONVERSATION_SUMMARY_CACHE_PREFIX}:${identity || "shared"}`;
+  }, [currentAdmin?.email, currentAdmin?.id]);
+
+  const loadCachedConversationSummary = (sessionId) => {
+    if (typeof window === "undefined" || !window.sessionStorage) return null;
+    try {
+      const raw = window.sessionStorage.getItem(`${conversationSummaryCacheKey}:${sessionId}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const text = String(parsed?.text || "").trim();
+      if (!text) return null;
+      if (/^unable to generate summary\.?/i.test(text)) return null;
+      return {
+        sessionId,
+        text,
+        generatedAt: String(parsed?.generatedAt || ""),
+        model: String(parsed?.model || ""),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const cachedSelectedConversationSummary = useMemo(() => {
+    if (!selectedConversation?.sessionId) return null;
+    return loadCachedConversationSummary(selectedConversation.sessionId);
+  }, [selectedConversation?.sessionId, conversationSummaryCacheKey]);
+
+  const saveCachedConversationSummary = (summary) => {
+    if (typeof window === "undefined" || !window.sessionStorage) return;
+    try {
+      if (!summary?.sessionId) return;
+      if (/^unable to generate summary\.?/i.test(String(summary.text || "").trim())) return;
+      window.sessionStorage.setItem(
+        `${conversationSummaryCacheKey}:${summary.sessionId}`,
+        JSON.stringify({
+          text: String(summary.text || ""),
+          generatedAt: String(summary.generatedAt || ""),
+          model: String(summary.model || ""),
+        }),
+      );
+    } catch {
+      // ignore cache failures
+    }
+  };
 
   const feedbackHealth = useMemo(() => {
     const good = Number(overview.goodFeedbackTotal || 0);
@@ -770,14 +887,35 @@ function AdminsOlsPage() {
   }, [displayedTabId, selectedConversation]);
 
   useEffect(() => {
-    if (displayedTabId !== "conversations") return;
+    // Reset summary UI when switching conversations/tabs. We do not auto-generate summaries.
+    setConversationSummary(null);
+    setConversationSummaryError("");
+    setConversationSummaryLoading(false);
+
+    try {
+      if (conversationSummaryAbortRef.current) {
+        conversationSummaryAbortRef.current.abort();
+      }
+    } catch {
+      // ignore
+    }
+  }, [displayedTabId, selectedConversation?.sessionId]);
+
+  const sanitizeConversationSummaryError = (value = "") => {
+    const message = String(value || "").trim();
+    if (!message) return "";
+    // If the upstream error leaks tokens/keys, hide details from the UI.
+    if (/sk-[A-Za-z0-9_-]{8,}/.test(message) || /api key/i.test(message)) {
+      return "Server configuration issue while generating the summary.";
+    }
+    return message;
+  };
+
+  const handleGenerateConversationSummary = async ({ forceRefresh = false } = {}) => {
     if (!selectedConversation?.sessionId) return;
     if (!session?.accessToken && !session?.sharedKey) return;
 
-    // Clear any previous summary so returning to a conversation later in the same session
-    // does not re-show a summary the admin already saw.
-    setConversationSummary(null);
-    setConversationSummaryError("");
+    const sessionId = selectedConversation.sessionId;
 
     try {
       if (conversationSummaryAbortRef.current) {
@@ -787,60 +925,119 @@ function AdminsOlsPage() {
       // ignore
     }
 
-    const sessionId = selectedConversation.sessionId;
-    const seen = loadSessionStringList(conversationSummarySeenStorageKey);
-    if (seen.includes(sessionId)) {
-      setConversationSummaryLoading(false);
-      return;
+    // Prefer cached summary in this browser session unless explicitly refreshed.
+    if (!forceRefresh) {
+      const cached = loadCachedConversationSummary(sessionId);
+      if (cached?.text) {
+        setConversationSummary(cached);
+        setConversationSummaryError("");
+        return;
+      }
     }
+
+    setConversationSummary(null);
+    setConversationSummaryError("");
 
     const controller = new AbortController();
     conversationSummaryAbortRef.current = controller;
     setConversationSummaryLoading(true);
 
-    performAdminRequest(
-      {
-        method: "POST",
-        payload: { action: "summarize_conversation", sessionId },
-        signal: controller.signal,
-      },
-      session,
-    )
-      .then((payload) => {
-        if (controller.signal.aborted) return;
-        const text = String(payload?.summary || "").trim();
-        if (!text) return;
-        setConversationSummary({
-          sessionId,
-          text,
-          generatedAt: String(payload?.generatedAt || ""),
-          model: String(payload?.model || ""),
-        });
-        saveSessionStringList(conversationSummarySeenStorageKey, [...seen, sessionId]);
-      })
-      .catch((requestError) => {
-        if (controller.signal.aborted) return;
-        setConversationSummaryError(String(requestError?.message || "Unable to summarize conversation."));
-      })
-      .finally(() => {
-        if (controller.signal.aborted) return;
-        setConversationSummaryLoading(false);
-      });
+    const seen = loadSessionStringList(conversationSummarySeenStorageKey);
 
-    return () => {
-      try {
-        controller.abort();
-      } catch {
-        // ignore
+    try {
+      const payload = await performAdminRequest(
+        {
+          method: "POST",
+          payload: { action: "summarize_conversation", sessionId },
+          signal: controller.signal,
+        },
+        session,
+      );
+
+      if (controller.signal.aborted) return;
+      const text = String(payload?.summary || "").trim();
+      if (!text) {
+        setConversationSummaryError("Unable to summarize conversation.");
+        return;
+      }
+
+      if (/^unable to generate summary\.?/i.test(text)) {
+        setConversationSummaryError("Unable to summarize conversation.");
+        return;
+      }
+
+      const next = {
+        sessionId,
+        text,
+        generatedAt: String(payload?.generatedAt || ""),
+        model: String(payload?.model || ""),
+      };
+
+      setConversationSummary(next);
+      saveCachedConversationSummary(next);
+
+      if (!seen.includes(sessionId)) {
+        saveSessionStringList(conversationSummarySeenStorageKey, [...seen, sessionId]);
+      }
+    } catch (requestError) {
+      if (controller.signal.aborted) return;
+      setConversationSummaryError(
+        sanitizeConversationSummaryError(String(requestError?.message || "Unable to summarize conversation.")),
+      );
+    } finally {
+      if (controller.signal.aborted) return;
+      setConversationSummaryLoading(false);
+    }
+  };
+
+  const handleOpenConversationSummaryModal = async ({ forceRefresh = false } = {}) => {
+    if (!selectedConversation?.sessionId) return;
+    lastActiveElementRef.current = typeof document !== "undefined" ? document.activeElement : null;
+    setIsConversationSummaryModalOpen(true);
+    await handleGenerateConversationSummary({ forceRefresh });
+  };
+
+  const handleCloseConversationSummaryModal = () => {
+    setIsConversationSummaryModalOpen(false);
+    // Keep the cached summary in state; closing is just a UI action.
+    try {
+      lastActiveElementRef.current?.focus?.();
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (!isConversationSummaryModalOpen) return undefined;
+    if (typeof window === "undefined") return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleCloseConversationSummaryModal();
       }
     };
-  }, [
-    displayedTabId,
-    selectedConversation?.sessionId,
-    conversationSummarySeenStorageKey,
-    session?.accessToken,
-    session?.sharedKey,
-  ]);
+
+    const previousOverflow = document?.body?.style?.overflow;
+    if (document?.body?.style) document.body.style.overflow = "hidden";
+
+    window.addEventListener("keydown", onKeyDown);
+
+    const focusTimer = window.setTimeout(() => {
+      conversationSummaryCloseButtonRef.current?.focus?.();
+    }, 0);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.clearTimeout(focusTimer);
+      if (document?.body?.style) document.body.style.overflow = previousOverflow || "";
+    };
+  }, [isConversationSummaryModalOpen]);
+
+  useEffect(() => {
+    // If the admin switches threads, close any open summary modal to avoid mismatched context.
+    setIsConversationSummaryModalOpen(false);
+  }, [selectedConversation?.sessionId]);
 
   useEffect(() => {
     document.title =
@@ -1388,7 +1585,8 @@ function AdminsOlsPage() {
   }
 
   return (
-    <div className="admins-ols-page">
+    <>
+      <div className="admins-ols-page">
       {toasts.length > 0 && (
         <div className="admins-ols-toasts" role="status" aria-live="polite" aria-relevant="additions">
           {toasts.map((toast) => (
@@ -1832,56 +2030,34 @@ function AdminsOlsPage() {
                         )}
                       </div>
                     </div>
-                    <small>{formatDateTime(selectedConversation.lastSeenAt)}</small>
+                    <div className="admins-ols-conversation-head-aside">
+                      <small>{formatDateTime(selectedConversation.lastSeenAt)}</small>
+                      <button
+                        type="button"
+                        className="admins-ols-conversation-summary-trigger"
+                        onClick={() =>
+                          handleOpenConversationSummaryModal({
+                            forceRefresh: false,
+                          })
+                        }
+                        disabled={conversationSummaryLoading}
+                        title="Generate a quick admin summary for this thread"
+                      >
+                        {conversationSummaryLoading
+                          ? "Summarizing..."
+                          : cachedSelectedConversationSummary?.text ||
+                              (conversationSummary?.sessionId === selectedConversation.sessionId &&
+                                String(conversationSummary?.text || "").trim())
+                            ? "View Summary"
+                            : "Generate Summary"}
+                      </button>
+                    </div>
                   </div>
                   {selectedConversation.pathname && (
                     <p className="admins-ols-conversation-path">
                       {truncate(selectedConversation.pathname, 120)}
                     </p>
                   )}
-                  {conversationSummaryLoading && (
-                    <div className="admins-ols-banner">
-                      Preparing a quick conversation summary for you...
-                    </div>
-                  )}
-                  {conversationSummaryError && (
-                    <div className="admins-ols-error">
-                      Conversation summary unavailable: {conversationSummaryError}
-                    </div>
-                  )}
-                  {conversationSummary &&
-                    conversationSummary.sessionId === selectedConversation.sessionId &&
-                    !conversationSummaryLoading && (
-                      <div className="admins-ols-conversation-summary">
-                        <div className="admins-ols-conversation-summary-head">
-                          <span className="admins-ols-badge is-active">Summary</span>
-                          <small>
-                            {conversationSummary.generatedAt
-                              ? `Generated ${formatDateTime(conversationSummary.generatedAt)}`
-                              : "Generated now"}
-                          </small>
-                          <button
-                            type="button"
-                            className="admins-ols-conversation-summary-dismiss"
-                            onClick={() => setConversationSummary(null)}
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                        <div className="admins-ols-conversation-summary-body">
-                          {String(conversationSummary.text || "")
-                            .split(/\n+/)
-                            .map((line) => line.trim())
-                            .filter(Boolean)
-                            .map((line, index) => (
-                              <p key={`${conversationSummary.sessionId}-summary-${index}`}>{line}</p>
-                            ))}
-                        </div>
-                        <small className="admins-ols-conversation-summary-foot">
-                          This summary is shown once per admin session for this conversation.
-                        </small>
-                      </div>
-                    )}
                   <div className="admins-ols-thread" ref={threadScrollRef}>
                     {selectedConversation.messages.map((message) => (
                       <div
@@ -2422,6 +2598,128 @@ function AdminsOlsPage() {
         </div>
       </div>
     </div>
+    {isConversationSummaryModalOpen && selectedConversation && (
+      <div
+        className="admins-ols-modal-overlay"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            handleCloseConversationSummaryModal();
+          }
+        }}
+      >
+        <div
+          className="admins-ols-modal admins-ols-modal--summary"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Conversation summary"
+        >
+          <div className="admins-ols-modal-head">
+            <div className="admins-ols-modal-head-left">
+              <span className="admins-ols-badge is-active">Summary</span>
+              <div className="admins-ols-modal-title">
+                <strong>{getConversationTitle(selectedConversation)}</strong>
+                <small>
+                  {formatPageLabel(selectedConversation.pageType)}{" "}
+                  {selectedConversation.city && selectedConversation.city.toLowerCase() !== "unknown city"
+                    ? `| ${selectedConversation.city}`
+                    : ""}
+                  {selectedConversation.listingId ? ` | Listing ${shortenId(selectedConversation.listingId)}` : ""}
+                </small>
+              </div>
+            </div>
+            <div className="admins-ols-modal-actions">
+              <button
+                type="button"
+                className="admins-ols-modal-btn is-secondary"
+                onClick={() => handleGenerateConversationSummary({ forceRefresh: true })}
+                disabled={conversationSummaryLoading}
+                title="Regenerate summary"
+              >
+                {conversationSummaryLoading ? "Refreshing..." : "Refresh"}
+              </button>
+              <button
+                type="button"
+                className="admins-ols-modal-btn is-primary"
+                onClick={handleCloseConversationSummaryModal}
+                ref={conversationSummaryCloseButtonRef}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <div className="admins-ols-modal-body">
+            {conversationSummaryLoading && (
+              <div className="admins-ols-banner">Preparing a quick conversation summary for you...</div>
+            )}
+            {!conversationSummaryLoading && conversationSummaryError && (
+              <div className="admins-ols-error">Conversation summary unavailable: {conversationSummaryError}</div>
+            )}
+            {!conversationSummaryLoading &&
+              !conversationSummaryError &&
+              conversationSummary &&
+              conversationSummary.sessionId === selectedConversation.sessionId && (
+                <>
+                  <div className="admins-ols-modal-meta">
+                    <small>
+                      {conversationSummary.generatedAt
+                        ? `Generated ${formatDateTime(conversationSummary.generatedAt)}`
+                        : "Generated now"}
+                    </small>
+                  </div>
+                  {(() => {
+                    const parsed = parseAdminConversationSummary(conversationSummary.text);
+                    return (
+                      <div className="admins-ols-summary-single">
+                        <div className="admins-ols-summary-section">
+                          <span className="admins-ols-summary-label">TL;DR</span>
+                          <p className="admins-ols-summary-value">{parsed.tldr || "Conversation summary ready."}</p>
+                        </div>
+                        <div className="admins-ols-summary-section">
+                          <span className="admins-ols-summary-label">Guest Wants</span>
+                          <p className="admins-ols-summary-value">{parsed.want || "Help / information"}</p>
+                        </div>
+                        <div className="admins-ols-summary-section">
+                          <span className="admins-ols-summary-label">Next Step</span>
+                          <p className="admins-ols-summary-value">
+                            {parsed.next || "Ask for the minimum details needed to answer."}
+                          </p>
+                        </div>
+                        <div className="admins-ols-summary-section">
+                          <span className="admins-ols-summary-label">Missing (If Any)</span>
+                          {parsed.missing.length ? (
+                            <div className="admins-ols-summary-chips">
+                              {parsed.missing.map((item) => (
+                                <span key={item} className="admins-ols-summary-chip">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="admins-ols-summary-value is-muted">None</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <small className="admins-ols-modal-foot">
+                    Saved for this admin session. Other admins can generate their own summary when they open the
+                    thread.
+                  </small>
+                </>
+              )}
+            {!conversationSummaryLoading &&
+              !conversationSummaryError &&
+              (!conversationSummary || conversationSummary.sessionId !== selectedConversation.sessionId) && (
+                <p className="admins-ols-empty" style={{ margin: 0 }}>
+                  Summary not generated yet. Click Refresh to generate one.
+                </p>
+              )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

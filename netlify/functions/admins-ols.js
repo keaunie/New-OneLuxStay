@@ -31,6 +31,16 @@ const sanitizeString = (value = "", maxLength = 4000) =>
     .trim()
     .slice(0, maxLength);
 
+const sanitizeMultiline = (value = "", maxLength = 5000) => {
+  const text = String(value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!text.trim()) return "";
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.join("\n").slice(0, maxLength);
+};
+
 const sanitizeId = (value = "", maxLength = 120) =>
   String(value || "")
     .trim()
@@ -54,28 +64,60 @@ const parseJson = (text = "") => {
 };
 
 const extractOutputText = (payload) => {
-  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
+  const coerceText = (value, depth = 0) => {
+    if (depth > 3) return "";
+    if (Array.isArray(value)) {
+      return value.map((item) => coerceText(item, depth + 1)).filter(Boolean).join("\n");
+    }
+    if (typeof value === "string") return value;
+    if (typeof value?.value === "string") return value.value;
+    if (typeof value?.text === "string") return value.text;
+    if (typeof value?.content === "string") return value.content;
+    if (typeof value?.text === "object") {
+      const nested = coerceText(value.text, depth + 1);
+      if (nested) return nested;
+    }
+    if (typeof value?.content === "object") {
+      const nested = coerceText(value.content, depth + 1);
+      if (nested) return nested;
+    }
+    return "";
+  };
+
+  const topLevel = coerceText(payload?.output_text);
+  if (topLevel && topLevel.trim()) return topLevel.trim();
 
   if (!Array.isArray(payload?.output)) return "";
 
   const parts = [];
   payload.output.forEach((item) => {
-    if (!Array.isArray(item?.content)) return;
-    item.content.forEach((contentPart) => {
-      if (contentPart?.type === "output_text" && typeof contentPart.text === "string") {
-        parts.push(contentPart.text);
+    const content = item?.content;
+    if (!Array.isArray(content)) {
+      const direct = coerceText(item?.text) || coerceText(content);
+      if (direct) parts.push(direct);
+      return;
+    }
+
+    content.forEach((contentPart) => {
+      if (!contentPart) return;
+
+      if (contentPart?.type === "refusal" && typeof contentPart.refusal === "string") {
+        parts.push(contentPart.refusal);
         return;
       }
 
-      if (contentPart?.type === "text") {
-        if (typeof contentPart.text === "string") {
-          parts.push(contentPart.text);
-        } else if (typeof contentPart.text?.value === "string") {
-          parts.push(contentPart.text.value);
+      if (contentPart?.type === "output_text" || contentPart?.type === "text") {
+        const textValue = coerceText(contentPart.text);
+        if (textValue) {
+          parts.push(textValue);
+          return;
         }
       }
+
+      // Best-effort fallback for unexpected shapes.
+      const fallbackText =
+        coerceText(contentPart?.text) || coerceText(contentPart?.content) || coerceText(contentPart?.value);
+      if (fallbackText) parts.push(fallbackText);
     });
   });
 
@@ -86,6 +128,48 @@ const truncateText = (value = "", maxLength = 900) => {
   const text = String(value || "").trim();
   if (!text) return "";
   return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+};
+
+const buildDeterministicConversationSummary = (rows = []) => {
+  const items = Array.isArray(rows) ? rows : [];
+  const lastUser = [...items].reverse().find((row) => String(row?.role || "").toLowerCase() === "user");
+  const guestMessage = sanitizeMultiline(lastUser?.content || "", 600);
+  const shortAsk = truncateText(guestMessage, 110);
+  const want = shortAsk
+    ? shortAsk
+        .replace(/^["'“”]+|["'“”]+$/g, "")
+        .split(/\s+/)
+        .slice(0, 8)
+        .join(" ")
+    : "Help / question";
+
+  const missing = [];
+  const msgLower = guestMessage.toLowerCase();
+  if (!/20\d{2}-\d{2}-\d{2}/.test(msgLower) && !/(apr|may|jun|jul|aug|sep|oct|nov|dec|jan|feb|mar)\b/i.test(msgLower)) {
+    missing.push("Dates");
+  }
+  if (!/(guest|guests|adult|adults|room|rooms|people)\b/i.test(msgLower)) {
+    missing.push("Guest count");
+  }
+  if (!/(reservation|confirm|booking|code)\b/i.test(msgLower)) {
+    missing.push("Reservation code (if checking status)");
+  }
+
+  const missingBlock = missing.length ? missing.map((item) => `- ${item}`).slice(0, 3).join("\n") : "- None";
+
+  return [
+    "TL;DR:",
+    `- Guest asked: ${shortAsk || "No guest message captured."}`,
+    "",
+    "What the guest wants:",
+    `- ${want || "Help"}`,
+    "",
+    "What to do next:",
+    "- Acknowledge briefly, then ask for the minimum details needed to answer.",
+    "",
+    "Missing info (if any):",
+    missingBlock,
+  ].join("\n");
 };
 
 const normalizeSentimentLabel = (value = "") => {
@@ -205,6 +289,15 @@ const buildConversationTranscript = (rows = []) => {
   return lines.join("\n");
 };
 
+const redactSecrets = (value = "") => {
+  let text = String(value || "");
+  if (!text) return "";
+  // Redact common token patterns that should never reach the client UI.
+  text = text.replace(/sk-[A-Za-z0-9_-]{8,}/g, "[REDACTED]");
+  text = text.replace(/Bearer\\s+[A-Za-z0-9._-]{8,}/gi, "Bearer [REDACTED]");
+  return text;
+};
+
 const summarizeConversationForAdmin = async (payload = {}, tables = {}, adminUser = {}) => {
   const sessionId = sanitizeId(payload?.sessionId, 120);
   if (!sessionId) {
@@ -256,28 +349,25 @@ const summarizeConversationForAdmin = async (payload = {}, tables = {}, adminUse
   const instructions = `
 You are an internal OneLuxStay admin copilot.
 
-Task: Summarize the conversation so an admin can take over quickly.
+Task: Create a very short takeover summary for an admin.
 
 Rules:
 - Use only the transcript provided. Do not guess details.
-- If key info is missing (dates, guest count, listing, reservation code), explicitly say what is missing.
-- Be concise and actionable. No fluff.
-- Output in this exact structure (keep headings):
+- Keep it as short as possible. Avoid repeating the transcript.
+- If key info is missing (dates, guest count, listing, reservation code), mention only the missing items.
+- Output ONLY the template below (no extra text).
 
-Summary:
-- (1-2 sentences)
+TL;DR:
+- (1 sentence)
 
-Guest intent:
-- ...
+What the guest wants:
+- (max 8 words)
 
-What has happened so far:
-- ...
+What to do next:
+- (1 sentence)
 
-Open questions / missing info:
-- ...
-
-Recommended next reply (draft):
-- ...
+Missing info (if any):
+- (0-3 bullets, short)
 `.trim();
 
   const input = [
@@ -301,7 +391,7 @@ Recommended next reply (draft):
         input,
         reasoning: { effort: "low" },
         text: { verbosity: "low" },
-        max_output_tokens: 550,
+        max_output_tokens: 180,
       }),
     },
     25_000,
@@ -310,13 +400,23 @@ Recommended next reply (draft):
   const raw = await response.text();
   const data = parseJson(raw);
   if (!response.ok) {
-    const message = data?.error?.message || `OpenAI request failed (${response.status})`;
+    const status = Number(response.status || 0);
+    const upstream = redactSecrets(data?.error?.message || "");
+    const message =
+      status === 401 || status === 403
+        ? "OpenAI authentication failed while generating the summary."
+        : upstream || `OpenAI request failed (${response.status})`;
+
     const error = new Error(message);
     error.statusCode = 502;
     throw error;
   }
 
-  const summaryText = sanitizeString(extractOutputText(data), 5000) || "Unable to generate summary.";
+  const extracted = extractOutputText(data);
+  const summaryText =
+    sanitizeMultiline(extracted, 5000) ||
+    buildDeterministicConversationSummary(messageRows) ||
+    "Unable to generate summary.";
   return {
     sessionId,
     summary: summaryText,
