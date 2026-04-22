@@ -1,0 +1,1269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<listings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.gstatic.com/localfeed/local_feed.xsd">
+  <language>en</language>
+  <!-- generated_at: 2026-04-21T18:48:59.814Z -->
+  <!-- total_rows: 36 -->
+  <!-- listings_emitted: 36 -->
+  <!-- listings_skipped: 0 -->
+  <!-- note: listings require id/name/address/latitude/longitude and must be active -->
+  <listing>
+    <id>8a9ef41d-42b4-41ad-836e-b4d99247b243</id>
+    <name>1 Bedroom Apartment in Hollywood by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">5620 De Longpre Ave, Los Angeles, CA 90028, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/8a9ef41d-42b4-41ad-836e-b4d99247b243</link>
+        <title>1 Bedroom Apartment in Hollywood by OneLuxStay</title>
+        <body>This property is located on Western and Sunset. This Spacious newly built 1 BR offers: Free WiFi, Free Parking, 24/7 Gym, 24 Hour Security, Washer/Dryer in Unit &amp; Nespresso Coffee for your convenience. Target is across the street and Starbucks is on the next block. Plenty of food and shopping options a short walk away.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/8a9ef41d-42b4-41ad-836e-b4d99247b243</website>
+        <client_attr name="capacity">3</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">This property is located on Western and Sunset. This Spacious newly built 1 BR offers: Free WiFi, Free Parking, 24/7 Gym, 24 Hour Security, Washer/Dryer in Unit &amp; Nespresso Coffee for your convenience. Target is across the street and Starbucks is on the next block. Plenty of food and shopping options a short walk away.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>281db126-8328-445c-b35a-bf5dc8c294bb</id>
+    <name>Modern 1BR Apartment in Hollywood by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">5620 De Longpre Ave, Los Angeles, CA 90028, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/281db126-8328-445c-b35a-bf5dc8c294bb</link>
+        <title>Modern 1BR Apartment in Hollywood by OneLuxStay</title>
+        <body>Stylish apartment located near major LA attractions. Pets allowed, great for long-term stays, WiFi, Gym, Pool. Nearby cafes, shops, and public transit.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/281db126-8328-445c-b35a-bf5dc8c294bb</website>
+        <client_attr name="capacity">5</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Stylish apartment located near major LA attractions. Pets allowed, great for long-term stays, WiFi, Gym, Pool. Nearby cafes, shops, and public transit.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>4ccfffab-76ae-495a-bbc2-f93a6c2c6441</id>
+    <name>Modern 1 Bedroom Apartment in Hollywood</name>
+    <address format="simple">
+      <component name="addr1">5620 De Longpre Ave, Los Angeles, CA 90028, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/4ccfffab-76ae-495a-bbc2-f93a6c2c6441</link>
+        <title>Modern 1 Bedroom Apartment in Hollywood</title>
+        <body>Bright, modern apartment in Hollywood, featuring stunning city views, WiFi, and amenities like a pool and gym.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/4ccfffab-76ae-495a-bbc2-f93a6c2c6441</website>
+        <client_attr name="capacity">5</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Bright, modern apartment in Hollywood, featuring stunning city views, WiFi, and amenities like a pool and gym.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>5651c8c0-055e-4236-bacf-9cd403a38891</id>
+    <name>3 Bedroom in Hollywood with Hollywood Sign View by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">5620 De Longpre Ave, Los Angeles, CA 90028, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/5651c8c0-055e-4236-bacf-9cd403a38891</link>
+        <title>3 Bedroom in Hollywood with Hollywood Sign View by OneLuxStay</title>
+        <body>This spacious, newly built 3-bedroom offers views of the Hollywood sign. Free WiFi, Free Parking, 24/7 Gym, Pool, and BBQ area. Pets welcome with a fee of $150.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/5651c8c0-055e-4236-bacf-9cd403a38891</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">This spacious, newly built 3-bedroom offers views of the Hollywood sign. Free WiFi, Free Parking, 24/7 Gym, Pool, and BBQ area. Pets welcome with a fee of $150.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>2b688d44-be13-445c-aa1d-9ba8327bd981</id>
+    <name>Cozy 1BR City Centre Near Meir Shopping by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Kribbestraat 6, 2000 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/2b688d44-be13-445c-aa1d-9ba8327bd981</link>
+        <title>Cozy 1BR City Centre Near Meir Shopping by OneLuxStay</title>
+        <body>Our 1BR apartment offers a fully equipped kitchen, comfy bedroom, en-suite washer/dryer, cheery living room with flat screen TV and complimentary Wifi, fresh linens, towels, and welcome toiletries.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/2b688d44-be13-445c-aa1d-9ba8327bd981</website>
+        <client_attr name="capacity">3</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">Our 1BR apartment offers a fully equipped kitchen, comfy bedroom, en-suite washer/dryer, cheery living room with flat screen TV and complimentary Wifi, fresh linens, towels, and welcome toiletries.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>9756b06a-f8a5-4e53-93b2-415f2f392a28</id>
+    <name>Luxury 1BR Near Fashion District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 103, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/9756b06a-f8a5-4e53-93b2-415f2f392a28</link>
+        <title>Luxury 1BR Near Fashion District by OneLuxStay</title>
+        <body>Discover One Lux Stay at Antwerp City Center, offering top-notch short-term rentals near Meir, Groenplaats, and Antwerp Zoo. Luxurious living spaces with a kosher-style kitchen, modern appliances, and free Wi-Fi.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/9756b06a-f8a5-4e53-93b2-415f2f392a28</website>
+        <client_attr name="capacity">2</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">Discover One Lux Stay at Antwerp City Center, offering top-notch short-term rentals near Meir, Groenplaats, and Antwerp Zoo. Luxurious living spaces with a kosher-style kitchen, modern appliances, and free Wi-Fi.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>67af9664-e789-405e-a6e6-4b6c45d5074d</id>
+    <name>Luxury 2BR 1BA Near Fashion District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 103, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/67af9664-e789-405e-a6e6-4b6c45d5074d</link>
+        <title>Luxury 2BR 1BA Near Fashion District by OneLuxStay</title>
+        <body>Our properties located in Antwerp, close to MAS Museum Antwerp, Astrid Square, and Antwerp Zoo, One Lux Stay at Antwerp City Center provides free WiFi. It is close to Meir, and Groenplaats Antwerp.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/67af9664-e789-405e-a6e6-4b6c45d5074d</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Our properties located in Antwerp, close to MAS Museum Antwerp, Astrid Square, and Antwerp Zoo, One Lux Stay at Antwerp City Center provides free WiFi. It is close to Meir, and Groenplaats Antwerp.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>8aae7ae9-3be4-422b-8f71-db1907e18fba</id>
+    <name>Luxury 2BR 2BA Near Fashion District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 103, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/8aae7ae9-3be4-422b-8f71-db1907e18fba</link>
+        <title>Luxury 2BR 2BA Near Fashion District by OneLuxStay</title>
+        <body>Located in the heart of Antwerp, this stylish 2BR apartment is perfect for fashion lovers and tourists. Walking distance to the Meir shopping district, MAS Museum, and Antwerp Zoo. Amenities include free Wi-Fi, air conditioning, and more.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/8aae7ae9-3be4-422b-8f71-db1907e18fba</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Located in the heart of Antwerp, this stylish 2BR apartment is perfect for fashion lovers and tourists. Walking distance to the Meir shopping district, MAS Museum, and Antwerp Zoo. Amenities include free Wi-Fi, air conditioning, and more.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>e30284d0-7d65-4d9a-b9e7-9499a826512f</id>
+    <name>Luxury Dlx 1BR Near Fashion District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 103, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/e30284d0-7d65-4d9a-b9e7-9499a826512f</link>
+        <title>Luxury Dlx 1BR Near Fashion District by OneLuxStay</title>
+        <body>Located in Antwerp\&apos;s vibrant fashion district, this 1BR apartment offers a modern, comfortable space for your stay. Perfect for short-term rentals, with easy access to the MAS Museum, Astrid Square, and Antwerp Zoo. Features include Wi-Fi, a full kitchen, and free amenities.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/e30284d0-7d65-4d9a-b9e7-9499a826512f</website>
+        <client_attr name="capacity">3</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">Located in Antwerp\&apos;s vibrant fashion district, this 1BR apartment offers a modern, comfortable space for your stay. Perfect for short-term rentals, with easy access to the MAS Museum, Astrid Square, and Antwerp Zoo. Features include Wi-Fi, a full kitchen, and free amenities.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>a223f233-2100-4b67-adc0-74b8e0ee1f76</id>
+    <name>Modern 1BR at Brickell Bay Club by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">1200 Brickell Bay Dr, Miami, FL 33131, USA</component>
+      <component name="city">Miami</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/miami/listing/a223f233-2100-4b67-adc0-74b8e0ee1f76</link>
+        <title>Modern 1BR at Brickell Bay Club by OneLuxStay</title>
+        <body>Enjoy the best of Miami in this modern 1BR apartment located in Brickell Bay Club, featuring amazing city and ocean views, along with a host of amenities like a pool, gym, and Jacuzzi.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/miami/listing/a223f233-2100-4b67-adc0-74b8e0ee1f76</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">1</client_attr>
+        <client_attr name="description">Enjoy the best of Miami in this modern 1BR apartment located in Brickell Bay Club, featuring amazing city and ocean views, along with a host of amenities like a pool, gym, and Jacuzzi.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>2c7dec65-809a-4a2c-a0d5-924e498b5878</id>
+    <name>Modern 2BR 1.5BA Near Diamond District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Jacob Jordaensstraat 96, 2000 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/2c7dec65-809a-4a2c-a0d5-924e498b5878</link>
+        <title>Modern 2BR 1.5BA Near Diamond District by OneLuxStay</title>
+        <body>Wake up to the wonder of Antwerp in a modern 2BR apartment just minutes from the city center. Located in a prime spot for shopping, dining, and sightseeing. Ideal for families and business travelers. Pets are welcome!</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/2c7dec65-809a-4a2c-a0d5-924e498b5878</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Wake up to the wonder of Antwerp in a modern 2BR apartment just minutes from the city center. Located in a prime spot for shopping, dining, and sightseeing. Ideal for families and business travelers. Pets are welcome!</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>df2e1977-1e5a-4fa2-8fc5-a400f86dd442</id>
+    <name>Modern 2BR Penthouse Near Diamond District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Jacob Jordaensstraat 96, 2000 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Penthouse</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/df2e1977-1e5a-4fa2-8fc5-a400f86dd442</link>
+        <title>Modern 2BR Penthouse Near Diamond District by OneLuxStay</title>
+        <body>Wake up to the wonder of Antwerp with a stay located only minutes from the heart of the city. The apartment is within walking distance of all the major tourist spots, Meir shopping street, restaurants, and clubs. It is ideal for families, friends, and business travelers.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/df2e1977-1e5a-4fa2-8fc5-a400f86dd442</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Wake up to the wonder of Antwerp with a stay located only minutes from the heart of the city. The apartment is within walking distance of all the major tourist spots, Meir shopping street, restaurants, and clubs. It is ideal for families, friends, and business travelers.</client_attr>
+        <client_attr name="category">Penthouse</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>ab03bbbf-f627-4bbb-a3c3-9bb34b8723f1</id>
+    <name>One Lux Stay 1BR Home Near the Beach</name>
+    <address format="simple">
+      <component name="addr1">419 North Broadway, Redondo Beach, California 90277, United States</component>
+      <component name="city">Redondo Beach</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/redondo-beach/listing/ab03bbbf-f627-4bbb-a3c3-9bb34b8723f1</link>
+        <title>One Lux Stay 1BR Home Near the Beach</title>
+        <body>Welcome to your beachside escape! This beautifully updated 1-bedroom, 1-bath apartment is the perfect home base for families, groups, or business travelers looking to enjoy sunny SoCal living just minutes from the ocean.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/redondo-beach/listing/ab03bbbf-f627-4bbb-a3c3-9bb34b8723f1</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">1</client_attr>
+        <client_attr name="description">Welcome to your beachside escape! This beautifully updated 1-bedroom, 1-bath apartment is the perfect home base for families, groups, or business travelers looking to enjoy sunny SoCal living just minutes from the ocean.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>87a1b143-a9ad-4e6d-9737-5f12986ab670</id>
+    <name>One Lux Stay 2BR/2BA Antwerp near Central Station</name>
+    <address format="simple">
+      <component name="addr1">Lange Kievitstraat 4, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/87a1b143-a9ad-4e6d-9737-5f12986ab670</link>
+        <title>One Lux Stay 2BR/2BA Antwerp near Central Station</title>
+        <body>Located near Antwerp Central Station, this modern 2BR apartment offers a great base for business and leisure. With spacious rooms, high-end finishes, and all the amenities you need, it’s perfect for your stay.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/87a1b143-a9ad-4e6d-9737-5f12986ab670</website>
+        <client_attr name="capacity">5</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Located near Antwerp Central Station, this modern 2BR apartment offers a great base for business and leisure. With spacious rooms, high-end finishes, and all the amenities you need, it’s perfect for your stay.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>da763593-c056-41a8-820c-9db9da9adf8e</id>
+    <name>One Lux Stay 3BR / 2BA Antwerp near Central Station</name>
+    <address format="simple">
+      <component name="addr1">Lange Kievitstraat 4, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/da763593-c056-41a8-820c-9db9da9adf8e</link>
+        <title>One Lux Stay 3BR / 2BA Antwerp near Central Station</title>
+        <body>Welcome to One Lux Stay 3BR / 2BA Antwerp near Central Station. Enjoy a comfortable and well-designed stay in the heart of Antwerp’s prestigious Diamond District. This modern apartment features a bright living area, a fully equipped kitchen, and cozy bedrooms.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/da763593-c056-41a8-820c-9db9da9adf8e</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">5</client_attr>
+        <client_attr name="description">Welcome to One Lux Stay 3BR / 2BA Antwerp near Central Station. Enjoy a comfortable and well-designed stay in the heart of Antwerp’s prestigious Diamond District. This modern apartment features a bright living area, a fully equipped kitchen, and cozy bedrooms.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>8254c84c-e228-4856-a0e6-31092762278e</id>
+    <name>One Lux Stay Grande Signature Residence 2BR - Direct Burj Khalifa View</name>
+    <address format="simple">
+      <component name="addr1">Sheikh Mohammed bin Rashid Boulevard, 0000 Dubai, United Arab Emirates</component>
+      <component name="city">Dubai</component>
+    </address>
+    <country>AE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/dubai/listing/8254c84c-e228-4856-a0e6-31092762278e</link>
+        <title>One Lux Stay Grande Signature Residence 2BR - Direct Burj Khalifa View</title>
+        <body>Experience luxury and sophistication with a direct view of Burj Khalifa in the heart of Dubai. This 2-bedroom, 3-bathroom apartment offers an unparalleled living experience with world-class amenities, perfect for families and business travelers.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/dubai/listing/8254c84c-e228-4856-a0e6-31092762278e</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">3</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Experience luxury and sophistication with a direct view of Burj Khalifa in the heart of Dubai. This 2-bedroom, 3-bathroom apartment offers an unparalleled living experience with world-class amenities, perfect for families and business travelers.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>29207037-9978-42aa-b649-8a10325d005b</id>
+    <name>One Lux Stay Grande Signature Residence 2BR - Stunning Fountain Views</name>
+    <address format="simple">
+      <component name="addr1">Sheikh Mohammed bin Rashid Boulevard, 0000 Dubai, United Arab Emirates</component>
+      <component name="city">Dubai</component>
+    </address>
+    <country>AE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/dubai/listing/29207037-9978-42aa-b649-8a10325d005b</link>
+        <title>One Lux Stay Grande Signature Residence 2BR - Stunning Fountain Views</title>
+        <body>Experience luxury and sophistication with a direct view of Burj Khalifa in the heart of Dubai. This 2-bedroom, 3-bathroom apartment offers an unparalleled living experience with world-class amenities, perfect for families and business travelers.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/dubai/listing/29207037-9978-42aa-b649-8a10325d005b</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">3</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Experience luxury and sophistication with a direct view of Burj Khalifa in the heart of Dubai. This 2-bedroom, 3-bathroom apartment offers an unparalleled living experience with world-class amenities, perfect for families and business travelers.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>084db960-0468-49ba-9873-a3dea08b384d</id>
+    <name>One Lux Stay Grande Signature Residence 3BR - Direct Burj Khalifa View</name>
+    <address format="simple">
+      <component name="addr1">Sheikh Mohammed bin Rashid Boulevard, 0000 Dubai, United Arab Emirates</component>
+      <component name="city">Dubai</component>
+    </address>
+    <country>AE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/dubai/listing/084db960-0468-49ba-9873-a3dea08b384d</link>
+        <title>One Lux Stay Grande Signature Residence 3BR - Direct Burj Khalifa View</title>
+        <body>Experience luxury and sophistication with a direct view of Burj Khalifa in the heart of Dubai. This 3-bedroom, 3-bathroom apartment offers an unparalleled living experience with world-class amenities, perfect for families and business travelers.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/dubai/listing/084db960-0468-49ba-9873-a3dea08b384d</website>
+        <client_attr name="capacity">8</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">3</client_attr>
+        <client_attr name="number_of_beds">5</client_attr>
+        <client_attr name="description">Experience luxury and sophistication with a direct view of Burj Khalifa in the heart of Dubai. This 3-bedroom, 3-bathroom apartment offers an unparalleled living experience with world-class amenities, perfect for families and business travelers.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>31a1b528-9a47-4f48-9b4e-9964ea521db0</id>
+    <name>One Lux Stay Near Antwerp Central - 2 Bedroom 1.5 Bathroom</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 5, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/31a1b528-9a47-4f48-9b4e-9964ea521db0</link>
+        <title>One Lux Stay Near Antwerp Central - 2 Bedroom 1.5 Bathroom</title>
+        <body>Welcome to One Lux Stay Near Antwerp Central. Located in the vibrant heart of Antwerp, this stylish apartment offers modern accommodations just moments away from the city’s most iconic attractions including MAS Museum, Astrid Square, and Antwerp Zoo.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/31a1b528-9a47-4f48-9b4e-9964ea521db0</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Welcome to One Lux Stay Near Antwerp Central. Located in the vibrant heart of Antwerp, this stylish apartment offers modern accommodations just moments away from the city’s most iconic attractions including MAS Museum, Astrid Square, and Antwerp Zoo.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>a5060c7b-23e6-446c-b99f-bb5ad554e3a2</id>
+    <name>One Lux Stay Near Antwerp Central - 3 Bedroom 1.5 Bathroom</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 5, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/a5060c7b-23e6-446c-b99f-bb5ad554e3a2</link>
+        <title>One Lux Stay Near Antwerp Central - 3 Bedroom 1.5 Bathroom</title>
+        <body>Welcome to One Lux Stay Near Antwerp Central. Located in the vibrant heart of Antwerp, this stylish apartment offers modern accommodations just moments away from the city’s most iconic attractions including the MAS Museum, Astrid Square, and Antwerp Zoo.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/a5060c7b-23e6-446c-b99f-bb5ad554e3a2</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">5</client_attr>
+        <client_attr name="description">Welcome to One Lux Stay Near Antwerp Central. Located in the vibrant heart of Antwerp, this stylish apartment offers modern accommodations just moments away from the city’s most iconic attractions including the MAS Museum, Astrid Square, and Antwerp Zoo.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>766c7bc0-6332-4371-91e1-9fa97665d08e</id>
+    <name>One Lux Stay Near Antwerp Central - 3 Bedroom 2 Full Bathrooms</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 5, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/766c7bc0-6332-4371-91e1-9fa97665d08e</link>
+        <title>One Lux Stay Near Antwerp Central - 3 Bedroom 2 Full Bathrooms</title>
+        <body>Welcome to One Lux Stay Near Antwerp Central. Located in the vibrant heart of Antwerp, this stylish apartment offers modern accommodations just moments away from the city’s most iconic attractions including the MAS Museum, Astrid Square, and Antwerp Zoo.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/766c7bc0-6332-4371-91e1-9fa97665d08e</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">5</client_attr>
+        <client_attr name="description">Welcome to One Lux Stay Near Antwerp Central. Located in the vibrant heart of Antwerp, this stylish apartment offers modern accommodations just moments away from the city’s most iconic attractions including the MAS Museum, Astrid Square, and Antwerp Zoo.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>56f344ac-0c79-4308-9604-95c8c2291a92</id>
+    <name>One Lux Stay Near Antwerp Central - Studio Apartment</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 5, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Studio</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/56f344ac-0c79-4308-9604-95c8c2291a92</link>
+        <title>One Lux Stay Near Antwerp Central - Studio Apartment</title>
+        <body>Welcome to One Lux Stay Near Antwerp Central. Located in the heart of Antwerp, our properties offer modern, comfortable accommodations just steps away from some of the city\&apos;s most iconic landmarks, including the MAS Museum, Astrid Square, and Antwerp Zoo. Guests also enjoy easy access to popular shopping and cultural areas like the Meir and Groenplaats.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/56f344ac-0c79-4308-9604-95c8c2291a92</website>
+        <client_attr name="capacity">2</client_attr>
+        <client_attr name="number_of_bedrooms">0</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">1</client_attr>
+        <client_attr name="description">Welcome to One Lux Stay Near Antwerp Central. Located in the heart of Antwerp, our properties offer modern, comfortable accommodations just steps away from some of the city\&apos;s most iconic landmarks, including the MAS Museum, Astrid Square, and Antwerp Zoo. Guests also enjoy easy access to popular shopping and cultural areas like the Meir and Groenplaats.</client_attr>
+        <client_attr name="category">Studio</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>8de7b7da-ef07-4157-b55e-8140a5bfcb10</id>
+    <name>One Lux Stay Near Antwerp Central Grande Deluxe 3 Bedroom Suite</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 5, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/8de7b7da-ef07-4157-b55e-8140a5bfcb10</link>
+        <title>One Lux Stay Near Antwerp Central Grande Deluxe 3 Bedroom Suite</title>
+        <body>Welcome to One Lux Stay – Near Antwerp Central. Situated in the vibrant heart of Antwerp, One Lux Stay offers modern, stylish accommodations just steps away from the city’s most iconic landmarks, including the MAS Museum, Astrid Square, and Antwerp Zoo.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/8de7b7da-ef07-4157-b55e-8140a5bfcb10</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">4</client_attr>
+        <client_attr name="number_of_beds">5</client_attr>
+        <client_attr name="description">Welcome to One Lux Stay – Near Antwerp Central. Situated in the vibrant heart of Antwerp, One Lux Stay offers modern, stylish accommodations just steps away from the city’s most iconic landmarks, including the MAS Museum, Astrid Square, and Antwerp Zoo.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>c821c110-12c1-432d-ba49-d0cb1a4115de</id>
+    <name>Oneluxstay 1BR Home Near the Beach</name>
+    <address format="simple">
+      <component name="addr1">419 North Broadway, Redondo Beach, California 90277, United States</component>
+      <component name="city">Redondo Beach</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/redondo-beach/listing/c821c110-12c1-432d-ba49-d0cb1a4115de</link>
+        <title>Oneluxstay 1BR Home Near the Beach</title>
+        <body>Welcome to your beachside escape! This beautifully updated 1-bedroom, 1-bath apartment is the perfect home base for families, groups, or business travelers looking to enjoy sunny SoCal living just minutes from the ocean.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/redondo-beach/listing/c821c110-12c1-432d-ba49-d0cb1a4115de</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">Welcome to your beachside escape! This beautifully updated 1-bedroom, 1-bath apartment is the perfect home base for families, groups, or business travelers looking to enjoy sunny SoCal living just minutes from the ocean.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>ae808b72-30f2-4c38-80ab-bc9730346fd7</id>
+    <name>Oneluxstay 3BR Home Near the Beach</name>
+    <address format="simple">
+      <component name="addr1">1113 Barbara Street, Redondo Beach, California 90277, United States</component>
+      <component name="city">Redondo Beach</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/redondo-beach/listing/ae808b72-30f2-4c38-80ab-bc9730346fd7</link>
+        <title>Oneluxstay 3BR Home Near the Beach</title>
+        <body>Welcome to your beachside escape! This beautifully updated 3-bedroom, 2-bath apartment is the perfect home base for families, groups, or business travelers looking to enjoy sunny SoCal living just minutes from the ocean. Located in a quiet, residential neighborhood in Redondo Beach, this spacious unit blends modern comfort with laid-back coastal vibes.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/redondo-beach/listing/ae808b72-30f2-4c38-80ab-bc9730346fd7</website>
+        <client_attr name="capacity">7</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Welcome to your beachside escape! This beautifully updated 3-bedroom, 2-bath apartment is the perfect home base for families, groups, or business travelers looking to enjoy sunny SoCal living just minutes from the ocean. Located in a quiet, residential neighborhood in Redondo Beach, this spacious unit blends modern comfort with laid-back coastal vibes.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>be5a77ee-49a9-4602-8d4e-89d16dcb2ac7</id>
+    <name>Spacious 3BR 2.5 BA Near Diamond District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Jacob Jordaensstraat 96, 2000 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/be5a77ee-49a9-4602-8d4e-89d16dcb2ac7</link>
+        <title>Spacious 3BR 2.5 BA Near Diamond District by OneLuxStay</title>
+        <body>Wake up to the wonder of Antwerp with a stay located only minutes from the heart of the city. The apartment is within walking distance of all the major tourist spots, the main shopping street Meir, restaurants, and clubs. Recommended for families, friends, and business people. Pets are welcome as well!</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/be5a77ee-49a9-4602-8d4e-89d16dcb2ac7</website>
+        <client_attr name="capacity">6</client_attr>
+        <client_attr name="number_of_bedrooms">3</client_attr>
+        <client_attr name="number_of_bathrooms">3</client_attr>
+        <client_attr name="number_of_beds">6</client_attr>
+        <client_attr name="description">Wake up to the wonder of Antwerp with a stay located only minutes from the heart of the city. The apartment is within walking distance of all the major tourist spots, the main shopping street Meir, restaurants, and clubs. Recommended for families, friends, and business people. Pets are welcome as well!</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>8c130267-8e15-478b-986f-c4b786b3230b</id>
+    <name>Studio Suite Antwerp Fashion District by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">Lange Leemstraat 103, 2018 Antwerpen, Belgium</component>
+      <component name="city">Antwerpen</component>
+    </address>
+    <country>BE</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Studio</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/antwerpen/listing/8c130267-8e15-478b-986f-c4b786b3230b</link>
+        <title>Studio Suite Antwerp Fashion District by OneLuxStay</title>
+        <body>A cozy little spot for a nice little getaway. Our properties located in Antwerp are close to MAS Museum Antwerp, Astrid Square, and Antwerp Zoo. One Lux Stay provides free WiFi. It is close to Meir, and Groenplaats Antwerp. All units are new buildings fully equipped with a kosher-style kitchen.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/antwerpen/listing/8c130267-8e15-478b-986f-c4b786b3230b</website>
+        <client_attr name="capacity">2</client_attr>
+        <client_attr name="number_of_bedrooms">0</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">1</client_attr>
+        <client_attr name="description">A cozy little spot for a nice little getaway. Our properties located in Antwerp are close to MAS Museum Antwerp, Astrid Square, and Antwerp Zoo. One Lux Stay provides free WiFi. It is close to Meir, and Groenplaats Antwerp. All units are new buildings fully equipped with a kosher-style kitchen.</client_attr>
+        <client_attr name="category">Studio</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>4cbf760d-a47f-4942-bdc2-5f149c170cef</id>
+    <name>Stylish 1BR At Brickell Bay Club by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">1200 Brickell Bay Dr, Miami, FL 33131, USA</component>
+      <component name="city">Miami</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/miami/listing/4cbf760d-a47f-4942-bdc2-5f149c170cef</link>
+        <title>Stylish 1BR At Brickell Bay Club by OneLuxStay</title>
+        <body>Located in the heart of Brickell, Miami’s most vibrant neighborhood, this stylish 1-bedroom apartment offers comfort and luxury. Enjoy city and ocean views, along with easy access to shopping, dining, and nightlife. This property features high-end amenities and is perfect for travelers looking to experience the best of Miami.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/miami/listing/4cbf760d-a47f-4942-bdc2-5f149c170cef</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Located in the heart of Brickell, Miami’s most vibrant neighborhood, this stylish 1-bedroom apartment offers comfort and luxury. Enjoy city and ocean views, along with easy access to shopping, dining, and nightlife. This property features high-end amenities and is perfect for travelers looking to experience the best of Miami.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>8f25624a-be3a-498d-b7bc-9a6e63ce980a</id>
+    <name>Stylish 1BR at HWH by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">S Spring St, Los Angeles, CA 90013, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/8f25624a-be3a-498d-b7bc-9a6e63ce980a</link>
+        <title>Stylish 1BR at HWH by OneLuxStay</title>
+        <body>Voted: Best Rooftop Pool in DTLA. A fully renovated historic building in DTLA, will provide an experience like no other. The Rooftop lounge area features a sundeck with outdoor showers and BBQ area for the day, and a saltwater pool with jacuzzis, fire pits, and telescopes for stargazing the LA sky grace the roof for the evening.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/8f25624a-be3a-498d-b7bc-9a6e63ce980a</website>
+        <client_attr name="capacity">2</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">1</client_attr>
+        <client_attr name="description">Voted: Best Rooftop Pool in DTLA. A fully renovated historic building in DTLA, will provide an experience like no other. The Rooftop lounge area features a sundeck with outdoor showers and BBQ area for the day, and a saltwater pool with jacuzzis, fire pits, and telescopes for stargazing the LA sky grace the roof for the evening.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>af3f2cdf-e730-4e38-80b5-6dbb4734b035</id>
+    <name>Stylish 1BR Family Apartment by DTLA</name>
+    <address format="simple">
+      <component name="addr1">555 N Broadway, Los Angeles, CA 90012, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/af3f2cdf-e730-4e38-80b5-6dbb4734b035</link>
+        <title>Stylish 1BR Family Apartment by DTLA</title>
+        <body>Located near Chinatown and Union Station, this neighborhood blends vibrant retail, dining, and residential venues. Key features include:\n\n- Free High-Speed WiFi\n- Free Parking for 1 Car\n- Gym, Yoga Studio, and Lounge\n- 24-Hour Patrol\n- Washer/Dryer in Unit\n- Pool and Jacuzzi\n\nGetting there from LAX: Walk 5 minutes to LAX Terminal 1 Upper Level, take the FlyAway bus to Union Station, then walk 5 minutes to the property.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/af3f2cdf-e730-4e38-80b5-6dbb4734b035</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">Located near Chinatown and Union Station, this neighborhood blends vibrant retail, dining, and residential venues. Key features include:\n\n- Free High-Speed WiFi\n- Free Parking for 1 Car\n- Gym, Yoga Studio, and Lounge\n- 24-Hour Patrol\n- Washer/Dryer in Unit\n- Pool and Jacuzzi\n\nGetting there from LAX: Walk 5 minutes to LAX Terminal 1 Upper Level, take the FlyAway bus to Union Station, then walk 5 minutes to the property.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>848fdc54-390a-4a3e-8a34-7e2e4cf7ae7f</id>
+    <name>Stylish 2BR Deluxe Family Apartment by DTLA</name>
+    <address format="simple">
+      <component name="addr1">555 N Broadway, Los Angeles, CA 90012, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/848fdc54-390a-4a3e-8a34-7e2e4cf7ae7f</link>
+        <title>Stylish 2BR Deluxe Family Apartment by DTLA</title>
+        <body>Located near Chinatown and Union Station, this stylish and spacious 2-bedroom, 2-bathroom family apartment offers high-end amenities and a perfect balance of comfort and convenience. Enjoy a blend of modern living, beautiful city views, and vibrant surroundings, with excellent access to dining, shopping, and attractions.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/848fdc54-390a-4a3e-8a34-7e2e4cf7ae7f</website>
+        <client_attr name="capacity">5</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Located near Chinatown and Union Station, this stylish and spacious 2-bedroom, 2-bathroom family apartment offers high-end amenities and a perfect balance of comfort and convenience. Enjoy a blend of modern living, beautiful city views, and vibrant surroundings, with excellent access to dining, shopping, and attractions.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>8b350e26-796c-48bb-a3dd-809593c80e9c</id>
+    <name>Stylish 2BR Family Apartment by DTLA</name>
+    <address format="simple">
+      <component name="addr1">555 N Broadway, Los Angeles, CA 90012, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/8b350e26-796c-48bb-a3dd-809593c80e9c</link>
+        <title>Stylish 2BR Family Apartment by DTLA</title>
+        <body>Located near Chinatown and Union Station, this neighborhood blends vibrant retail, dining, and residential venues. Key features include:\n\nFree High-Speed WiFi\nFree Parking for 1 Car\nGym, Yoga Studio, and Lounge\n24-Hour Patrol\nWasher/Dryer in Unit\nPool and Jacuzzi\nConvenient Location:\n\n5 Minutes to Dodgers Stadium\n20 Minutes to SoFi Stadium &amp; YouTube Theater\n10 Minutes to Hollywood Walk of Fame\n20 Minutes to The Grove\n10 Minutes to Crypto Arena\n15 Minutes to Universal Studios\n20 Minutes to Griffith Observatory\nGetting There from LAX:\n\nWalk 5 minutes to LAX Terminal 1 Upper Level.\nTake the FlyAway bus to Union Station (Patsaouras Bus Plaza).\nWalk 5 minutes to Cesar Chavez Transit Pavilion.\nWalk 2 minutes to the property.\nEnjoy a dynamic lifestyle in a central location!</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/8b350e26-796c-48bb-a3dd-809593c80e9c</website>
+        <client_attr name="capacity">5</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Located near Chinatown and Union Station, this neighborhood blends vibrant retail, dining, and residential venues. Key features include:\n\nFree High-Speed WiFi\nFree Parking for 1 Car\nGym, Yoga Studio, and Lounge\n24-Hour Patrol\nWasher/Dryer in Unit\nPool and Jacuzzi\nConvenient Location:\n\n5 Minutes to Dodgers Stadium\n20 Minutes to SoFi Stadium &amp; YouTube Theater\n10 Minutes to Hollywood Walk of Fame\n20 Minutes to The Grove\n10 Minutes to Crypto Arena\n15 Minutes to Universal Studios\n20 Minutes to Griffith Observatory\nGetting There from LAX:\n\nWalk 5 minutes to LAX Terminal 1 Upper Level.\nTake the FlyAway bus to Union Station (Patsaouras Bus Plaza).\nWalk 5 minutes to Cesar Chavez Transit Pavilion.\nWalk 2 minutes to the property.\nEnjoy a dynamic lifestyle in a central location!</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>9aab282a-ff10-4287-9ee7-a358e2de18db</id>
+    <name>Stylish 2BR Near Dodger Stadium by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">1101 N Main St, Los Angeles, CA 90012, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/9aab282a-ff10-4287-9ee7-a358e2de18db</link>
+        <title>Stylish 2BR Near Dodger Stadium by OneLuxStay</title>
+        <body>Your apartments give you room to create, work, and play. Across the street from the LA State Historic Park, a vibrant neighborhood has emerged, already home to superb food and drink options. Enjoy Southern California indoor/outdoor living on three landscaped courtyards, two rooftop decks with cabanas, mountain, cityscape, and Dodger Stadium views; a Heated Pool and whirlpool spa; and entertaining spaces with flatscreen TVs, barbecues, firepits, and well-equipped kitchens.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/9aab282a-ff10-4287-9ee7-a358e2de18db</website>
+        <client_attr name="capacity">5</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">3</client_attr>
+        <client_attr name="description">Your apartments give you room to create, work, and play. Across the street from the LA State Historic Park, a vibrant neighborhood has emerged, already home to superb food and drink options. Enjoy Southern California indoor/outdoor living on three landscaped courtyards, two rooftop decks with cabanas, mountain, cityscape, and Dodger Stadium views; a Heated Pool and whirlpool spa; and entertaining spaces with flatscreen TVs, barbecues, firepits, and well-equipped kitchens.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>6e57cab1-9ab2-4d0c-9f10-4d3a66b51f26</id>
+    <name>Stylish 2BR/1BA at HWH by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">S Spring St, Los Angeles, CA 90013, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/6e57cab1-9ab2-4d0c-9f10-4d3a66b51f26</link>
+        <title>Stylish 2BR/1BA at HWH by OneLuxStay</title>
+        <body>A fully renovated historic building in Downtown Los Angeles, offering a rooftop lounge with a pool, BBQ area, and panoramic views of the city. The apartment features luxury amenities and a stylish interior, ideal for a comfortable stay in the heart of LA.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/6e57cab1-9ab2-4d0c-9f10-4d3a66b51f26</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">A fully renovated historic building in Downtown Los Angeles, offering a rooftop lounge with a pool, BBQ area, and panoramic views of the city. The apartment features luxury amenities and a stylish interior, ideal for a comfortable stay in the heart of LA.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>cc4323d0-c331-4810-be5f-87500de755c6</id>
+    <name>Stylish 2BR/2BA at HWH by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">354 S Spring St, Los Angeles, CA 90013, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/cc4323d0-c331-4810-be5f-87500de755c6</link>
+        <title>Stylish 2BR/2BA at HWH by OneLuxStay</title>
+        <body>A fully renovated historic building in DTLA, offering a rooftop lounge with a pool, BBQ area, and panoramic views of the city. The apartment features luxury amenities and a stylish interior, ideal for a comfortable stay in the heart of LA.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/cc4323d0-c331-4810-be5f-87500de755c6</website>
+        <client_attr name="capacity">4</client_attr>
+        <client_attr name="number_of_bedrooms">2</client_attr>
+        <client_attr name="number_of_bathrooms">2</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">A fully renovated historic building in DTLA, offering a rooftop lounge with a pool, BBQ area, and panoramic views of the city. The apartment features luxury amenities and a stylish interior, ideal for a comfortable stay in the heart of LA.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+  <listing>
+    <id>54706b95-2f3d-441b-9032-eb30c464084d</id>
+    <name>Stylish Deluxe 1BR at HWH by OneLuxStay</name>
+    <address format="simple">
+      <component name="addr1">354 S Spring St, Los Angeles, CA 90013, USA</component>
+      <component name="city">Los Angeles</component>
+    </address>
+    <country>US</country>
+    <latitude>0</latitude>
+    <longitude>0</longitude>
+    <category>Apartment</category>
+    <content>
+      <text type="description">
+        <link>http://localhost:8888/los-angeles/listing/54706b95-2f3d-441b-9032-eb30c464084d</link>
+        <title>Stylish Deluxe 1BR at HWH by OneLuxStay</title>
+        <body>Voted: Best Rooftop Pool in DTLA. A fully renovated historic building in DTLA, offering an experience like no other. The rooftop lounge area features a sundeck with outdoor showers and BBQ area for the day, and a saltwater pool with jacuzzis, fire pits, and telescopes for stargazing the LA sky grace the roof for the evening.</body>
+        <date month="3" day="28" year="2026"/>
+      </text>
+      <attributes>
+        <website>http://localhost:8888/los-angeles/listing/54706b95-2f3d-441b-9032-eb30c464084d</website>
+        <client_attr name="capacity">3</client_attr>
+        <client_attr name="number_of_bedrooms">1</client_attr>
+        <client_attr name="number_of_bathrooms">1</client_attr>
+        <client_attr name="number_of_beds">2</client_attr>
+        <client_attr name="description">Voted: Best Rooftop Pool in DTLA. A fully renovated historic building in DTLA, offering an experience like no other. The rooftop lounge area features a sundeck with outdoor showers and BBQ area for the day, and a saltwater pool with jacuzzis, fire pits, and telescopes for stargazing the LA sky grace the roof for the evening.</client_attr>
+        <client_attr name="category">Apartment</client_attr>
+        <client_attr name="wifi">Unknown</client_attr>
+        <client_attr name="parking">Unknown</client_attr>
+        <client_attr name="kitchen">Unknown</client_attr>
+        <client_attr name="pool">Unknown</client_attr>
+        <client_attr name="washer">Unknown</client_attr>
+        <client_attr name="dryer">Unknown</client_attr>
+      </attributes>
+    </content>
+  </listing>
+</listings>

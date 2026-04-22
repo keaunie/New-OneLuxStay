@@ -132,6 +132,46 @@ function AdminsOlsGuestJourneysPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarDesktopPhase, setSidebarDesktopPhase] = useState("idle");
+  const sidebarPhaseTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (sidebarPhaseTimeoutRef.current) {
+        window.clearTimeout(sidebarPhaseTimeoutRef.current);
+        sidebarPhaseTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCollapseSidebar = () => {
+    if (isSidebarCollapsed || sidebarDesktopPhase === "collapsing") return;
+    if (sidebarPhaseTimeoutRef.current) {
+      window.clearTimeout(sidebarPhaseTimeoutRef.current);
+      sidebarPhaseTimeoutRef.current = null;
+    }
+    setSidebarDesktopPhase("collapsing");
+    sidebarPhaseTimeoutRef.current = window.setTimeout(() => {
+      setIsSidebarCollapsed(true);
+      setSidebarDesktopPhase("idle");
+      sidebarPhaseTimeoutRef.current = null;
+    }, 180);
+  };
+
+  const handleExpandSidebar = () => {
+    if (!isSidebarCollapsed || sidebarDesktopPhase === "expanding") return;
+    if (sidebarPhaseTimeoutRef.current) {
+      window.clearTimeout(sidebarPhaseTimeoutRef.current);
+      sidebarPhaseTimeoutRef.current = null;
+    }
+    setIsSidebarCollapsed(false);
+    setSidebarDesktopPhase("expanding");
+    sidebarPhaseTimeoutRef.current = window.setTimeout(() => {
+      setSidebarDesktopPhase("idle");
+      sidebarPhaseTimeoutRef.current = null;
+    }, 520);
+  };
 
   const guestJourneys = useMemo(() => {
     const grouped = new Map();
@@ -489,11 +529,32 @@ function AdminsOlsGuestJourneysPage() {
           </div>
         </div>
 
-        <div className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}`}>
+        <div
+          className={`admins-ols-layout${isSidebarOpen ? " is-sidebar-open" : ""}${
+            isSidebarCollapsed ? " is-sidebar-collapsed" : ""
+          }${sidebarDesktopPhase === "collapsing" ? " is-sidebar-collapsing" : ""}${
+            sidebarDesktopPhase === "expanding" ? " is-sidebar-expanding" : ""
+          }`}
+        >
           <aside id="admins-ols-journeys-sidebar" className="admins-ols-sidebar" aria-label="Guest journey navigation">
             <div className="admins-ols-side-sticky">
               <section className="admins-ols-side-section">
-                <p className="admins-ols-eyebrow">Admin Access</p>
+                <div className="admins-ols-card-head">
+                  <p className="admins-ols-eyebrow" style={{ margin: 0 }}>
+                    Admin Access
+                  </p>
+                  <button
+                    type="button"
+                    className="admins-ols-sidebar-toggle admins-ols-sidebar-toggle--inside"
+                    onClick={handleCollapseSidebar}
+                    aria-controls="admins-ols-journeys-sidebar"
+                    aria-expanded
+                    aria-label="Collapse sidebar"
+                    title="Collapse sidebar"
+                  >
+                    <span aria-hidden="true">«</span>
+                  </button>
+                </div>
                 <h2>{currentAdmin.fullName || currentAdmin.email || "Admin"}</h2>
                 <p className="admins-ols-note">
                   Signed in with {session?.sharedKey ? "shared key access" : "Supabase authentication"}.
@@ -521,6 +582,19 @@ function AdminsOlsGuestJourneysPage() {
           </aside>
 
           <main className="admins-ols-main">
+            {isSidebarCollapsed && (
+              <button
+                type="button"
+                className="admins-ols-sidebar-toggle admins-ols-sidebar-toggle--collapsed"
+                onClick={handleExpandSidebar}
+                aria-controls="admins-ols-journeys-sidebar"
+                aria-expanded={false}
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+              >
+                <span aria-hidden="true">»</span>
+              </button>
+            )}
             <header className="admins-ols-hero">
               <div className="admins-ols-hero-content">
                 <p className="admins-ols-eyebrow">OneLuxStay Internal</p>

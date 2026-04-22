@@ -37,28 +37,6 @@ const SELECT_WITH_RELATIONS = [
   "property_amenities(amenity)",
 ].join(",");
 
-const SELECT_FALLBACK = [
-  "id",
-  "guesty_id",
-  "name",
-  "property_code",
-  "address",
-  "city",
-  "country",
-  "latitude",
-  "longitude",
-  "room_type",
-  "bedrooms",
-  "bathrooms",
-  "accommodates",
-  "status",
-  "has_wifi",
-  "has_parking",
-  "has_balcony",
-  "created_at",
-  "updated_at",
-].join(",");
-
 const ISO2_BY_COUNTRY = new Map([
   ["UNITED STATES", "US"],
   ["USA", "US"],
@@ -128,6 +106,7 @@ const boolString = (value) => {
 };
 
 const isActiveListing = (statusValue) => {
+  if (typeof statusValue === "boolean") return statusValue;
   const value = normalizeString(statusValue).toLowerCase();
   if (!value) return true;
   if (["inactive", "disabled", "draft", "archived", "unlisted", "deleted", "closed"].includes(value)) return false;
@@ -206,12 +185,16 @@ const readPropertyRows = async () => {
     return await fetchAllProperties({ select: SELECT_WITH_RELATIONS });
   } catch (error) {
     const message = String(error?.message || "");
-    const relationIssue =
+    const retryableIssue =
       message.includes("Could not find a relationship") ||
       message.includes("schema cache") ||
-      message.includes("select");
-    if (!relationIssue) throw error;
-    return fetchAllProperties({ select: SELECT_FALLBACK });
+      message.includes("select") ||
+      message.includes("does not exist") ||
+      message.includes("column") ||
+      message.includes("Unknown field");
+
+    if (!retryableIssue) throw error;
+    return fetchAllProperties({ select: "*" });
   }
 };
 
@@ -219,33 +202,43 @@ const listingToXml = (property, { baseUrl }) => {
   const listingId = normalizeString(property.guesty_id) || normalizeString(property.id);
   const name =
     normalizeString(property.name) ||
+    normalizeString(property.title) ||
     normalizeString(property.property_code) ||
     `Property ${listingId}`;
 
   const latitude = toNumber(property.latitude);
   const longitude = toNumber(property.longitude);
-  const addressLine = normalizeString(property.address);
+  const addressLine =
+    typeof property.address === "string"
+      ? normalizeString(property.address)
+      : normalizeString(property.address?.full || property.address?.address || property.address?.line1);
   const city = normalizeString(property.city);
   const country = toIso2Country(property.country);
 
   if (!listingId || !name || !addressLine || latitude == null || longitude == null) return null;
   if (!isActiveListing(property.status)) return null;
+  if (property.active === false) return null;
 
   const featureMap = toFeatureMap(property.property_features);
   const descriptionItem = pickPrimaryDescription(property.property_descriptions);
   const description =
     normalizeString(descriptionItem?.description) ||
+    normalizeString(property.public_description_summary) ||
+    normalizeString(property.public_description_space) ||
+    normalizeString(property.public_description_neighborhood) ||
+    normalizeString(property.public_description_notes) ||
+    normalizeString(property.public_description_transit) ||
     normalizeString(featureMap.description) ||
     "";
   const website = buildWebsiteUrl(property, { baseUrl, listingId, featureMap });
 
   const accommodates = toInteger(
-    property.accommodates ?? featureMap.capacity ?? featureMap.max_guests,
+    property.accommodates ?? property.capacity ?? featureMap.capacity ?? featureMap.max_guests,
     null,
   );
   const bedrooms = toInteger(property.bedrooms ?? featureMap.number_of_bedrooms, null);
   const bathrooms = toNumber(property.bathrooms ?? featureMap.number_of_bathrooms);
-  const beds = toInteger(featureMap.number_of_beds, null);
+  const beds = toInteger(property.beds ?? featureMap.number_of_beds, null);
 
   const capacity = accommodates != null ? accommodates : Math.max(1, bedrooms || 1);
   const postalCode = normalizeString(featureMap.postal_code || featureMap.zip || featureMap.zipcode);
@@ -253,7 +246,7 @@ const listingToXml = (property, { baseUrl }) => {
   const phone = normalizeString(featureMap.phone || DEFAULT_PHONE);
   const category =
     normalizeString(featureMap.category) ||
-    normalizeString(property.room_type) ||
+    normalizeString(property.room_type || property.property_type) ||
     DEFAULT_CATEGORY;
 
   const created = new Date(property.updated_at || property.created_at || Date.now());
@@ -314,15 +307,22 @@ const listingToXml = (property, { baseUrl }) => {
   return lines.join("\n");
 };
 
-const buildFeedXml = ({ listingsXml, generatedAtIso }) => [
+const buildFeedXml = ({ listingsXml, generatedAtIso, totalRows, emittedRows }) => {
+  const skipped = Math.max(0, Number(totalRows || 0) - Number(emittedRows || 0));
+  return [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<listings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.gstatic.com/localfeed/local_feed.xsd">',
   `  <language>${escapeXml(FEED_LANGUAGE)}</language>`,
   `  <!-- generated_at: ${escapeXml(generatedAtIso)} -->`,
+  `  <!-- total_rows: ${Number(totalRows || 0)} -->`,
+  `  <!-- listings_emitted: ${Number(emittedRows || 0)} -->`,
+  `  <!-- listings_skipped: ${skipped} -->`,
+  "  <!-- note: listings require id/name/address/latitude/longitude and must be active -->",
   ...listingsXml,
   "</listings>",
   "",
-].join("\n");
+  ].join("\n");
+};
 
 export async function handler(event = {}) {
   if (event.httpMethod === "OPTIONS") {
@@ -353,6 +353,8 @@ export async function handler(event = {}) {
     const xml = buildFeedXml({
       listingsXml,
       generatedAtIso: new Date().toISOString(),
+      totalRows: rows.length,
+      emittedRows: listingsXml.length,
     });
 
     return xmlResponse(200, xml);

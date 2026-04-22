@@ -22,6 +22,21 @@ export const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
       ...options,
       signal: controller.signal,
     });
+  } catch (error) {
+    const rawUrl = String(url ?? "");
+    let safeUrl = rawUrl;
+    try {
+      const parsed = new URL(rawUrl);
+      parsed.search = "";
+      safeUrl = parsed.toString();
+    } catch {
+      // ignore
+    }
+
+    const message = String(error?.message || error || "fetch failed");
+    // Preserve original error as `cause` where supported.
+    // (Node 18+ supports `cause`; older runtimes will ignore the second arg.)
+    throw new Error(`fetch failed for ${safeUrl}: ${message}`, { cause: error });
   } finally {
     clearTimeout(timeoutId);
   }

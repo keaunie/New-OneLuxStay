@@ -157,3 +157,53 @@ Environment variables:
 - `GOOGLE_VR_DEFAULT_COUNTRY` (default: `US`)
 - `GOOGLE_VR_DEFAULT_PHONE` (optional)
 - `GOOGLE_VR_DEFAULT_CATEGORY` (default: `vacation_rental`)
+
+### Backfilling coordinates (required for listings to emit)
+
+The Google VR Hotel List feed only emits `<listing>` items when `latitude` and `longitude` are present.
+
+1) Apply the migration that adds `properties.latitude` / `properties.longitude`:
+
+- `supabase/migrations/20260421144000_add_properties_lat_lng.sql`
+
+2) Backfill missing coordinates via Nominatim (slow + rate-limited):
+
+- Dry-run: `npm run supabase:geocode:properties`
+- Apply updates: `npm run supabase:geocode:properties -- --apply`
+
+Then regenerate the feed:
+
+- `npm run google:vr:debug -- --live --out=google-vr-hotel-list.xml`
+
+## Google ARI (Pricing + Availability)
+
+To show pricing in Google Hotel Center / Google Vacation Rentals, you generally need:
+
+- Hotel List feed (this repo: `/.netlify/functions/google-vr-hotel-list`)
+- Transaction (Property Data) message (defines `RoomID` + `PackageID`)
+- Rate messages (`OTA_HotelRateAmountNotifRQ`)
+- Availability messages (`OTA_HotelAvailNotifRQ`)
+
+This repo provides starter generators for the last three as Netlify Functions:
+
+- `/.netlify/functions/google-vr-ari-property-data?hotel_id=HOTEL_ID`
+- `/.netlify/functions/google-vr-ari-rate?hotel_id=HOTEL_ID&start=YYYY-MM-DD&days=30`
+- `/.netlify/functions/google-vr-ari-avail?hotel_id=HOTEL_ID&start=YYYY-MM-DD&days=30`
+
+Notes:
+
+- These endpoints read from Supabase `SUPABASE_AVAILABILITY_TABLE` for rates + availability. If you are using the `properties` table as your primary dataset, create `property_nightly_prices` via `supabase/migrations/20260421175000_create_property_nightly_prices.sql` and set `SUPABASE_AVAILABILITY_TABLE=property_nightly_prices`.
+- They generate **one hotel per response** (use `hotel_id` that matches the Hotel List feed `<id>`).
+
+Environment variables:
+
+- `GOOGLE_ARI_PARTNER_KEY` (required for `google-vr-ari-property-data`; used for POS in rate/avail messages)
+- `GOOGLE_ARI_DEFAULT_DAYS` (default: `30`)
+- `GOOGLE_ARI_MAX_DAYS` (default: `180`)
+- `GOOGLE_ARI_DEFAULT_GUESTS` (default: `2`)
+
+Local preview (mock data by default):
+
+- `npm run google:ari:debug -- property --hotel-id=demo-hotel-1`
+- `npm run google:ari:debug -- rate --hotel-id=demo-hotel-1 --start=2026-04-21 --days=14 --out=ari-rate.xml`
+- `npm run google:ari:debug -- avail --hotel-id=demo-hotel-1 --start=2026-04-21 --days=14 --out=ari-avail.xml`
