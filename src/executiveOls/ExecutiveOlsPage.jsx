@@ -32,16 +32,6 @@ const TIME_RANGE_OPTIONS = [
   { value: "next_30_days", label: "Next 30 days" },
 ];
 
-const DEFAULT_SITE_ORIGIN = "https://oneluxstayprop.netlify.app";
-const WHATSAPP_SENDER_E164 = "+17159218069";
-const WHATSAPP_DISPLAY_NAME = "Lucy";
-const WHATSAPP_BUSINESS_EMAIL = "reservations@oneluxstay.com";
-const WHATSAPP_PRIMARY_WEBSITE = "https://oneluxstay.com";
-const WHATSAPP_SECONDARY_WEBSITE = "https://oneluxstayprop.netlify.app";
-const WHATSAPP_BUSINESS_DESCRIPTION =
-  "Lucy is OneLuxStay's WhatsApp concierge for luxury aparthotel stays, availability checks, booking guidance, and reservation support.";
-const WHATSAPP_PROFILE_ABOUT =
-  "Hi, I'm Lucy from OneLuxStay. Share your dates, guest count, or reservation code and I'll help right away.";
 const WHATSAPP_TEST_PROMPTS = [
   "Check availability in Miami from 2026-05-10 to 2026-05-13 for 2 guests",
   "I want a 2 bedroom in Los Angeles from 2026-06-01 to 2026-06-05 for 4 guests",
@@ -177,13 +167,6 @@ const getInitials = (session = {}) => {
   return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
 };
 
-const resolveSiteOrigin = () => {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin.replace(/\/+$/, "");
-  }
-  return DEFAULT_SITE_ORIGIN;
-};
-
 function ExecutiveOlsPage() {
   const navigate = useNavigate();
   const [session, setSession] = useState(() => loadExecutiveOlsSession());
@@ -196,7 +179,6 @@ function ExecutiveOlsPage() {
   const [timeRange, setTimeRange] = useState("this_week");
   const [propertyId, setPropertyId] = useState("");
   const [draft, setDraft] = useState("");
-  const siteOrigin = useMemo(() => resolveSiteOrigin(), []);
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
   const [whatsappThreads, setWhatsappThreads] = useState([]);
@@ -557,11 +539,6 @@ function ExecutiveOlsPage() {
     activeView === "whatsapp"
       ? "New guest messages from your WhatsApp sender appear here, and you can reply directly from this executive dashboard."
       : "The executive assistant uses Guesty-backed snapshot data and stays explicit when something cannot be verified live.";
-  const whatsappWebhookUrl = `${siteOrigin}/.netlify/functions/whatsapp-webhook`;
-  const whatsappStatusUrl = `${siteOrigin}/.netlify/functions/whatsapp-status`;
-  const whatsappAliasUrl = `${siteOrigin}/api/whatsapp`;
-  const whatsappStatusAliasUrl = `${siteOrigin}/api/whatsapp-status`;
-  const whatsappClickToChatUrl = `https://wa.me/${WHATSAPP_SENDER_E164.replace(/[^\d]/g, "")}`;
   const selectedWhatsAppThread = whatsappThreads.find((thread) => thread?.sessionId === selectedWhatsAppSessionId) || null;
 
   if (!session?.accessToken) {
@@ -681,7 +658,7 @@ function ExecutiveOlsPage() {
               </article>
             </section>
 
-            <div className="executive-ols-content-grid">
+            <div className={`executive-ols-content-grid${activeView === "whatsapp" ? " is-single-panel" : ""}`}>
               <section className="executive-ols-chat-card">
                 {activeView === "assistant" && (
                   <>
@@ -991,55 +968,8 @@ function ExecutiveOlsPage() {
                 )}
               </section>
 
-              <aside className="executive-ols-context-card">
-                {activeView === "whatsapp" ? (
-                  <>
-                    <div className="executive-ols-card-head">
-                      <div>
-                        <p className="executive-ols-eyebrow">Twilio fields</p>
-                        <h3>What to paste</h3>
-                        <p>These are the exact values I recommend for your current sender setup.</p>
-                      </div>
-                    </div>
-
-                    <div className="executive-ols-context-list">
-                      <article className="executive-ols-context-item">
-                        <strong>Webhook URL for incoming messages</strong>
-                        <span>{whatsappWebhookUrl}</span>
-                      </article>
-                      <article className="executive-ols-context-item">
-                        <strong>Status callback URL</strong>
-                        <span>{whatsappStatusUrl}</span>
-                      </article>
-                      <article className="executive-ols-context-item">
-                        <strong>Fallback URL for incoming messages</strong>
-                        <span>Leave blank for now. It is optional and repeating the same webhook usually does not help.</span>
-                      </article>
-                      <article className="executive-ols-context-item">
-                        <strong>Alternative alias URLs</strong>
-                        <span>{whatsappAliasUrl} • {whatsappStatusAliasUrl}</span>
-                      </article>
-                    </div>
-
-                    <div className="executive-ols-inline-links">
-                      <a
-                        href={whatsappClickToChatUrl}
-                        className="executive-ols-inline-link"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open sender in WhatsApp
-                      </a>
-                      <button
-                        type="button"
-                        className="executive-ols-inline-link is-button"
-                        onClick={() => handleSubmit("Write a short WhatsApp welcome message for a new OneLuxStay guest.")}
-                      >
-                        Draft welcome copy
-                      </button>
-                    </div>
-                  </>
-                ) : (
+              {activeView !== "whatsapp" && (
+                <aside className="executive-ols-context-card">
                   <>
                     <div className="executive-ols-card-head">
                       <div>
@@ -1084,8 +1014,8 @@ function ExecutiveOlsPage() {
                       </button>
                     </div>
                   </>
-                )}
-              </aside>
+                </aside>
+              )}
             </div>
           </main>
         </div>

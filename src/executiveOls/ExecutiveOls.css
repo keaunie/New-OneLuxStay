@@ -435,6 +435,10 @@
   align-items: start;
 }
 
+.executive-ols-content-grid.is-single-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .executive-ols-card-head {
   display: flex;
   justify-content: space-between;
