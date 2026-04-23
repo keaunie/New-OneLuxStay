@@ -72,6 +72,94 @@ const formatDate = (value = "") => {
   });
 };
 
+const formatDateTime = (value = "") => {
+  if (!value) return "Unknown";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
+const toTimestamp = (value = "") => {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isWhatsAppConversation = (thread = {}) =>
+  String(thread?.pageType || "").trim().toLowerCase() === "whatsapp" ||
+  String(thread?.sessionId || "").trim().toLowerCase().startsWith("whatsapp:");
+
+const getWhatsAppPhoneLabel = (thread = {}) => {
+  const sessionId = String(thread?.sessionId || "").trim();
+  if (!sessionId.toLowerCase().startsWith("whatsapp:")) return "";
+  const digits = sessionId.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return `+${digits}`;
+};
+
+const getConversationLatestMessage = (thread = {}) => {
+  const threadMessages = Array.isArray(thread?.messages) ? thread.messages : [];
+  return threadMessages[threadMessages.length - 1] || null;
+};
+
+const getConversationTitle = (thread = {}) => {
+  if (isWhatsAppConversation(thread)) {
+    return `WhatsApp ${getWhatsAppPhoneLabel(thread) || "guest"}`;
+  }
+
+  const city = String(thread?.city || "").trim();
+  if (city) return city;
+  return "Guest conversation";
+};
+
+const getConversationPreview = (thread = {}) => {
+  const latestMessage = getConversationLatestMessage(thread);
+  const content = String(latestMessage?.content || "").trim();
+  return content.length > 140 ? `${content.slice(0, 137)}...` : content || "No message content captured yet.";
+};
+
+const getConversationMessageSenderType = (message = {}) => {
+  if (message?.role === "user") return "guest";
+  const senderType = String(message?.metadata?.senderType || "").trim().toLowerCase();
+  if (senderType === "admin") return "admin";
+  return "assistant";
+};
+
+const getConversationMessageLabel = (message = {}) => {
+  const senderType = getConversationMessageSenderType(message);
+  if (senderType === "guest") return "Guest";
+  if (senderType === "admin") return message?.metadata?.senderName || "OneLuxStay Team";
+  return "Lucy";
+};
+
+const getConversationMessageBubbleClass = (message = {}) => {
+  if (message?.role === "user") return "executive-ols-thread-bubble--guest";
+  return getConversationMessageSenderType(message) === "admin"
+    ? "executive-ols-thread-bubble--admin"
+    : "executive-ols-thread-bubble--assistant";
+};
+
+const injectReplyIntoThreads = (threads = [], sessionId = "", message = {}) =>
+  (Array.isArray(threads) ? threads : []).map((thread) => {
+    if (thread?.sessionId !== sessionId) return thread;
+    const existingMessages = Array.isArray(thread?.messages) ? thread.messages : [];
+    const nextMessages = [...existingMessages.filter((item) => item?.messageId !== message?.messageId), message].sort(
+      (left, right) => toTimestamp(left?.createdAt) - toTimestamp(right?.createdAt),
+    );
+
+    return {
+      ...thread,
+      lastSeenAt: message?.createdAt || thread?.lastSeenAt || "",
+      messageCount: nextMessages.length,
+      messages: nextMessages,
+    };
+  });
+
 const getInitials = (session = {}) => {
   const name = String(session?.user?.fullName || session?.user?.email || "").trim();
   if (!name) return "EX";
@@ -100,6 +188,13 @@ function ExecutiveOlsPage() {
   const [propertyId, setPropertyId] = useState("");
   const [draft, setDraft] = useState("");
   const siteOrigin = useMemo(() => resolveSiteOrigin(), []);
+  const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
+  const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
+  const [whatsappThreads, setWhatsappThreads] = useState([]);
+  const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
+  const [whatsappReplyDraft, setWhatsappReplyDraft] = useState("");
+  const [whatsappError, setWhatsappError] = useState("");
+  const [whatsappNotice, setWhatsappNotice] = useState("");
   const [messages, setMessages] = useState(() => [
     {
       role: "assistant",
@@ -191,6 +286,74 @@ function ExecutiveOlsPage() {
     };
   }, [propertyId, session, timeRange]);
 
+  useEffect(() => {
+    if (!whatsappThreads.length) {
+      setSelectedWhatsAppSessionId("");
+      return;
+    }
+
+    if (!selectedWhatsAppSessionId || !whatsappThreads.some((thread) => thread?.sessionId === selectedWhatsAppSessionId)) {
+      setSelectedWhatsAppSessionId(String(whatsappThreads[0]?.sessionId || ""));
+    }
+  }, [selectedWhatsAppSessionId, whatsappThreads]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadWhatsAppThreads = async ({ silent = false } = {}) => {
+      if (!session?.accessToken) return;
+      if (!silent) setLoadingWhatsApp(true);
+      if (!silent) setWhatsappError("");
+
+      try {
+        const response = await fetch(`${apiBase}/admins-ols`, {
+          method: "GET",
+          headers: {
+            ...getExecutiveOlsAuthHeaders(session),
+          },
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            clearExecutiveOlsSession();
+            setSession(null);
+            return;
+          }
+          throw new Error(payload?.error || "Unable to load WhatsApp conversations.");
+        }
+
+        if (!active) return;
+        const nextThreads = Array.isArray(payload?.recentConversations)
+          ? payload.recentConversations.filter(isWhatsAppConversation)
+          : [];
+        setWhatsappThreads(nextThreads);
+      } catch (requestError) {
+        if (!active) return;
+        setWhatsappError(String(requestError?.message || "Unable to load WhatsApp conversations."));
+      } finally {
+        if (active && !silent) setLoadingWhatsApp(false);
+      }
+    };
+
+    if (activeView === "whatsapp") {
+      void loadWhatsAppThreads();
+      const intervalId = window.setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        loadWhatsAppThreads({ silent: true }).catch(() => null);
+      }, 6000);
+
+      return () => {
+        active = false;
+        window.clearInterval(intervalId);
+      };
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [activeView, session]);
+
   const handleLogout = () => {
     clearExecutiveOlsSession();
     setSession(null);
@@ -251,6 +414,60 @@ function ExecutiveOlsPage() {
     }
   };
 
+  const handleSendWhatsAppReply = async (event) => {
+    event.preventDefault();
+    if (!selectedWhatsAppSessionId || !session?.accessToken) return;
+
+    const selectedThread = whatsappThreads.find((thread) => thread?.sessionId === selectedWhatsAppSessionId);
+    const content = String(whatsappReplyDraft || "").trim();
+    if (!selectedThread || !content) return;
+
+    setSendingWhatsAppReply(true);
+    setWhatsappError("");
+    setWhatsappNotice("");
+
+    try {
+      const response = await fetch(`${apiBase}/admins-ols`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getExecutiveOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({
+          action: "send_reply",
+          sessionId: selectedThread.sessionId,
+          content,
+          pageContext: {
+            pageType: selectedThread.pageType,
+            city: selectedThread.city,
+            listingId: selectedThread.listingId,
+            pathname: selectedThread.pathname,
+          },
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearExecutiveOlsSession();
+          setSession(null);
+          return;
+        }
+        throw new Error(payload?.error || "Unable to send WhatsApp reply.");
+      }
+
+      if (payload?.message?.messageId) {
+        setWhatsappThreads((current) => injectReplyIntoThreads(current, selectedThread.sessionId, payload.message));
+      }
+      setWhatsappReplyDraft("");
+      setWhatsappNotice("WhatsApp reply sent.");
+    } catch (requestError) {
+      setWhatsappError(String(requestError?.message || "Unable to send WhatsApp reply."));
+    } finally {
+      setSendingWhatsAppReply(false);
+    }
+  };
+
   const stats = snapshot?.stats || {};
   const propertyOptions = Array.isArray(snapshot?.propertyOptions) ? snapshot.propertyOptions : [];
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
@@ -259,17 +476,18 @@ function ExecutiveOlsPage() {
   const heroEyebrow = activeView === "whatsapp" ? "WhatsApp concierge" : "AI Assistant";
   const heroTitle =
     activeView === "whatsapp"
-      ? "Deploy Lucy on WhatsApp with Twilio."
+      ? "Manage live WhatsApp chats."
       : "Ask direct questions about revenue, bookings, and issues.";
   const heroCopy =
     activeView === "whatsapp"
-      ? "This setup uses the live Lucy chat brain, a Twilio webhook, and saved conversation history by guest phone number."
+      ? "New guest messages from your WhatsApp sender appear here, and you can reply directly from this executive dashboard."
       : "The executive assistant uses Guesty-backed snapshot data and stays explicit when something cannot be verified live.";
   const whatsappWebhookUrl = `${siteOrigin}/.netlify/functions/whatsapp-webhook`;
   const whatsappStatusUrl = `${siteOrigin}/.netlify/functions/whatsapp-status`;
   const whatsappAliasUrl = `${siteOrigin}/api/whatsapp`;
   const whatsappStatusAliasUrl = `${siteOrigin}/api/whatsapp-status`;
   const whatsappClickToChatUrl = `https://wa.me/${WHATSAPP_SENDER_E164.replace(/[^\d]/g, "")}`;
+  const selectedWhatsAppThread = whatsappThreads.find((thread) => thread?.sessionId === selectedWhatsAppSessionId) || null;
 
   if (!session?.accessToken) {
     return <Navigate to="/executive-ols/login" replace />;
@@ -458,63 +676,119 @@ function ExecutiveOlsPage() {
                     <div className="executive-ols-card-head">
                       <div>
                         <p className="executive-ols-eyebrow">WhatsApp</p>
-                        <h3>Twilio setup and bot preview</h3>
-                        <p>Paste these values into the Twilio WhatsApp Sender page, then message Lucy from your phone.</p>
+                        <h3>Live inbox</h3>
+                        <p>See incoming WhatsApp messages here and reply directly from the executive dashboard.</p>
                       </div>
                     </div>
 
-                    <div className="executive-ols-prompt-list">
-                      {WHATSAPP_TEST_PROMPTS.map((prompt) => (
-                        <button key={prompt} type="button" className="executive-ols-prompt" onClick={() => handleSubmit(prompt)}>
-                          {prompt}
-                        </button>
-                      ))}
-                    </div>
+                    {whatsappNotice && <div className="executive-ols-alert">{whatsappNotice}</div>}
+                    {whatsappError && <div className="executive-ols-alert is-error">{whatsappError}</div>}
 
-                    <div className="executive-ols-whatsapp-grid">
-                      <article className="executive-ols-list-card">
-                        <strong>Incoming webhook URL</strong>
-                        <code className="executive-ols-code-block">{whatsappWebhookUrl}</code>
-                        <small>Use `HTTP POST` in Twilio. The direct function URL is the safest option for signature checks.</small>
-                      </article>
+                    <div className="executive-ols-whatsapp-inbox">
+                      <div className="executive-ols-whatsapp-sessions" role="list" aria-label="WhatsApp conversations">
+                        {loadingWhatsApp && !whatsappThreads.length && (
+                          <p className="executive-ols-empty">Loading WhatsApp conversations...</p>
+                        )}
 
-                      <article className="executive-ols-list-card">
-                        <strong>Status callback URL</strong>
-                        <code className="executive-ols-code-block">{whatsappStatusUrl}</code>
-                        <small>Optional, but ready if you want Twilio delivery logs for outbound API sends later.</small>
-                      </article>
+                        {!loadingWhatsApp &&
+                          whatsappThreads.map((thread) => (
+                            <button
+                              key={thread.sessionId}
+                              type="button"
+                              className={`executive-ols-whatsapp-session${thread.sessionId === selectedWhatsAppSessionId ? " is-active" : ""}`}
+                              onClick={() => setSelectedWhatsAppSessionId(thread.sessionId)}
+                            >
+                              <div className="executive-ols-whatsapp-session-head">
+                                <strong>{getConversationTitle(thread)}</strong>
+                                <small>{formatDateTime(thread.lastSeenAt)}</small>
+                              </div>
+                              <span>{thread.messageCount || 0} messages</span>
+                              <p>{getConversationPreview(thread)}</p>
+                            </button>
+                          ))}
 
-                      <article className="executive-ols-list-card">
-                        <strong>Business profile copy</strong>
-                        <span>Display name: {WHATSAPP_DISPLAY_NAME}</span>
-                        <span>Email: {WHATSAPP_BUSINESS_EMAIL}</span>
-                        <span>Website: {WHATSAPP_PRIMARY_WEBSITE}</span>
-                        <span>Additional website: {WHATSAPP_SECONDARY_WEBSITE}</span>
-                        <span>Vertical: Hotel and Lodging</span>
-                        <small>Description ({WHATSAPP_BUSINESS_DESCRIPTION.length}/256): {WHATSAPP_BUSINESS_DESCRIPTION}</small>
-                        <small>About ({WHATSAPP_PROFILE_ABOUT.length}/139): {WHATSAPP_PROFILE_ABOUT}</small>
-                      </article>
+                        {!loadingWhatsApp && !whatsappThreads.length && (
+                          <div className="executive-ols-whatsapp-empty">
+                            <p className="executive-ols-empty">No WhatsApp conversations yet.</p>
+                            <small>Once the sender webhook is live, new guest messages will appear here automatically.</small>
+                            <div className="executive-ols-prompt-list">
+                              {WHATSAPP_TEST_PROMPTS.map((prompt) => (
+                                <button
+                                  key={prompt}
+                                  type="button"
+                                  className="executive-ols-prompt"
+                                  onClick={() => handleSubmit(prompt)}
+                                >
+                                  {prompt}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
-                      <article className="executive-ols-list-card">
-                        <strong>Guest experience</strong>
-                        <span>Lucy can answer availability, booking status, listing questions, and reservation guidance.</span>
-                        <span>Conversation history is saved by phone number so follow-ups keep context.</span>
-                        <small>Sender number: {WHATSAPP_SENDER_E164}</small>
-                      </article>
-                    </div>
+                      <div className="executive-ols-whatsapp-thread-panel">
+                        {selectedWhatsAppThread ? (
+                          <>
+                            <div className="executive-ols-whatsapp-thread-head">
+                              <div>
+                                <p className="executive-ols-eyebrow">Conversation</p>
+                                <h3>{getConversationTitle(selectedWhatsAppThread)}</h3>
+                              </div>
+                              <div className="executive-ols-hero-meta">
+                                <span className="executive-ols-pill">Twilio WhatsApp</span>
+                                <span className="executive-ols-pill">
+                                  {formatDateTime(selectedWhatsAppThread.lastSeenAt)}
+                                </span>
+                              </div>
+                            </div>
 
-                    <div className="executive-ols-whatsapp-preview" aria-label="WhatsApp preview">
-                      <article className="executive-ols-message executive-ols-message--user">
-                        <span className="executive-ols-message-role">Guest</span>
-                        <p>Hi Lucy, can you check Miami for 2 guests from 2026-05-10 to 2026-05-13?</p>
-                      </article>
-                      <article className="executive-ols-message executive-ols-message--assistant">
-                        <span className="executive-ols-message-role">Lucy</span>
-                        <p>
-                          I can help with that. I&apos;ll check live availability for Miami and send the best matching options
-                          with booking links right in WhatsApp.
-                        </p>
-                      </article>
+                            <div className="executive-ols-whatsapp-thread" aria-live="polite">
+                              {(Array.isArray(selectedWhatsAppThread.messages) ? selectedWhatsAppThread.messages : []).map((message) => (
+                                <article
+                                  key={`${selectedWhatsAppThread.sessionId}-${message.messageId}`}
+                                  className={`executive-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
+                                >
+                                  <span className="executive-ols-message-role">{getConversationMessageLabel(message)}</span>
+                                  <p>{message.content || "No message content captured."}</p>
+                                  <small>{formatDateTime(message.createdAt)}</small>
+                                </article>
+                              ))}
+                            </div>
+
+                            <form className="executive-ols-composer" onSubmit={handleSendWhatsAppReply}>
+                              <textarea
+                                value={whatsappReplyDraft}
+                                onChange={(event) => setWhatsappReplyDraft(event.target.value)}
+                                rows={4}
+                                placeholder="Reply to this WhatsApp guest as the OneLuxStay team..."
+                                disabled={sendingWhatsAppReply}
+                              />
+                              <div className="executive-ols-composer-actions">
+                                <button
+                                  type="button"
+                                  className="executive-ols-ghost-btn"
+                                  onClick={() => setWhatsappReplyDraft("")}
+                                  disabled={sendingWhatsAppReply}
+                                >
+                                  Clear draft
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="executive-ols-primary-btn"
+                                  disabled={sendingWhatsAppReply || !whatsappReplyDraft.trim()}
+                                >
+                                  {sendingWhatsAppReply ? "Sending..." : "Send WhatsApp reply"}
+                                </button>
+                              </div>
+                            </form>
+                          </>
+                        ) : (
+                          <div className="executive-ols-whatsapp-empty is-thread">
+                            <p className="executive-ols-empty">Select a WhatsApp conversation to read and reply.</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

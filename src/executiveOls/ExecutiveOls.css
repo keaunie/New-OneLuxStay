@@ -576,6 +576,133 @@
   border-top: 1px solid rgba(193, 170, 142, 0.18);
 }
 
+.executive-ols-whatsapp-inbox {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  min-height: 560px;
+}
+
+.executive-ols-whatsapp-sessions,
+.executive-ols-whatsapp-thread-panel {
+  min-width: 0;
+  border-radius: 22px;
+  border: 1px solid rgba(193, 170, 142, 0.22);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.executive-ols-whatsapp-sessions {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  padding: 0.85rem;
+  overflow-y: auto;
+}
+
+.executive-ols-whatsapp-session {
+  border: 1px solid rgba(193, 170, 142, 0.18);
+  border-radius: 18px;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.executive-ols-whatsapp-session.is-active {
+  border-color: rgba(17, 17, 17, 0.42);
+  background: rgba(248, 244, 238, 0.95);
+}
+
+.executive-ols-whatsapp-session-head,
+.executive-ols-whatsapp-thread-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.executive-ols-whatsapp-session strong,
+.executive-ols-whatsapp-thread-head h3 {
+  color: #241b15;
+}
+
+.executive-ols-whatsapp-session span,
+.executive-ols-thread-bubble small,
+.executive-ols-whatsapp-empty small {
+  color: #7b6a5b;
+}
+
+.executive-ols-whatsapp-session p {
+  margin: 0.45rem 0 0;
+  color: #5c4d40;
+  line-height: 1.55;
+}
+
+.executive-ols-whatsapp-thread-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.executive-ols-whatsapp-thread {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  min-height: 320px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.executive-ols-thread-bubble {
+  max-width: 88%;
+  padding: 0.95rem 1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(193, 170, 142, 0.22);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.executive-ols-thread-bubble--guest {
+  margin-right: auto;
+}
+
+.executive-ols-thread-bubble--assistant {
+  margin-right: auto;
+  background: rgba(250, 246, 240, 0.9);
+}
+
+.executive-ols-thread-bubble--admin {
+  margin-left: auto;
+  background: #111111;
+  color: #faf6f0;
+  border-color: #111111;
+}
+
+.executive-ols-thread-bubble--admin .executive-ols-message-role,
+.executive-ols-thread-bubble--admin small {
+  color: rgba(250, 246, 240, 0.68);
+}
+
+.executive-ols-thread-bubble p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.executive-ols-whatsapp-empty {
+  display: grid;
+  gap: 0.75rem;
+  align-content: center;
+  min-height: 240px;
+}
+
+.executive-ols-whatsapp-empty.is-thread {
+  place-items: center;
+  text-align: center;
+}
+
 .executive-ols-list-row {
   display: flex;
   justify-content: space-between;
@@ -598,7 +725,8 @@
   .executive-ols-topbar,
   .executive-ols-content-grid,
   .executive-ols-auth-panel,
-  .executive-ols-whatsapp-grid {
+  .executive-ols-whatsapp-grid,
+  .executive-ols-whatsapp-inbox {
     grid-template-columns: 1fr;
   }
 
@@ -682,5 +810,13 @@
 
   .executive-ols-chat-thread {
     min-height: 300px;
+  }
+
+  .executive-ols-whatsapp-thread {
+    max-height: none;
+  }
+
+  .executive-ols-thread-bubble {
+    max-width: 100%;
   }
 }
