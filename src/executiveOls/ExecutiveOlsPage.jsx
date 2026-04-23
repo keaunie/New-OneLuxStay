@@ -656,7 +656,7 @@ function ExecutiveOlsPage() {
             </section>
 
             {error && <div className="executive-ols-alert is-error">{error}</div>}
-            {notice && !error && <div className="executive-ols-alert">{notice}</div>}
+            {notice && !error && activeView !== "whatsapp" && <div className="executive-ols-alert">{notice}</div>}
 
             {activeView !== "whatsapp" && (
               <section className="executive-ols-stat-grid">
