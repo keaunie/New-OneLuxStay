@@ -547,8 +547,8 @@ function ExecutiveOlsPage() {
 
   return (
     <div className="executive-ols-page">
-      <div className="executive-ols-shell">
-        <div className="executive-ols-layout">
+      <div className={`executive-ols-shell${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
+        <div className={`executive-ols-layout${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
           <aside className="executive-ols-sidebar" aria-label="Executive navigation">
             <div className="executive-ols-brand-card">
               <p className="executive-ols-eyebrow">OneLuxStay</p>
@@ -578,7 +578,7 @@ function ExecutiveOlsPage() {
             </div>
           </aside>
 
-          <main className="executive-ols-main">
+          <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
             <header className="executive-ols-topbar">
               <div className="executive-ols-field">
                 <label htmlFor="executive-range">Time range</label>
@@ -635,7 +635,7 @@ function ExecutiveOlsPage() {
             {error && <div className="executive-ols-alert is-error">{error}</div>}
             {notice && !error && <div className="executive-ols-alert">{notice}</div>}
 
-            <section className="executive-ols-stat-grid">
+            <section className={`executive-ols-stat-grid${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
               <article className="executive-ols-stat-card">
                 <span>Reservations</span>
                 <strong>{Number(stats.totalReservations || 0)}</strong>
@@ -659,7 +659,7 @@ function ExecutiveOlsPage() {
             </section>
 
             <div className={`executive-ols-content-grid${activeView === "whatsapp" ? " is-single-panel" : ""}`}>
-              <section className="executive-ols-chat-card">
+              <section className={`executive-ols-chat-card${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
                 {activeView === "assistant" && (
                   <>
                     <div className="executive-ols-card-head">
