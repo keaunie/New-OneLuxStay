@@ -73,11 +73,15 @@ const slugify = (value) =>
     .replace(/^-+|-+$/g, "");
 
 const toNumber = (value) => {
+  if (value == null) return null;
+  if (typeof value === "string" && !value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
 const toInteger = (value, fallback = null) => {
+  if (value == null) return fallback;
+  if (typeof value === "string" && !value.trim()) return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(0, Math.round(parsed));
