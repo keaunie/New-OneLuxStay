@@ -6,7 +6,7 @@ import {
   logAdminsOlsActivity,
   sanitizeAdminsOlsActivityRow,
 } from "./_shared/adminsOlsActivity.js";
-import { fetchWithTimeout, getBaseUrl } from "./_shared/http.js";
+import { fetchWithTimeout, getHeaderValue } from "./_shared/http.js";
 import {
   buildSupabaseRestUrl,
   getSupabaseConfig,
@@ -73,6 +73,26 @@ const normalizePhoneNumber = (value = "") => {
   const digits = raw.replace(/[^\d]/g, "");
   if (!digits) return "";
   return `${hasPlus ? "+" : ""}${digits}`;
+};
+
+const getRequestBaseUrl = (event = {}) => {
+  const proto = sanitizeString(
+    getHeaderValue(event, "x-forwarded-proto") || getHeaderValue(event, "x-forwarded-protocol") || "https",
+    12,
+  );
+  const host = sanitizeString(
+    getHeaderValue(event, "x-forwarded-host") || getHeaderValue(event, "host") || getEnv("URL"),
+    240,
+  );
+
+  if (proto && host && !/^https?:\/\//i.test(host)) {
+    return `${proto}://${host}`.replace(/\/+$/, "");
+  }
+
+  return sanitizeString(getEnv("PUBLIC_SITE_URL") || getEnv("URL") || "https://oneluxstayprop.netlify.app", 240).replace(
+    /\/+$/,
+    "",
+  );
 };
 
 const parseBoolean = (value, fallback = false) => {
@@ -147,7 +167,7 @@ const startTwilioVoiceCall = async ({ event, sessionId = "", agentPhoneNumber = 
     fromNumber,
     secret: bridgeSecret,
   });
-  const bridgeUrl = `${getBaseUrl(event)}/.netlify/functions/admins-ols-voice-bridge?guest=${encodeURIComponent(
+  const bridgeUrl = `${getRequestBaseUrl(event)}/.netlify/functions/admins-ols-voice-bridge?guest=${encodeURIComponent(
     guestNumber,
   )}&from=${encodeURIComponent(fromNumber)}&sig=${encodeURIComponent(signature)}`;
 
