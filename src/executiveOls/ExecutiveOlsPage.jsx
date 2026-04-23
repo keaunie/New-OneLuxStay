@@ -1168,7 +1168,7 @@ function ExecutiveOlsPage() {
                                   </div>
                                   <small>
                                     <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
-                                    {formatDateTime(thread.lastSeenAt)}
+                                    {formatDate(thread.lastSeenAt)}
                                   </small>
                                 </div>
                                 <div className="executive-ols-whatsapp-session-sub">

@@ -735,6 +735,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
+  overflow: hidden;
   border: 1px solid rgba(193, 170, 142, 0.18);
   border-radius: 18px;
   padding: 0.9rem;
@@ -770,6 +771,8 @@
 }
 
 .executive-ols-whatsapp-session-body {
+  display: grid;
+  gap: 0.45rem;
   min-width: 0;
 }
 
@@ -824,6 +827,24 @@
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.executive-ols-whatsapp-session-title strong {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.executive-ols-whatsapp-session-head small {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.78rem;
 }
 
 .executive-ols-whatsapp-session-status {
@@ -843,7 +864,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  margin-top: 0.45rem;
 }
 
 .executive-ols-whatsapp-contact-pill {
@@ -851,6 +871,7 @@
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
+  max-width: calc(100% - 3rem);
   min-height: 30px;
   padding: 0.15rem 0.65rem;
   border-radius: 999px;
@@ -858,6 +879,9 @@
   color: #236f47;
   font-size: 0.76rem;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .executive-ols-whatsapp-counter {
@@ -876,9 +900,13 @@
 }
 
 .executive-ols-whatsapp-session p {
-  margin: 0.45rem 0 0;
+  margin: 0;
   color: #5c4d40;
   line-height: 1.55;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .executive-ols-whatsapp-thread-panel {
@@ -1074,6 +1102,15 @@
   display: flex;
   gap: 0.85rem;
   align-items: center;
+  min-width: 0;
+}
+
+.executive-ols-whatsapp-thread-identity > div {
+  min-width: 0;
+}
+
+.executive-ols-whatsapp-thread-identity h3 {
+  overflow-wrap: anywhere;
 }
 
 .executive-ols-whatsapp-thread-meta {
