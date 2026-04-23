@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import dotenv from "dotenv";
 import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
 import {
@@ -5,7 +6,7 @@ import {
   logAdminsOlsActivity,
   sanitizeAdminsOlsActivityRow,
 } from "./_shared/adminsOlsActivity.js";
-import { fetchWithTimeout } from "./_shared/http.js";
+import { fetchWithTimeout, getBaseUrl } from "./_shared/http.js";
 import {
   buildSupabaseRestUrl,
   getSupabaseConfig,
@@ -65,6 +66,15 @@ const normalizeWhatsAppAddress = (value = "") => {
   return digits ? `whatsapp:${digits.startsWith("+") ? digits : `+${digits}`}` : "";
 };
 
+const normalizePhoneNumber = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const hasPlus = raw.startsWith("+");
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  return `${hasPlus ? "+" : ""}${digits}`;
+};
+
 const parseBoolean = (value, fallback = false) => {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (!normalized) return fallback;
@@ -92,6 +102,94 @@ const getTwilioWhatsAppConfig = () => {
   );
 
   return { accountSid, authToken, fromAddress };
+};
+
+const getTwilioVoiceConfig = () => {
+  const accountSid = sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120);
+  const authToken = sanitizeString(getEnv("TWILIO_VOICE_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240);
+  const fromNumber = normalizePhoneNumber(
+    sanitizeString(getEnv("TWILIO_VOICE_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER"), 80),
+  );
+  const bridgeSecret = sanitizeString(getEnv("TWILIO_VOICE_BRIDGE_SECRET") || authToken, 240);
+
+  return { accountSid, authToken, fromNumber, bridgeSecret };
+};
+
+const buildVoiceBridgeSignature = ({ guestNumber = "", fromNumber = "", secret = "" } = {}) =>
+  crypto.createHmac("sha256", String(secret || "missing-secret")).update(`${guestNumber}|${fromNumber}`).digest("hex");
+
+const startTwilioVoiceCall = async ({ event, sessionId = "", agentPhoneNumber = "" } = {}) => {
+  const guestNumber = extractWhatsAppNumberFromSessionId(sessionId);
+  if (!guestNumber) {
+    const error = new Error("Unable to resolve the guest phone number for this WhatsApp conversation.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const agentNumber = normalizePhoneNumber(agentPhoneNumber);
+  if (!agentNumber) {
+    const error = new Error("A valid callback phone number is required to place the call.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { accountSid, authToken, fromNumber, bridgeSecret } = getTwilioVoiceConfig();
+  if (!accountSid || !authToken || !fromNumber || !bridgeSecret) {
+    const error = new Error(
+      "Twilio Voice is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VOICE_FROM, and optionally TWILIO_VOICE_BRIDGE_SECRET.",
+    );
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const signature = buildVoiceBridgeSignature({
+    guestNumber,
+    fromNumber,
+    secret: bridgeSecret,
+  });
+  const bridgeUrl = `${getBaseUrl(event)}/.netlify/functions/admins-ols-voice-bridge?guest=${encodeURIComponent(
+    guestNumber,
+  )}&from=${encodeURIComponent(fromNumber)}&sig=${encodeURIComponent(signature)}`;
+
+  const body = new URLSearchParams({
+    To: agentNumber,
+    From: fromNumber,
+    Url: bridgeUrl,
+    Method: "GET",
+  });
+
+  const response = await fetchWithTimeout(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    },
+    20_000,
+  );
+
+  const rawText = await response.text();
+  const payload = parseJson(rawText);
+
+  if (!response.ok) {
+    const error = new Error(
+      sanitizeString(payload?.message || payload?.error_message || "Twilio could not start the voice call.", 320),
+    );
+    error.statusCode = response.status || 502;
+    throw error;
+  }
+
+  return {
+    sid: sanitizeString(payload?.sid, 120),
+    status: sanitizeString(payload?.status, 80),
+    to: sanitizeString(payload?.to, 80),
+    from: sanitizeString(payload?.from, 80),
+    guestNumber,
+    agentNumber,
+  };
 };
 
 const sendWhatsAppAdminReply = async ({ sessionId = "", content = "" } = {}) => {
@@ -1786,6 +1884,28 @@ export async function handler(event) {
         { ok: true, message },
         event,
       );
+    }
+
+    if (action === "start_voice_call") {
+      const call = await startTwilioVoiceCall({
+        event,
+        sessionId: payload?.sessionId,
+        agentPhoneNumber: payload?.agentPhoneNumber,
+      });
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: "voice_call_started",
+        message: "Started a Twilio voice call from the executive WhatsApp inbox.",
+        details: {
+          sessionId: payload?.sessionId || "",
+          guestNumber: call.guestNumber,
+          agentNumber: call.agentNumber,
+          twilioCallSid: call.sid,
+        },
+      });
+      return jsonResponse(200, { ok: true, call }, event);
     }
 
     if (action === "summarize_conversation") {
