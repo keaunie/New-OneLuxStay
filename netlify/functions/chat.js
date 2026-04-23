@@ -604,7 +604,22 @@ const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
   if (hasDateRange && /\b(book|booking|reserve|reservation|stay)\b/i.test(source)) {
     return true;
   }
+  // Catch natural booking phrases: "antwerp for tomorrow until monday", "book dubai next week"
+  if (/\b(for|from|until|till|through|to|arriving|leaving|starting|ending)\b/i.test(source) &&
+      /\b(tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this week|weekend)\b/i.test(source)) {
+    return true;
+  }
   return false;
+};
+
+// Returns true when the message is ONLY a city name — signals start of booking conversation
+const isCityOnlyMessage = (text = "", supportedCities = []) => {
+  const cleaned = String(text || "").trim().toLowerCase().replace(/[!?.,"']+$/, "");
+  if (!cleaned || cleaned.length > 40) return false;
+  return supportedCities.some((city) => {
+    const c = String(city || "").toLowerCase();
+    return cleaned === c || cleaned === `i said ${c}` || cleaned === `in ${c}` || cleaned === `${c} please`;
+  });
 };
 
 const isCheckInOutTimeQuestion = (text = "") => {
@@ -913,6 +928,22 @@ const extractDatesFromText = (text = "") => {
     const offset = token === "day after tomorrow" ? 2 : token === "tomorrow" ? 1 : 0;
     const value = toIsoFromLocalDate(addDays(now, offset));
     push(value, relativeMatch.index, 2);
+  }
+
+  // Day-of-week names → next occurrence of that day (e.g. "monday", "next friday")
+  const DOW_MAP = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  const dowRegex = /\b(?:next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi;
+  let dowMatch;
+  while ((dowMatch = dowRegex.exec(source)) !== null) {
+    const dayName = String(dowMatch[1] || "").toLowerCase();
+    const targetDow = DOW_MAP[dayName];
+    if (targetDow === undefined) continue;
+    const todayDow = now.getDay();
+    let daysAhead = targetDow - todayDow;
+    // Always pick the NEXT occurrence (never today itself, unless "next X" forces +7)
+    if (daysAhead <= 0 || /\bnext\s/i.test(dowMatch[0])) daysAhead += 7;
+    const value = toIsoFromLocalDate(addDays(now, daysAhead));
+    push(value, dowMatch.index, 3);
   }
 
   const monthDayRegex = new RegExp(`\\b${MONTH_NAME_PATTERN}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\b`, "gi");
@@ -2199,7 +2230,9 @@ const isGenericFallbackText = (value = "") => {
   return (
     normalized.includes("i can help with the basics right now") ||
     normalized.includes("ask me about cities booking steps") ||
-    normalized.includes("how to use the page you are on")
+    normalized.includes("how to use the page you are on") ||
+    normalized.includes("im lucy the one lux stay concierge") ||
+    normalized.includes("what can i help you with")
   );
 };
 
@@ -4274,9 +4307,11 @@ export async function handler(event) {
       !/\b(availability|available|open units?|which units?|best options?|show me units?|what'?s available)\b/i.test(
         latestPromptForIntent,
       );
+    const cityOnlyMessage = isCityOnlyMessage(latestPromptForIntent, supportedCities);
     const hasDirectAvailabilityIntent =
       isAvailabilityQuestion(latestPromptForIntent, asksAvailabilityWindow) ||
-      (asksBookingLead && !isListingPriceQuestion);
+      (asksBookingLead && !isListingPriceQuestion) ||
+      cityOnlyMessage;
     const hasAvailabilityFollowupSignal =
       followUpAvailabilityIntent ||
       Boolean(promptDateRange) ||
