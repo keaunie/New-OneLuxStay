@@ -22,6 +22,7 @@ const VIEW_OPTIONS = [
   { id: "bookings", label: "Bookings" },
   { id: "reports", label: "Reports" },
   { id: "assistant", label: "AI Assistant" },
+  { id: "whatsapp", label: "WhatsApp" },
 ];
 
 const TIME_RANGE_OPTIONS = [
@@ -29,6 +30,22 @@ const TIME_RANGE_OPTIONS = [
   { value: "this_week", label: "This week" },
   { value: "this_month", label: "This month" },
   { value: "next_30_days", label: "Next 30 days" },
+];
+
+const DEFAULT_SITE_ORIGIN = "https://oneluxstayprop.netlify.app";
+const WHATSAPP_SENDER_E164 = "+17159218069";
+const WHATSAPP_DISPLAY_NAME = "Lucy";
+const WHATSAPP_BUSINESS_EMAIL = "reservations@oneluxstay.com";
+const WHATSAPP_PRIMARY_WEBSITE = "https://oneluxstay.com";
+const WHATSAPP_SECONDARY_WEBSITE = "https://oneluxstayprop.netlify.app";
+const WHATSAPP_BUSINESS_DESCRIPTION =
+  "Lucy is OneLuxStay's WhatsApp concierge for luxury aparthotel stays, availability checks, booking guidance, and reservation support.";
+const WHATSAPP_PROFILE_ABOUT =
+  "Hi, I'm Lucy from OneLuxStay. Share your dates, guest count, or reservation code and I'll help right away.";
+const WHATSAPP_TEST_PROMPTS = [
+  "Check availability in Miami from 2026-05-10 to 2026-05-13 for 2 guests",
+  "I want a 2 bedroom in Los Angeles from 2026-06-01 to 2026-06-05 for 4 guests",
+  "Check my booking status. My reservation code is GY-aeDHKynZ",
 ];
 
 const formatCurrency = (value, currency = "USD") => {
@@ -63,6 +80,13 @@ const getInitials = (session = {}) => {
   return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
 };
 
+const resolveSiteOrigin = () => {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+  return DEFAULT_SITE_ORIGIN;
+};
+
 function ExecutiveOlsPage() {
   const navigate = useNavigate();
   const [session, setSession] = useState(() => loadExecutiveOlsSession());
@@ -75,6 +99,7 @@ function ExecutiveOlsPage() {
   const [timeRange, setTimeRange] = useState("this_week");
   const [propertyId, setPropertyId] = useState("");
   const [draft, setDraft] = useState("");
+  const siteOrigin = useMemo(() => resolveSiteOrigin(), []);
   const [messages, setMessages] = useState(() => [
     {
       role: "assistant",
@@ -231,6 +256,20 @@ function ExecutiveOlsPage() {
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
   const listings = Array.isArray(snapshot?.listings) ? snapshot.listings : [];
   const syncStatusTone = snapshot?.syncStatus?.ok ? "is-positive" : "is-negative";
+  const heroEyebrow = activeView === "whatsapp" ? "WhatsApp concierge" : "AI Assistant";
+  const heroTitle =
+    activeView === "whatsapp"
+      ? "Deploy Lucy on WhatsApp with Twilio."
+      : "Ask direct questions about revenue, bookings, and issues.";
+  const heroCopy =
+    activeView === "whatsapp"
+      ? "This setup uses the live Lucy chat brain, a Twilio webhook, and saved conversation history by guest phone number."
+      : "The executive assistant uses Guesty-backed snapshot data and stays explicit when something cannot be verified live.";
+  const whatsappWebhookUrl = `${siteOrigin}/.netlify/functions/whatsapp-webhook`;
+  const whatsappStatusUrl = `${siteOrigin}/.netlify/functions/whatsapp-status`;
+  const whatsappAliasUrl = `${siteOrigin}/api/whatsapp`;
+  const whatsappStatusAliasUrl = `${siteOrigin}/api/whatsapp-status`;
+  const whatsappClickToChatUrl = `https://wa.me/${WHATSAPP_SENDER_E164.replace(/[^\d]/g, "")}`;
 
   if (!session?.accessToken) {
     return <Navigate to="/executive-ols/login" replace />;
@@ -309,12 +348,9 @@ function ExecutiveOlsPage() {
 
             <section className="executive-ols-hero">
               <div>
-                <p className="executive-ols-eyebrow">AI Assistant</p>
-                <h2>Ask direct questions about revenue, bookings, and issues.</h2>
-                <p>
-                  The executive assistant uses Guesty-backed snapshot data and stays explicit when something cannot be
-                  verified live.
-                </p>
+                <p className="executive-ols-eyebrow">{heroEyebrow}</p>
+                <h2>{heroTitle}</h2>
+                <p>{heroCopy}</p>
               </div>
               <div className="executive-ols-hero-meta">
                 <span className={`executive-ols-pill ${syncStatusTone}`}>
@@ -417,6 +453,72 @@ function ExecutiveOlsPage() {
                   </>
                 )}
 
+                {activeView === "whatsapp" && (
+                  <>
+                    <div className="executive-ols-card-head">
+                      <div>
+                        <p className="executive-ols-eyebrow">WhatsApp</p>
+                        <h3>Twilio setup and bot preview</h3>
+                        <p>Paste these values into the Twilio WhatsApp Sender page, then message Lucy from your phone.</p>
+                      </div>
+                    </div>
+
+                    <div className="executive-ols-prompt-list">
+                      {WHATSAPP_TEST_PROMPTS.map((prompt) => (
+                        <button key={prompt} type="button" className="executive-ols-prompt" onClick={() => handleSubmit(prompt)}>
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="executive-ols-whatsapp-grid">
+                      <article className="executive-ols-list-card">
+                        <strong>Incoming webhook URL</strong>
+                        <code className="executive-ols-code-block">{whatsappWebhookUrl}</code>
+                        <small>Use `HTTP POST` in Twilio. The direct function URL is the safest option for signature checks.</small>
+                      </article>
+
+                      <article className="executive-ols-list-card">
+                        <strong>Status callback URL</strong>
+                        <code className="executive-ols-code-block">{whatsappStatusUrl}</code>
+                        <small>Optional, but ready if you want Twilio delivery logs for outbound API sends later.</small>
+                      </article>
+
+                      <article className="executive-ols-list-card">
+                        <strong>Business profile copy</strong>
+                        <span>Display name: {WHATSAPP_DISPLAY_NAME}</span>
+                        <span>Email: {WHATSAPP_BUSINESS_EMAIL}</span>
+                        <span>Website: {WHATSAPP_PRIMARY_WEBSITE}</span>
+                        <span>Additional website: {WHATSAPP_SECONDARY_WEBSITE}</span>
+                        <span>Vertical: Hotel and Lodging</span>
+                        <small>Description ({WHATSAPP_BUSINESS_DESCRIPTION.length}/256): {WHATSAPP_BUSINESS_DESCRIPTION}</small>
+                        <small>About ({WHATSAPP_PROFILE_ABOUT.length}/139): {WHATSAPP_PROFILE_ABOUT}</small>
+                      </article>
+
+                      <article className="executive-ols-list-card">
+                        <strong>Guest experience</strong>
+                        <span>Lucy can answer availability, booking status, listing questions, and reservation guidance.</span>
+                        <span>Conversation history is saved by phone number so follow-ups keep context.</span>
+                        <small>Sender number: {WHATSAPP_SENDER_E164}</small>
+                      </article>
+                    </div>
+
+                    <div className="executive-ols-whatsapp-preview" aria-label="WhatsApp preview">
+                      <article className="executive-ols-message executive-ols-message--user">
+                        <span className="executive-ols-message-role">Guest</span>
+                        <p>Hi Lucy, can you check Miami for 2 guests from 2026-05-10 to 2026-05-13?</p>
+                      </article>
+                      <article className="executive-ols-message executive-ols-message--assistant">
+                        <span className="executive-ols-message-role">Lucy</span>
+                        <p>
+                          I can help with that. I&apos;ll check live availability for Miami and send the best matching options
+                          with booking links right in WhatsApp.
+                        </p>
+                      </article>
+                    </div>
+                  </>
+                )}
+
                 {activeView === "dashboard" && (
                   <>
                     <div className="executive-ols-card-head">
@@ -496,48 +598,99 @@ function ExecutiveOlsPage() {
               </section>
 
               <aside className="executive-ols-context-card">
-                <div className="executive-ols-card-head">
-                  <div>
-                    <p className="executive-ols-eyebrow">Current context</p>
-                    <h3>What the assistant can see</h3>
-                    <p>Keep the assistant transparent about the exact data it is summarizing.</p>
-                  </div>
-                </div>
+                {activeView === "whatsapp" ? (
+                  <>
+                    <div className="executive-ols-card-head">
+                      <div>
+                        <p className="executive-ols-eyebrow">Twilio fields</p>
+                        <h3>What to paste</h3>
+                        <p>These are the exact values I recommend for your current sender setup.</p>
+                      </div>
+                    </div>
 
-                <div className="executive-ols-context-list">
-                  <article className="executive-ols-context-item">
-                    <strong>Sync status</strong>
-                    <span>{snapshot?.syncStatus?.message || "Waiting for Guesty snapshot."}</span>
-                  </article>
-                  <article className="executive-ols-context-item">
-                    <strong>Current financial view</strong>
-                    <span>
-                      Revenue {formatCurrency(stats.projectedRevenue, stats.currency || "USD")} • Confirmed{" "}
-                      {Number(stats.confirmedReservations || 0)} • Upcoming {Number(stats.upcomingCheckIns || 0)}
-                    </span>
-                  </article>
-                  <article className="executive-ols-context-item">
-                    <strong>Property scope</strong>
-                    <span>
-                      {propertyId
-                        ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
-                        : "All properties"}
-                    </span>
-                  </article>
-                  <article className="executive-ols-context-item">
-                    <strong>Data source</strong>
-                    <span>Guesty listings and reservations, summarized at request time.</span>
-                  </article>
-                </div>
+                    <div className="executive-ols-context-list">
+                      <article className="executive-ols-context-item">
+                        <strong>Webhook URL for incoming messages</strong>
+                        <span>{whatsappWebhookUrl}</span>
+                      </article>
+                      <article className="executive-ols-context-item">
+                        <strong>Status callback URL</strong>
+                        <span>{whatsappStatusUrl}</span>
+                      </article>
+                      <article className="executive-ols-context-item">
+                        <strong>Fallback URL for incoming messages</strong>
+                        <span>Leave blank for now. It is optional and repeating the same webhook usually does not help.</span>
+                      </article>
+                      <article className="executive-ols-context-item">
+                        <strong>Alternative alias URLs</strong>
+                        <span>{whatsappAliasUrl} • {whatsappStatusAliasUrl}</span>
+                      </article>
+                    </div>
 
-                <div className="executive-ols-inline-links">
-                  <Link to="/admins-ols" className="executive-ols-inline-link">
-                    Open legacy admin panel
-                  </Link>
-                  <button type="button" className="executive-ols-inline-link is-button" onClick={() => handleSubmit("Give me the most important executive risks right now.")}>
-                    Ask for risks
-                  </button>
-                </div>
+                    <div className="executive-ols-inline-links">
+                      <a
+                        href={whatsappClickToChatUrl}
+                        className="executive-ols-inline-link"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open sender in WhatsApp
+                      </a>
+                      <button
+                        type="button"
+                        className="executive-ols-inline-link is-button"
+                        onClick={() => handleSubmit("Write a short WhatsApp welcome message for a new OneLuxStay guest.")}
+                      >
+                        Draft welcome copy
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="executive-ols-card-head">
+                      <div>
+                        <p className="executive-ols-eyebrow">Current context</p>
+                        <h3>What the assistant can see</h3>
+                        <p>Keep the assistant transparent about the exact data it is summarizing.</p>
+                      </div>
+                    </div>
+
+                    <div className="executive-ols-context-list">
+                      <article className="executive-ols-context-item">
+                        <strong>Sync status</strong>
+                        <span>{snapshot?.syncStatus?.message || "Waiting for Guesty snapshot."}</span>
+                      </article>
+                      <article className="executive-ols-context-item">
+                        <strong>Current financial view</strong>
+                        <span>
+                          Revenue {formatCurrency(stats.projectedRevenue, stats.currency || "USD")} • Confirmed{" "}
+                          {Number(stats.confirmedReservations || 0)} • Upcoming {Number(stats.upcomingCheckIns || 0)}
+                        </span>
+                      </article>
+                      <article className="executive-ols-context-item">
+                        <strong>Property scope</strong>
+                        <span>
+                          {propertyId
+                            ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
+                            : "All properties"}
+                        </span>
+                      </article>
+                      <article className="executive-ols-context-item">
+                        <strong>Data source</strong>
+                        <span>Guesty listings and reservations, summarized at request time.</span>
+                      </article>
+                    </div>
+
+                    <div className="executive-ols-inline-links">
+                      <Link to="/admins-ols" className="executive-ols-inline-link">
+                        Open legacy admin panel
+                      </Link>
+                      <button type="button" className="executive-ols-inline-link is-button" onClick={() => handleSubmit("Give me the most important executive risks right now.")}>
+                        Ask for risks
+                      </button>
+                    </div>
+                  </>
+                )}
               </aside>
             </div>
           </main>

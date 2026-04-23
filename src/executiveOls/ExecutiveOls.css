@@ -547,6 +547,35 @@
   background: rgba(255, 255, 255, 0.62);
 }
 
+.executive-ols-whatsapp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.executive-ols-code-block {
+  display: block;
+  margin-top: 0.65rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(193, 170, 142, 0.18);
+  background: rgba(33, 26, 20, 0.96);
+  color: #f8f3ec;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.executive-ols-whatsapp-preview {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(193, 170, 142, 0.18);
+}
+
 .executive-ols-list-row {
   display: flex;
   justify-content: space-between;
@@ -568,7 +597,8 @@
 @media (max-width: 1200px) {
   .executive-ols-topbar,
   .executive-ols-content-grid,
-  .executive-ols-auth-panel {
+  .executive-ols-auth-panel,
+  .executive-ols-whatsapp-grid {
     grid-template-columns: 1fr;
   }
 
