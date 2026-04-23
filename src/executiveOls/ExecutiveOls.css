@@ -434,6 +434,12 @@
   background: rgba(255, 242, 244, 0.96);
 }
 
+.executive-ols-alert-toggle.is-enabled {
+  background: rgba(236, 248, 239, 0.92);
+  color: #1d7c45;
+  border-color: rgba(29, 124, 69, 0.18);
+}
+
 .executive-ols-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

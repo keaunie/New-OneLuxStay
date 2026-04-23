@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 import {
@@ -122,6 +122,14 @@ const getConversationPreview = (thread = {}) => {
   return content.length > 140 ? `${content.slice(0, 137)}...` : content || "No message content captured yet.";
 };
 
+const getConversationNotificationSignature = (thread = {}) => {
+  const sessionId = String(thread?.sessionId || "").trim();
+  const lastSeenAt = String(thread?.lastSeenAt || "").trim();
+  const messageCount = Number(thread?.messageCount || 0);
+  if (!sessionId) return "";
+  return `${sessionId}:${lastSeenAt}:${messageCount}`;
+};
+
 const getConversationMessageSenderType = (message = {}) => {
   if (message?.role === "user") return "guest";
   const senderType = String(message?.metadata?.senderType || "").trim().toLowerCase();
@@ -189,6 +197,9 @@ function ExecutiveOlsPage() {
   const [sendingNewWhatsApp, setSendingNewWhatsApp] = useState(false);
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappNotice, setWhatsappNotice] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported",
+  );
   const [messages, setMessages] = useState(() => [
     {
       role: "assistant",
@@ -196,6 +207,10 @@ function ExecutiveOlsPage() {
         "I can help with executive summaries, booking performance, listing context, and Guesty-backed operational questions.",
     },
   ]);
+  const audioContextRef = useRef(null);
+  const audioPrimedRef = useRef(false);
+  const hydratedWhatsAppNotificationsRef = useRef(false);
+  const notifiedWhatsAppSignaturesRef = useRef(new Set());
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -281,6 +296,48 @@ function ExecutiveOlsPage() {
   }, [propertyId, session, timeRange]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const updatePermission = () => {
+      setNotificationPermission("Notification" in window ? window.Notification.permission : "unsupported");
+    };
+
+    updatePermission();
+    window.addEventListener("focus", updatePermission);
+    return () => window.removeEventListener("focus", updatePermission);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const primeAudio = async () => {
+      if (audioPrimedRef.current) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      try {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContextClass();
+        }
+        if (audioContextRef.current?.state === "suspended") {
+          await audioContextRef.current.resume();
+        }
+        audioPrimedRef.current = true;
+      } catch {
+        // Ignore autoplay restrictions until the next interaction.
+      }
+    };
+
+    window.addEventListener("pointerdown", primeAudio, { passive: true });
+    window.addEventListener("keydown", primeAudio);
+
+    return () => {
+      window.removeEventListener("pointerdown", primeAudio);
+      window.removeEventListener("keydown", primeAudio);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!whatsappThreads.length) {
       setSelectedWhatsAppSessionId("");
       return;
@@ -347,6 +404,119 @@ function ExecutiveOlsPage() {
       active = false;
     };
   }, [activeView, session]);
+
+  useEffect(() => {
+    if (activeView !== "whatsapp") return;
+    if (!whatsappThreads.length) {
+      hydratedWhatsAppNotificationsRef.current = true;
+      return;
+    }
+
+    const signatures = whatsappThreads
+      .map((thread) => getConversationNotificationSignature(thread))
+      .filter(Boolean);
+
+    if (!hydratedWhatsAppNotificationsRef.current) {
+      signatures.forEach((signature) => notifiedWhatsAppSignaturesRef.current.add(signature));
+      hydratedWhatsAppNotificationsRef.current = true;
+      return;
+    }
+
+    const newGuestThreads = whatsappThreads.filter((thread) => {
+      const signature = getConversationNotificationSignature(thread);
+      if (!signature || notifiedWhatsAppSignaturesRef.current.has(signature)) return false;
+      const latestMessage = getConversationLatestMessage(thread);
+      return latestMessage?.role === "user";
+    });
+
+    signatures.forEach((signature) => notifiedWhatsAppSignaturesRef.current.add(signature));
+    if (!newGuestThreads.length) return;
+
+    const newestThread = [...newGuestThreads].sort(
+      (left, right) => toTimestamp(right?.lastSeenAt) - toTimestamp(left?.lastSeenAt),
+    )[0];
+    const latestMessage = getConversationLatestMessage(newestThread);
+
+    const playAlertTone = async () => {
+      if (typeof window === "undefined") return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      try {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContextClass();
+        }
+        const context = audioContextRef.current;
+        if (!context) return;
+        if (context.state === "suspended") {
+          await context.resume();
+        }
+
+        const startAt = context.currentTime + 0.02;
+        [0, 0.24].forEach((offset) => {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(offset === 0 ? 988 : 1318, startAt + offset);
+          gain.gain.setValueAtTime(0.0001, startAt + offset);
+          gain.gain.exponentialRampToValueAtTime(0.08, startAt + offset + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + 0.2);
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(startAt + offset);
+          oscillator.stop(startAt + offset + 0.22);
+        });
+      } catch {
+        // Ignore audio failures if the browser blocks background audio.
+      }
+    };
+
+    const showBrowserNotification = () => {
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      if (window.Notification.permission !== "granted" || !newestThread) return;
+      if (typeof document !== "undefined" && !document.hidden && document.hasFocus?.()) return;
+
+      try {
+        const notification = new window.Notification("New WhatsApp Message", {
+          body: `${getConversationTitle(newestThread)}: ${String(latestMessage?.content || "").trim() || "New guest message"}`,
+          tag: getConversationNotificationSignature(newestThread),
+          renotify: true,
+          requireInteraction: true,
+        });
+        notification.onclick = () => {
+          window.focus?.();
+          setSelectedWhatsAppSessionId(newestThread.sessionId);
+          notification.close();
+        };
+      } catch {
+        // Ignore notification failures.
+      }
+    };
+
+    void playAlertTone();
+    showBrowserNotification();
+  }, [activeView, whatsappThreads]);
+
+  const handleEnableWhatsAppAlerts = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setWhatsappError("Browser notifications are not supported in this browser.");
+      return;
+    }
+
+    try {
+      const permission = await window.Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === "granted") {
+        setWhatsappNotice("WhatsApp alerts enabled for this browser.");
+        return;
+      }
+      if (permission === "denied") {
+        setWhatsappError("Browser notifications were blocked. Enable them in your browser settings if you want desktop alerts.");
+      }
+    } catch {
+      setWhatsappError("Unable to enable browser notifications right now.");
+    }
+  };
 
   const handleLogout = () => {
     clearExecutiveOlsSession();
@@ -646,6 +816,33 @@ function ExecutiveOlsPage() {
                 <p>{heroCopy}</p>
               </div>
               <div className="executive-ols-hero-meta">
+                {activeView === "whatsapp" && (
+                  <button
+                    type="button"
+                    className={`executive-ols-ghost-btn executive-ols-alert-toggle${
+                      notificationPermission === "granted" ? " is-enabled" : ""
+                    }`}
+                    onClick={handleEnableWhatsAppAlerts}
+                    disabled={notificationPermission === "unsupported"}
+                    title={
+                      notificationPermission === "granted"
+                        ? "Browser alerts are enabled"
+                        : notificationPermission === "denied"
+                          ? "Browser alerts are blocked"
+                          : notificationPermission === "unsupported"
+                            ? "Browser alerts are not supported in this browser"
+                            : "Enable browser alerts"
+                    }
+                  >
+                    {notificationPermission === "granted"
+                      ? "Alerts On"
+                      : notificationPermission === "denied"
+                        ? "Alerts Blocked"
+                        : notificationPermission === "unsupported"
+                          ? "Alerts Unsupported"
+                          : "Enable Alerts"}
+                  </button>
+                )}
                 <span className={`executive-ols-pill ${syncStatusTone}`}>
                   {snapshot?.syncStatus?.ok ? "Guesty synced" : "Sync issue"}
                 </span>
