@@ -120,6 +120,7 @@
 }
 
 .executive-ols-auth-form input,
+.executive-ols-field input,
 .executive-ols-field select,
 .executive-ols-composer textarea {
   width: 100%;
@@ -132,12 +133,14 @@
 }
 
 .executive-ols-auth-form input,
+.executive-ols-field input,
 .executive-ols-field select {
   min-height: 52px;
   padding: 0 1rem;
 }
 
 .executive-ols-auth-form input:focus-visible,
+.executive-ols-field input:focus-visible,
 .executive-ols-field select:focus-visible,
 .executive-ols-composer textarea:focus-visible {
   outline: 2px solid rgba(155, 120, 73, 0.35);
@@ -701,6 +704,26 @@
 .executive-ols-whatsapp-empty.is-thread {
   place-items: center;
   text-align: center;
+}
+
+.executive-ols-whatsapp-start {
+  width: min(100%, 640px);
+  display: grid;
+  gap: 1rem;
+  text-align: left;
+}
+
+.executive-ols-whatsapp-start h3 {
+  margin: 0;
+  font-family: var(--landing-font-display);
+  color: #281f18;
+  font-size: clamp(1.8rem, 2.2vw, 2.35rem);
+}
+
+.executive-ols-whatsapp-start-copy {
+  margin: 0.5rem 0 0;
+  color: #6d5c4d;
+  line-height: 1.6;
 }
 
 .executive-ols-list-row {

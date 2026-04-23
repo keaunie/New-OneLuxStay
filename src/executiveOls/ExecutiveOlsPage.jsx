@@ -48,6 +48,15 @@ const WHATSAPP_TEST_PROMPTS = [
   "Check my booking status. My reservation code is GY-aeDHKynZ",
 ];
 
+const sanitizePhoneInput = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const hasPlus = raw.startsWith("+");
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  return `${hasPlus ? "+" : ""}${digits}`;
+};
+
 const formatCurrency = (value, currency = "USD") => {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "$0";
@@ -193,6 +202,9 @@ function ExecutiveOlsPage() {
   const [whatsappThreads, setWhatsappThreads] = useState([]);
   const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
   const [whatsappReplyDraft, setWhatsappReplyDraft] = useState("");
+  const [newWhatsAppPhone, setNewWhatsAppPhone] = useState("");
+  const [newWhatsAppMessage, setNewWhatsAppMessage] = useState("");
+  const [sendingNewWhatsApp, setSendingNewWhatsApp] = useState(false);
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappNotice, setWhatsappNotice] = useState("");
   const [messages, setMessages] = useState(() => [
@@ -468,6 +480,69 @@ function ExecutiveOlsPage() {
     }
   };
 
+  const handleStartWhatsAppConversation = async (event) => {
+    event.preventDefault();
+    if (!session?.accessToken) return;
+
+    const phoneNumber = sanitizePhoneInput(newWhatsAppPhone);
+    const message = String(newWhatsAppMessage || "").trim();
+    if (!phoneNumber || !message) return;
+
+    setSendingNewWhatsApp(true);
+    setWhatsappError("");
+    setWhatsappNotice("");
+
+    try {
+      const response = await fetch(`${apiBase}/send-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getExecutiveOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          message,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearExecutiveOlsSession();
+          setSession(null);
+          return;
+        }
+        throw new Error(payload?.error || "Unable to start WhatsApp conversation.");
+      }
+
+      const inboxResponse = await fetch(`${apiBase}/admins-ols`, {
+        method: "GET",
+        headers: {
+          ...getExecutiveOlsAuthHeaders(session),
+        },
+      });
+      const inboxPayload = await inboxResponse.json().catch(() => ({}));
+      if (!inboxResponse.ok) {
+        throw new Error(inboxPayload?.error || "Unable to refresh WhatsApp inbox.");
+      }
+
+      const nextThreads = Array.isArray(inboxPayload?.recentConversations)
+        ? inboxPayload.recentConversations.filter(isWhatsAppConversation)
+        : [];
+      setWhatsappThreads(nextThreads);
+      if (payload?.session_id) {
+        setSelectedWhatsAppSessionId(String(payload.session_id));
+      }
+      setNewWhatsAppPhone("");
+      setNewWhatsAppMessage("");
+      setWhatsappNotice("WhatsApp message sent and conversation started.");
+    } catch (requestError) {
+      setWhatsappError(String(requestError?.message || "Unable to start WhatsApp conversation."));
+    } finally {
+      setSendingNewWhatsApp(false);
+    }
+  };
+
   const stats = snapshot?.stats || {};
   const propertyOptions = Array.isArray(snapshot?.propertyOptions) ? snapshot.propertyOptions : [];
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
@@ -710,14 +785,14 @@ function ExecutiveOlsPage() {
                         {!loadingWhatsApp && !whatsappThreads.length && (
                           <div className="executive-ols-whatsapp-empty">
                             <p className="executive-ols-empty">No WhatsApp conversations yet.</p>
-                            <small>Once the sender webhook is live, new guest messages will appear here automatically.</small>
+                            <small>Send the first WhatsApp message from here, or wait for a guest to message your Twilio sender.</small>
                             <div className="executive-ols-prompt-list">
                               {WHATSAPP_TEST_PROMPTS.map((prompt) => (
                                 <button
                                   key={prompt}
                                   type="button"
                                   className="executive-ols-prompt"
-                                  onClick={() => handleSubmit(prompt)}
+                                  onClick={() => setNewWhatsAppMessage(prompt)}
                                 >
                                   {prompt}
                                 </button>
@@ -785,7 +860,52 @@ function ExecutiveOlsPage() {
                           </>
                         ) : (
                           <div className="executive-ols-whatsapp-empty is-thread">
-                            <p className="executive-ols-empty">Select a WhatsApp conversation to read and reply.</p>
+                            <div className="executive-ols-whatsapp-start">
+                              <div>
+                                <p className="executive-ols-eyebrow">Start conversation</p>
+                                <h3>Send the first WhatsApp message</h3>
+                                <p className="executive-ols-whatsapp-start-copy">
+                                  Use a real guest phone number in E.164 format like `+15551234567`.
+                                </p>
+                              </div>
+
+                              <form className="executive-ols-composer" onSubmit={handleStartWhatsAppConversation}>
+                                <label className="executive-ols-field">
+                                  <span>Guest phone number</span>
+                                  <input
+                                    type="tel"
+                                    value={newWhatsAppPhone}
+                                    onChange={(event) => setNewWhatsAppPhone(event.target.value)}
+                                    placeholder="+15551234567"
+                                    disabled={sendingNewWhatsApp}
+                                  />
+                                </label>
+                                <textarea
+                                  value={newWhatsAppMessage}
+                                  onChange={(event) => setNewWhatsAppMessage(event.target.value)}
+                                  rows={4}
+                                  placeholder="Write the first WhatsApp message..."
+                                  disabled={sendingNewWhatsApp}
+                                />
+                                <div className="executive-ols-composer-actions">
+                                  <button
+                                    type="button"
+                                    className="executive-ols-ghost-btn"
+                                    onClick={() => setNewWhatsAppMessage("Hi, this is Lucy from OneLuxStay. How can I help today?")}
+                                    disabled={sendingNewWhatsApp}
+                                  >
+                                    Use welcome message
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    className="executive-ols-primary-btn"
+                                    disabled={sendingNewWhatsApp || !newWhatsAppPhone.trim() || !newWhatsAppMessage.trim()}
+                                  >
+                                    {sendingNewWhatsApp ? "Sending..." : "Start WhatsApp chat"}
+                                  </button>
+                                </div>
+                              </form>
+                            </div>
                           </div>
                         )}
                       </div>
