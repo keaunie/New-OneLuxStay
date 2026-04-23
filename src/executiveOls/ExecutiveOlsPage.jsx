@@ -38,6 +38,8 @@ const WHATSAPP_TEST_PROMPTS = [
   "Check my booking status. My reservation code is GY-aeDHKynZ",
 ];
 
+const EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY = "ols-executive-voice-call-number";
+
 const sanitizePhoneInput = (value = "") => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -101,9 +103,21 @@ const getWhatsAppPhoneLabel = (thread = {}) => {
   return `+${digits}`;
 };
 
+const getWhatsAppPhoneE164 = (thread = {}) => {
+  const sessionId = String(thread?.sessionId || "").trim();
+  if (!sessionId.toLowerCase().startsWith("whatsapp:")) return "";
+  const digits = sessionId.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  return digits ? `+${digits}` : "";
+};
+
 const getConversationLatestMessage = (thread = {}) => {
   const threadMessages = Array.isArray(thread?.messages) ? thread.messages : [];
   return threadMessages[threadMessages.length - 1] || null;
+};
+
+const getConversationLatestGuestMessage = (thread = {}) => {
+  const threadMessages = Array.isArray(thread?.messages) ? [...thread.messages] : [];
+  return threadMessages.reverse().find((message) => getConversationMessageSenderType(message) === "guest") || null;
 };
 
 const getConversationTitle = (thread = {}) => {
@@ -120,6 +134,63 @@ const getConversationPreview = (thread = {}) => {
   const latestMessage = getConversationLatestMessage(thread);
   const content = String(latestMessage?.content || "").trim();
   return content.length > 140 ? `${content.slice(0, 137)}...` : content || "No message content captured yet.";
+};
+
+const polishReplyDraft = (value = "") => {
+  const normalized = String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+
+  if (!normalized) return "";
+
+  return normalized
+    .split("\n")
+    .map((line) => {
+      const compact = line.replace(/\s+([,!.?])/g, "$1");
+      const withCapital = compact.charAt(0).toUpperCase() + compact.slice(1);
+      return /[.!?]$/.test(withCapital) ? withCapital : `${withCapital}.`;
+    })
+    .join("\n");
+};
+
+const getReplyAssistSummary = (thread = {}, draft = "") => {
+  const guestMessage = getConversationLatestGuestMessage(thread);
+  const guestText = String(guestMessage?.content || "").trim();
+  const polishedDraft = polishReplyDraft(draft);
+  const lowerGuestText = guestText.toLowerCase();
+
+  let guidance = "Answer clearly, confirm the main request, and end with one helpful next step.";
+  if (/\b(available|availability|dates|tomorrow|today|monday|check[- ]?in|check[- ]?out)\b/.test(lowerGuestText)) {
+    guidance = "Confirm the exact dates and guest count, then answer availability in a simple and direct way.";
+  } else if (/\b(price|pricing|rate|cost)\b/.test(lowerGuestText)) {
+    guidance = "Acknowledge the request, then share the rate or ask for the missing stay details needed to quote it.";
+  } else if (/\b(status|reservation|booking code|confirmation)\b/.test(lowerGuestText)) {
+    guidance = "Confirm the booking reference or reservation details before giving a status update.";
+  } else if (/\b(problem|issue|complaint|bad|broken|late|dirty)\b/.test(lowerGuestText)) {
+    guidance = "Lead with empathy, apologize briefly, and offer the next action you will take right away.";
+  }
+
+  return {
+    guestSummary: guestText || "No recent guest message selected.",
+    guidance,
+    polishedDraft,
+    hasPolishChanges: polishedDraft && polishedDraft !== String(draft || "").trim(),
+  };
+};
+
+const loadStoredExecutivePhoneNumber = () => {
+  if (typeof window === "undefined") return "";
+  try {
+    return sanitizePhoneInput(window.localStorage?.getItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY) || "");
+  } catch {
+    return "";
+  }
 };
 
 const ExecutiveIcon = ({ name = "chat", className = "" }) => {
@@ -313,10 +384,12 @@ function ExecutiveOlsPage() {
   const [draft, setDraft] = useState("");
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
+  const [startingVoiceCall, setStartingVoiceCall] = useState(false);
   const [whatsappThreads, setWhatsappThreads] = useState([]);
   const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
   const [whatsappSearchQuery, setWhatsappSearchQuery] = useState("");
   const [whatsappReplyDrafts, setWhatsappReplyDrafts] = useState({});
+  const [voiceCallNumber, setVoiceCallNumber] = useState(() => loadStoredExecutivePhoneNumber());
   const [newWhatsAppPhone, setNewWhatsAppPhone] = useState("");
   const [newWhatsAppMessage, setNewWhatsAppMessage] = useState("");
   const [sendingNewWhatsApp, setSendingNewWhatsApp] = useState(false);
@@ -352,6 +425,20 @@ function ExecutiveOlsPage() {
       robotsMeta.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const normalized = sanitizePhoneInput(voiceCallNumber);
+      if (normalized) {
+        window.localStorage?.setItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY, normalized);
+      } else {
+        window.localStorage?.removeItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY);
+      }
+    } catch {
+      // Ignore storage failures for the callback number helper.
+    }
+  }, [voiceCallNumber]);
 
   useEffect(() => {
     let active = true;
@@ -820,6 +907,54 @@ function ExecutiveOlsPage() {
     }
   };
 
+  const handleStartVoiceCall = async () => {
+    if (!session?.accessToken || !selectedWhatsAppThread) return;
+
+    const agentPhoneNumber = sanitizePhoneInput(voiceCallNumber);
+    if (!agentPhoneNumber) {
+      setWhatsappError("Add your callback phone number before starting a call.");
+      setWhatsappNotice("");
+      return;
+    }
+
+    setStartingVoiceCall(true);
+    setWhatsappError("");
+    setWhatsappNotice("");
+
+    try {
+      const response = await fetch(`${apiBase}/admins-ols`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getExecutiveOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({
+          action: "start_voice_call",
+          sessionId: selectedWhatsAppThread.sessionId,
+          agentPhoneNumber,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearExecutiveOlsSession();
+          setSession(null);
+          return;
+        }
+        throw new Error(payload?.error || "Unable to start the voice call.");
+      }
+
+      setWhatsappNotice(
+        `Twilio is calling ${agentPhoneNumber} now. Once you answer, it will connect you to ${getConversationTitle(selectedWhatsAppThread)}.`,
+      );
+    } catch (requestError) {
+      setWhatsappError(String(requestError?.message || "Unable to start the voice call."));
+    } finally {
+      setStartingVoiceCall(false);
+    }
+  };
+
   const stats = snapshot?.stats || {};
   const propertyOptions = Array.isArray(snapshot?.propertyOptions) ? snapshot.propertyOptions : [];
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
@@ -846,6 +981,8 @@ function ExecutiveOlsPage() {
   const whatsappReplyDraft = selectedWhatsAppSessionId
     ? String(whatsappReplyDrafts?.[selectedWhatsAppSessionId] || "")
     : "";
+  const replyAssist = getReplyAssistSummary(selectedWhatsAppThread, whatsappReplyDraft);
+  const selectedGuestPhoneNumber = getWhatsAppPhoneE164(selectedWhatsAppThread);
   const selectedPropertyLabel = propertyId
     ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
     : "All properties";
@@ -1253,6 +1390,35 @@ function ExecutiveOlsPage() {
                               </span>
                             </div>
 
+                            <div className="executive-ols-whatsapp-callbar">
+                              <label className="executive-ols-whatsapp-call-input">
+                                <span>Call me on</span>
+                                <input
+                                  type="tel"
+                                  value={voiceCallNumber}
+                                  onChange={(event) => setVoiceCallNumber(sanitizePhoneInput(event.target.value))}
+                                  placeholder="+15551234567"
+                                />
+                              </label>
+                              <div className="executive-ols-whatsapp-call-actions">
+                                {selectedGuestPhoneNumber && (
+                                  <a className="executive-ols-ghost-btn executive-ols-whatsapp-call-link" href={`tel:${selectedGuestPhoneNumber}`}>
+                                    <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
+                                    Open dialer
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  className="executive-ols-primary-btn"
+                                  onClick={handleStartVoiceCall}
+                                  disabled={startingVoiceCall || !selectedGuestPhoneNumber || !voiceCallNumber.trim()}
+                                >
+                                  <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
+                                  {startingVoiceCall ? "Calling..." : "Call guest"}
+                                </button>
+                              </div>
+                            </div>
+
                             <div className="executive-ols-whatsapp-thread" aria-live="polite">
                               {(Array.isArray(selectedWhatsAppThread.messages) ? selectedWhatsAppThread.messages : []).map((message) => {
                                 const senderType = getConversationMessageSenderType(message);
@@ -1287,6 +1453,38 @@ function ExecutiveOlsPage() {
                             </div>
 
                             <form className="executive-ols-composer executive-ols-whatsapp-compose-shell" onSubmit={handleSendWhatsAppReply}>
+                              <div className="executive-ols-whatsapp-assist">
+                                <div className="executive-ols-whatsapp-assist-head">
+                                  <span className="executive-ols-whatsapp-meta-pill">
+                                    <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
+                                    Reply assist
+                                  </span>
+                                  {replyAssist.hasPolishChanges && (
+                                    <button
+                                      type="button"
+                                      className="executive-ols-ghost-btn"
+                                      onClick={() => updateWhatsAppDraft(selectedWhatsAppSessionId, replyAssist.polishedDraft)}
+                                      disabled={sendingWhatsAppReply}
+                                    >
+                                      Use polished reply
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="executive-ols-whatsapp-assist-grid">
+                                  <article className="executive-ols-whatsapp-assist-card">
+                                    <span>Guest said</span>
+                                    <p>{replyAssist.guestSummary}</p>
+                                  </article>
+                                  <article className="executive-ols-whatsapp-assist-card">
+                                    <span>Suggested direction</span>
+                                    <p>{replyAssist.guidance}</p>
+                                  </article>
+                                  <article className="executive-ols-whatsapp-assist-card is-preview">
+                                    <span>Polished preview</span>
+                                    <p>{replyAssist.polishedDraft || "Start typing and I’ll show a cleaner, more polished version here."}</p>
+                                  </article>
+                                </div>
+                              </div>
                               <div className="executive-ols-whatsapp-compose-head">
                                 <div>
                                   <span className="executive-ols-whatsapp-meta-pill">
