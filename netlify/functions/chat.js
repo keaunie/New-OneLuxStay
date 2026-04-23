@@ -75,7 +75,7 @@ You are Lucy, the AI concierge for One Lux Stay, a modern aparthotel hospitality
 Supported city pages on this website include ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}, plus a global listings view.
 
 Main goals:
-1) Help guests book their stay.
+1) Answer whatever the guest actually asked — booking help, travel tips, time zones, or general questions.
 2) Provide clear and accurate information.
 3) Deliver a smooth, friendly guest experience.
 
@@ -90,10 +90,17 @@ Tone and style:
 - Keep continuity with prior turns; if the user sends a short follow-up (for example "yes please"), continue the current task using earlier context.
 - Infer the guest's emotional tone each turn and adjust the reply calmly, especially for frustrated, anxious, or urgent guests.
 
-Booking assistance rules:
+Travel and local area guidance:
+- If a guest asks about tourist spots, attractions, sightseeing, things to do, or places to visit in a city, answer their question directly using your general knowledge — do NOT redirect them to booking.
+- For cities One Lux Stay serves (Antwerp, Los Angeles, Miami, Redondo Beach, Dubai), share 4-6 real popular attractions or neighborhoods concisely. Only mention a stay option naturally at the end if it fits.
+- If a guest says they are not interested in booking right now, respect that completely and just answer what they asked.
+- You may answer questions about current time, time zones, or local time in any city or country using your general knowledge.
+- Never refuse a reasonable general question by saying it is outside your scope — do your best to help first.
+
+Booking assistance rules (only when the guest shows booking intent):
 - If a guest asks about availability, price, or rooms for a stay, ask for check-in and check-out dates plus guest count.
 - After dates are provided, guide them toward the official secure booking flow/page.
-- Always encourage the next booking step when intent is present.
+- Only push the next booking step when the guest has expressed booking intent — do not redirect non-booking questions to booking.
 - Do not ask long, stressful, multi-part follow-up questions if simple options would work.
 - Prefer offering 2-5 easy choices the guest can pick from, such as Studio, 1 bedroom, 2 bedroom, no preference, or suggested date options.
 - If you already have enough information to check options, move forward instead of asking for extra preferences.
@@ -110,9 +117,8 @@ Security rules:
 - If payment info is shared, instruct the guest to use the secure booking page and avoid sharing sensitive details in chat.
 
 Accuracy and escalation:
-- Do not guess.
-- Use only provided context and retrieved knowledge.
-- If uncertain or outside scope, offer to connect the guest with support.
+- Never copy-paste background knowledge text word-for-word into your reply — always rephrase naturally.
+- If uncertain about a specific property detail, say so and offer to connect the guest with support.
 - Write like a real concierge speaking to a guest, not like scripted customer support copy.
 `;
 
@@ -376,11 +382,23 @@ const inferGuestSentimentLabel = (value = "") => {
   return "neutral";
 };
 
+const isValidAcknowledgementSentence = (sentence = "") => {
+  const s = String(sentence || "").trim().toLowerCase();
+  if (!s) return false;
+  // Reject sentences that are really policy/pricing/booking statements — these should never
+  // be injected as acknowledgements in front of unrelated replies.
+  if (/\b(rates?|pricing|price|available pricing|booking flow|book(ing)?|checkout|reservation|guests? typically|choose a city|city page)\b/.test(s)) return false;
+  // Must be a short conversational acknowledgement (under 100 chars), not a long content sentence
+  if (s.length > 100) return false;
+  return true;
+};
+
 const extractReplyLeadSentence = (value = "") => {
   const text = sanitizeString(value, 220);
   if (!text) return "";
   const match = text.match(/^[^.!?]+[.!?]?/);
-  return sanitizeString(match?.[0] || text, 160);
+  const sentence = sanitizeString(match?.[0] || text, 160);
+  return isValidAcknowledgementSentence(sentence) ? sentence : "";
 };
 
 const defaultAcknowledgementBySentimentByLocale = {
@@ -586,7 +604,22 @@ const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
   if (hasDateRange && /\b(book|booking|reserve|reservation|stay)\b/i.test(source)) {
     return true;
   }
+  // Catch natural booking phrases: "antwerp for tomorrow until monday", "book dubai next week"
+  if (/\b(for|from|until|till|through|to|arriving|leaving|starting|ending)\b/i.test(source) &&
+      /\b(tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this week|weekend)\b/i.test(source)) {
+    return true;
+  }
   return false;
+};
+
+// Returns true when the message is ONLY a city name — signals start of booking conversation
+const isCityOnlyMessage = (text = "", supportedCities = []) => {
+  const cleaned = String(text || "").trim().toLowerCase().replace(/[!?.,"']+$/, "");
+  if (!cleaned || cleaned.length > 40) return false;
+  return supportedCities.some((city) => {
+    const c = String(city || "").toLowerCase();
+    return cleaned === c || cleaned === `i said ${c}` || cleaned === `in ${c}` || cleaned === `${c} please`;
+  });
 };
 
 const isCheckInOutTimeQuestion = (text = "") => {
@@ -895,6 +928,22 @@ const extractDatesFromText = (text = "") => {
     const offset = token === "day after tomorrow" ? 2 : token === "tomorrow" ? 1 : 0;
     const value = toIsoFromLocalDate(addDays(now, offset));
     push(value, relativeMatch.index, 2);
+  }
+
+  // Day-of-week names → next occurrence of that day (e.g. "monday", "next friday")
+  const DOW_MAP = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  const dowRegex = /\b(?:next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi;
+  let dowMatch;
+  while ((dowMatch = dowRegex.exec(source)) !== null) {
+    const dayName = String(dowMatch[1] || "").toLowerCase();
+    const targetDow = DOW_MAP[dayName];
+    if (targetDow === undefined) continue;
+    const todayDow = now.getDay();
+    let daysAhead = targetDow - todayDow;
+    // Always pick the NEXT occurrence (never today itself, unless "next X" forces +7)
+    if (daysAhead <= 0 || /\bnext\s/i.test(dowMatch[0])) daysAhead += 7;
+    const value = toIsoFromLocalDate(addDays(now, daysAhead));
+    push(value, dowMatch.index, 3);
   }
 
   const monthDayRegex = new RegExp(`\\b${MONTH_NAME_PATTERN}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\b`, "gi");
@@ -1669,7 +1718,7 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       : "You can book by choosing a city or listing, selecting your dates and guest count, reviewing the stay details, and continuing through checkout on the site. If you are still deciding, I can help narrow down which city page to start from.";
   }
 
-  if (/\b(property|properties|stay|stays|listing|choose|recommend|best)\b/.test(prompt)) {
+  if (/\b(property|properties|stay|stays|listing|choose)\b/.test(prompt)) {
     if (onListingPage) {
       return `You are already on a listing page${pageContext.listingId ? ` for listing ${pageContext.listingId}` : ""}. A good next step is to review the listing details, dates, and guest count, then continue through the booking flow if it looks like a fit.`;
     }
@@ -1682,7 +1731,15 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       return `Great choice on ${effectiveCity}. Share your check-in and check-out dates plus guest count, and I can guide you to the best next booking step.`;
     }
 
-    return "A good place to start is by choosing a city first: Antwerp, Los Angeles, Miami, Redondo Beach, or Dubai. Once you know the destination, I can help point you toward the right page and booking flow.";
+    return `One Lux Stay has properties in ${citiesText}. Let me know which city interests you and I can guide you from there.`;
+  }
+
+  // For recommendation/travel questions, give a helpful travel-focused fallback
+  if (/\b(recommend|best|what to do|things to do|visit|tourist|sightseeing|attractions?|places?)\b/.test(prompt)) {
+    if (effectiveCity) {
+      return `Happy to help with ${effectiveCity}! If you're looking for travel tips or things to do there, ask away. If you'd like to stay in ${effectiveCity}, I can help with that too.`;
+    }
+    return `Happy to help! If you're looking for travel tips or things to do in a city, just let me know which one. One Lux Stay also has stays in ${citiesText} if you're planning a trip.`;
   }
 
   if (/\b(this page|current page|where am i|what page)\b/.test(prompt)) {
@@ -1717,9 +1774,9 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       currentCitySuffix ? `（現在は ${currentCitySuffix} を閲覧中です）` : ""
     }。都市の選び方、予約手順、または今見ているページの使い方など、お気軽にご質問ください。`;
   }
-  return `I can help with the basics right now. One Lux Stay currently features stays in ${citiesText}${
-    currentCitySuffix ? `, and you are currently browsing ${currentCitySuffix}` : ""
-  }. Ask me about cities, booking steps, or how to use the page you are on.`;
+  return `I'm Lucy, the One Lux Stay concierge. I can help with travel questions, availability, booking, or anything about our properties in ${citiesText}${
+    currentCitySuffix ? ` — including ${currentCitySuffix}` : ""
+  }. What can I help you with?`;
 };
 
 const buildSmallTalkReply = ({ languageProfile, supportedCities = [] } = {}) => {
@@ -1746,6 +1803,198 @@ const buildSmallTalkReply = ({ languageProfile, supportedCities = [] } = {}) => 
   }
 
   return `Hi. Thanks for asking, I'm doing well.\n\nHow can I help today? I can check availability (dates + guest count), booking status (reservation code), or help you choose a city (${citiesText}).`;
+};
+
+const CHAT_FLOW_VERSION = "intent-tools-gpt-smart-response-v1";
+
+const CHAT_INTENTS = Object.freeze({
+  greeting: "greeting",
+  booking_status: "booking_status",
+  availability: "availability",
+  listing_price: "listing_price",
+  checkin_checkout_time: "checkin_checkout_time",
+  current_time: "current_time",
+  policy: "policy",
+  unit_info: "unit_info",
+  destination_recommendation: "destination_recommendation",
+  general_gpt: "general_gpt",
+  fallback: "fallback",
+});
+
+const CHAT_TOOLS = Object.freeze({
+  conversation_opening: "conversation_opening",
+  reservation_lookup: "reservation_lookup",
+  availability_lookup: "availability_lookup",
+  monthly_availability_lookup: "monthly_availability_lookup",
+  listing_quote_lookup: "listing_quote_lookup",
+  checkin_checkout_policy: "checkin_checkout_policy",
+  current_time_lookup: "current_time_lookup",
+  policy_lookup: "policy_lookup",
+  listing_details_lookup: "listing_details_lookup",
+  destination_guide: "destination_guide",
+  collect_missing_fields: "collect_missing_fields",
+});
+
+const isCurrentTimeQuestion = (text = "") =>
+  /\b(what time( is it)?( right now)?|current time|time right now|what'?s the time|what time is (in|at|for)|time in |time (is it|now) in|what time now|time now)\b/i.test(String(text || ""));
+
+const isDestinationRecommendationQuestion = (text = "") =>
+  /\b(good place to visit|best place to visit|where should i visit|what should i visit|recommend (a )?(city|place|destination)|what'?s a good place|place to visit|tourist spots?|tourist attractions?|sightseeing|things to do|what to do in|places? to (see|visit)|must see|must visit|top attractions?|activities in|points? of interest|famous (places?|spots?|sites?)|local attractions?|what can i (do|see)|places? of interest|worth visiting|worth seeing)\b/i.test(
+    String(text || ""),
+  );
+
+const isTouristInfoQuery = (text = "") =>
+  /\b(tourist spots?|tourist attractions?|sightseeing|things to do|what to do in|places? to (see|visit)|must see|must visit|top attractions?|activities in|points? of interest|famous (places?|spots?|sites?)|local attractions?|what can i (do|see)|worth visiting|worth seeing)\b/i.test(
+    String(text || ""),
+  );
+
+const TIMEZONE_LOOKUP = {
+  philippines: { tz: "Asia/Manila", label: "Philippine time" },
+  manila: { tz: "Asia/Manila", label: "Philippine time" },
+  japan: { tz: "Asia/Tokyo", label: "Japan time" },
+  tokyo: { tz: "Asia/Tokyo", label: "Japan time" },
+  london: { tz: "Europe/London", label: "London time" },
+  uk: { tz: "Europe/London", label: "UK time" },
+  paris: { tz: "Europe/Paris", label: "Paris time" },
+  france: { tz: "Europe/Paris", label: "France time" },
+  germany: { tz: "Europe/Berlin", label: "Germany time" },
+  berlin: { tz: "Europe/Berlin", label: "Berlin time" },
+  dubai: { tz: "Asia/Dubai", label: "Dubai time" },
+  uae: { tz: "Asia/Dubai", label: "UAE time" },
+  singapore: { tz: "Asia/Singapore", label: "Singapore time" },
+  india: { tz: "Asia/Kolkata", label: "India time" },
+  mumbai: { tz: "Asia/Kolkata", label: "India time" },
+  delhi: { tz: "Asia/Kolkata", label: "India time" },
+  australia: { tz: "Australia/Sydney", label: "Sydney time" },
+  sydney: { tz: "Australia/Sydney", label: "Sydney time" },
+  "new york": { tz: "America/New_York", label: "Eastern time" },
+  "los angeles": { tz: "America/Los_Angeles", label: "Pacific time" },
+  miami: { tz: "America/New_York", label: "Eastern time" },
+  chicago: { tz: "America/Chicago", label: "Central time" },
+  antwerp: { tz: "Europe/Brussels", label: "Brussels time" },
+  belgium: { tz: "Europe/Brussels", label: "Brussels time" },
+};
+
+const detectTimezoneFromText = (text = "") => {
+  const lower = String(text || "").toLowerCase();
+  for (const [key, value] of Object.entries(TIMEZONE_LOOKUP)) {
+    if (lower.includes(key)) return value;
+  }
+  return null;
+};
+
+const buildCurrentTimeReply = ({ pageContext = {}, supportedCities = [], latestUserMessage = {} } = {}) => {
+  const messageText = String(latestUserMessage?.content || "");
+  const detectedTz = detectTimezoneFromText(messageText);
+
+  const city = normalizeCityLabel(pageContext?.city || "");
+  const pageTz = city === "Antwerp" ? { tz: "Europe/Brussels", label: "Brussels time" } : { tz: "America/New_York", label: "Eastern time" };
+  const { tz: timeZone, label: zoneLabel } = detectedTz || pageTz;
+
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+    timeZoneName: "short",
+  }).format(new Date());
+
+  const locationSuffix = detectedTz ? ` (${zoneLabel})` : city && city !== "Global" ? ` for ${city} (${zoneLabel})` : ` (${zoneLabel})`;
+  const supportedCitiesText = (Array.isArray(supportedCities) && supportedCities.length
+    ? supportedCities
+    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
+  ).join(", ");
+
+  return `Right now it is ${formatted}${locationSuffix}. If you want, I can also help with availability, booking status, or choosing between ${supportedCitiesText}.`;
+};
+
+const buildDestinationRecommendationReply = ({ latestUserMessage, conciergeKnowledge, supportedCities = [] } = {}) => {
+  const prompt = sanitizeString(latestUserMessage?.content || "", 400).toLowerCase();
+  const hasBelgiumSignal = /\b(belgium|belgian|antwerp|antwerpen)\b/.test(prompt);
+  const antwerp = (conciergeKnowledge?.cities || []).find((city) => normalizeCityLabel(city?.name) === "Antwerp");
+
+  if (hasBelgiumSignal && antwerp) {
+    return `If you're deciding on Belgium, Antwerp is our featured destination there. It's a strong fit for guests who want a stylish, walkable city stay with central access. If you want, I can also help compare Antwerp with ${supportedCities.filter((city) => normalizeCityLabel(city) !== "Antwerp").slice(0, 3).join(", ")}.`;
+  }
+
+  const citiesText = (Array.isArray(supportedCities) && supportedCities.length
+    ? supportedCities
+    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
+  ).join(", ");
+  return `I can help you narrow that down. Right now One Lux Stay features stays in ${citiesText}. Tell me the vibe you want most, like beach, walkable city, calm coastal, or upscale luxury, and I’ll point you to the best fit.`;
+};
+
+const detectPrimaryIntent = ({
+  greetingOnly = false,
+  asksBookingStatus = false,
+  asksCheckInOutTime = false,
+  asksCurrentTime = false,
+  isListingPriceQuestion = false,
+  asksAvailability = false,
+  asksPolicy = false,
+  asksUnitInfo = false,
+  asksDestinationRecommendation = false,
+} = {}) => {
+  if (greetingOnly) return CHAT_INTENTS.greeting;
+  if (asksBookingStatus) return CHAT_INTENTS.booking_status;
+  if (asksCheckInOutTime) return CHAT_INTENTS.checkin_checkout_time;
+  if (asksCurrentTime) return CHAT_INTENTS.current_time;
+  if (isListingPriceQuestion) return CHAT_INTENTS.listing_price;
+  if (asksAvailability) return CHAT_INTENTS.availability;
+  if (asksPolicy) return CHAT_INTENTS.policy;
+  if (asksUnitInfo) return CHAT_INTENTS.unit_info;
+  if (asksDestinationRecommendation) return CHAT_INTENTS.destination_recommendation;
+  return CHAT_INTENTS.general_gpt;
+};
+
+const buildSmartToolReply = async ({
+  apiKey = "",
+  model = "gpt-5-mini",
+  latestUserMessage,
+  languageProfile,
+  intent = "",
+  tool = "",
+  toolReply = "",
+} = {}) => {
+  const baseReply = sanitizeString(toolReply, 3000);
+  if (!apiKey || !baseReply) return baseReply;
+
+  try {
+    const response = await fetchWithTimeout(
+      OPENAI_API_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          reasoning: { effort: "low" },
+          text: { verbosity: "low" },
+          max_output_tokens: 500,
+          input: [
+            "Rewrite the tool result into a clear, warm, concise WhatsApp concierge reply.",
+            `Intent: ${sanitizeString(intent, 80) || "general"}`,
+            `Tool used: ${sanitizeString(tool, 80) || "none"}`,
+            `Guest message: ${sanitizeString(latestUserMessage?.content || latestUserMessage || "", 600)}`,
+            `Language instruction: ${buildLanguageReplyInstruction({ languageProfile, latestUserMessage })}`,
+            "Preserve all facts exactly. Do not add any new facts. Do not change reservation codes, URLs, listing names, dates in YYYY-MM-DD, times, currencies, or numbers.",
+            "If the tool result asks for missing information, keep the reply direct and action-oriented.",
+            "Return only the final guest-facing reply text.",
+            `Tool result:\n${baseReply}`,
+          ].join("\n"),
+        }),
+      },
+      15_000,
+    );
+
+    if (!response.ok) return baseReply;
+    const payload = await response.json().catch(() => ({}));
+    const polished = sanitizeString(extractOutputText(payload), 3000);
+    return polished || baseReply;
+  } catch {
+    return baseReply;
+  }
 };
 
 const localizeGuestVisibleContent = async ({
@@ -1872,6 +2121,56 @@ const respondWithGuestPayload = async ({
   );
 };
 
+const respondWithIntentPayload = async ({
+  event,
+  apiKey = "",
+  model = "gpt-5-mini",
+  latestUserMessage,
+  languageProfile,
+  intent = CHAT_INTENTS.general_gpt,
+  tool = "",
+  reply = "",
+  quickReplies = [],
+  notice = "",
+  cards,
+  mode,
+  translateReply = true,
+  smarten = false,
+  extra = {},
+} = {}) => {
+  const finalReply = smarten
+    ? await buildSmartToolReply({
+        apiKey,
+        model,
+        latestUserMessage,
+        languageProfile,
+        intent,
+        tool,
+        toolReply: reply,
+      })
+    : reply;
+
+  return respondWithGuestPayload({
+    event,
+    apiKey,
+    model,
+    latestUserMessage,
+    languageProfile,
+    reply: finalReply,
+    quickReplies,
+    notice,
+    cards,
+    mode,
+    translateReply,
+    extra: {
+      intent,
+      tool: tool || null,
+      responseFlow: CHAT_FLOW_VERSION,
+      ...extra,
+    },
+  });
+};
+
 const fallbackResponse = ({
   event,
   latestUserMessage,
@@ -1931,7 +2230,9 @@ const isGenericFallbackText = (value = "") => {
   return (
     normalized.includes("i can help with the basics right now") ||
     normalized.includes("ask me about cities booking steps") ||
-    normalized.includes("how to use the page you are on")
+    normalized.includes("how to use the page you are on") ||
+    normalized.includes("im lucy the one lux stay concierge") ||
+    normalized.includes("what can i help you with")
   );
 };
 
@@ -3982,10 +4283,19 @@ export async function handler(event) {
     );
     const followsUpWithLocationOnly =
       previousAssistantAskedCheckInOutLocation && Boolean(normalizedPromptCity);
+    const previousAssistantAnsweredCurrentTime =
+      /\bright now it is\b/i.test(String(previousAssistantMessage?.content || ""));
+    const followsUpWithTimeLocationOnly =
+      previousAssistantAnsweredCurrentTime &&
+      Boolean(normalizedPromptCity) &&
+      !promptDateRange &&
+      !monthRange;
     const asksPolicy = isPolicyQuestion(latestPromptForIntent);
     const asksUnitInfo = isUnitInfoQuestion(latestPromptForIntent);
     const asksPrice = isPriceQuestion(latestPromptForIntent);
     const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPromptForIntent) || followsUpWithLocationOnly;
+    const asksCurrentTime = isCurrentTimeQuestion(latestPromptForIntent) || followsUpWithTimeLocationOnly;
+    const asksDestinationRecommendation = isDestinationRecommendationQuestion(latestPromptForIntent);
     const latestIsAffirmativeFollowup = isAffirmativeFollowup(latestPromptForIntent);
     const previousAssistantOfferedAvailability =
       /\b(availability|available|check[- ]?in|check[- ]?out|dates?|month|book|booking|unit-page links?|city page link|would you like)\b/i.test(
@@ -4004,9 +4314,11 @@ export async function handler(event) {
       !/\b(availability|available|open units?|which units?|best options?|show me units?|what'?s available)\b/i.test(
         latestPromptForIntent,
       );
+    const cityOnlyMessage = isCityOnlyMessage(latestPromptForIntent, supportedCities);
     const hasDirectAvailabilityIntent =
       isAvailabilityQuestion(latestPromptForIntent, asksAvailabilityWindow) ||
-      (asksBookingLead && !isListingPriceQuestion);
+      (asksBookingLead && !isListingPriceQuestion) ||
+      cityOnlyMessage;
     const hasAvailabilityFollowupSignal =
       followUpAvailabilityIntent ||
       Boolean(promptDateRange) ||
@@ -4040,6 +4352,7 @@ export async function handler(event) {
       isGreeting &&
       !asksBookingStatus &&
       !asksAvailability &&
+      !asksCurrentTime &&
       !isListingPriceQuestion &&
       !asksPolicy &&
       !asksUnitInfo &&
@@ -4047,6 +4360,17 @@ export async function handler(event) {
       !Boolean(monthRange) &&
       !Boolean(reservationCode) &&
       sanitizeString(latestPrompt, 200).length <= 80;
+    const detectedIntent = detectPrimaryIntent({
+      greetingOnly,
+      asksBookingStatus,
+      asksCheckInOutTime,
+      asksCurrentTime,
+      isListingPriceQuestion,
+      asksAvailability,
+      asksPolicy,
+      asksUnitInfo,
+      asksDestinationRecommendation,
+    });
 
     if (greetingOnly) {
       const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
@@ -4063,18 +4387,21 @@ export async function handler(event) {
               { label: "Cities", message: "Which cities do you have?" },
             ]);
 
-      return respondWithGuestPayload({
+      return respondWithIntentPayload({
         event,
         apiKey,
         model,
         latestUserMessage,
         languageProfile,
+        intent: detectedIntent,
+        tool: CHAT_TOOLS.conversation_opening,
         reply: buildSmallTalkReply({ languageProfile, supportedCities }),
         quickReplies,
+        smarten: true,
       });
     }
 
-    if (asksBookingStatus) {
+    if (detectedIntent === CHAT_INTENTS.booking_status) {
       if (!reservationCode) {
         const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
         const bookingStatusPrompt =
@@ -4087,13 +4414,16 @@ export async function handler(event) {
                 : locale === "fr"
                   ? "Je peux verifier le statut de votre reservation. Envoyez votre code de reservation (ex: GY-aeDHKynZ)."
                   : "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).";
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(bookingStatusPrompt),
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
+          reply: bookingStatusPrompt,
+          smarten: true,
         });
       }
 
@@ -4133,38 +4463,41 @@ export async function handler(event) {
             }
           }
         }
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(
-            buildReservationStatusReply({
-              reservationCode,
-              reservation: reservationForReply,
-              supportedCities,
-            }),
-          ),
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.reservation_lookup,
+          reply: buildReservationStatusReply({
+            reservationCode,
+            reservation: reservationForReply,
+            supportedCities,
+          }),
+          smarten: true,
         });
       } catch (reservationError) {
         console.warn("Reservation lookup failed in chat flow", {
           message: reservationError?.message || String(reservationError),
         });
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.reservation_lookup,
+          reply:
             "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help.",
-          ),
+          smarten: true,
         });
       }
     }
 
-    if (asksCheckInOutTime && !dateRange && !monthRange) {
+    if (detectedIntent === CHAT_INTENTS.checkin_checkout_time && !dateRange && !monthRange) {
       const codeForTimeContext = reservationCode || conversationReservationCode || assistantReservationCode;
       let cityForTimeReply = normalizedPromptCity || assistantReservationCity;
 
@@ -4211,15 +4544,17 @@ export async function handler(event) {
 
       if (!cityForTimeReply) {
         if (guestAlreadyBooked || Boolean(codeForTimeContext)) {
-          return respondWithGuestPayload({
+          return respondWithIntentPayload({
             event,
             apiKey,
             model,
             latestUserMessage,
             languageProfile,
-            reply: buildDeterministicReply(
+            intent: detectedIntent,
+            tool: CHAT_TOOLS.checkin_checkout_policy,
+            reply:
               "For your booking, standard check-in is 3:00 PM and check-out is 11:00 AM. If you share your city, I can confirm the location in the same message as well.",
-            ),
+            smarten: true,
           });
         }
         const visibleCities = supportedCities.length
@@ -4230,52 +4565,95 @@ export async function handler(event) {
           .filter(Boolean)
           .slice(0, 5)
           .join(", ");
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
+          reply:
             guestAlreadyBooked
               ? `Sure, I can help with that. Which location is your booking in? (${cityOptions})`
               : `Sure, I can help with that. Which location are you planning to book first? (${cityOptions})`,
-          ),
           quickReplies: buildCityQuickReplies({
             supportedCities,
             prefix: guestAlreadyBooked ? "My booking is in" : "I want to book in",
           }),
+          smarten: true,
         });
       }
-      return respondWithGuestPayload({
+      return respondWithIntentPayload({
         event,
         apiKey,
         model,
         latestUserMessage,
         languageProfile,
-        reply: buildDeterministicReply(
+        intent: detectedIntent,
+        tool: CHAT_TOOLS.checkin_checkout_policy,
+        reply:
           guestAlreadyBooked
             ? `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you need help with your reservation details, I can help with that next.`
             : `For our units in ${cityForTimeReply}, check-in is 3:00 PM and check-out is 11:00 AM. If you want, I can also help you find available dates and guide you to booking.`,
-        ),
+        smarten: true,
       });
     }
 
-    if (isListingPriceQuestion && pageContext?.listingId) {
-      const conversationGuests =
-        userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) ?? null;
-      const guests = extractGuests(latestPrompt, conversationGuests ?? 1);
+    if (detectedIntent === CHAT_INTENTS.current_time) {
+      return respondWithIntentPayload({
+        event,
+        apiKey,
+        model,
+        latestUserMessage,
+        languageProfile,
+        intent: detectedIntent,
+        tool: CHAT_TOOLS.current_time_lookup,
+        reply: buildCurrentTimeReply({ pageContext, supportedCities, latestUserMessage }),
+        smarten: true,
+      });
+    }
 
-      if (!availabilityDateRange) {
-        return respondWithGuestPayload({
+    if (detectedIntent === CHAT_INTENTS.destination_recommendation) {
+      // Tourist info questions (e.g. "what are the tourist spots in Dubai?") should be answered
+      // by GPT using general knowledge rather than a static booking redirect.
+      if (!isTouristInfoQuery(latestPromptForIntent)) {
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.destination_guide,
+          reply: buildDestinationRecommendationReply({
+            latestUserMessage,
+            conciergeKnowledge,
+            supportedCities,
+          }),
+          smarten: true,
+        });
+      }
+      // Tourist info queries fall through to the general GPT handler below.
+    }
+
+    if (detectedIntent === CHAT_INTENTS.listing_price && pageContext?.listingId) {
+      const conversationGuests =
+        userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) ?? null;
+      const guests = extractGuests(latestPrompt, conversationGuests ?? 1);
+
+      if (!availabilityDateRange) {
+        return respondWithIntentPayload({
+          event,
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
+          reply:
             "I can check the live price for this listing. Please share your check-in and check-out dates plus guest count, and I'll tell you the current quoted rate.",
-          ),
+          smarten: true,
         });
       }
 
@@ -4300,13 +4678,16 @@ export async function handler(event) {
         });
 
         if (priceReply) {
-          return respondWithGuestPayload({
+          return respondWithIntentPayload({
             event,
             apiKey,
             model,
             latestUserMessage,
             languageProfile,
-            reply: buildDeterministicReply(priceReply),
+            intent: detectedIntent,
+            tool: CHAT_TOOLS.listing_quote_lookup,
+            reply: priceReply,
+            smarten: true,
           });
         }
       } catch (pricingError) {
@@ -4316,19 +4697,21 @@ export async function handler(event) {
         });
       }
 
-      return respondWithGuestPayload({
+      return respondWithIntentPayload({
         event,
         apiKey,
         model,
         latestUserMessage,
         languageProfile,
-        reply: buildDeterministicReply(
+        intent: detectedIntent,
+        tool: CHAT_TOOLS.listing_quote_lookup,
+        reply:
           "I couldn't confirm the live price for this listing right now. Please try again in a moment, or contact reservations@oneluxstay.com and we'll confirm the exact rate for your dates.",
-        ),
+        smarten: true,
       });
     }
 
-    if (asksAvailability) {
+    if (detectedIntent === CHAT_INTENTS.availability) {
       const conversationGuests =
         userMessagesNewestFirst.map((message) => parseGuestsFromText(message)).find((value) => value !== null) ?? null;
       const guests = extractGuests(latestPrompt, conversationGuests ?? 1);
@@ -4337,12 +4720,14 @@ export async function handler(event) {
       const bedroomPreference = extractBedroomPreferenceFromText(latestPrompt) || conversationBedroomPreference;
 
       if (!availabilityDateRange && !effectiveMonthRange) {
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
           reply: availabilityCityLabel
             ? `I'd be happy to help with that for ${availabilityCityLabel}. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.`
             : "I'd be happy to help with that. Please share your check-in and check-out dates plus guest count. Once I have that, I can guide you to the best available option on our secure booking page.",
@@ -4352,43 +4737,52 @@ export async function handler(event) {
                 supportedCities,
                 prefix: "Check availability in",
               }),
+          smarten: true,
         });
       }
 
       if (!availabilityCityLabel) {
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
           reply: "Sure - which city would you like to book in?",
           quickReplies: buildCityQuickReplies({
             supportedCities,
             prefix: "Check availability in",
           }),
+          smarten: true,
         });
       }
 
       if (!effectiveMonthRange && !dateRange && !conversationDateRange && !availabilityDateRange) {
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
           reply: `Sure - what dates are you looking at for ${availabilityCityLabel}?`,
           quickReplies: buildAvailabilityQuickReplies({ city: availabilityCityLabel }),
+          smarten: true,
         });
       }
 
       if (conversationGuests === null && parseGuestsFromText(latestPrompt) === null) {
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.collect_missing_fields,
           reply: `Perfect - ${availabilityCityLabel}, ${availabilityDateRange?.checkIn || effectiveMonthRange?.label}${availabilityDateRange?.checkOut ? ` to ${availabilityDateRange.checkOut}` : ""}. How many guests?`,
           quickReplies: buildGuestQuickReplies({
             city: availabilityCityLabel,
@@ -4396,6 +4790,7 @@ export async function handler(event) {
             checkOut: availabilityDateRange?.checkOut || "",
             bedroomPreference,
           }),
+          smarten: true,
         });
       }
 
@@ -4409,12 +4804,14 @@ export async function handler(event) {
             guests,
             maxLinks: 5,
           });
-          return respondWithGuestPayload({
+          return respondWithIntentPayload({
             event,
             apiKey,
             model,
             latestUserMessage,
             languageProfile,
+            intent: detectedIntent,
+            tool: CHAT_TOOLS.monthly_availability_lookup,
             reply: buildMonthAvailabilityReply({
               monthLabel: effectiveMonthRange.label,
               guests,
@@ -4430,19 +4827,23 @@ export async function handler(event) {
                 ? item.imageUrls.map((image) => sanitizeString(image, 900)).filter(Boolean).slice(0, 3)
                 : [],
             })),
+            smarten: true,
           });
         } catch (monthAvailabilityError) {
           console.warn("Monthly availability search failed in chat flow", {
             message: monthAvailabilityError?.message || String(monthAvailabilityError),
           });
-          return respondWithGuestPayload({
+          return respondWithIntentPayload({
             event,
             apiKey,
             model,
             latestUserMessage,
             languageProfile,
+            intent: detectedIntent,
+            tool: CHAT_TOOLS.monthly_availability_lookup,
             reply:
               "I had trouble checking month-wide availability right now. Please try again in a moment, or share exact check-in and check-out dates so I can retry with a direct date range.",
+            smarten: true,
           });
         }
       }
@@ -4458,12 +4859,14 @@ export async function handler(event) {
           bedroomPreference,
           maxLinks: 5,
         });
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.availability_lookup,
           reply: buildAvailabilityLinksReply({
             checkIn: availabilityDateRange.checkIn,
             checkOut: availabilityDateRange.checkOut,
@@ -4511,24 +4914,28 @@ export async function handler(event) {
                     message: `Check availability in ${availabilityCityLabel} from ${availabilityDateRange.checkIn} to ${availabilityDateRange.checkOut} for ${guests} guests and a 2 bedroom`,
                   },
                 ]),
+          smarten: true,
         });
       } catch (availabilityError) {
         console.warn("Availability search failed in chat flow", {
           message: availabilityError?.message || String(availabilityError),
         });
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.availability_lookup,
           reply:
             "I had trouble reaching live availability right now. Please try again in a moment. If this keeps happening, contact reservations@oneluxstay.com and we'll confirm dates manually.",
+          smarten: true,
         });
       }
     }
 
-    if (asksPolicy) {
+    if (detectedIntent === CHAT_INTENTS.policy) {
       let queryEmbedding = null;
       if (apiKey) {
         try {
@@ -4562,18 +4969,21 @@ export async function handler(event) {
         question: latestPrompt,
       });
       if (deterministicPolicyReply) {
-        return respondWithGuestPayload({
+        return respondWithIntentPayload({
           event,
           apiKey,
           model,
           latestUserMessage,
           languageProfile,
-          reply: buildDeterministicReply(deterministicPolicyReply),
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.policy_lookup,
+          reply: deterministicPolicyReply,
+          smarten: true,
         });
       }
     }
 
-    if (asksUnitInfo && pageContext?.listingId) {
+    if (detectedIntent === CHAT_INTENTS.unit_info && pageContext?.listingId) {
       try {
         const listing = await fetchListingForChat({
           event,
@@ -4595,13 +5005,16 @@ export async function handler(event) {
           houseRules,
         });
         if (unitReply) {
-          return respondWithGuestPayload({
+          return respondWithIntentPayload({
             event,
             apiKey,
             model,
             latestUserMessage,
             languageProfile,
-            reply: buildDeterministicReply(unitReply),
+            intent: detectedIntent,
+            tool: CHAT_TOOLS.listing_details_lookup,
+            reply: unitReply,
+            smarten: true,
           });
         }
       } catch (listingError) {
@@ -4763,5 +5176,3 @@ export const __olsLanguageDebug = {
   detectLanguageFromText,
   detectGuestLanguageProfile,
 };
-
-

@@ -43,6 +43,21 @@ from = "/api/webhook"
 to = "/.netlify/functions/api-webhook"
 status = 200
 
+[[redirects]]
+from = "/api/whatsapp"
+to = "/.netlify/functions/whatsapp-webhook"
+status = 200
+
+[[redirects]]
+from = "/api/send-message"
+to = "/.netlify/functions/send-message"
+status = 200
+
+[[redirects]]
+from = "/api/whatsapp-status"
+to = "/.netlify/functions/whatsapp-status"
+status = 200
+
 # SPA fallback - KEEP THIS
 [[redirects]]
 from = "/*"
