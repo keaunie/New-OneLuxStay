@@ -185,6 +185,53 @@ const ExecutiveIcon = ({ name = "chat", className = "" }) => {
     );
   }
 
+  if (name === "search") {
+    return (
+      <svg {...commonProps}>
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="m16 16 4.5 4.5" />
+      </svg>
+    );
+  }
+
+  if (name === "menu") {
+    return (
+      <svg {...commonProps}>
+        <path d="M5 7h14" />
+        <path d="M5 12h14" />
+        <path d="M5 17h14" />
+      </svg>
+    );
+  }
+
+  if (name === "attach") {
+    return (
+      <svg {...commonProps}>
+        <path d="m14.5 7.5-5.8 5.8a3 3 0 1 0 4.2 4.2l7.1-7.1a4.5 4.5 0 0 0-6.4-6.4l-7.4 7.4a6 6 0 0 0 8.5 8.5l5.1-5.1" />
+      </svg>
+    );
+  }
+
+  if (name === "smile") {
+    return (
+      <svg {...commonProps}>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M9 10h.01" />
+        <path d="M15 10h.01" />
+        <path d="M8.5 14.2c.9 1.2 2.1 1.8 3.5 1.8s2.6-.6 3.5-1.8" />
+      </svg>
+    );
+  }
+
+  if (name === "check-double") {
+    return (
+      <svg {...commonProps}>
+        <path d="m6.5 12.5 2.2 2.2 4.3-4.3" />
+        <path d="m11 12.5 2.2 2.2 4.3-4.3" />
+      </svg>
+    );
+  }
+
   return (
     <svg {...commonProps}>
       <path d="M7 18.5 3.5 21V6.8A2.8 2.8 0 0 1 6.3 4h11.4a2.8 2.8 0 0 1 2.8 2.8v8.4a2.8 2.8 0 0 1-2.8 2.8H7Z" />
@@ -268,6 +315,7 @@ function ExecutiveOlsPage() {
   const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
   const [whatsappThreads, setWhatsappThreads] = useState([]);
   const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
+  const [whatsappSearchQuery, setWhatsappSearchQuery] = useState("");
   const [whatsappReplyDrafts, setWhatsappReplyDrafts] = useState({});
   const [newWhatsAppPhone, setNewWhatsAppPhone] = useState("");
   const [newWhatsAppMessage, setNewWhatsAppMessage] = useState("");
@@ -778,6 +826,23 @@ function ExecutiveOlsPage() {
   const listings = Array.isArray(snapshot?.listings) ? snapshot.listings : [];
   const syncStatusTone = snapshot?.syncStatus?.ok ? "is-positive" : "is-negative";
   const selectedWhatsAppThread = whatsappThreads.find((thread) => thread?.sessionId === selectedWhatsAppSessionId) || null;
+  const normalizedWhatsappSearch = whatsappSearchQuery.trim().toLowerCase();
+  const filteredWhatsappThreads = normalizedWhatsappSearch
+    ? whatsappThreads.filter((thread) =>
+        [
+          getConversationTitle(thread),
+          getConversationPreview(thread),
+          getWhatsAppPhoneLabel(thread),
+          thread?.sessionId,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedWhatsappSearch),
+      )
+    : whatsappThreads;
+  const whatsappThreadCountLabel = normalizedWhatsappSearch
+    ? `${filteredWhatsappThreads.length} of ${whatsappThreads.length} chats`
+    : `${whatsappThreads.length} active chats`;
   const whatsappReplyDraft = selectedWhatsAppSessionId
     ? String(whatsappReplyDrafts?.[selectedWhatsAppSessionId] || "")
     : "";
@@ -1042,8 +1107,8 @@ function ExecutiveOlsPage() {
                             <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
                           </span>
                           <div>
-                            <h3>Live inbox</h3>
-                            <p>See incoming WhatsApp messages here and reply directly from the executive dashboard.</p>
+                            <h3>Inbox studio</h3>
+                            <p>A cleaner, faster messaging workspace for live WhatsApp conversations and polished guest replies.</p>
                           </div>
                         </div>
                       </div>
@@ -1057,12 +1122,23 @@ function ExecutiveOlsPage() {
                         <div className="executive-ols-whatsapp-panel-topbar">
                           <div>
                             <strong>Conversations</strong>
-                            <span>{whatsappThreads.length} active chats</span>
+                            <span>{whatsappThreadCountLabel}</span>
                           </div>
                           <span className="executive-ols-whatsapp-meta-pill">
                             <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
                             Live
                           </span>
+                        </div>
+                        <div className="executive-ols-whatsapp-panel-tools">
+                          <label className="executive-ols-whatsapp-search" aria-label="Search WhatsApp conversations">
+                            <ExecutiveIcon name="search" className="executive-ols-inline-icon" />
+                            <input
+                              type="search"
+                              value={whatsappSearchQuery}
+                              onChange={(event) => setWhatsappSearchQuery(event.target.value)}
+                              placeholder="Search guest, number, or message"
+                            />
+                          </label>
                         </div>
 
                         <div className="executive-ols-whatsapp-sessions" role="list" aria-label="WhatsApp conversations">
@@ -1071,7 +1147,7 @@ function ExecutiveOlsPage() {
                         )}
 
                         {!loadingWhatsApp &&
-                          whatsappThreads.map((thread) => (
+                          filteredWhatsappThreads.map((thread) => (
                             <button
                               key={thread.sessionId}
                               type="button"
@@ -1082,19 +1158,28 @@ function ExecutiveOlsPage() {
                                 <span>{getConversationAvatarLabel(thread)}</span>
                                 <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
                               </div>
-                              <div className="executive-ols-whatsapp-session-head">
-                                <div className="executive-ols-whatsapp-session-title">
-                                  <strong>{getConversationTitle(thread)}</strong>
-                                  <span className="executive-ols-whatsapp-meta-pill">
-                                    {thread.messageCount || 0} messages
-                                  </span>
+                              <div className="executive-ols-whatsapp-session-body">
+                                <div className="executive-ols-whatsapp-session-head">
+                                  <div className="executive-ols-whatsapp-session-title">
+                                    <strong>{getConversationTitle(thread)}</strong>
+                                    {thread.sessionId === selectedWhatsAppSessionId && (
+                                      <span className="executive-ols-whatsapp-session-status">Open</span>
+                                    )}
+                                  </div>
+                                  <small>
+                                    <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
+                                    {formatDateTime(thread.lastSeenAt)}
+                                  </small>
                                 </div>
-                                <small>
-                                  <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
-                                  {formatDateTime(thread.lastSeenAt)}
-                                </small>
+                                <div className="executive-ols-whatsapp-session-sub">
+                                  <span className="executive-ols-whatsapp-contact-pill">
+                                    <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
+                                    {getWhatsAppPhoneLabel(thread) || "WhatsApp guest"}
+                                  </span>
+                                  <span className="executive-ols-whatsapp-counter">{thread.messageCount || 0}</span>
+                                </div>
+                                <p>{getConversationPreview(thread)}</p>
                               </div>
-                              <p>{getConversationPreview(thread)}</p>
                             </button>
                           ))}
 
@@ -1116,6 +1201,13 @@ function ExecutiveOlsPage() {
                             </div>
                           </div>
                         )}
+
+                        {!loadingWhatsApp && !!whatsappThreads.length && !filteredWhatsappThreads.length && (
+                          <div className="executive-ols-whatsapp-empty">
+                            <p className="executive-ols-empty">No chats match that search.</p>
+                            <small>Try a guest phone number, session id, or a word from the latest message.</small>
+                          </div>
+                        )}
                         </div>
                       </div>
 
@@ -1133,50 +1225,94 @@ function ExecutiveOlsPage() {
                                   <h3>{getConversationTitle(selectedWhatsAppThread)}</h3>
                                 </div>
                               </div>
-                              <div className="executive-ols-hero-meta">
-                                <span className="executive-ols-whatsapp-meta-pill">
+                              <div className="executive-ols-whatsapp-thread-toolbar" aria-hidden="true">
+                                <span className="executive-ols-whatsapp-action-chip">
                                   <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
-                                  Twilio WhatsApp
                                 </span>
-                                <span className="executive-ols-whatsapp-meta-pill">
-                                  <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
-                                  {formatDateTime(selectedWhatsAppThread.lastSeenAt)}
+                                <span className="executive-ols-whatsapp-action-chip">
+                                  <ExecutiveIcon name="search" className="executive-ols-inline-icon" />
+                                </span>
+                                <span className="executive-ols-whatsapp-action-chip">
+                                  <ExecutiveIcon name="menu" className="executive-ols-inline-icon" />
                                 </span>
                               </div>
+                            </div>
+
+                            <div className="executive-ols-hero-meta executive-ols-whatsapp-thread-meta">
+                              <span className="executive-ols-whatsapp-meta-pill">
+                                <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
+                                {getWhatsAppPhoneLabel(selectedWhatsAppThread) || "WhatsApp guest"}
+                              </span>
+                              <span className="executive-ols-whatsapp-meta-pill">
+                                <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
+                                Twilio WhatsApp
+                              </span>
+                              <span className="executive-ols-whatsapp-meta-pill">
+                                <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
+                                {formatDateTime(selectedWhatsAppThread.lastSeenAt)}
+                              </span>
                             </div>
 
                             <div className="executive-ols-whatsapp-thread" aria-live="polite">
-                              {(Array.isArray(selectedWhatsAppThread.messages) ? selectedWhatsAppThread.messages : []).map((message) => (
-                                <article
-                                  key={`${selectedWhatsAppThread.sessionId}-${message.messageId}`}
-                                  className={`executive-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
-                                >
-                                  <div className="executive-ols-thread-bubble-meta">
-                                    <span className="executive-ols-thread-bubble-avatar">
-                                      {getConversationMessageAvatarLabel(message)}
-                                    </span>
-                                    <span className="executive-ols-message-role">{getConversationMessageLabel(message)}</span>
-                                  </div>
-                                  <p>{message.content || "No message content captured."}</p>
-                                  <small>{formatDateTime(message.createdAt)}</small>
-                                </article>
-                              ))}
+                              {(Array.isArray(selectedWhatsAppThread.messages) ? selectedWhatsAppThread.messages : []).map((message) => {
+                                const senderType = getConversationMessageSenderType(message);
+                                const isTeamMessage = senderType !== "guest";
+
+                                return (
+                                  <article
+                                    key={`${selectedWhatsAppThread.sessionId}-${message.messageId}`}
+                                    className={`executive-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
+                                  >
+                                    <div className="executive-ols-thread-bubble-meta">
+                                      <span className="executive-ols-thread-bubble-avatar">
+                                        {getConversationMessageAvatarLabel(message)}
+                                      </span>
+                                      <span className="executive-ols-message-role">{getConversationMessageLabel(message)}</span>
+                                    </div>
+                                    <div className="executive-ols-thread-bubble-body">
+                                      <p>{message.content || "No message content captured."}</p>
+                                    </div>
+                                    <div className="executive-ols-thread-bubble-foot">
+                                      <small>{formatDateTime(message.createdAt)}</small>
+                                      {isTeamMessage && (
+                                        <span className="executive-ols-thread-delivery">
+                                          <ExecutiveIcon name="check-double" className="executive-ols-inline-icon" />
+                                          Sent
+                                        </span>
+                                      )}
+                                    </div>
+                                  </article>
+                                );
+                              })}
                             </div>
 
-                            <form className="executive-ols-composer" onSubmit={handleSendWhatsAppReply}>
+                            <form className="executive-ols-composer executive-ols-whatsapp-compose-shell" onSubmit={handleSendWhatsAppReply}>
                               <div className="executive-ols-whatsapp-compose-head">
-                                <span className="executive-ols-whatsapp-meta-pill">
-                                  <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
-                                  Reply as OneLuxStay
-                                </span>
+                                <div>
+                                  <span className="executive-ols-whatsapp-meta-pill">
+                                    <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
+                                    Reply as OneLuxStay
+                                  </span>
+                                  <p className="executive-ols-whatsapp-compose-copy">Keep it warm, crisp, and easy for the guest to act on.</p>
+                                </div>
+                                <div className="executive-ols-whatsapp-compose-tools" aria-hidden="true">
+                                  <span className="executive-ols-whatsapp-action-chip">
+                                    <ExecutiveIcon name="smile" className="executive-ols-inline-icon" />
+                                  </span>
+                                  <span className="executive-ols-whatsapp-action-chip">
+                                    <ExecutiveIcon name="attach" className="executive-ols-inline-icon" />
+                                  </span>
+                                </div>
                               </div>
-                              <textarea
-                                value={whatsappReplyDraft}
-                                onChange={(event) => updateWhatsAppDraft(selectedWhatsAppSessionId, event.target.value)}
-                                rows={4}
-                                placeholder="Reply to this WhatsApp guest as the OneLuxStay team..."
-                                disabled={sendingWhatsAppReply}
-                              />
+                              <div className="executive-ols-whatsapp-compose-input">
+                                <textarea
+                                  value={whatsappReplyDraft}
+                                  onChange={(event) => updateWhatsAppDraft(selectedWhatsAppSessionId, event.target.value)}
+                                  rows={4}
+                                  placeholder="Reply to this WhatsApp guest as the OneLuxStay team..."
+                                  disabled={sendingWhatsAppReply}
+                                />
+                              </div>
                               <div className="executive-ols-composer-actions">
                                 <button
                                   type="button"
@@ -1209,7 +1345,7 @@ function ExecutiveOlsPage() {
                                 </p>
                               </div>
 
-                              <form className="executive-ols-composer" onSubmit={handleStartWhatsAppConversation}>
+                              <form className="executive-ols-composer executive-ols-whatsapp-compose-shell" onSubmit={handleStartWhatsAppConversation}>
                                 <label className="executive-ols-field">
                                   <span>Guest phone number</span>
                                   <input
