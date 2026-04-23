@@ -175,6 +175,26 @@ Then regenerate the feed:
 
 - `npm run google:vr:debug -- --live --out=google-vr-hotel-list.xml`
 
+### Syncing Guesty → Supabase (recommended)
+
+If your `properties.id` values are **not** Guesty listing IDs, you can still sync Guesty data into Supabase by storing the Guesty listing ID alongside each property, then syncing calendar pricing.
+
+1) Add `properties.guesty_listing_id`:
+
+- Apply: `supabase/migrations/20260423102000_add_properties_guesty_listing_id.sql`
+
+2) Map Guesty listings to Supabase properties (uses lat/lng when available, falls back to address match):
+
+- Dry-run: `npm run supabase:map:guesty-listings`
+- Apply: `npm run supabase:map:guesty-listings -- --apply`
+
+3) Sync nightly prices from Guesty calendar into `property_nightly_prices`:
+
+- Dry-run: `npm run supabase:sync:property-nightly-prices`
+- Apply: `npm run supabase:sync:property-nightly-prices -- --apply --days=90`
+
+Once populated, the Google ARI endpoints will emit rate + availability messages from `property_nightly_prices`.
+
 ## Google ARI (Pricing + Availability)
 
 To show pricing in Google Hotel Center / Google Vacation Rentals, you generally need:
