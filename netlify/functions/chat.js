@@ -4283,11 +4283,18 @@ export async function handler(event) {
     );
     const followsUpWithLocationOnly =
       previousAssistantAskedCheckInOutLocation && Boolean(normalizedPromptCity);
+    const previousAssistantAnsweredCurrentTime =
+      /\bright now it is\b/i.test(String(previousAssistantMessage?.content || ""));
+    const followsUpWithTimeLocationOnly =
+      previousAssistantAnsweredCurrentTime &&
+      Boolean(normalizedPromptCity) &&
+      !promptDateRange &&
+      !monthRange;
     const asksPolicy = isPolicyQuestion(latestPromptForIntent);
     const asksUnitInfo = isUnitInfoQuestion(latestPromptForIntent);
     const asksPrice = isPriceQuestion(latestPromptForIntent);
     const asksCheckInOutTime = isCheckInOutTimeQuestion(latestPromptForIntent) || followsUpWithLocationOnly;
-    const asksCurrentTime = isCurrentTimeQuestion(latestPromptForIntent);
+    const asksCurrentTime = isCurrentTimeQuestion(latestPromptForIntent) || followsUpWithTimeLocationOnly;
     const asksDestinationRecommendation = isDestinationRecommendationQuestion(latestPromptForIntent);
     const latestIsAffirmativeFollowup = isAffirmativeFollowup(latestPromptForIntent);
     const previousAssistantOfferedAvailability =
