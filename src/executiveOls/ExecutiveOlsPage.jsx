@@ -600,35 +600,35 @@ function ExecutiveOlsPage() {
           </aside>
 
           <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
-            <header className={`executive-ols-topbar${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
-              <div className="executive-ols-field">
-                <label htmlFor="executive-range">Time range</label>
-                <select id="executive-range" value={timeRange} onChange={(event) => setTimeRange(event.target.value)}>
-                  {TIME_RANGE_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {activeView !== "whatsapp" && (
+              <header className="executive-ols-topbar">
+                <div className="executive-ols-field">
+                  <label htmlFor="executive-range">Time range</label>
+                  <select id="executive-range" value={timeRange} onChange={(event) => setTimeRange(event.target.value)}>
+                    {TIME_RANGE_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="executive-ols-field">
-                <label htmlFor="executive-property">Property</label>
-                <select
-                  id="executive-property"
-                  value={propertyId}
-                  onChange={(event) => setPropertyId(event.target.value)}
-                >
-                  <option value="">All properties</option>
-                  {propertyOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div className="executive-ols-field">
+                  <label htmlFor="executive-property">Property</label>
+                  <select
+                    id="executive-property"
+                    value={propertyId}
+                    onChange={(event) => setPropertyId(event.target.value)}
+                  >
+                    <option value="">All properties</option>
+                    {propertyOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {activeView !== "whatsapp" && (
                 <div className="executive-ols-profile-chip">
                   <span className="executive-ols-avatar">{getInitials(session)}</span>
                   <div>
@@ -636,8 +636,8 @@ function ExecutiveOlsPage() {
                     <span>Executive</span>
                   </div>
                 </div>
-              )}
-            </header>
+              </header>
+            )}
 
             <section className="executive-ols-hero">
               <div>
@@ -658,28 +658,30 @@ function ExecutiveOlsPage() {
             {error && <div className="executive-ols-alert is-error">{error}</div>}
             {notice && !error && <div className="executive-ols-alert">{notice}</div>}
 
-            <section className={`executive-ols-stat-grid${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
-              <article className="executive-ols-stat-card">
-                <span>Reservations</span>
-                <strong>{Number(stats.totalReservations || 0)}</strong>
-                <small>{Number(stats.confirmedReservations || 0)} confirmed</small>
-              </article>
-              <article className="executive-ols-stat-card">
-                <span>Projected revenue</span>
-                <strong>{formatCurrency(stats.projectedRevenue, stats.currency || "USD")}</strong>
-                <small>Selected date range</small>
-              </article>
-              <article className="executive-ols-stat-card">
-                <span>Check-ins</span>
-                <strong>{Number(stats.upcomingCheckIns || 0)}</strong>
-                <small>Upcoming within range</small>
-              </article>
-              <article className="executive-ols-stat-card">
-                <span>Listings</span>
-                <strong>{Number(stats.listingCount || 0)}</strong>
-                <small>{Number(stats.cityCount || 0)} cities tracked</small>
-              </article>
-            </section>
+            {activeView !== "whatsapp" && (
+              <section className="executive-ols-stat-grid">
+                <article className="executive-ols-stat-card">
+                  <span>Reservations</span>
+                  <strong>{Number(stats.totalReservations || 0)}</strong>
+                  <small>{Number(stats.confirmedReservations || 0)} confirmed</small>
+                </article>
+                <article className="executive-ols-stat-card">
+                  <span>Projected revenue</span>
+                  <strong>{formatCurrency(stats.projectedRevenue, stats.currency || "USD")}</strong>
+                  <small>Selected date range</small>
+                </article>
+                <article className="executive-ols-stat-card">
+                  <span>Check-ins</span>
+                  <strong>{Number(stats.upcomingCheckIns || 0)}</strong>
+                  <small>Upcoming within range</small>
+                </article>
+                <article className="executive-ols-stat-card">
+                  <span>Listings</span>
+                  <strong>{Number(stats.listingCount || 0)}</strong>
+                  <small>{Number(stats.cityCount || 0)} cities tracked</small>
+                </article>
+              </section>
+            )}
 
             <div className={`executive-ols-content-grid${activeView === "whatsapp" ? " is-single-panel" : ""}`}>
               <section className={`executive-ols-chat-card${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
