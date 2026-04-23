@@ -45,7 +45,7 @@ const sanitizePhoneInput = (value = "") => {
   if (!raw) return "";
   const hasPlus = raw.startsWith("+");
   const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) return "";
+  if (!digits) return hasPlus ? "+" : "";
   return `${hasPlus ? "+" : ""}${digits}`;
 };
 
@@ -187,7 +187,8 @@ const getReplyAssistSummary = (thread = {}, draft = "") => {
 const loadStoredExecutivePhoneNumber = () => {
   if (typeof window === "undefined") return "";
   try {
-    return sanitizePhoneInput(window.localStorage?.getItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY) || "");
+    const stored = sanitizePhoneInput(window.localStorage?.getItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY) || "");
+    return /^\+\d{7,}$/.test(stored) ? stored : "";
   } catch {
     return "";
   }
@@ -430,7 +431,7 @@ function ExecutiveOlsPage() {
     if (typeof window === "undefined") return;
     try {
       const normalized = sanitizePhoneInput(voiceCallNumber);
-      if (normalized) {
+      if (/^\+\d{7,}$/.test(normalized)) {
         window.localStorage?.setItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY, normalized);
       } else {
         window.localStorage?.removeItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY);
@@ -911,8 +912,9 @@ function ExecutiveOlsPage() {
     if (!session?.accessToken || !selectedWhatsAppThread) return;
 
     const agentPhoneNumber = sanitizePhoneInput(voiceCallNumber);
-    if (!agentPhoneNumber) {
-      setWhatsappError("Add your callback phone number before starting a call.");
+    const agentPhoneDigits = agentPhoneNumber.replace(/[^\d]/g, "");
+    if (!agentPhoneDigits || agentPhoneDigits.length < 7 || !agentPhoneNumber.startsWith("+")) {
+      setWhatsappError("Enter your callback number in E.164 format (e.g. +15551234567) before starting a call.");
       setWhatsappNotice("");
       return;
     }
@@ -1411,7 +1413,7 @@ function ExecutiveOlsPage() {
                                   type="button"
                                   className="executive-ols-primary-btn"
                                   onClick={handleStartVoiceCall}
-                                  disabled={startingVoiceCall || !selectedGuestPhoneNumber || !voiceCallNumber.trim()}
+                                  disabled={startingVoiceCall || !selectedGuestPhoneNumber || !/^\+\d{7,}$/.test(sanitizePhoneInput(voiceCallNumber))}
                                 >
                                   <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
                                   {startingVoiceCall ? "Calling..." : "Call guest"}
