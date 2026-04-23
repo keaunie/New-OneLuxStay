@@ -382,11 +382,23 @@ const inferGuestSentimentLabel = (value = "") => {
   return "neutral";
 };
 
+const isValidAcknowledgementSentence = (sentence = "") => {
+  const s = String(sentence || "").trim().toLowerCase();
+  if (!s) return false;
+  // Reject sentences that are really policy/pricing/booking statements — these should never
+  // be injected as acknowledgements in front of unrelated replies.
+  if (/\b(rates?|pricing|price|available pricing|booking flow|book(ing)?|checkout|reservation|guests? typically|choose a city|city page)\b/.test(s)) return false;
+  // Must be a short conversational acknowledgement (under 100 chars), not a long content sentence
+  if (s.length > 100) return false;
+  return true;
+};
+
 const extractReplyLeadSentence = (value = "") => {
   const text = sanitizeString(value, 220);
   if (!text) return "";
   const match = text.match(/^[^.!?]+[.!?]?/);
-  return sanitizeString(match?.[0] || text, 160);
+  const sentence = sanitizeString(match?.[0] || text, 160);
+  return isValidAcknowledgementSentence(sentence) ? sentence : "";
 };
 
 const defaultAcknowledgementBySentimentByLocale = {
@@ -1675,7 +1687,7 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       : "You can book by choosing a city or listing, selecting your dates and guest count, reviewing the stay details, and continuing through checkout on the site. If you are still deciding, I can help narrow down which city page to start from.";
   }
 
-  if (/\b(property|properties|stay|stays|listing|choose|recommend|best)\b/.test(prompt)) {
+  if (/\b(property|properties|stay|stays|listing|choose)\b/.test(prompt)) {
     if (onListingPage) {
       return `You are already on a listing page${pageContext.listingId ? ` for listing ${pageContext.listingId}` : ""}. A good next step is to review the listing details, dates, and guest count, then continue through the booking flow if it looks like a fit.`;
     }
@@ -1688,7 +1700,15 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       return `Great choice on ${effectiveCity}. Share your check-in and check-out dates plus guest count, and I can guide you to the best next booking step.`;
     }
 
-    return "A good place to start is by choosing a city first: Antwerp, Los Angeles, Miami, Redondo Beach, or Dubai. Once you know the destination, I can help point you toward the right page and booking flow.";
+    return `One Lux Stay has properties in ${citiesText}. Let me know which city interests you and I can guide you from there.`;
+  }
+
+  // For recommendation/travel questions, give a helpful travel-focused fallback
+  if (/\b(recommend|best|what to do|things to do|visit|tourist|sightseeing|attractions?|places?)\b/.test(prompt)) {
+    if (effectiveCity) {
+      return `Happy to help with ${effectiveCity}! If you're looking for travel tips or things to do there, ask away. If you'd like to stay in ${effectiveCity}, I can help with that too.`;
+    }
+    return `Happy to help! If you're looking for travel tips or things to do in a city, just let me know which one. One Lux Stay also has stays in ${citiesText} if you're planning a trip.`;
   }
 
   if (/\b(this page|current page|where am i|what page)\b/.test(prompt)) {
@@ -1723,9 +1743,9 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       currentCitySuffix ? `（現在は ${currentCitySuffix} を閲覧中です）` : ""
     }。都市の選び方、予約手順、または今見ているページの使い方など、お気軽にご質問ください。`;
   }
-  return `I can help with the basics right now. One Lux Stay currently features stays in ${citiesText}${
-    currentCitySuffix ? `, and you are currently browsing ${currentCitySuffix}` : ""
-  }. Ask me about cities, booking steps, or how to use the page you are on.`;
+  return `I'm Lucy, the One Lux Stay concierge. I can help with travel questions, availability, booking, or anything about our properties in ${citiesText}${
+    currentCitySuffix ? ` — including ${currentCitySuffix}` : ""
+  }. What can I help you with?`;
 };
 
 const buildSmallTalkReply = ({ languageProfile, supportedCities = [] } = {}) => {
