@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 import {
@@ -183,7 +183,7 @@ function ExecutiveOlsPage() {
   const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
   const [whatsappThreads, setWhatsappThreads] = useState([]);
   const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
-  const [whatsappReplyDraft, setWhatsappReplyDraft] = useState("");
+  const [whatsappReplyDrafts, setWhatsappReplyDrafts] = useState({});
   const [newWhatsAppPhone, setNewWhatsAppPhone] = useState("");
   const [newWhatsAppMessage, setNewWhatsAppMessage] = useState("");
   const [sendingNewWhatsApp, setSendingNewWhatsApp] = useState(false);
@@ -453,7 +453,7 @@ function ExecutiveOlsPage() {
       if (payload?.message?.messageId) {
         setWhatsappThreads((current) => injectReplyIntoThreads(current, selectedThread.sessionId, payload.message));
       }
-      setWhatsappReplyDraft("");
+      clearWhatsAppDraft(selectedThread.sessionId);
       setWhatsappNotice("WhatsApp reply sent.");
     } catch (requestError) {
       setWhatsappError(String(requestError?.message || "Unable to send WhatsApp reply."));
@@ -540,6 +540,27 @@ function ExecutiveOlsPage() {
       ? "New guest messages from your WhatsApp sender appear here, and you can reply directly from this executive dashboard."
       : "The executive assistant uses Guesty-backed snapshot data and stays explicit when something cannot be verified live.";
   const selectedWhatsAppThread = whatsappThreads.find((thread) => thread?.sessionId === selectedWhatsAppSessionId) || null;
+  const whatsappReplyDraft = selectedWhatsAppSessionId
+    ? String(whatsappReplyDrafts?.[selectedWhatsAppSessionId] || "")
+    : "";
+
+  const updateWhatsAppDraft = (sessionId, value) => {
+    const safeSessionId = String(sessionId || "").trim();
+    if (!safeSessionId) return;
+    setWhatsappReplyDrafts((current) => ({
+      ...current,
+      [safeSessionId]: value,
+    }));
+  };
+
+  const clearWhatsAppDraft = (sessionId) => {
+    const safeSessionId = String(sessionId || "").trim();
+    if (!safeSessionId) return;
+    setWhatsappReplyDrafts((current) => ({
+      ...current,
+      [safeSessionId]: "",
+    }));
+  };
 
   if (!session?.accessToken) {
     return <Navigate to="/executive-ols/login" replace />;
@@ -579,7 +600,7 @@ function ExecutiveOlsPage() {
           </aside>
 
           <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
-            <header className="executive-ols-topbar">
+            <header className={`executive-ols-topbar${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
               <div className="executive-ols-field">
                 <label htmlFor="executive-range">Time range</label>
                 <select id="executive-range" value={timeRange} onChange={(event) => setTimeRange(event.target.value)}>
@@ -607,13 +628,15 @@ function ExecutiveOlsPage() {
                 </select>
               </div>
 
-              <div className="executive-ols-profile-chip">
-                <span className="executive-ols-avatar">{getInitials(session)}</span>
-                <div>
-                  <strong>{session?.user?.email || "Executive"}</strong>
-                  <span>Executive</span>
+              {activeView !== "whatsapp" && (
+                <div className="executive-ols-profile-chip">
+                  <span className="executive-ols-avatar">{getInitials(session)}</span>
+                  <div>
+                    <strong>{session?.user?.email || "Executive"}</strong>
+                    <span>Executive</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </header>
 
             <section className="executive-ols-hero">
@@ -811,7 +834,7 @@ function ExecutiveOlsPage() {
                             <form className="executive-ols-composer" onSubmit={handleSendWhatsAppReply}>
                               <textarea
                                 value={whatsappReplyDraft}
-                                onChange={(event) => setWhatsappReplyDraft(event.target.value)}
+                                onChange={(event) => updateWhatsAppDraft(selectedWhatsAppSessionId, event.target.value)}
                                 rows={4}
                                 placeholder="Reply to this WhatsApp guest as the OneLuxStay team..."
                                 disabled={sendingWhatsAppReply}
@@ -820,7 +843,7 @@ function ExecutiveOlsPage() {
                                 <button
                                   type="button"
                                   className="executive-ols-ghost-btn"
-                                  onClick={() => setWhatsappReplyDraft("")}
+                                  onClick={() => clearWhatsAppDraft(selectedWhatsAppSessionId)}
                                   disabled={sendingWhatsAppReply}
                                 >
                                   Clear draft

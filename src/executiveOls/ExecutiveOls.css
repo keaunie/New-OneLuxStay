@@ -10,13 +10,13 @@
 
 .executive-ols-auth-shell,
 .executive-ols-shell {
-  width: min(1480px, calc(100% - 2rem));
+  width: min(1560px, calc(100% - 1.25rem));
   margin: 0 auto;
   padding: 2rem 0 3rem;
 }
 
 .executive-ols-shell.is-whatsapp {
-  width: min(1680px, calc(100% - 2rem));
+  width: min(1920px, calc(100% - 1rem));
 }
 
 .executive-ols-auth-panel {
@@ -230,7 +230,8 @@
 }
 
 .executive-ols-layout.is-whatsapp {
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 0.8rem;
 }
 
 .executive-ols-sidebar,
@@ -268,12 +269,22 @@
 }
 
 .executive-ols-chat-card.is-whatsapp {
-  min-height: calc(100vh - 240px);
+  min-height: calc(100vh - 210px);
 }
 
 .executive-ols-brand-card h1 {
   font-size: 2.1rem;
   max-width: 8ch;
+}
+
+.executive-ols-layout.is-whatsapp .executive-ols-brand-card,
+.executive-ols-layout.is-whatsapp .executive-ols-side-card {
+  padding: 1rem;
+}
+
+.executive-ols-layout.is-whatsapp .executive-ols-brand-card h1 {
+  font-size: 1.9rem;
+  max-width: 7ch;
 }
 
 .executive-ols-nav {
@@ -336,6 +347,10 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 0.9rem;
   align-items: end;
+}
+
+.executive-ols-topbar.is-whatsapp {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .executive-ols-profile-chip {
@@ -601,10 +616,10 @@
 
 .executive-ols-whatsapp-inbox {
   display: grid;
-  grid-template-columns: minmax(320px, 0.78fr) minmax(0, 1.42fr);
-  gap: 1rem;
+  grid-template-columns: minmax(340px, 0.62fr) minmax(0, 1.88fr);
+  gap: 0.9rem;
   margin-top: 1rem;
-  min-height: calc(100vh - 355px);
+  min-height: calc(100vh - 315px);
 }
 
 .executive-ols-whatsapp-sessions,
@@ -621,6 +636,7 @@
   align-content: start;
   padding: 0.85rem;
   overflow-y: auto;
+  min-height: 100%;
 }
 
 .executive-ols-whatsapp-session {
@@ -668,15 +684,15 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 1rem;
-  padding: 1rem;
+  padding: 1.1rem;
 }
 
 .executive-ols-whatsapp-thread {
   display: grid;
   gap: 0.8rem;
   align-content: start;
-  min-height: 520px;
-  max-height: calc(100vh - 470px);
+  min-height: 620px;
+  max-height: calc(100vh - 395px);
   overflow-y: auto;
   padding-right: 0.25rem;
 }
@@ -686,7 +702,7 @@
 }
 
 .executive-ols-thread-bubble {
-  max-width: 88%;
+  max-width: 80%;
   padding: 0.95rem 1rem;
   border-radius: 20px;
   border: 1px solid rgba(193, 170, 142, 0.22);
