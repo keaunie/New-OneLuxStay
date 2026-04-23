@@ -122,6 +122,84 @@ const getConversationPreview = (thread = {}) => {
   return content.length > 140 ? `${content.slice(0, 137)}...` : content || "No message content captured yet.";
 };
 
+const ExecutiveIcon = ({ name = "chat", className = "" }) => {
+  const commonProps = {
+    className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+  };
+
+  if (name === "send") {
+    return (
+      <svg {...commonProps}>
+        <path d="M21 3 10 14" />
+        <path d="m21 3-7 18-4-7-7-4 18-7Z" />
+      </svg>
+    );
+  }
+
+  if (name === "spark") {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 3v5" />
+        <path d="M12 16v5" />
+        <path d="M4.9 4.9l3.5 3.5" />
+        <path d="m15.6 15.6 3.5 3.5" />
+        <path d="M3 12h5" />
+        <path d="M16 12h5" />
+        <path d="m4.9 19.1 3.5-3.5" />
+        <path d="m15.6 8.4 3.5-3.5" />
+      </svg>
+    );
+  }
+
+  if (name === "clock") {
+    return (
+      <svg {...commonProps}>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.8v4.6l3.2 1.9" />
+      </svg>
+    );
+  }
+
+  if (name === "erase") {
+    return (
+      <svg {...commonProps}>
+        <path d="m9 4 9 9" />
+        <path d="M5.6 13.4 12 7l4.6 4.6-6.4 6.4a2 2 0 0 1-2.8 0l-1.8-1.8a2 2 0 0 1 0-2.8Z" />
+        <path d="M14 19h6" />
+      </svg>
+    );
+  }
+
+  if (name === "phone") {
+    return (
+      <svg {...commonProps}>
+        <path d="M20 16.2v2.6a1.8 1.8 0 0 1-2 1.8A17.8 17.8 0 0 1 3.4 6a1.8 1.8 0 0 1 1.8-2H7.8a1.8 1.8 0 0 1 1.8 1.5l.5 3a1.8 1.8 0 0 1-.5 1.6l-1.3 1.3a14.5 14.5 0 0 0 4.3 4.3l1.3-1.3a1.8 1.8 0 0 1 1.6-.5l3 .5a1.8 1.8 0 0 1 1.5 1.8Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...commonProps}>
+      <path d="M7 18.5 3.5 21V6.8A2.8 2.8 0 0 1 6.3 4h11.4a2.8 2.8 0 0 1 2.8 2.8v8.4a2.8 2.8 0 0 1-2.8 2.8H7Z" />
+      <path d="M8.5 9.5h7" />
+      <path d="M8.5 13h4.5" />
+    </svg>
+  );
+};
+
+const getConversationAvatarLabel = (thread = {}) => {
+  const phone = getWhatsAppPhoneLabel(thread);
+  if (phone) return phone.slice(-2);
+  return "WA";
+};
+
 const getConversationNotificationSignature = (thread = {}) => {
   const sessionId = String(thread?.sessionId || "").trim();
   const lastSeenAt = String(thread?.lastSeenAt || "").trim();
@@ -142,6 +220,13 @@ const getConversationMessageLabel = (message = {}) => {
   if (senderType === "guest") return "Guest";
   if (senderType === "admin") return message?.metadata?.senderName || "OneLuxStay Team";
   return "Lucy";
+};
+
+const getConversationMessageAvatarLabel = (message = {}) => {
+  const senderType = getConversationMessageSenderType(message);
+  if (senderType === "guest") return "G";
+  if (senderType === "admin") return "OL";
+  return "LU";
 };
 
 const getConversationMessageBubbleClass = (message = {}) => {
@@ -166,14 +251,6 @@ const injectReplyIntoThreads = (threads = [], sessionId = "", message = {}) =>
       messages: nextMessages,
     };
   });
-
-const getInitials = (session = {}) => {
-  const name = String(session?.user?.fullName || session?.user?.email || "").trim();
-  if (!name) return "EX";
-  const words = name.split(/\s+/).filter(Boolean);
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
-};
 
 function ExecutiveOlsPage() {
   const navigate = useNavigate();
@@ -700,19 +777,13 @@ function ExecutiveOlsPage() {
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
   const listings = Array.isArray(snapshot?.listings) ? snapshot.listings : [];
   const syncStatusTone = snapshot?.syncStatus?.ok ? "is-positive" : "is-negative";
-  const heroEyebrow = activeView === "whatsapp" ? "WhatsApp concierge" : "AI Assistant";
-  const heroTitle =
-    activeView === "whatsapp"
-      ? "Manage live WhatsApp chats."
-      : "Ask direct questions about revenue, bookings, and issues.";
-  const heroCopy =
-    activeView === "whatsapp"
-      ? "New guest messages from your WhatsApp sender appear here, and you can reply directly from this executive dashboard."
-      : "The executive assistant uses Guesty-backed snapshot data and stays explicit when something cannot be verified live.";
   const selectedWhatsAppThread = whatsappThreads.find((thread) => thread?.sessionId === selectedWhatsAppSessionId) || null;
   const whatsappReplyDraft = selectedWhatsAppSessionId
     ? String(whatsappReplyDrafts?.[selectedWhatsAppSessionId] || "")
     : "";
+  const selectedPropertyLabel = propertyId
+    ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
+    : "All properties";
 
   const updateWhatsAppDraft = (sessionId, value) => {
     const safeSessionId = String(sessionId || "").trim();
@@ -806,95 +877,97 @@ function ExecutiveOlsPage() {
                 </div>
               </div>
             )}
+
+            {activeView !== "whatsapp" && (
+              <>
+                <div className="executive-ols-side-card">
+                  <p className="executive-ols-side-label">Filters</p>
+                  <div className="executive-ols-side-controls">
+                    <label className="executive-ols-field">
+                      <span>Time range</span>
+                      <select id="executive-range" value={timeRange} onChange={(event) => setTimeRange(event.target.value)}>
+                        {TIME_RANGE_OPTIONS.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="executive-ols-field">
+                      <span>Property</span>
+                      <select
+                        id="executive-property"
+                        value={propertyId}
+                        onChange={(event) => setPropertyId(event.target.value)}
+                      >
+                        <option value="">All properties</option>
+                        {propertyOptions.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="executive-ols-side-card">
+                  <p className="executive-ols-side-label">Snapshot</p>
+                  <div className="executive-ols-sidebar-status">
+                    <span className={`executive-ols-pill ${syncStatusTone}`}>
+                      {snapshot?.syncStatus?.ok ? "Guesty synced" : "Sync issue"}
+                    </span>
+                    <span className="executive-ols-pill">
+                      {loadingSnapshot ? "Refreshing..." : `Updated ${formatDate(snapshot?.generatedAt)}`}
+                    </span>
+                  </div>
+                  <div className="executive-ols-side-summary">
+                    <article className="executive-ols-context-item">
+                      <strong>Reservations</strong>
+                      <span>
+                        {Number(stats.totalReservations || 0)} total • {Number(stats.confirmedReservations || 0)} confirmed
+                      </span>
+                    </article>
+                    <article className="executive-ols-context-item">
+                      <strong>Revenue</strong>
+                      <span>{formatCurrency(stats.projectedRevenue, stats.currency || "USD")}</span>
+                    </article>
+                    <article className="executive-ols-context-item">
+                      <strong>Upcoming check-ins</strong>
+                      <span>{Number(stats.upcomingCheckIns || 0)}</span>
+                    </article>
+                    <article className="executive-ols-context-item">
+                      <strong>Property scope</strong>
+                      <span>{selectedPropertyLabel}</span>
+                    </article>
+                  </div>
+                </div>
+
+                <div className="executive-ols-side-card">
+                  <p className="executive-ols-side-label">Quick actions</p>
+                  <div className="executive-ols-side-actions">
+                    <Link to="/admins-ols" className="executive-ols-inline-link">
+                      Open legacy admin panel
+                    </Link>
+                    <button
+                      type="button"
+                      className="executive-ols-inline-link is-button"
+                      onClick={() => handleSubmit("Give me the most important executive risks right now.")}
+                    >
+                      Ask for risks
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </aside>
 
           <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
-            {activeView !== "whatsapp" && (
-              <header className="executive-ols-topbar">
-                <div className="executive-ols-field">
-                  <label htmlFor="executive-range">Time range</label>
-                  <select id="executive-range" value={timeRange} onChange={(event) => setTimeRange(event.target.value)}>
-                    {TIME_RANGE_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="executive-ols-field">
-                  <label htmlFor="executive-property">Property</label>
-                  <select
-                    id="executive-property"
-                    value={propertyId}
-                    onChange={(event) => setPropertyId(event.target.value)}
-                  >
-                    <option value="">All properties</option>
-                    {propertyOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="executive-ols-profile-chip">
-                  <span className="executive-ols-avatar">{getInitials(session)}</span>
-                  <div>
-                    <strong>{session?.user?.email || "Executive"}</strong>
-                    <span>Executive</span>
-                  </div>
-                </div>
-              </header>
-            )}
-
-            {activeView !== "whatsapp" && (
-              <section className="executive-ols-hero">
-                <div>
-                  <p className="executive-ols-eyebrow">{heroEyebrow}</p>
-                  <h2>{heroTitle}</h2>
-                  <p>{heroCopy}</p>
-                </div>
-                <div className="executive-ols-hero-meta">
-                  <span className={`executive-ols-pill ${syncStatusTone}`}>
-                    {snapshot?.syncStatus?.ok ? "Guesty synced" : "Sync issue"}
-                  </span>
-                  <span className="executive-ols-pill">
-                    {loadingSnapshot ? "Refreshing..." : `Updated ${formatDate(snapshot?.generatedAt)}`}
-                  </span>
-                </div>
-              </section>
-            )}
-
             {error && <div className="executive-ols-alert is-error">{error}</div>}
             {notice && !error && activeView !== "whatsapp" && <div className="executive-ols-alert">{notice}</div>}
 
-            {activeView !== "whatsapp" && (
-              <section className="executive-ols-stat-grid">
-                <article className="executive-ols-stat-card">
-                  <span>Reservations</span>
-                  <strong>{Number(stats.totalReservations || 0)}</strong>
-                  <small>{Number(stats.confirmedReservations || 0)} confirmed</small>
-                </article>
-                <article className="executive-ols-stat-card">
-                  <span>Projected revenue</span>
-                  <strong>{formatCurrency(stats.projectedRevenue, stats.currency || "USD")}</strong>
-                  <small>Selected date range</small>
-                </article>
-                <article className="executive-ols-stat-card">
-                  <span>Check-ins</span>
-                  <strong>{Number(stats.upcomingCheckIns || 0)}</strong>
-                  <small>Upcoming within range</small>
-                </article>
-                <article className="executive-ols-stat-card">
-                  <span>Listings</span>
-                  <strong>{Number(stats.listingCount || 0)}</strong>
-                  <small>{Number(stats.cityCount || 0)} cities tracked</small>
-                </article>
-              </section>
-            )}
-
-            <div className={`executive-ols-content-grid${activeView === "whatsapp" ? " is-single-panel" : ""}`}>
+            <div className="executive-ols-content-grid is-single-panel">
               <section className={`executive-ols-chat-card${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
                 {activeView === "assistant" && (
                   <>
@@ -964,8 +1037,15 @@ function ExecutiveOlsPage() {
                     <div className="executive-ols-card-head">
                       <div>
                         <p className="executive-ols-eyebrow">WhatsApp</p>
-                        <h3>Live inbox</h3>
-                        <p>See incoming WhatsApp messages here and reply directly from the executive dashboard.</p>
+                        <div className="executive-ols-whatsapp-title-row">
+                          <span className="executive-ols-icon-badge is-whatsapp">
+                            <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
+                          </span>
+                          <div>
+                            <h3>Live inbox</h3>
+                            <p>See incoming WhatsApp messages here and reply directly from the executive dashboard.</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -973,7 +1053,19 @@ function ExecutiveOlsPage() {
                     {whatsappError && <div className="executive-ols-alert is-error">{whatsappError}</div>}
 
                     <div className="executive-ols-whatsapp-inbox">
-                      <div className="executive-ols-whatsapp-sessions" role="list" aria-label="WhatsApp conversations">
+                      <div className="executive-ols-whatsapp-sessions-wrap">
+                        <div className="executive-ols-whatsapp-panel-topbar">
+                          <div>
+                            <strong>Conversations</strong>
+                            <span>{whatsappThreads.length} active chats</span>
+                          </div>
+                          <span className="executive-ols-whatsapp-meta-pill">
+                            <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
+                            Live
+                          </span>
+                        </div>
+
+                        <div className="executive-ols-whatsapp-sessions" role="list" aria-label="WhatsApp conversations">
                         {loadingWhatsApp && !whatsappThreads.length && (
                           <p className="executive-ols-empty">Loading WhatsApp conversations...</p>
                         )}
@@ -986,11 +1078,22 @@ function ExecutiveOlsPage() {
                               className={`executive-ols-whatsapp-session${thread.sessionId === selectedWhatsAppSessionId ? " is-active" : ""}`}
                               onClick={() => setSelectedWhatsAppSessionId(thread.sessionId)}
                             >
-                              <div className="executive-ols-whatsapp-session-head">
-                                <strong>{getConversationTitle(thread)}</strong>
-                                <small>{formatDateTime(thread.lastSeenAt)}</small>
+                              <div className="executive-ols-whatsapp-session-avatar">
+                                <span>{getConversationAvatarLabel(thread)}</span>
+                                <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
                               </div>
-                              <span>{thread.messageCount || 0} messages</span>
+                              <div className="executive-ols-whatsapp-session-head">
+                                <div className="executive-ols-whatsapp-session-title">
+                                  <strong>{getConversationTitle(thread)}</strong>
+                                  <span className="executive-ols-whatsapp-meta-pill">
+                                    {thread.messageCount || 0} messages
+                                  </span>
+                                </div>
+                                <small>
+                                  <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
+                                  {formatDateTime(thread.lastSeenAt)}
+                                </small>
+                              </div>
                               <p>{getConversationPreview(thread)}</p>
                             </button>
                           ))}
@@ -1013,19 +1116,30 @@ function ExecutiveOlsPage() {
                             </div>
                           </div>
                         )}
+                        </div>
                       </div>
 
                       <div className="executive-ols-whatsapp-thread-panel">
                         {selectedWhatsAppThread ? (
                           <>
                             <div className="executive-ols-whatsapp-thread-head">
-                              <div>
-                                <p className="executive-ols-eyebrow">Conversation</p>
-                                <h3>{getConversationTitle(selectedWhatsAppThread)}</h3>
+                              <div className="executive-ols-whatsapp-thread-identity">
+                                <div className="executive-ols-whatsapp-thread-avatar">
+                                  <span>{getConversationAvatarLabel(selectedWhatsAppThread)}</span>
+                                  <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
+                                </div>
+                                <div>
+                                  <p className="executive-ols-eyebrow">Conversation</p>
+                                  <h3>{getConversationTitle(selectedWhatsAppThread)}</h3>
+                                </div>
                               </div>
                               <div className="executive-ols-hero-meta">
-                                <span className="executive-ols-pill">Twilio WhatsApp</span>
-                                <span className="executive-ols-pill">
+                                <span className="executive-ols-whatsapp-meta-pill">
+                                  <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
+                                  Twilio WhatsApp
+                                </span>
+                                <span className="executive-ols-whatsapp-meta-pill">
+                                  <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
                                   {formatDateTime(selectedWhatsAppThread.lastSeenAt)}
                                 </span>
                               </div>
@@ -1037,7 +1151,12 @@ function ExecutiveOlsPage() {
                                   key={`${selectedWhatsAppThread.sessionId}-${message.messageId}`}
                                   className={`executive-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
                                 >
-                                  <span className="executive-ols-message-role">{getConversationMessageLabel(message)}</span>
+                                  <div className="executive-ols-thread-bubble-meta">
+                                    <span className="executive-ols-thread-bubble-avatar">
+                                      {getConversationMessageAvatarLabel(message)}
+                                    </span>
+                                    <span className="executive-ols-message-role">{getConversationMessageLabel(message)}</span>
+                                  </div>
                                   <p>{message.content || "No message content captured."}</p>
                                   <small>{formatDateTime(message.createdAt)}</small>
                                 </article>
@@ -1045,6 +1164,12 @@ function ExecutiveOlsPage() {
                             </div>
 
                             <form className="executive-ols-composer" onSubmit={handleSendWhatsAppReply}>
+                              <div className="executive-ols-whatsapp-compose-head">
+                                <span className="executive-ols-whatsapp-meta-pill">
+                                  <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
+                                  Reply as OneLuxStay
+                                </span>
+                              </div>
                               <textarea
                                 value={whatsappReplyDraft}
                                 onChange={(event) => updateWhatsAppDraft(selectedWhatsAppSessionId, event.target.value)}
@@ -1059,6 +1184,7 @@ function ExecutiveOlsPage() {
                                   onClick={() => clearWhatsAppDraft(selectedWhatsAppSessionId)}
                                   disabled={sendingWhatsAppReply}
                                 >
+                                  <ExecutiveIcon name="erase" className="executive-ols-inline-icon" />
                                   Clear draft
                                 </button>
                                 <button
@@ -1066,6 +1192,7 @@ function ExecutiveOlsPage() {
                                   className="executive-ols-primary-btn"
                                   disabled={sendingWhatsAppReply || !whatsappReplyDraft.trim()}
                                 >
+                                  <ExecutiveIcon name="send" className="executive-ols-inline-icon" />
                                   {sendingWhatsAppReply ? "Sending..." : "Send WhatsApp reply"}
                                 </button>
                               </div>
@@ -1204,54 +1331,6 @@ function ExecutiveOlsPage() {
                 )}
               </section>
 
-              {activeView !== "whatsapp" && (
-                <aside className="executive-ols-context-card">
-                  <>
-                    <div className="executive-ols-card-head">
-                      <div>
-                        <p className="executive-ols-eyebrow">Current context</p>
-                        <h3>What the assistant can see</h3>
-                        <p>Keep the assistant transparent about the exact data it is summarizing.</p>
-                      </div>
-                    </div>
-
-                    <div className="executive-ols-context-list">
-                      <article className="executive-ols-context-item">
-                        <strong>Sync status</strong>
-                        <span>{snapshot?.syncStatus?.message || "Waiting for Guesty snapshot."}</span>
-                      </article>
-                      <article className="executive-ols-context-item">
-                        <strong>Current financial view</strong>
-                        <span>
-                          Revenue {formatCurrency(stats.projectedRevenue, stats.currency || "USD")} • Confirmed{" "}
-                          {Number(stats.confirmedReservations || 0)} • Upcoming {Number(stats.upcomingCheckIns || 0)}
-                        </span>
-                      </article>
-                      <article className="executive-ols-context-item">
-                        <strong>Property scope</strong>
-                        <span>
-                          {propertyId
-                            ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
-                            : "All properties"}
-                        </span>
-                      </article>
-                      <article className="executive-ols-context-item">
-                        <strong>Data source</strong>
-                        <span>Guesty listings and reservations, summarized at request time.</span>
-                      </article>
-                    </div>
-
-                    <div className="executive-ols-inline-links">
-                      <Link to="/admins-ols" className="executive-ols-inline-link">
-                        Open legacy admin panel
-                      </Link>
-                      <button type="button" className="executive-ols-inline-link is-button" onClick={() => handleSubmit("Give me the most important executive risks right now.")}>
-                        Ask for risks
-                      </button>
-                    </div>
-                  </>
-                </aside>
-              )}
             </div>
           </main>
         </div>
