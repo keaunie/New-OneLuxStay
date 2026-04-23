@@ -85,7 +85,10 @@ const getTwilioWhatsAppConfig = () => {
   const accountSid = sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120);
   const authToken = sanitizeString(getEnv("TWILIO_WHATSAPP_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240);
   const fromAddress = normalizeWhatsAppAddress(
-    sanitizeString(getEnv("TWILIO_WHATSAPP_FROM") || DEFAULT_TWILIO_WHATSAPP_FROM, 80),
+    sanitizeString(
+      getEnv("TWILIO_WHATSAPP_FROM") || getEnv("TWILIO_WHATSAPP_NUMBER") || DEFAULT_TWILIO_WHATSAPP_FROM,
+      80,
+    ),
   );
 
   return { accountSid, authToken, fromAddress };
