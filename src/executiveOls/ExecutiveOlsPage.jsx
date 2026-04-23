@@ -767,6 +767,45 @@ function ExecutiveOlsPage() {
                 Sign out
               </button>
             </div>
+
+            {activeView === "whatsapp" && (
+              <div className="executive-ols-side-card executive-ols-side-card--whatsapp-status">
+                <p className="executive-ols-side-label">WhatsApp</p>
+                <div className="executive-ols-sidebar-status">
+                  <button
+                    type="button"
+                    className={`executive-ols-ghost-btn executive-ols-alert-toggle${
+                      notificationPermission === "granted" ? " is-enabled" : ""
+                    }`}
+                    onClick={handleEnableWhatsAppAlerts}
+                    disabled={notificationPermission === "unsupported"}
+                    title={
+                      notificationPermission === "granted"
+                        ? "Browser alerts are enabled"
+                        : notificationPermission === "denied"
+                          ? "Browser alerts are blocked"
+                          : notificationPermission === "unsupported"
+                            ? "Browser alerts are not supported in this browser"
+                            : "Enable browser alerts"
+                    }
+                  >
+                    {notificationPermission === "granted"
+                      ? "Alerts On"
+                      : notificationPermission === "denied"
+                        ? "Alerts Blocked"
+                        : notificationPermission === "unsupported"
+                          ? "Alerts Unsupported"
+                          : "Enable Alerts"}
+                  </button>
+                  <span className={`executive-ols-pill ${syncStatusTone}`}>
+                    {snapshot?.syncStatus?.ok ? "Guesty synced" : "Sync issue"}
+                  </span>
+                  <span className="executive-ols-pill">
+                    {loadingSnapshot ? "Refreshing..." : `Updated ${formatDate(snapshot?.generatedAt)}`}
+                  </span>
+                </div>
+              </div>
+            )}
           </aside>
 
           <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
@@ -809,48 +848,23 @@ function ExecutiveOlsPage() {
               </header>
             )}
 
-            <section className="executive-ols-hero">
-              <div>
-                <p className="executive-ols-eyebrow">{heroEyebrow}</p>
-                <h2>{heroTitle}</h2>
-                <p>{heroCopy}</p>
-              </div>
-              <div className="executive-ols-hero-meta">
-                {activeView === "whatsapp" && (
-                  <button
-                    type="button"
-                    className={`executive-ols-ghost-btn executive-ols-alert-toggle${
-                      notificationPermission === "granted" ? " is-enabled" : ""
-                    }`}
-                    onClick={handleEnableWhatsAppAlerts}
-                    disabled={notificationPermission === "unsupported"}
-                    title={
-                      notificationPermission === "granted"
-                        ? "Browser alerts are enabled"
-                        : notificationPermission === "denied"
-                          ? "Browser alerts are blocked"
-                          : notificationPermission === "unsupported"
-                            ? "Browser alerts are not supported in this browser"
-                            : "Enable browser alerts"
-                    }
-                  >
-                    {notificationPermission === "granted"
-                      ? "Alerts On"
-                      : notificationPermission === "denied"
-                        ? "Alerts Blocked"
-                        : notificationPermission === "unsupported"
-                          ? "Alerts Unsupported"
-                          : "Enable Alerts"}
-                  </button>
-                )}
-                <span className={`executive-ols-pill ${syncStatusTone}`}>
-                  {snapshot?.syncStatus?.ok ? "Guesty synced" : "Sync issue"}
-                </span>
-                <span className="executive-ols-pill">
-                  {loadingSnapshot ? "Refreshing..." : `Updated ${formatDate(snapshot?.generatedAt)}`}
-                </span>
-              </div>
-            </section>
+            {activeView !== "whatsapp" && (
+              <section className="executive-ols-hero">
+                <div>
+                  <p className="executive-ols-eyebrow">{heroEyebrow}</p>
+                  <h2>{heroTitle}</h2>
+                  <p>{heroCopy}</p>
+                </div>
+                <div className="executive-ols-hero-meta">
+                  <span className={`executive-ols-pill ${syncStatusTone}`}>
+                    {snapshot?.syncStatus?.ok ? "Guesty synced" : "Sync issue"}
+                  </span>
+                  <span className="executive-ols-pill">
+                    {loadingSnapshot ? "Refreshing..." : `Updated ${formatDate(snapshot?.generatedAt)}`}
+                  </span>
+                </div>
+              </section>
+            )}
 
             {error && <div className="executive-ols-alert is-error">{error}</div>}
             {notice && !error && activeView !== "whatsapp" && <div className="executive-ols-alert">{notice}</div>}

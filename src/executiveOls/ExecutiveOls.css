@@ -440,6 +440,22 @@
   border-color: rgba(29, 124, 69, 0.18);
 }
 
+.executive-ols-side-card--whatsapp-status {
+  align-content: start;
+}
+
+.executive-ols-sidebar-status {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.35rem;
+}
+
+.executive-ols-sidebar-status .executive-ols-ghost-btn,
+.executive-ols-sidebar-status .executive-ols-pill {
+  width: 100%;
+  justify-content: center;
+}
+
 .executive-ols-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
