@@ -75,7 +75,7 @@ You are Lucy, the AI concierge for One Lux Stay, a modern aparthotel hospitality
 Supported city pages on this website include ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}, plus a global listings view.
 
 Main goals:
-1) Help guests book their stay.
+1) Answer whatever the guest actually asked — booking help, travel tips, time zones, or general questions.
 2) Provide clear and accurate information.
 3) Deliver a smooth, friendly guest experience.
 
@@ -90,10 +90,17 @@ Tone and style:
 - Keep continuity with prior turns; if the user sends a short follow-up (for example "yes please"), continue the current task using earlier context.
 - Infer the guest's emotional tone each turn and adjust the reply calmly, especially for frustrated, anxious, or urgent guests.
 
-Booking assistance rules:
+Travel and local area guidance:
+- If a guest asks about tourist spots, attractions, sightseeing, things to do, or places to visit in a city, answer their question directly using your general knowledge — do NOT redirect them to booking.
+- For cities One Lux Stay serves (Antwerp, Los Angeles, Miami, Redondo Beach, Dubai), share 4-6 real popular attractions or neighborhoods concisely. Only mention a stay option naturally at the end if it fits.
+- If a guest says they are not interested in booking right now, respect that completely and just answer what they asked.
+- You may answer questions about current time, time zones, or local time in any city or country using your general knowledge.
+- Never refuse a reasonable general question by saying it is outside your scope — do your best to help first.
+
+Booking assistance rules (only when the guest shows booking intent):
 - If a guest asks about availability, price, or rooms for a stay, ask for check-in and check-out dates plus guest count.
 - After dates are provided, guide them toward the official secure booking flow/page.
-- Always encourage the next booking step when intent is present.
+- Only push the next booking step when the guest has expressed booking intent — do not redirect non-booking questions to booking.
 - Do not ask long, stressful, multi-part follow-up questions if simple options would work.
 - Prefer offering 2-5 easy choices the guest can pick from, such as Studio, 1 bedroom, 2 bedroom, no preference, or suggested date options.
 - If you already have enough information to check options, move forward instead of asking for extra preferences.
@@ -110,9 +117,8 @@ Security rules:
 - If payment info is shared, instruct the guest to use the secure booking page and avoid sharing sensitive details in chat.
 
 Accuracy and escalation:
-- Do not guess.
-- Use only provided context and retrieved knowledge.
-- If uncertain or outside scope, offer to connect the guest with support.
+- Never copy-paste background knowledge text word-for-word into your reply — always rephrase naturally.
+- If uncertain about a specific property detail, say so and offer to connect the guest with support.
 - Write like a real concierge speaking to a guest, not like scripted customer support copy.
 `;
 
@@ -1779,17 +1785,61 @@ const CHAT_TOOLS = Object.freeze({
 });
 
 const isCurrentTimeQuestion = (text = "") =>
-  /\b(what time( is it)?( right now)?|current time|time right now|what'?s the time)\b/i.test(String(text || ""));
+  /\b(what time( is it)?( right now)?|current time|time right now|what'?s the time|what time is (in|at|for)|time in |time (is it|now) in|what time now|time now)\b/i.test(String(text || ""));
 
 const isDestinationRecommendationQuestion = (text = "") =>
-  /\b(good place to visit|best place to visit|where should i visit|what should i visit|recommend (a )?(city|place|destination)|what'?s a good place|place to visit)\b/i.test(
+  /\b(good place to visit|best place to visit|where should i visit|what should i visit|recommend (a )?(city|place|destination)|what'?s a good place|place to visit|tourist spots?|tourist attractions?|sightseeing|things to do|what to do in|places? to (see|visit)|must see|must visit|top attractions?|activities in|points? of interest|famous (places?|spots?|sites?)|local attractions?|what can i (do|see)|places? of interest|worth visiting|worth seeing)\b/i.test(
     String(text || ""),
   );
 
-const buildCurrentTimeReply = ({ pageContext = {}, supportedCities = [] } = {}) => {
+const isTouristInfoQuery = (text = "") =>
+  /\b(tourist spots?|tourist attractions?|sightseeing|things to do|what to do in|places? to (see|visit)|must see|must visit|top attractions?|activities in|points? of interest|famous (places?|spots?|sites?)|local attractions?|what can i (do|see)|worth visiting|worth seeing)\b/i.test(
+    String(text || ""),
+  );
+
+const TIMEZONE_LOOKUP = {
+  philippines: { tz: "Asia/Manila", label: "Philippine time" },
+  manila: { tz: "Asia/Manila", label: "Philippine time" },
+  japan: { tz: "Asia/Tokyo", label: "Japan time" },
+  tokyo: { tz: "Asia/Tokyo", label: "Japan time" },
+  london: { tz: "Europe/London", label: "London time" },
+  uk: { tz: "Europe/London", label: "UK time" },
+  paris: { tz: "Europe/Paris", label: "Paris time" },
+  france: { tz: "Europe/Paris", label: "France time" },
+  germany: { tz: "Europe/Berlin", label: "Germany time" },
+  berlin: { tz: "Europe/Berlin", label: "Berlin time" },
+  dubai: { tz: "Asia/Dubai", label: "Dubai time" },
+  uae: { tz: "Asia/Dubai", label: "UAE time" },
+  singapore: { tz: "Asia/Singapore", label: "Singapore time" },
+  india: { tz: "Asia/Kolkata", label: "India time" },
+  mumbai: { tz: "Asia/Kolkata", label: "India time" },
+  delhi: { tz: "Asia/Kolkata", label: "India time" },
+  australia: { tz: "Australia/Sydney", label: "Sydney time" },
+  sydney: { tz: "Australia/Sydney", label: "Sydney time" },
+  "new york": { tz: "America/New_York", label: "Eastern time" },
+  "los angeles": { tz: "America/Los_Angeles", label: "Pacific time" },
+  miami: { tz: "America/New_York", label: "Eastern time" },
+  chicago: { tz: "America/Chicago", label: "Central time" },
+  antwerp: { tz: "Europe/Brussels", label: "Brussels time" },
+  belgium: { tz: "Europe/Brussels", label: "Brussels time" },
+};
+
+const detectTimezoneFromText = (text = "") => {
+  const lower = String(text || "").toLowerCase();
+  for (const [key, value] of Object.entries(TIMEZONE_LOOKUP)) {
+    if (lower.includes(key)) return value;
+  }
+  return null;
+};
+
+const buildCurrentTimeReply = ({ pageContext = {}, supportedCities = [], latestUserMessage = {} } = {}) => {
+  const messageText = String(latestUserMessage?.content || "");
+  const detectedTz = detectTimezoneFromText(messageText);
+
   const city = normalizeCityLabel(pageContext?.city || "");
-  const timeZone = city === "Antwerp" ? "Europe/Brussels" : "America/New_York";
-  const zoneLabel = timeZone === "Europe/Brussels" ? "Brussels time" : "Eastern time";
+  const pageTz = city === "Antwerp" ? { tz: "Europe/Brussels", label: "Brussels time" } : { tz: "America/New_York", label: "Eastern time" };
+  const { tz: timeZone, label: zoneLabel } = detectedTz || pageTz;
+
   const formatted = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -1797,13 +1847,13 @@ const buildCurrentTimeReply = ({ pageContext = {}, supportedCities = [] } = {}) 
     timeZoneName: "short",
   }).format(new Date());
 
-  const citySuffix = city && city !== "Global" ? ` for ${city}` : "";
+  const locationSuffix = detectedTz ? ` (${zoneLabel})` : city && city !== "Global" ? ` for ${city} (${zoneLabel})` : ` (${zoneLabel})`;
   const supportedCitiesText = (Array.isArray(supportedCities) && supportedCities.length
     ? supportedCities
     : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
   ).join(", ");
 
-  return `Right now it is ${formatted} (${zoneLabel})${citySuffix}. If you want, I can also help with availability, booking status, or choosing between ${supportedCitiesText}.`;
+  return `Right now it is ${formatted}${locationSuffix}. If you want, I can also help with availability, booking status, or choosing between ${supportedCitiesText}.`;
 };
 
 const buildDestinationRecommendationReply = ({ latestUserMessage, conciergeKnowledge, supportedCities = [] } = {}) => {
@@ -4497,27 +4547,32 @@ export async function handler(event) {
         languageProfile,
         intent: detectedIntent,
         tool: CHAT_TOOLS.current_time_lookup,
-        reply: buildCurrentTimeReply({ pageContext, supportedCities }),
+        reply: buildCurrentTimeReply({ pageContext, supportedCities, latestUserMessage }),
         smarten: true,
       });
     }
 
     if (detectedIntent === CHAT_INTENTS.destination_recommendation) {
-      return respondWithIntentPayload({
-        event,
-        apiKey,
-        model,
-        latestUserMessage,
-        languageProfile,
-        intent: detectedIntent,
-        tool: CHAT_TOOLS.destination_guide,
-        reply: buildDestinationRecommendationReply({
+      // Tourist info questions (e.g. "what are the tourist spots in Dubai?") should be answered
+      // by GPT using general knowledge rather than a static booking redirect.
+      if (!isTouristInfoQuery(latestPromptForIntent)) {
+        return respondWithIntentPayload({
+          event,
+          apiKey,
+          model,
           latestUserMessage,
-          conciergeKnowledge,
-          supportedCities,
-        }),
-        smarten: true,
-      });
+          languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.destination_guide,
+          reply: buildDestinationRecommendationReply({
+            latestUserMessage,
+            conciergeKnowledge,
+            supportedCities,
+          }),
+          smarten: true,
+        });
+      }
+      // Tourist info queries fall through to the general GPT handler below.
     }
 
     if (detectedIntent === CHAT_INTENTS.listing_price && pageContext?.listingId) {
