@@ -68,6 +68,7 @@ const formatPageLabel = (value = "") => {
   if (normalized === "home") return "Homepage";
   if (normalized === "listing") return "Listing Page";
   if (normalized === "global") return "Global Listings";
+  if (normalized === "whatsapp") return "WhatsApp";
   return titleCase(normalized);
 };
 
@@ -183,7 +184,26 @@ const getConversationLatestMessage = (thread = {}) => {
   return messages[messages.length - 1] || null;
 };
 
+const isWhatsAppConversation = (thread = {}) =>
+  String(thread?.pageType || "").trim().toLowerCase() === "whatsapp" ||
+  String(thread?.sessionId || "").trim().toLowerCase().startsWith("whatsapp:");
+
+const getWhatsAppPhoneLabel = (thread = {}) => {
+  const sessionId = String(thread?.sessionId || "").trim();
+  if (!sessionId.toLowerCase().startsWith("whatsapp:")) return "";
+  const digits = sessionId.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return `+${digits}`;
+};
+
 const getConversationTitle = (thread = {}) => {
+  if (isWhatsAppConversation(thread)) {
+    return `WhatsApp ${getWhatsAppPhoneLabel(thread) || "guest"}`;
+  }
+
   const city = String(thread?.city || "").trim();
   if (city && city.toLowerCase() !== "unknown city") return city;
 
@@ -1979,7 +1999,13 @@ function AdminsOlsPage() {
                       </div>
                       <div className="admins-ols-messenger-item-sub">
                         <span>{formatPageLabel(thread.pageType)}</span>
-                        <span>{thread.listingId ? `Listing ${shortenId(thread.listingId)}` : "No listing"}</span>
+                        <span>
+                          {isWhatsAppConversation(thread)
+                            ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                            : thread.listingId
+                              ? `Listing ${shortenId(thread.listingId)}`
+                              : "No listing"}
+                        </span>
                       </div>
                       <p>{getConversationPreview(thread)}</p>
                       <div className="admins-ols-messenger-item-foot">
@@ -2015,12 +2041,16 @@ function AdminsOlsPage() {
                       </h3>
                       <div className="admins-ols-conversation-meta">
                         <span>
-                          {selectedConversation.city && selectedConversation.city.toLowerCase() !== "unknown city"
+                          {isWhatsAppConversation(selectedConversation)
+                            ? getWhatsAppPhoneLabel(selectedConversation) || "WhatsApp guest"
+                            : selectedConversation.city && selectedConversation.city.toLowerCase() !== "unknown city"
                             ? selectedConversation.city
                             : "Website"}
                         </span>
                         <span>
-                          {selectedConversation.listingId
+                          {isWhatsAppConversation(selectedConversation)
+                            ? "Twilio WhatsApp"
+                            : selectedConversation.listingId
                             ? `Listing ${shortenId(selectedConversation.listingId)}`
                             : "No listing"}
                         </span>
@@ -2087,14 +2117,18 @@ function AdminsOlsPage() {
                   </div>
                   <form className="admins-ols-thread-composer" onSubmit={handleSendReply}>
                     <label htmlFor="admins-ols-reply" className="admins-ols-thread-composer-label">
-                      Reply as admin
+                      {isWhatsAppConversation(selectedConversation) ? "Reply to WhatsApp guest" : "Reply as admin"}
                     </label>
                     <div className="admins-ols-thread-composer-row">
                       <textarea
                         id="admins-ols-reply"
                         value={replyDraft}
                         onChange={(event) => setReplyDraft(event.target.value)}
-                        placeholder="Reply to this guest conversation as the OneLuxStay team..."
+                        placeholder={
+                          isWhatsAppConversation(selectedConversation)
+                            ? "Send a WhatsApp reply as the OneLuxStay team..."
+                            : "Reply to this guest conversation as the OneLuxStay team..."
+                        }
                         rows={3}
                         disabled={sendingReply}
                         onKeyDown={(event) => {

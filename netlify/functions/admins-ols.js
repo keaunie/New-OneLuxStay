@@ -22,6 +22,7 @@ dotenv.config();
 
 const DEFAULT_SENTIMENT_TABLE = "chat_sentiment_lessons";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const DEFAULT_TWILIO_WHATSAPP_FROM = "whatsapp:+17159218069";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -47,6 +48,23 @@ const sanitizeId = (value = "", maxLength = 120) =>
     .replace(/[^a-zA-Z0-9:_-]/g, "")
     .slice(0, maxLength);
 
+const isWhatsAppSessionId = (value = "") => sanitizeId(value, 120).toLowerCase().startsWith("whatsapp:");
+
+const extractWhatsAppNumberFromSessionId = (value = "") => {
+  const normalized = sanitizeId(value, 120);
+  if (!isWhatsAppSessionId(normalized)) return "";
+  const digits = normalized.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  return digits ? `+${digits}` : "";
+};
+
+const normalizeWhatsAppAddress = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^whatsapp:/i.test(text)) return text;
+  const digits = text.replace(/[^\d+]/g, "");
+  return digits ? `whatsapp:${digits.startsWith("+") ? digits : `+${digits}`}` : "";
+};
+
 const parseBoolean = (value, fallback = false) => {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (!normalized) return fallback;
@@ -61,6 +79,74 @@ const parseJson = (text = "") => {
   } catch {
     return {};
   }
+};
+
+const getTwilioWhatsAppConfig = () => {
+  const accountSid = sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120);
+  const authToken = sanitizeString(getEnv("TWILIO_WHATSAPP_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240);
+  const fromAddress = normalizeWhatsAppAddress(
+    sanitizeString(getEnv("TWILIO_WHATSAPP_FROM") || DEFAULT_TWILIO_WHATSAPP_FROM, 80),
+  );
+
+  return { accountSid, authToken, fromAddress };
+};
+
+const sendWhatsAppAdminReply = async ({ sessionId = "", content = "" } = {}) => {
+  const toNumber = extractWhatsAppNumberFromSessionId(sessionId);
+  if (!toNumber) {
+    const error = new Error("Unable to resolve the WhatsApp guest number for this conversation.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { accountSid, authToken, fromAddress } = getTwilioWhatsAppConfig();
+  if (!accountSid || !authToken || !fromAddress) {
+    const error = new Error(
+      "Twilio WhatsApp outbound messaging is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM.",
+    );
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const body = new URLSearchParams({
+    To: normalizeWhatsAppAddress(toNumber),
+    From: fromAddress,
+    Body: sanitizeMultiline(content, 3000),
+  });
+
+  const response = await fetchWithTimeout(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    },
+    20_000,
+  );
+
+  const rawText = await response.text();
+  const payload = parseJson(rawText);
+
+  if (!response.ok) {
+    const error = new Error(
+      sanitizeString(
+        payload?.message || payload?.error_message || "Twilio could not send the WhatsApp reply.",
+        320,
+      ),
+    );
+    error.statusCode = response.status || 502;
+    throw error;
+  }
+
+  return {
+    sid: sanitizeString(payload?.sid, 120),
+    status: sanitizeString(payload?.status, 80),
+    to: sanitizeString(payload?.to, 80),
+    from: sanitizeString(payload?.from, 80),
+  };
 };
 
 const extractOutputText = (payload) => {
@@ -1508,6 +1594,12 @@ const createAdminReply = async (payload, tables, adminUser = {}) => {
   const nowIso = new Date().toISOString();
   const adminName = sanitizeString(adminUser?.fullName || adminUser?.name, 160);
   const adminEmail = sanitizeString(adminUser?.email, 160);
+  const whatsappDelivery = isWhatsAppSessionId(sessionId)
+    ? await sendWhatsAppAdminReply({
+        sessionId,
+        content,
+      })
+    : null;
   const rows = await supabaseRestRequest(tables.messages, {
     method: "POST",
     body: [
@@ -1526,6 +1618,11 @@ const createAdminReply = async (payload, tables, adminUser = {}) => {
           senderType: "admin",
           senderName: adminName || null,
           senderEmail: adminEmail || null,
+          channel: isWhatsAppSessionId(sessionId) ? "whatsapp" : "web",
+          twilioMessageSid: whatsappDelivery?.sid || null,
+          twilioStatus: whatsappDelivery?.status || null,
+          twilioTo: whatsappDelivery?.to || null,
+          twilioFrom: whatsappDelivery?.from || null,
         },
         created_at: nowIso,
       },
