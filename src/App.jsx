@@ -27,8 +27,6 @@ const AdminsOlsAuthPage = lazy(routePreloaders.adminsOlsAuth);
 const AdminsOlsInviteAcceptPage = lazy(routePreloaders.adminsOlsInviteAccept);
 const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
-const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
-const ExecutiveOlsAuthPage = lazy(routePreloaders.executiveOlsAuth);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -114,7 +112,7 @@ function AppRoutes() {
       const hash = String(location.hash || "");
       const pathname = String(location.pathname || "");
       if (pathname === "/" && (hash.includes("access_token=") || hash.toLowerCase().includes("error="))) {
-        navigate({ pathname: "/admins-ols/accept", hash }, { replace: true });
+        navigate({ pathname: "/executive-ols/accept", hash }, { replace: true });
       }
     } catch {
       // ignore
@@ -203,13 +201,17 @@ function AppRoutes() {
           <Route path="/california-privacy" element={renderLazyRoute(CaliforniaPrivacyPolicy)} />
           <Route path="/acknowledge" element={renderLazyRoute(AcknowledgementPage)} />
           <Route path="/booking-confirmation" element={renderLazyRoute(BookingConfirmationPage)} />
-          <Route path="/admins-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
-          <Route path="/admins-ols/accept" element={renderLazyRoute(AdminsOlsInviteAcceptPage)} />
-          <Route path="/admins-ols" element={renderLazyRoute(AdminsOlsPage)} />
-          <Route path="/admins-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
-          <Route path="/admins-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
-          <Route path="/executive-ols/login" element={renderLazyRoute(ExecutiveOlsAuthPage)} />
-          <Route path="/executive-ols" element={renderLazyRoute(ExecutiveOlsPage)} />
+          <Route path="/admins-ols/login" element={<Navigate to="/executive-ols/login" replace />} />
+          <Route path="/admins-ols/accept" element={<Navigate to="/executive-ols/accept" replace />} />
+          <Route path="/admins-ols/audit" element={<Navigate to="/executive-ols/audit" replace />} />
+          <Route path="/admins-ols/guest-journeys" element={<Navigate to="/executive-ols/guest-journeys" replace />} />
+          <Route path="/admins-ols" element={<Navigate to="/executive-ols" replace />} />
+          <Route path="/admins-ols/*" element={<Navigate to="/executive-ols" replace />} />
+          <Route path="/executive-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
+          <Route path="/executive-ols/accept" element={renderLazyRoute(AdminsOlsInviteAcceptPage)} />
+          <Route path="/executive-ols" element={renderLazyRoute(AdminsOlsPage)} />
+          <Route path="/executive-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
+          <Route path="/executive-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -1456,7 +1456,7 @@ function AdminsOlsPage() {
       const inferredOrigin =
         String(system?.siteUrl || "").trim() ||
         (typeof window !== "undefined" ? String(window.location.origin || "").trim() : "");
-      const redirectTo = inferredOrigin ? `${inferredOrigin.replace(/\/+$/, "")}/admins-ols/accept` : "";
+      const redirectTo = inferredOrigin ? `${inferredOrigin.replace(/\/+$/, "")}/executive-ols/accept` : "";
 
       const fullName = String(inviteForm.fullName || "").trim();
       if (!fullName) throw new Error("Full name is required.");
@@ -1601,7 +1601,7 @@ function AdminsOlsPage() {
   ];
 
   if (!session?.accessToken && !session?.sharedKey) {
-    return <Navigate to="/admins-ols/login" replace />;
+    return <Navigate to="/executive-ols/login" replace />;
   }
 
   return (
@@ -1700,13 +1700,13 @@ function AdminsOlsPage() {
                     Account Settings
                   </button>
                   {isSuperAdmin && (
-                    <Link className="admins-ols-profile-action" to="/admins-ols/audit">
+                    <Link className="admins-ols-profile-action" to="/executive-ols/audit">
                       <span>Superadmin Audit Log</span>
                       <span className="admins-ols-side-nav-count">{recentAdminActivity.length || "Go"}</span>
                     </Link>
                   )}
                   {isSuperAdmin && (
-                    <Link className="admins-ols-profile-action" to="/admins-ols/guest-journeys">
+                    <Link className="admins-ols-profile-action" to="/executive-ols/guest-journeys">
                       <span>Guest Journey Log</span>
                       <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
                     </Link>
@@ -1747,7 +1747,7 @@ function AdminsOlsPage() {
             )}
             <header className="admins-ols-hero">
               <div className="admins-ols-hero-content">
-                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <p className="admins-ols-eyebrow">OneLuxStay Executive</p>
                 <h1>Concierge Intelligence Panel</h1>
                 <p className="admins-ols-hero-copy">
                   Monitor the concierge, review what guests are asking, and teach the AI how to handle
@@ -2552,7 +2552,7 @@ function AdminsOlsPage() {
               </div>
               <p className="admins-ols-copy">
                 Send an email invitation to a new admin. They will set their own password from the invite link, then
-                sign in on <Link className="admins-ols-inline-link" to="/admins-ols/login">/admins-ols/login</Link>.
+                sign in on <Link className="admins-ols-inline-link" to="/executive-ols/login">/executive-ols/login</Link>.
               </p>
               <p className="admins-ols-note" style={{ marginTop: 0 }}>
                 Invite redirect target: <strong>{system?.siteUrl || (typeof window !== "undefined" ? window.location.origin : "")}</strong>

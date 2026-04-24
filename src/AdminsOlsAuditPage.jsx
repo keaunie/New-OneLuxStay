@@ -503,7 +503,7 @@ function AdminsOlsAuditPage() {
   const handleLogout = () => {
     clearAdminsOlsSession();
     setSession(null);
-    navigate("/admins-ols/login", { replace: true });
+    navigate("/executive-ols/login", { replace: true });
   };
 
   const handleNavigateToTab = (tabId = "") => {
@@ -513,11 +513,11 @@ function AdminsOlsAuditPage() {
   };
 
   if (!session?.accessToken && !session?.sharedKey) {
-    return <Navigate to="/admins-ols/login" replace />;
+    return <Navigate to="/executive-ols/login" replace />;
   }
 
   if (accessState === "forbidden") {
-    return <Navigate to="/admins-ols" replace />;
+    return <Navigate to="/executive-ols" replace />;
   }
 
   if (accessState === "checking" && !isSuperAdmin) {
@@ -525,7 +525,7 @@ function AdminsOlsAuditPage() {
       <div className="admins-ols-page">
         <div className="admins-ols-shell">
           <section className="admins-ols-lockup">
-            <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+            <p className="admins-ols-eyebrow">OneLuxStay Executive</p>
             <h1>Checking Audit Access</h1>
             <p className="admins-ols-hero-copy">
               Verifying your superadmin permissions before loading the audit log.
@@ -563,7 +563,7 @@ function AdminsOlsAuditPage() {
           >
             <div className="admins-ols-side-sticky">
               <section className="admins-ols-side-section">
-                <p className="admins-ols-eyebrow">Admin Access</p>
+                <p className="admins-ols-eyebrow">Executive Access</p>
                 <h2>{currentAdmin.fullName || currentAdmin.email || "Superadmin"}</h2>
                 <p className="admins-ols-note">
                   Signed in with {session?.sharedKey ? "shared key access" : "Supabase authentication"}.
@@ -575,7 +575,7 @@ function AdminsOlsAuditPage() {
                   <h3>Quick Jump</h3>
                 </div>
                 <div className="admins-ols-side-nav">
-                  <Link className="admins-ols-side-nav-link" to="/admins-ols">
+                  <Link className="admins-ols-side-nav-link" to="/executive-ols">
                     <span>Back to Dashboard</span>
                   </Link>
                   <button
@@ -619,7 +619,7 @@ function AdminsOlsAuditPage() {
           <main className="admins-ols-main">
             <header className="admins-ols-hero">
               <div className="admins-ols-hero-content">
-                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <p className="admins-ols-eyebrow">OneLuxStay Executive</p>
                 <h1>Superadmin Audit Log</h1>
                 <p className="admins-ols-hero-copy">
                   Review sensitive admin access history with exact date and time filters.

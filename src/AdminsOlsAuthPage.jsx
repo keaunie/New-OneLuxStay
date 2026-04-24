@@ -18,7 +18,7 @@ function AdminsOlsAuthPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const redirectTarget = params.get("next") || "/admins-ols";
+  const redirectTarget = params.get("next") || "/executive-ols";
   const [form, setForm] = useState(DEFAULT_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,7 +27,7 @@ function AdminsOlsAuthPage() {
   useEffect(() => {
     let active = true;
     const previousTitle = document.title;
-    document.title = "OneLuxStay Admin Login";
+    document.title = "OneLuxStay Executive Login";
 
     const robotsMeta = document.createElement("meta");
     robotsMeta.name = "robots";
@@ -107,8 +107,8 @@ function AdminsOlsAuthPage() {
       <div className="admins-ols-auth-shell">
         <section className="admins-ols-auth-panel">
           <div className="admins-ols-auth-copy">
-            <p className="admins-ols-auth-eyebrow">OneLuxStay Internal</p>
-            <h1>Admin Access</h1>
+            <p className="admins-ols-auth-eyebrow">OneLuxStay Executive</p>
+            <h1>Executive Access</h1>
             <p>
               Sign in with your existing Supabase Authentication user to open the admin
               concierge intelligence panel, review concierge activity, and manage sentiment coaching for the

@@ -46,7 +46,7 @@ function AdminsOlsInviteAcceptPage() {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Accept Admin Invite";
+    document.title = "Accept Executive Invite";
 
     const robotsMeta = document.createElement("meta");
     robotsMeta.name = "robots";
@@ -122,7 +122,7 @@ function AdminsOlsInviteAcceptPage() {
 
       saveAdminsOlsSession(payload.session);
       setNotice("Invite accepted. Redirecting to the admin panel...");
-      navigate("/admins-ols", { replace: true });
+      navigate("/executive-ols", { replace: true });
     } catch (requestError) {
       setError(String(requestError?.message || "Unable to accept invite."));
     } finally {
@@ -139,11 +139,11 @@ function AdminsOlsInviteAcceptPage() {
         <section className="admins-ols-auth-panel">
           <div className="admins-ols-auth-copy">
             <div>
-              <p className="admins-ols-auth-eyebrow">OneLuxStay Internal</p>
+              <p className="admins-ols-auth-eyebrow">OneLuxStay Executive</p>
               <h1>Set Your Admin Password</h1>
               <p>
                 You were invited to access the Concierge Intelligence Panel. Create a password below, then you can sign
-                in anytime from <strong>/admins-ols/login</strong>.
+                in anytime from <strong>/executive-ols/login</strong>.
               </p>
             </div>
             <div className="admins-ols-auth-highlights">
@@ -177,7 +177,7 @@ function AdminsOlsInviteAcceptPage() {
                     : "This invite link could not be verified."}
                   {inviteErrorDescription ? <div style={{ marginTop: "0.5rem" }}>{inviteErrorDescription}</div> : null}
                 </div>
-                <Link className="admins-ols-auth-back" to="/admins-ols/login">
+                <Link className="admins-ols-auth-back" to="/executive-ols/login">
                   Go to admin login
                 </Link>
               </>
@@ -186,7 +186,7 @@ function AdminsOlsInviteAcceptPage() {
                 <div className="admins-ols-auth-error">
                   Missing invite token. Please open the invite email link again.
                 </div>
-                <Link className="admins-ols-auth-back" to="/admins-ols/login">
+                <Link className="admins-ols-auth-back" to="/executive-ols/login">
                   Go to admin login
                 </Link>
               </>
@@ -254,7 +254,7 @@ function AdminsOlsInviteAcceptPage() {
             )}
 
             <p className="admins-ols-auth-footnote">
-              Already accepted your invite? <Link to="/admins-ols/login">Sign in here</Link>.
+              Already accepted your invite? <Link to="/executive-ols/login">Sign in here</Link>.
             </p>
 
             <Link className="admins-ols-auth-back" to="/">
