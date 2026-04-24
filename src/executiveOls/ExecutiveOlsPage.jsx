@@ -371,7 +371,7 @@ const injectReplyIntoThreads = (threads = [], sessionId = "", message = {}) =>
     };
   });
 
-function ExecutiveOlsPage() {
+function ExecutiveOlsPage({ forceView = null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [session, setSession] = useState(() => loadExecutiveOlsSession());
@@ -381,7 +381,7 @@ function ExecutiveOlsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [activeView, setActiveView] = useState(() =>
-    String(location.pathname || "").includes("/whatsapp") ? "whatsapp" : "assistant",
+    forceView || (String(location.pathname || "").includes("/whatsapp") ? "whatsapp" : "assistant"),
   );
   const [timeRange, setTimeRange] = useState("this_week");
   const [propertyId, setPropertyId] = useState("");
