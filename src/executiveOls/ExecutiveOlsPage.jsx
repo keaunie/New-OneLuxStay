@@ -18,9 +18,6 @@ const QUICK_PROMPTS = [
 ];
 
 const VIEW_OPTIONS = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "bookings", label: "Bookings" },
-  { id: "reports", label: "Reports" },
   { id: "assistant", label: "AI Assistant" },
   { id: "whatsapp", label: "WhatsApp" },
 ];
