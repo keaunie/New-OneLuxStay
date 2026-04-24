@@ -268,10 +268,6 @@ body {
   gap: 12px;
 }
 
-.chat-concierge--whatsapp {
-  pointer-events: none;
-}
-
 .chat-concierge__panel {
   width: min(390px, calc(100vw - 24px));
   height: min(84vh, 820px);
@@ -328,6 +324,7 @@ body {
 
 .chat-concierge__ghost,
 .chat-concierge__close,
+.chat-concierge__whatsapp,
 .chat-concierge__suggestion,
 .chat-concierge__send,
 .chat-concierge__toggle {
@@ -341,6 +338,21 @@ body {
 .chat-concierge__close {
   background: rgba(201, 181, 156, 0.18);
   color: var(--landing-text);
+}
+
+.chat-concierge__whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(37, 211, 102, 0.14);
+  border: 1px solid rgba(18, 140, 126, 0.2);
+  color: #116b50;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
 }
 
 .chat-concierge__ghost {
@@ -670,6 +682,8 @@ body {
 .chat-concierge__send:focus-visible,
 .chat-concierge__ghost:hover,
 .chat-concierge__ghost:focus-visible,
+.chat-concierge__whatsapp:hover,
+.chat-concierge__whatsapp:focus-visible,
 .chat-concierge__close:hover,
 .chat-concierge__close:focus-visible {
   transform: translateY(-1px);
@@ -729,20 +743,6 @@ body {
   background: linear-gradient(135deg, #4c5b4a 0%, #7f6752 100%);
   color: #fffaf4;
   box-shadow: 0 18px 36px rgba(63, 54, 47, 0.24);
-}
-
-.chat-concierge__toggle--whatsapp {
-  pointer-events: auto;
-  text-decoration: none;
-  background: linear-gradient(135deg, #128c7e 0%, #25d366 100%);
-  color: #ffffff;
-  box-shadow: 0 18px 36px rgba(18, 140, 126, 0.26);
-}
-
-.chat-concierge__toggle--whatsapp:hover,
-.chat-concierge__toggle--whatsapp:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 22px 42px rgba(18, 140, 126, 0.3);
 }
 
 .chat-concierge__toggle-badge {
@@ -2769,8 +2769,8 @@ body {
   position: relative;
   z-index: 4;
   margin-top: 0;
-  padding: clamp(10px, 2vw, 22px) 0 clamp(22px, 3.4vw, 40px);
-  background: linear-gradient(180deg, #f9f8f6 0%, #f4eee7 52%, #f9f8f6 100%);
+  padding: clamp(14px, 2.6vw, 28px) 0 clamp(24px, 4.2vw, 48px);
+  background: linear-gradient(180deg, #f9f8f6 0%, #efe9e3 55%, #f9f8f6 100%);
   border-top: 1px solid rgba(201, 181, 156, 0.28);
   border-bottom: 1px solid rgba(201, 181, 156, 0.2);
 }
@@ -2791,7 +2791,7 @@ body {
 }
 
 .landing-offers-copy {
-  max-width: 640px;
+  max-width: 760px;
 }
 
 .landing-offers-controls {
@@ -2803,21 +2803,21 @@ body {
 .landing-offers-controls--center {
   width: 100%;
   justify-content: center;
-  padding: 2px 6vw 8px;
+  padding: 6px 6vw 14px;
 }
 
 .landing-offers-swipe {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 6px 14px;
+  gap: 12px;
+  padding: 8px 18px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(201, 181, 156, 0.28);
-  box-shadow: 0 8px 18px rgba(63, 54, 47, 0.08);
-  color: #756557;
-  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(201, 181, 156, 0.35);
+  box-shadow: 0 14px 28px rgba(63, 54, 47, 0.12);
+  color: #6f5f51;
+  font-size: 0.95rem;
   letter-spacing: 0.02em;
 }
 
@@ -2856,7 +2856,7 @@ body {
   margin-top: 0;
   display: block;
   overflow: hidden;
-  padding: 10px 6vw 22px max(6vw, 22px);
+  padding: 16px 6vw 28px max(6vw, 22px);
   scrollbar-width: none;
   position: relative;
   cursor: grab;
@@ -2894,7 +2894,7 @@ body {
 
 .landing-offers-track {
   display: flex;
-  gap: 14px;
+  gap: 16px;
   will-change: transform;
 }
 
@@ -2906,21 +2906,21 @@ body {
   bottom: 12px;
   height: 1px;
   border-radius: 999px;
-  box-shadow: 0 18px 34px rgba(63, 54, 47, 0.12);
+  box-shadow: 0 24px 46px rgba(63, 54, 47, 0.2);
   pointer-events: none;
   z-index: 0;
 }
 
 .landing-offer-card {
-  flex: 0 0 min(480px, 74vw);
-  border-radius: 22px;
-  padding: 24px;
-  min-height: 260px;
+  flex: 0 0 min(600px, 82vw);
+  border-radius: 28px;
+  padding: 32px;
+  min-height: 380px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border: 1px solid rgba(201, 181, 156, 0.34);
-  box-shadow: 0 8px 18px rgba(63, 54, 47, 0.08);
+  gap: 12px;
+  border: 1px solid rgba(201, 181, 156, 0.55);
+  box-shadow: 0 8px 20px rgba(63, 54, 47, 0.12);
   position: relative;
   overflow: hidden;
   z-index: 1;
@@ -2958,8 +2958,8 @@ body {
 }
 
 .landing-offers-section.is-visible .landing-offer-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 28px rgba(63, 54, 47, 0.12);
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 18px 36px rgba(63, 54, 47, 0.2);
 }
 
 @keyframes offerCardIn {
@@ -2985,56 +2985,55 @@ body {
   content: "";
   position: absolute;
   left: 24px;
-  top: 0;
-  width: 56px;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(168, 128, 87, 0.7);
-  opacity: 0.9;
+  top: 24px;
+  width: 48px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(201, 181, 156, 0.6));
+  box-shadow: inset 0 0 0 1px rgba(63, 54, 47, 0.12);
+  opacity: 0.85;
 }
 
 .landing-offer-card::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 38%);
-  opacity: 0.4;
+  background: radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.35), transparent 45%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.18), transparent 40%);
+  opacity: 0.8;
   pointer-events: none;
 }
 
 .landing-offer-kicker {
-  font-size: 0.68rem;
-  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 600;
   position: relative;
   z-index: 1;
-  margin-left: 0;
-  color: #8b6e4c;
+  margin-left: 60px;
 }
 
 .landing-offer-title {
   font-family: var(--landing-font-display);
-  font-size: clamp(1.6rem, 2vw, 2rem);
+  font-size: 1.85rem;
   margin: 0;
   position: relative;
   z-index: 1;
-  line-height: 1.04;
 }
 
 .landing-offer-body {
-  font-size: 0.96rem;
-  line-height: 1.45;
+  font-size: 1rem;
+  line-height: 1.5;
   margin: 0;
   position: relative;
   z-index: 1;
-  max-width: 30ch;
 }
 
 .landing-offer-cta {
   align-self: flex-start;
   margin-top: auto;
-  padding: 0.5rem 0.9rem;
+  padding: 0.45rem 1rem;
   border-radius: 999px;
   border: 1px solid currentColor;
   text-decoration: none;
@@ -3069,26 +3068,26 @@ body {
 
   .landing-offers-copy .landing-collection-title {
     margin-top: 6px;
-    font-size: clamp(1.8rem, 8vw, 2.2rem);
-    line-height: 1.04;
+    font-size: clamp(1.9rem, 9vw, 2.4rem);
+    line-height: 1.08;
   }
 
   .landing-offers-copy .landing-collection-copy {
-    margin-top: 8px;
-    font-size: 0.92rem;
+    margin-top: 10px;
+    font-size: 0.94rem;
     line-height: 1.45;
-    max-width: 32ch;
+    max-width: 34ch;
   }
 
   .landing-offers-controls--center {
     justify-content: flex-start;
-    padding: 6px 14px 8px;
+    padding: 10px 14px 10px;
   }
 
   .landing-offers-swipe {
-    min-height: 38px;
-    padding: 6px 12px;
-    font-size: 0.82rem;
+    min-height: 44px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
   }
 
   .landing-offers-swipe__lottie {
@@ -3096,27 +3095,27 @@ body {
   }
 
   .landing-offers-row {
-    padding: 10px 14px 18px;
+    padding: 14px 14px 20px;
   }
 
   .landing-offers-track {
-    gap: 10px;
+    gap: 12px;
   }
 
   .landing-offer-card {
     flex: 0 0 calc(100vw - 56px);
-    min-height: 220px;
-    border-radius: 18px;
-    padding: 20px;
+    min-height: 312px;
+    border-radius: 24px;
+    padding: 24px;
   }
 
   .landing-offer-title {
-    font-size: 1.4rem;
+    font-size: 1.65rem;
   }
 
   .landing-offer-body {
-    font-size: 0.9rem;
-    line-height: 1.38;
+    font-size: 0.96rem;
+    line-height: 1.42;
   }
 
   .landing-collection-section {
@@ -3126,7 +3125,7 @@ body {
 }
 
 .offer-dark {
-  background: linear-gradient(135deg, #3a3147, #463b55);
+  background: linear-gradient(135deg, #2e2738, #3a3147);
   color: #f9f4ef;
   border-color: rgba(255, 255, 255, 0.12);
 }
@@ -3136,12 +3135,12 @@ body {
 }
 
 .offer-sand {
-  background: linear-gradient(135deg, #ede3d7, #f5eee6);
+  background: linear-gradient(135deg, #ded2c3, #efe4d7);
   color: #3f362f;
 }
 
 .offer-clay {
-  background: linear-gradient(135deg, #efb287, #f5c6a4);
+  background: linear-gradient(135deg, #e49a6a, #f0b184);
   color: #2e1f1a;
 }
 
