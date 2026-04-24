@@ -1082,19 +1082,6 @@ function ExecutiveOlsPage({ forceView = null }) {
               <h1>Executive dashboard</h1>
             </div>
 
-            <nav className="executive-ols-nav">
-              {VIEW_OPTIONS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`executive-ols-nav-item${activeView === item.id ? " is-active" : ""}`}
-                  onClick={() => setActiveView(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-
             <div className="executive-ols-side-card">
               <p className="executive-ols-side-label">Session</p>
               <strong>{session?.user?.fullName || session?.user?.email || "Executive"}</strong>
@@ -1229,6 +1216,19 @@ function ExecutiveOlsPage({ forceView = null }) {
           </aside>
 
           <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
+            <nav className="executive-ols-nav">
+              {VIEW_OPTIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`executive-ols-nav-item${activeView === item.id ? " is-active" : ""}`}
+                  onClick={() => setActiveView(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            
             {error && <div className="executive-ols-alert is-error">{error}</div>}
             {notice && !error && activeView !== "whatsapp" && <div className="executive-ols-alert">{notice}</div>}
 
