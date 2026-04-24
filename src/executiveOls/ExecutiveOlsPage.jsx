@@ -386,6 +386,8 @@ function ExecutiveOlsPage() {
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
   const [startingVoiceCall, setStartingVoiceCall] = useState(false);
+  const [replyAssistLoading, setReplyAssistLoading] = useState(false);
+  const [replyAssistSuggestions, setReplyAssistSuggestions] = useState({});
   const [whatsappThreads, setWhatsappThreads] = useState([]);
   const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
   const [whatsappSearchQuery, setWhatsappSearchQuery] = useState("");
@@ -957,6 +959,61 @@ function ExecutiveOlsPage() {
     }
   };
 
+  const handleGetReplyAssist = async () => {
+    if (!selectedWhatsAppThread || !session?.accessToken || replyAssistLoading) return;
+
+    const guestMessage = getConversationLatestGuestMessage(selectedWhatsAppThread);
+    if (!guestMessage?.content) return;
+
+    setReplyAssistLoading(true);
+    setWhatsappError("");
+
+    try {
+      const recentMessages = (Array.isArray(selectedWhatsAppThread.messages) ? selectedWhatsAppThread.messages : [])
+        .slice(-8)
+        .map((m) => ({
+          role: getConversationMessageSenderType(m) === "guest" ? "user" : "assistant",
+          content: String(m.content || ""),
+        }));
+
+      const response = await fetch(`${apiBase}/executive-ols-assistant`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getExecutiveOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({
+          query: `Draft a brief, professional WhatsApp reply as the OneLuxStay team to the guest's latest message: "${guestMessage.content}". Keep it 1-3 sentences, warm and direct, and end with one clear next step. Reply with the message text only, no labels or quotes.`,
+          messages: recentMessages,
+          range: timeRange,
+          propertyId,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearExecutiveOlsSession();
+          setSession(null);
+          return;
+        }
+        throw new Error(payload?.error || "Unable to generate reply suggestion.");
+      }
+
+      const suggestion = String(payload?.answer || "").trim();
+      if (suggestion && selectedWhatsAppSessionId) {
+        setReplyAssistSuggestions((current) => ({
+          ...current,
+          [selectedWhatsAppSessionId]: suggestion,
+        }));
+      }
+    } catch (requestError) {
+      setWhatsappError(String(requestError?.message || "Unable to generate reply suggestion."));
+    } finally {
+      setReplyAssistLoading(false);
+    }
+  };
+
   const stats = snapshot?.stats || {};
   const propertyOptions = Array.isArray(snapshot?.propertyOptions) ? snapshot.propertyOptions : [];
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
@@ -984,6 +1041,10 @@ function ExecutiveOlsPage() {
     ? String(whatsappReplyDrafts?.[selectedWhatsAppSessionId] || "")
     : "";
   const replyAssist = getReplyAssistSummary(selectedWhatsAppThread, whatsappReplyDraft);
+  const aiSuggestedReply = selectedWhatsAppSessionId ? String(replyAssistSuggestions?.[selectedWhatsAppSessionId] || "") : "";
+  const hasUsableSuggestion = !!aiSuggestedReply && aiSuggestedReply !== whatsappReplyDraft.trim();
+  const replyPreview = aiSuggestedReply || replyAssist.polishedDraft;
+  const showUseReplyButton = hasUsableSuggestion || replyAssist.hasPolishChanges;
   const selectedGuestPhoneNumber = getWhatsAppPhoneE164(selectedWhatsAppThread);
   const selectedPropertyLabel = propertyId
     ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
@@ -1457,18 +1518,23 @@ function ExecutiveOlsPage() {
                             <form className="executive-ols-composer executive-ols-whatsapp-compose-shell" onSubmit={handleSendWhatsAppReply}>
                               <div className="executive-ols-whatsapp-assist">
                                 <div className="executive-ols-whatsapp-assist-head">
-                                  <span className="executive-ols-whatsapp-meta-pill">
-                                    <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
-                                    Reply assist
-                                  </span>
-                                  {replyAssist.hasPolishChanges && (
+                                  <button
+                                    type="button"
+                                    className="executive-ols-whatsapp-meta-pill executive-ols-reply-assist-btn"
+                                    onClick={handleGetReplyAssist}
+                                    disabled={replyAssistLoading || sendingWhatsAppReply || !replyAssist.guestSummary || replyAssist.guestSummary === "No recent guest message selected."}
+                                  >
+                                    <ExecutiveIcon name="spark" className={`executive-ols-inline-icon${replyAssistLoading ? " is-spinning" : ""}`} />
+                                    {replyAssistLoading ? "Generating..." : "Reply assist"}
+                                  </button>
+                                  {showUseReplyButton && (
                                     <button
                                       type="button"
                                       className="executive-ols-ghost-btn"
-                                      onClick={() => updateWhatsAppDraft(selectedWhatsAppSessionId, replyAssist.polishedDraft)}
+                                      onClick={() => updateWhatsAppDraft(selectedWhatsAppSessionId, replyPreview)}
                                       disabled={sendingWhatsAppReply}
                                     >
-                                      Use polished reply
+                                      {aiSuggestedReply ? "Use AI reply" : "Use polished reply"}
                                     </button>
                                   )}
                                 </div>
@@ -1482,8 +1548,8 @@ function ExecutiveOlsPage() {
                                     <p>{replyAssist.guidance}</p>
                                   </article>
                                   <article className="executive-ols-whatsapp-assist-card is-preview">
-                                    <span>Polished preview</span>
-                                    <p>{replyAssist.polishedDraft || "Start typing and I’ll show a cleaner, more polished version here."}</p>
+                                    <span>{aiSuggestedReply ? "AI reply suggestion" : "Polished preview"}</span>
+                                    <p>{replyPreview || (replyAssistLoading ? "Generating a reply suggestion..." : "Click “Reply assist” to generate an AI reply suggestion based on the guest’s message.")}</p>
                                   </article>
                                 </div>
                               </div>

@@ -1199,6 +1199,32 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 241, 235, 0.96) 100%);
 }
 
+@keyframes executive-ols-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.executive-ols-inline-icon.is-spinning {
+  animation: executive-ols-spin 1s linear infinite;
+}
+
+.executive-ols-reply-assist-btn {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font: inherit;
+  transition: opacity 0.15s;
+}
+
+.executive-ols-reply-assist-btn:hover:not(:disabled) {
+  opacity: 0.75;
+}
+
+.executive-ols-reply-assist-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .executive-ols-whatsapp-assist {
   display: grid;
   gap: 0.8rem;
