@@ -1711,6 +1711,10 @@ function AdminsOlsPage() {
                       <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
                     </Link>
                   )}
+                  <Link className="admins-ols-profile-action" to="/executive-ols/whatsapp">
+                    <span>WhatsApp Workspace</span>
+                    <span className="admins-ols-side-nav-count">Open</span>
+                  </Link>
                   <button
                     type="button"
                     className={`admins-ols-profile-action${unreadAttentionCount > 0 ? " is-attention" : ""}`}

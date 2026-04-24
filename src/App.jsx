@@ -27,6 +27,7 @@ const AdminsOlsAuthPage = lazy(routePreloaders.adminsOlsAuth);
 const AdminsOlsInviteAcceptPage = lazy(routePreloaders.adminsOlsInviteAccept);
 const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
+const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -205,6 +206,7 @@ function AppRoutes() {
           <Route path="/admins-ols/accept" element={<Navigate to="/executive-ols/accept" replace />} />
           <Route path="/admins-ols/audit" element={<Navigate to="/executive-ols/audit" replace />} />
           <Route path="/admins-ols/guest-journeys" element={<Navigate to="/executive-ols/guest-journeys" replace />} />
+          <Route path="/admins-ols/whatsapp" element={<Navigate to="/executive-ols/whatsapp" replace />} />
           <Route path="/admins-ols" element={<Navigate to="/executive-ols" replace />} />
           <Route path="/admins-ols/*" element={<Navigate to="/executive-ols" replace />} />
           <Route path="/executive-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
@@ -212,6 +214,7 @@ function AppRoutes() {
           <Route path="/executive-ols" element={renderLazyRoute(AdminsOlsPage)} />
           <Route path="/executive-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
           <Route path="/executive-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
+          <Route path="/executive-ols/whatsapp" element={renderLazyRoute(ExecutiveOlsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />

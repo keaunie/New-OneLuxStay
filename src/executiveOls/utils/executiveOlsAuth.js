@@ -1,4 +1,11 @@
 import apiBase from "../../utils/apiBase";
+import {
+  clearAdminsOlsSession,
+  getAdminsOlsAuthHeaders,
+  isAdminsOlsSessionExpired,
+  loadAdminsOlsSession,
+  refreshAdminsOlsSession,
+} from "../../utils/adminsOlsAuth";
 
 const STORAGE_KEY = "ols-executive-ols-session";
 
@@ -86,14 +93,15 @@ export const loadExecutiveOlsSession = () => {
 
   try {
     const raw = readBrowserStorage(STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) return loadAdminsOlsSession();
     const session = normalizeSession(JSON.parse(raw));
     if (session) {
       writeBrowserStorage(STORAGE_KEY, JSON.stringify(session));
+      return session;
     }
-    return session;
+    return loadAdminsOlsSession();
   } catch {
-    return null;
+    return loadAdminsOlsSession();
   }
 };
 
@@ -115,6 +123,7 @@ export const saveExecutiveOlsSession = (value) => {
 };
 
 export const clearExecutiveOlsSession = () => {
+  clearAdminsOlsSession();
   if (!canUseStorage()) return;
   try {
     removeBrowserStorage(STORAGE_KEY);
@@ -125,7 +134,7 @@ export const clearExecutiveOlsSession = () => {
 
 export const getExecutiveOlsAuthHeaders = (session) => {
   const normalized = normalizeSession(session);
-  if (!normalized?.accessToken) return {};
+  if (!normalized?.accessToken) return getAdminsOlsAuthHeaders(session);
   return {
     Authorization: `Bearer ${normalized.accessToken}`,
   };
@@ -134,6 +143,11 @@ export const getExecutiveOlsAuthHeaders = (session) => {
 export const refreshExecutiveOlsSession = async (sessionOverride = null) => {
   const currentSession = normalizeSession(sessionOverride) || loadExecutiveOlsSession();
   if (!currentSession?.refreshToken) return null;
+
+  const adminSession = loadAdminsOlsSession();
+  if (adminSession?.accessToken === currentSession.accessToken) {
+    return refreshAdminsOlsSession(apiBase, adminSession);
+  }
 
   const response = await fetch(`${apiBase}/executive-ols-auth`, {
     method: "POST",
@@ -157,6 +171,7 @@ export const refreshExecutiveOlsSession = async (sessionOverride = null) => {
 
 export const isExecutiveOlsSessionExpired = (session, { skewMs = 60_000 } = {}) => {
   const normalized = normalizeSession(session);
+  if (!normalized?.accessToken) return isAdminsOlsSessionExpired(session, { skewMs });
   if (!normalized?.expiresAt) return false;
   const expiresAt = new Date(normalized.expiresAt).getTime();
   if (!Number.isFinite(expiresAt)) return false;

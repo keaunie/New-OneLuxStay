@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 import {
   clearExecutiveOlsSession,
@@ -373,13 +373,16 @@ const injectReplyIntoThreads = (threads = [], sessionId = "", message = {}) =>
 
 function ExecutiveOlsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState(() => loadExecutiveOlsSession());
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [snapshot, setSnapshot] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [activeView, setActiveView] = useState("assistant");
+  const [activeView, setActiveView] = useState(() =>
+    String(location.pathname || "").includes("/whatsapp") ? "whatsapp" : "assistant",
+  );
   const [timeRange, setTimeRange] = useState("this_week");
   const [propertyId, setPropertyId] = useState("");
   const [draft, setDraft] = useState("");
@@ -1212,8 +1215,8 @@ function ExecutiveOlsPage() {
                 <div className="executive-ols-side-card">
                   <p className="executive-ols-side-label">Quick actions</p>
                   <div className="executive-ols-side-actions">
-                    <Link to="/admins-ols" className="executive-ols-inline-link">
-                      Open legacy admin panel
+                    <Link to="/executive-ols" className="executive-ols-inline-link">
+                      Open executive admin panel
                     </Link>
                     <button
                       type="button"
