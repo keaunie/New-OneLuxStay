@@ -7,6 +7,12 @@ const SESSION_ID_KEY = "ols-chat-concierge-session-v1";
 const FEEDBACK_KEY = "ols-chat-concierge-feedback-v1";
 const MAX_VISIBLE_MESSAGES = 12;
 const AUTO_SCROLL_THRESHOLD_PX = 96;
+const DEFAULT_WHATSAPP_NUMBER = "971588858935";
+
+const normalizeWhatsAppNumber = (value = "") => {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return digits || DEFAULT_WHATSAPP_NUMBER;
+};
 
 const readBrowserStorage = (key) => {
   if (typeof window === "undefined") return "";
@@ -221,6 +227,22 @@ const getSuggestions = (pageContext) => {
   return DEFAULT_SUGGESTIONS;
 };
 
+const buildWhatsAppMessage = (pageContext = {}, messages = []) => {
+  const city = pageContext.city || "One Lux Stay";
+  const pageType = pageContext.pageType || "website";
+  const listingText = pageContext.listingId ? ` Listing: ${pageContext.listingId}.` : "";
+  const url = typeof window !== "undefined" ? window.location.href : "";
+  const latestQuestion =
+    [...messages]
+      .reverse()
+      .find((message) => message.role === "user")
+      ?.content?.trim()
+      .slice(0, 500) || "";
+  const questionText = latestQuestion ? ` My question: ${latestQuestion}` : "";
+
+  return `Hi One Lux Stay, I was chatting with Lucy and would like help from your team. Page: ${city} ${pageType}.${listingText}${questionText}${url ? ` Link: ${url}` : ""}`;
+};
+
 const sanitizeMessages = (messages) =>
   Array.isArray(messages)
     ? messages
@@ -371,6 +393,10 @@ function ChatConcierge() {
   const autoRunKeyRef = useRef("");
   const showSuggestions = messages.length === 0;
   const autoAvailability = useMemo(() => getAutoAvailabilityFromSearch(pageContext), [pageContext]);
+  const whatsappHref = useMemo(() => {
+    const phone = normalizeWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER);
+    return `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppMessage(pageContext, messages))}`;
+  }, [messages, pageContext]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -696,6 +722,15 @@ function ChatConcierge() {
               </p>
             </div>
             <div className="chat-concierge__header-actions">
+              <a
+                className="chat-concierge__whatsapp"
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Continue this chat on WhatsApp"
+              >
+                WhatsApp
+              </a>
               <button type="button" className="chat-concierge__ghost" onClick={handleClear}>
                 Reset
               </button>

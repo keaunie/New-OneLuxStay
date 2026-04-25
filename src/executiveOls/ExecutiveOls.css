@@ -224,14 +224,14 @@
 
 .executive-ols-layout {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
-  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   align-items: start;
 }
 
 .executive-ols-layout.is-whatsapp {
-  grid-template-columns: 210px minmax(0, 1fr);
-  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
 .executive-ols-sidebar,
@@ -240,7 +240,7 @@
 }
 
 .executive-ols-sidebar {
-  display: grid;
+  display: none;
   gap: 1rem;
   position: sticky;
   top: 1rem;
@@ -278,19 +278,22 @@
 }
 
 .executive-ols-nav {
-  display: grid;
-  gap: 0.65rem;
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .executive-ols-nav-item {
-  width: 100%;
-  min-height: 52px;
-  text-align: left;
-  padding: 0 1rem;
+  padding: 0.75rem 1.2rem;
+  min-height: auto;
+  text-align: center;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.58);
   color: #55483c;
   font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
   transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
@@ -1197,6 +1200,32 @@
   border: 1px solid rgba(193, 170, 142, 0.16);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 241, 235, 0.96) 100%);
+}
+
+@keyframes executive-ols-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.executive-ols-inline-icon.is-spinning {
+  animation: executive-ols-spin 1s linear infinite;
+}
+
+.executive-ols-reply-assist-btn {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font: inherit;
+  transition: opacity 0.15s;
+}
+
+.executive-ols-reply-assist-btn:hover:not(:disabled) {
+  opacity: 0.75;
+}
+
+.executive-ols-reply-assist-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .executive-ols-whatsapp-assist {

@@ -20,7 +20,7 @@ const preloadAdminsOlsInviteAcceptPage = () => import("../AdminsOlsInviteAcceptP
 const preloadAdminsOlsAuditPage = () => import("../AdminsOlsAuditPage");
 const preloadAdminsOlsGuestJourneysPage = () => import("../AdminsOlsGuestJourneysPage");
 const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage");
-const preloadExecutiveOlsAuthPage = () => import("../executiveOls/ExecutiveOlsAuthPage");
+const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
   landing: preloadLandingPage,
@@ -112,26 +112,23 @@ export const prefetchRouteByPath = (value = "") => {
   if (normalized === "/ai-agent") {
     return routePreloaders.aiAgent().then(() => undefined);
   }
-  if (normalized === "/admins-ols") {
+  if (normalized === "/admins-ols" || normalized === "/executive-ols") {
     return routePreloaders.adminsOls().then(() => undefined);
   }
-  if (normalized === "/admins-ols/login") {
+  if (normalized === "/admins-ols/login" || normalized === "/executive-ols/login") {
     return routePreloaders.adminsOlsAuth().then(() => undefined);
   }
-  if (normalized === "/admins-ols/accept") {
+  if (normalized === "/admins-ols/accept" || normalized === "/executive-ols/accept") {
     return routePreloaders.adminsOlsInviteAccept().then(() => undefined);
   }
-  if (normalized === "/admins-ols/audit") {
+  if (normalized === "/admins-ols/audit" || normalized === "/executive-ols/audit") {
     return routePreloaders.adminsOlsAudit().then(() => undefined);
   }
-  if (normalized === "/admins-ols/guest-journeys") {
+  if (normalized === "/admins-ols/guest-journeys" || normalized === "/executive-ols/guest-journeys") {
     return routePreloaders.adminsOlsGuestJourneys().then(() => undefined);
   }
-  if (normalized === "/executive-ols") {
+  if (normalized === "/admins-ols/whatsapp" || normalized === "/executive-ols/whatsapp") {
     return routePreloaders.executiveOls().then(() => undefined);
-  }
-  if (normalized === "/executive-ols/login") {
-    return routePreloaders.executiveOlsAuth().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };

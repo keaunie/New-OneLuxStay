@@ -451,7 +451,7 @@ function AdminsOlsGuestJourneysPage() {
   const handleLogout = () => {
     clearAdminsOlsSession();
     setSession(null);
-    navigate("/admins-ols/login", { replace: true });
+    navigate("/executive-ols/login", { replace: true });
   };
 
   const handleNavigateToSection = (sectionId = "") => {
@@ -479,7 +479,7 @@ function AdminsOlsGuestJourneysPage() {
   };
 
   if (!session?.accessToken && !session?.sharedKey) {
-    return <Navigate to="/admins-ols/login" replace />;
+    return <Navigate to="/executive-ols/login" replace />;
   }
 
   if (currentAdmin?.isSuperAdmin !== true) {
@@ -489,14 +489,14 @@ function AdminsOlsGuestJourneysPage() {
           <main className="admins-ols-main">
             <header className="admins-ols-hero">
               <div className="admins-ols-hero-content">
-                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <p className="admins-ols-eyebrow">OneLuxStay Executive</p>
                 <h1>Guest Journey Log</h1>
                 <p className="admins-ols-hero-copy">
                   Superadmin access required.
                 </p>
               </div>
               <div className="admins-ols-toolbar">
-                <Link className="admins-ols-profile-action" to="/admins-ols">
+                <Link className="admins-ols-profile-action" to="/executive-ols">
                   Back to Dashboard
                 </Link>
               </div>
@@ -541,7 +541,7 @@ function AdminsOlsGuestJourneysPage() {
               <section className="admins-ols-side-section">
                 <div className="admins-ols-card-head">
                   <p className="admins-ols-eyebrow" style={{ margin: 0 }}>
-                    Admin Access
+                    Executive Access
                   </p>
                   <button
                     type="button"
@@ -566,7 +566,7 @@ function AdminsOlsGuestJourneysPage() {
                   <h3>Quick Jump</h3>
                 </div>
                 <div className="admins-ols-side-nav">
-                  <Link className="admins-ols-side-nav-link" to="/admins-ols">
+                  <Link className="admins-ols-side-nav-link" to="/executive-ols">
                     <span>Back to Dashboard</span>
                   </Link>
                   <button type="button" onClick={() => handleNavigateToSection("journey-filters")}>Filters</button>
@@ -597,7 +597,7 @@ function AdminsOlsGuestJourneysPage() {
             )}
             <header className="admins-ols-hero">
               <div className="admins-ols-hero-content">
-                <p className="admins-ols-eyebrow">OneLuxStay Internal</p>
+                <p className="admins-ols-eyebrow">OneLuxStay Executive</p>
                 <h1>Guest Journey Log</h1>
                 <p className="admins-ols-hero-copy">
                   Review which pages guests visit, which listings they click, and where interest is building across the site.

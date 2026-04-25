@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 import {
   clearExecutiveOlsSession,
@@ -18,9 +18,6 @@ const QUICK_PROMPTS = [
 ];
 
 const VIEW_OPTIONS = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "bookings", label: "Bookings" },
-  { id: "reports", label: "Reports" },
   { id: "assistant", label: "AI Assistant" },
   { id: "whatsapp", label: "WhatsApp" },
 ];
@@ -45,7 +42,7 @@ const sanitizePhoneInput = (value = "") => {
   if (!raw) return "";
   const hasPlus = raw.startsWith("+");
   const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) return "";
+  if (!digits) return hasPlus ? "+" : "";
   return `${hasPlus ? "+" : ""}${digits}`;
 };
 
@@ -187,7 +184,8 @@ const getReplyAssistSummary = (thread = {}, draft = "") => {
 const loadStoredExecutivePhoneNumber = () => {
   if (typeof window === "undefined") return "";
   try {
-    return sanitizePhoneInput(window.localStorage?.getItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY) || "");
+    const stored = sanitizePhoneInput(window.localStorage?.getItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY) || "");
+    return /^\+\d{7,}$/.test(stored) ? stored : "";
   } catch {
     return "";
   }
@@ -370,21 +368,26 @@ const injectReplyIntoThreads = (threads = [], sessionId = "", message = {}) =>
     };
   });
 
-function ExecutiveOlsPage() {
+function ExecutiveOlsPage({ forceView = null }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState(() => loadExecutiveOlsSession());
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [snapshot, setSnapshot] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [activeView, setActiveView] = useState("assistant");
+  const [activeView, setActiveView] = useState(() =>
+    forceView || (String(location.pathname || "").includes("/whatsapp") ? "whatsapp" : "assistant"),
+  );
   const [timeRange, setTimeRange] = useState("this_week");
   const [propertyId, setPropertyId] = useState("");
   const [draft, setDraft] = useState("");
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [sendingWhatsAppReply, setSendingWhatsAppReply] = useState(false);
   const [startingVoiceCall, setStartingVoiceCall] = useState(false);
+  const [replyAssistLoading, setReplyAssistLoading] = useState(false);
+  const [replyAssistSuggestions, setReplyAssistSuggestions] = useState({});
   const [whatsappThreads, setWhatsappThreads] = useState([]);
   const [selectedWhatsAppSessionId, setSelectedWhatsAppSessionId] = useState("");
   const [whatsappSearchQuery, setWhatsappSearchQuery] = useState("");
@@ -430,7 +433,7 @@ function ExecutiveOlsPage() {
     if (typeof window === "undefined") return;
     try {
       const normalized = sanitizePhoneInput(voiceCallNumber);
-      if (normalized) {
+      if (/^\+\d{7,}$/.test(normalized)) {
         window.localStorage?.setItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY, normalized);
       } else {
         window.localStorage?.removeItem(EXECUTIVE_OLS_VOICE_CALL_NUMBER_KEY);
@@ -911,8 +914,9 @@ function ExecutiveOlsPage() {
     if (!session?.accessToken || !selectedWhatsAppThread) return;
 
     const agentPhoneNumber = sanitizePhoneInput(voiceCallNumber);
-    if (!agentPhoneNumber) {
-      setWhatsappError("Add your callback phone number before starting a call.");
+    const agentPhoneDigits = agentPhoneNumber.replace(/[^\d]/g, "");
+    if (!agentPhoneDigits || agentPhoneDigits.length < 7 || !agentPhoneNumber.startsWith("+")) {
+      setWhatsappError("Enter your callback number in E.164 format (e.g. +15551234567) before starting a call.");
       setWhatsappNotice("");
       return;
     }
@@ -955,6 +959,61 @@ function ExecutiveOlsPage() {
     }
   };
 
+  const handleGetReplyAssist = async () => {
+    if (!selectedWhatsAppThread || !session?.accessToken || replyAssistLoading) return;
+
+    const guestMessage = getConversationLatestGuestMessage(selectedWhatsAppThread);
+    if (!guestMessage?.content) return;
+
+    setReplyAssistLoading(true);
+    setWhatsappError("");
+
+    try {
+      const recentMessages = (Array.isArray(selectedWhatsAppThread.messages) ? selectedWhatsAppThread.messages : [])
+        .slice(-8)
+        .map((m) => ({
+          role: getConversationMessageSenderType(m) === "guest" ? "user" : "assistant",
+          content: String(m.content || ""),
+        }));
+
+      const response = await fetch(`${apiBase}/executive-ols-assistant`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getExecutiveOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({
+          query: `Draft a brief, professional WhatsApp reply as the OneLuxStay team to the guest's latest message: "${guestMessage.content}". Keep it 1-3 sentences, warm and direct, and end with one clear next step. Reply with the message text only, no labels or quotes.`,
+          messages: recentMessages,
+          range: timeRange,
+          propertyId,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearExecutiveOlsSession();
+          setSession(null);
+          return;
+        }
+        throw new Error(payload?.error || "Unable to generate reply suggestion.");
+      }
+
+      const suggestion = String(payload?.answer || "").trim();
+      if (suggestion && selectedWhatsAppSessionId) {
+        setReplyAssistSuggestions((current) => ({
+          ...current,
+          [selectedWhatsAppSessionId]: suggestion,
+        }));
+      }
+    } catch (requestError) {
+      setWhatsappError(String(requestError?.message || "Unable to generate reply suggestion."));
+    } finally {
+      setReplyAssistLoading(false);
+    }
+  };
+
   const stats = snapshot?.stats || {};
   const propertyOptions = Array.isArray(snapshot?.propertyOptions) ? snapshot.propertyOptions : [];
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
@@ -982,6 +1041,10 @@ function ExecutiveOlsPage() {
     ? String(whatsappReplyDrafts?.[selectedWhatsAppSessionId] || "")
     : "";
   const replyAssist = getReplyAssistSummary(selectedWhatsAppThread, whatsappReplyDraft);
+  const aiSuggestedReply = selectedWhatsAppSessionId ? String(replyAssistSuggestions?.[selectedWhatsAppSessionId] || "") : "";
+  const hasUsableSuggestion = !!aiSuggestedReply && aiSuggestedReply !== whatsappReplyDraft.trim();
+  const replyPreview = aiSuggestedReply || replyAssist.polishedDraft;
+  const showUseReplyButton = hasUsableSuggestion || replyAssist.hasPolishChanges;
   const selectedGuestPhoneNumber = getWhatsAppPhoneE164(selectedWhatsAppThread);
   const selectedPropertyLabel = propertyId
     ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
@@ -1018,19 +1081,6 @@ function ExecutiveOlsPage() {
               <p className="executive-ols-eyebrow">OneLuxStay</p>
               <h1>Executive dashboard</h1>
             </div>
-
-            <nav className="executive-ols-nav">
-              {VIEW_OPTIONS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`executive-ols-nav-item${activeView === item.id ? " is-active" : ""}`}
-                  onClick={() => setActiveView(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
 
             <div className="executive-ols-side-card">
               <p className="executive-ols-side-label">Session</p>
@@ -1149,8 +1199,8 @@ function ExecutiveOlsPage() {
                 <div className="executive-ols-side-card">
                   <p className="executive-ols-side-label">Quick actions</p>
                   <div className="executive-ols-side-actions">
-                    <Link to="/admins-ols" className="executive-ols-inline-link">
-                      Open legacy admin panel
+                    <Link to="/executive-ols" className="executive-ols-inline-link">
+                      Open executive admin panel
                     </Link>
                     <button
                       type="button"
@@ -1166,6 +1216,19 @@ function ExecutiveOlsPage() {
           </aside>
 
           <main className={`executive-ols-main${activeView === "whatsapp" ? " is-whatsapp" : ""}`}>
+            <nav className="executive-ols-nav">
+              {VIEW_OPTIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`executive-ols-nav-item${activeView === item.id ? " is-active" : ""}`}
+                  onClick={() => setActiveView(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            
             {error && <div className="executive-ols-alert is-error">{error}</div>}
             {notice && !error && activeView !== "whatsapp" && <div className="executive-ols-alert">{notice}</div>}
 
@@ -1411,7 +1474,7 @@ function ExecutiveOlsPage() {
                                   type="button"
                                   className="executive-ols-primary-btn"
                                   onClick={handleStartVoiceCall}
-                                  disabled={startingVoiceCall || !selectedGuestPhoneNumber || !voiceCallNumber.trim()}
+                                  disabled={startingVoiceCall || !selectedGuestPhoneNumber || !/^\+\d{7,}$/.test(sanitizePhoneInput(voiceCallNumber))}
                                 >
                                   <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
                                   {startingVoiceCall ? "Calling..." : "Call guest"}
@@ -1455,18 +1518,23 @@ function ExecutiveOlsPage() {
                             <form className="executive-ols-composer executive-ols-whatsapp-compose-shell" onSubmit={handleSendWhatsAppReply}>
                               <div className="executive-ols-whatsapp-assist">
                                 <div className="executive-ols-whatsapp-assist-head">
-                                  <span className="executive-ols-whatsapp-meta-pill">
-                                    <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
-                                    Reply assist
-                                  </span>
-                                  {replyAssist.hasPolishChanges && (
+                                  <button
+                                    type="button"
+                                    className="executive-ols-whatsapp-meta-pill executive-ols-reply-assist-btn"
+                                    onClick={handleGetReplyAssist}
+                                    disabled={replyAssistLoading || sendingWhatsAppReply || !replyAssist.guestSummary || replyAssist.guestSummary === "No recent guest message selected."}
+                                  >
+                                    <ExecutiveIcon name="spark" className={`executive-ols-inline-icon${replyAssistLoading ? " is-spinning" : ""}`} />
+                                    {replyAssistLoading ? "Generating..." : "Reply assist"}
+                                  </button>
+                                  {showUseReplyButton && (
                                     <button
                                       type="button"
                                       className="executive-ols-ghost-btn"
-                                      onClick={() => updateWhatsAppDraft(selectedWhatsAppSessionId, replyAssist.polishedDraft)}
+                                      onClick={() => updateWhatsAppDraft(selectedWhatsAppSessionId, replyPreview)}
                                       disabled={sendingWhatsAppReply}
                                     >
-                                      Use polished reply
+                                      {aiSuggestedReply ? "Use AI reply" : "Use polished reply"}
                                     </button>
                                   )}
                                 </div>
@@ -1480,8 +1548,8 @@ function ExecutiveOlsPage() {
                                     <p>{replyAssist.guidance}</p>
                                   </article>
                                   <article className="executive-ols-whatsapp-assist-card is-preview">
-                                    <span>Polished preview</span>
-                                    <p>{replyAssist.polishedDraft || "Start typing and I’ll show a cleaner, more polished version here."}</p>
+                                    <span>{aiSuggestedReply ? "AI reply suggestion" : "Polished preview"}</span>
+                                    <p>{replyPreview || (replyAssistLoading ? "Generating a reply suggestion..." : "Click “Reply assist” to generate an AI reply suggestion based on the guest’s message.")}</p>
                                   </article>
                                 </div>
                               </div>
