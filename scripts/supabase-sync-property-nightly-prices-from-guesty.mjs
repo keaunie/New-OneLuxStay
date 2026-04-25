@@ -18,7 +18,11 @@ const LOOKAHEAD_DAYS = Math.max(1, Math.min(365, Number(getArg("--days") || 90) 
 
 const ONLY_PROPERTY_ID = String(getArg("--only-property-id") || "").trim();
 
-const AVAIL_TABLE = String(process.env.SUPABASE_AVAILABILITY_TABLE || "property_nightly_prices").trim() || "property_nightly_prices";
+// This script writes per-property nightly pricing used by Google VR/Hotels ARI.
+// Don't couple it to SUPABASE_AVAILABILITY_TABLE (which may point to legacy tables like listing_nightly_prices).
+const PRICES_TABLE =
+  String(process.env.SUPABASE_PROPERTY_NIGHTLY_PRICES_TABLE || "property_nightly_prices").trim() ||
+  "property_nightly_prices";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -133,7 +137,7 @@ const fetchCalendarForListing = async ({ guestyListingId, startDate, endDate }) 
 const upsertNightlyPrices = async (rows) => {
   if (DRY_RUN) return;
   if (!rows.length) return;
-  await supabaseRestRequest(AVAIL_TABLE, {
+  await supabaseRestRequest(PRICES_TABLE, {
     method: "POST",
     query: { on_conflict: "property_id,date" },
     body: rows,
@@ -143,24 +147,42 @@ const upsertNightlyPrices = async (rows) => {
 
 const ensureSchema = async () => {
   try {
-    await supabaseRestRequest("properties", { query: { select: "id,guesty_listing_id", limit: 1 } });
+    // Prefer `guesty_listing_id` (explicit mapping), but allow legacy `guesty_id`.
+    await supabaseRestRequest("properties", { query: { select: "id,guesty_id,guesty_listing_id", limit: 1 } });
   } catch (error) {
     const msg = String(error?.message || "");
     if (msg.includes("guesty_listing_id") && msg.includes("does not exist")) {
-      throw new Error(
-        "Missing `properties.guesty_listing_id`. Apply migration: supabase/migrations/20260423102000_add_properties_guesty_listing_id.sql",
-      );
+      // Column doesn't exist yet; this is OK as long as `guesty_id` exists.
+      try {
+        await supabaseRestRequest("properties", { query: { select: "id,guesty_id", limit: 1 } });
+        console.log(
+          "note: `properties.guesty_listing_id` column not found; falling back to `properties.guesty_id` for Guesty listing ids.",
+        );
+        console.log(
+          "note: optional migration to add `guesty_listing_id`: supabase/migrations/20260423102000_add_properties_guesty_listing_id.sql",
+        );
+        console.log("");
+        return;
+      } catch {
+        throw new Error(
+          "Missing `properties.guesty_id` (or `properties.guesty_listing_id`). Ensure your `properties` table has a Guesty listing id column.",
+        );
+      }
     }
     throw error;
   }
 
   try {
-    await supabaseRestRequest(AVAIL_TABLE, { query: { select: "property_id,date", limit: 1 } });
+    await supabaseRestRequest(PRICES_TABLE, { query: { select: "property_id,date", limit: 1 } });
   } catch (error) {
     const msg = String(error?.message || "");
     if (msg.includes("Could not find the table") || msg.includes("schema cache")) {
       throw new Error(
-        `Missing ${AVAIL_TABLE}. Apply migration: supabase/migrations/20260421175000_create_property_nightly_prices.sql (and set SUPABASE_AVAILABILITY_TABLE=${AVAIL_TABLE}).`,
+        [
+          `Missing ${PRICES_TABLE}.`,
+          "Apply migration: supabase/migrations/20260421175000_create_property_nightly_prices.sql",
+          "If you really want a different table, set SUPABASE_PROPERTY_NIGHTLY_PRICES_TABLE.",
+        ].join(" "),
       );
     }
     throw error;
@@ -168,7 +190,12 @@ const ensureSchema = async () => {
 };
 
 console.log(`Syncing Guesty nightly prices into Supabase (${DRY_RUN ? "dry-run" : "apply"}).`);
-console.log(`table=${AVAIL_TABLE} maxProperties=${MAX_PROPERTIES} days=${LOOKAHEAD_DAYS} batch=${BATCH_SIZE}`);
+if (process.env.SUPABASE_AVAILABILITY_TABLE && !process.env.SUPABASE_PROPERTY_NIGHTLY_PRICES_TABLE) {
+  console.log(
+    `note: ignoring SUPABASE_AVAILABILITY_TABLE=${String(process.env.SUPABASE_AVAILABILITY_TABLE).trim()} for this script (set SUPABASE_PROPERTY_NIGHTLY_PRICES_TABLE to override).`,
+  );
+}
+console.log(`table=${PRICES_TABLE} maxProperties=${MAX_PROPERTIES} days=${LOOKAHEAD_DAYS} batch=${BATCH_SIZE}`);
 console.log("");
 
 await ensureSchema();
@@ -178,7 +205,7 @@ const endDate = addDaysIso(startDate, LOOKAHEAD_DAYS);
 
 const properties = await supabaseRestRequest("properties", {
   query: {
-    select: "id,guesty_listing_id,name",
+    select: "id,guesty_id,guesty_listing_id,name",
     ...(ONLY_PROPERTY_ID ? { id: `eq.${ONLY_PROPERTY_ID}` } : {}),
     limit: Math.min(1000, MAX_PROPERTIES),
     offset: 0,
@@ -186,16 +213,16 @@ const properties = await supabaseRestRequest("properties", {
 });
 
 const list = Array.isArray(properties) ? properties.slice(0, MAX_PROPERTIES) : [];
-const eligible = list.filter((p) => normalizeString(p?.guesty_listing_id));
+const eligible = list.filter((p) => normalizeString(p?.guesty_listing_id || p?.guesty_id));
 
 console.log(`properties_loaded: ${list.length}`);
-console.log(`properties_with_guesty_listing_id: ${eligible.length}`);
+console.log(`properties_with_guesty_listing_id_or_guesty_id: ${eligible.length}`);
 if (!eligible.length) {
   console.log("");
-  console.log("No properties are mapped to Guesty yet.");
-  console.log("Run: `npm run supabase:map:guesty-listings -- --apply`");
+  console.log("No properties have a Guesty listing id yet (`guesty_listing_id` or `guesty_id`).");
+  console.log("If you already store Guesty ids in `guesty_id`, confirm it’s populated in Supabase.");
+  console.log("Otherwise run: `npm run supabase:map:guesty-listings -- --apply`");
   process.exitCode = 0;
-  return;
 }
 console.log("");
 
@@ -207,7 +234,7 @@ for (const property of eligible) {
   if (processedProperties >= MAX_PROPERTIES) break;
 
   const propertyId = normalizeString(property?.id);
-  const guestyListingId = normalizeString(property?.guesty_listing_id);
+  const guestyListingId = normalizeString(property?.guesty_listing_id || property?.guesty_id);
   const name = normalizeString(property?.name) || "";
 
   if (!propertyId || !guestyListingId) continue;
@@ -265,4 +292,3 @@ console.log(`rows_upserted: ${insertedRows}${DRY_RUN ? " (dry-run)" : ""}`);
 console.log(`properties_failed: ${failedProperties}`);
 console.log("");
 console.log("Next: re-run ARI endpoints to see pricing/availability emit.");
-
