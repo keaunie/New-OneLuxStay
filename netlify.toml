@@ -49,6 +49,16 @@ to = "/.netlify/functions/whatsapp-webhook"
 status = 200
 
 [[redirects]]
+from = "/api/sms"
+to = "/.netlify/functions/whatsapp-webhook"
+status = 200
+
+[[redirects]]
+from = "/api/voice"
+to = "/.netlify/functions/voice-webhook"
+status = 200
+
+[[redirects]]
 from = "/api/send-message"
 to = "/.netlify/functions/send-message"
 status = 200
