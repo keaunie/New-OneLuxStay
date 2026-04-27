@@ -1721,6 +1721,10 @@ function AdminsOlsPage() {
                     <span>WhatsApp Workspace</span>
                     <span className="admins-ols-side-nav-count">View</span>
                   </button>
+                  <Link className="admins-ols-profile-action" to="/executive-ols/belgium">
+                    <span>Belgium Number</span>
+                    <span className="admins-ols-side-nav-count">View</span>
+                  </Link>
                   <button
                     type="button"
                     className={`admins-ols-profile-action${unreadAttentionCount > 0 ? " is-attention" : ""}`}
