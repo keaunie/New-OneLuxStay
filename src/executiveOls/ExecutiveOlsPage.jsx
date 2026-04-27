@@ -85,14 +85,18 @@ const toTimestamp = (value = "") => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const isWhatsAppConversation = (thread = {}) =>
-  String(thread?.pageType || "").trim().toLowerCase() === "whatsapp" ||
-  String(thread?.sessionId || "").trim().toLowerCase().startsWith("whatsapp:");
+const isMessagingConversation = (thread = {}) => {
+  const pageType = String(thread?.pageType || "").trim().toLowerCase();
+  const sessionId = String(thread?.sessionId || "").trim().toLowerCase();
+  return pageType === "whatsapp" || pageType === "sms" || sessionId.startsWith("whatsapp:") || sessionId.startsWith("sms:");
+};
 
 const getWhatsAppPhoneLabel = (thread = {}) => {
   const sessionId = String(thread?.sessionId || "").trim();
-  if (!sessionId.toLowerCase().startsWith("whatsapp:")) return "";
-  const digits = sessionId.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  const normalized = sessionId.toLowerCase();
+  const prefix = normalized.startsWith("sms:") ? "sms:" : normalized.startsWith("whatsapp:") ? "whatsapp:" : "";
+  if (!prefix) return "";
+  const digits = sessionId.slice(prefix.length).replace(/[^\d]/g, "");
   if (!digits) return "";
   if (digits.length === 11 && digits.startsWith("1")) {
     return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
@@ -102,8 +106,10 @@ const getWhatsAppPhoneLabel = (thread = {}) => {
 
 const getWhatsAppPhoneE164 = (thread = {}) => {
   const sessionId = String(thread?.sessionId || "").trim();
-  if (!sessionId.toLowerCase().startsWith("whatsapp:")) return "";
-  const digits = sessionId.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  const normalized = sessionId.toLowerCase();
+  const prefix = normalized.startsWith("sms:") ? "sms:" : normalized.startsWith("whatsapp:") ? "whatsapp:" : "";
+  if (!prefix) return "";
+  const digits = sessionId.slice(prefix.length).replace(/[^\d]/g, "");
   return digits ? `+${digits}` : "";
 };
 
@@ -118,8 +124,9 @@ const getConversationLatestGuestMessage = (thread = {}) => {
 };
 
 const getConversationTitle = (thread = {}) => {
-  if (isWhatsAppConversation(thread)) {
-    return `WhatsApp ${getWhatsAppPhoneLabel(thread) || "guest"}`;
+  if (isMessagingConversation(thread)) {
+    const channel = String(thread?.sessionId || "").trim().toLowerCase().startsWith("sms:") ? "SMS" : "WhatsApp";
+    return `${channel} ${getWhatsAppPhoneLabel(thread) || "guest"}`;
   }
 
   const city = String(thread?.city || "").trim();
@@ -586,17 +593,17 @@ function ExecutiveOlsPage({ forceView = null }) {
             setSession(null);
             return;
           }
-          throw new Error(payload?.error || "Unable to load WhatsApp conversations.");
+          throw new Error(payload?.error || "Unable to load Twilio conversations.");
         }
 
         if (!active) return;
         const nextThreads = Array.isArray(payload?.recentConversations)
-          ? payload.recentConversations.filter(isWhatsAppConversation)
+          ? payload.recentConversations.filter(isMessagingConversation)
           : [];
         setWhatsappThreads(nextThreads);
       } catch (requestError) {
         if (!active) return;
-        setWhatsappError(String(requestError?.message || "Unable to load WhatsApp conversations."));
+        setWhatsappError(String(requestError?.message || "Unable to load Twilio conversations."));
       } finally {
         if (active && !silent) setLoadingWhatsApp(false);
       }
@@ -832,16 +839,16 @@ function ExecutiveOlsPage({ forceView = null }) {
           setSession(null);
           return;
         }
-        throw new Error(payload?.error || "Unable to send WhatsApp reply.");
+        throw new Error(payload?.error || "Unable to send Twilio reply.");
       }
 
       if (payload?.message?.messageId) {
         setWhatsappThreads((current) => injectReplyIntoThreads(current, selectedThread.sessionId, payload.message));
       }
       clearWhatsAppDraft(selectedThread.sessionId);
-      setWhatsappNotice("WhatsApp reply sent.");
+      setWhatsappNotice("Twilio reply sent.");
     } catch (requestError) {
-      setWhatsappError(String(requestError?.message || "Unable to send WhatsApp reply."));
+      setWhatsappError(String(requestError?.message || "Unable to send Twilio reply."));
     } finally {
       setSendingWhatsAppReply(false);
     }
@@ -869,6 +876,7 @@ function ExecutiveOlsPage({ forceView = null }) {
         body: JSON.stringify({
           phone_number: phoneNumber,
           message,
+          channel: "sms",
         }),
       });
 
@@ -879,7 +887,7 @@ function ExecutiveOlsPage({ forceView = null }) {
           setSession(null);
           return;
         }
-        throw new Error(payload?.error || "Unable to start WhatsApp conversation.");
+        throw new Error(payload?.error || "Unable to start SMS conversation.");
       }
 
       const inboxResponse = await fetch(`${apiBase}/admins-ols`, {
@@ -894,7 +902,7 @@ function ExecutiveOlsPage({ forceView = null }) {
       }
 
       const nextThreads = Array.isArray(inboxPayload?.recentConversations)
-        ? inboxPayload.recentConversations.filter(isWhatsAppConversation)
+        ? inboxPayload.recentConversations.filter(isMessagingConversation)
         : [];
       setWhatsappThreads(nextThreads);
       if (payload?.session_id) {
@@ -902,9 +910,9 @@ function ExecutiveOlsPage({ forceView = null }) {
       }
       setNewWhatsAppPhone("");
       setNewWhatsAppMessage("");
-      setWhatsappNotice("WhatsApp message sent and conversation started.");
+      setWhatsappNotice("SMS message sent and conversation started.");
     } catch (requestError) {
-      setWhatsappError(String(requestError?.message || "Unable to start WhatsApp conversation."));
+      setWhatsappError(String(requestError?.message || "Unable to start SMS conversation."));
     } finally {
       setSendingNewWhatsApp(false);
     }
@@ -983,7 +991,7 @@ function ExecutiveOlsPage({ forceView = null }) {
           ...getExecutiveOlsAuthHeaders(session),
         },
         body: JSON.stringify({
-          query: `Draft a brief, professional WhatsApp reply as the OneLuxStay team to the guest's latest message: "${guestMessage.content}". Keep it 1-3 sentences, warm and direct, and end with one clear next step. Reply with the message text only, no labels or quotes.`,
+          query: `Draft a brief, professional text message reply as the OneLuxStay team to the guest's latest message: "${guestMessage.content}". Keep it 1-3 sentences, warm and direct, and end with one clear next step. Reply with the message text only, no labels or quotes.`,
           messages: recentMessages,
           range: timeRange,
           propertyId,
@@ -1308,7 +1316,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                           </span>
                           <div>
                             <h3>Inbox studio</h3>
-                            <p>A cleaner, faster messaging workspace for live WhatsApp conversations and polished guest replies.</p>
+                            <p>A cleaner, faster messaging workspace for live SMS and WhatsApp conversations.</p>
                           </div>
                         </div>
                       </div>
@@ -1330,7 +1338,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                           </span>
                         </div>
                         <div className="executive-ols-whatsapp-panel-tools">
-                          <label className="executive-ols-whatsapp-search" aria-label="Search WhatsApp conversations">
+                          <label className="executive-ols-whatsapp-search" aria-label="Search Twilio conversations">
                             <ExecutiveIcon name="search" className="executive-ols-inline-icon" />
                             <input
                               type="search"
@@ -1341,9 +1349,9 @@ function ExecutiveOlsPage({ forceView = null }) {
                           </label>
                         </div>
 
-                        <div className="executive-ols-whatsapp-sessions" role="list" aria-label="WhatsApp conversations">
+                        <div className="executive-ols-whatsapp-sessions" role="list" aria-label="Twilio conversations">
                         {loadingWhatsApp && !whatsappThreads.length && (
-                          <p className="executive-ols-empty">Loading WhatsApp conversations...</p>
+                          <p className="executive-ols-empty">Loading Twilio conversations...</p>
                         )}
 
                         {!loadingWhatsApp &&
@@ -1374,7 +1382,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                 <div className="executive-ols-whatsapp-session-sub">
                                   <span className="executive-ols-whatsapp-contact-pill">
                                     <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
-                                    {getWhatsAppPhoneLabel(thread) || "WhatsApp guest"}
+                                    {getWhatsAppPhoneLabel(thread) || "Twilio guest"}
                                   </span>
                                   <span className="executive-ols-whatsapp-counter">{thread.messageCount || 0}</span>
                                 </div>
@@ -1385,8 +1393,8 @@ function ExecutiveOlsPage({ forceView = null }) {
 
                         {!loadingWhatsApp && !whatsappThreads.length && (
                           <div className="executive-ols-whatsapp-empty">
-                            <p className="executive-ols-empty">No WhatsApp conversations yet.</p>
-                            <small>Send the first WhatsApp message from here, or wait for a guest to message your Twilio sender.</small>
+                            <p className="executive-ols-empty">No Twilio conversations yet.</p>
+                            <small>Send the first SMS from here, or wait for a guest to message your Twilio sender.</small>
                             <div className="executive-ols-prompt-list">
                               {WHATSAPP_TEST_PROMPTS.map((prompt) => (
                                 <button
@@ -1441,11 +1449,13 @@ function ExecutiveOlsPage({ forceView = null }) {
                             <div className="executive-ols-hero-meta executive-ols-whatsapp-thread-meta">
                               <span className="executive-ols-whatsapp-meta-pill">
                                 <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
-                                {getWhatsAppPhoneLabel(selectedWhatsAppThread) || "WhatsApp guest"}
+                                {getWhatsAppPhoneLabel(selectedWhatsAppThread) || "Twilio guest"}
                               </span>
                               <span className="executive-ols-whatsapp-meta-pill">
                                 <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
-                                Twilio WhatsApp
+                                {String(selectedWhatsAppThread?.sessionId || "").trim().toLowerCase().startsWith("sms:")
+                                  ? "Twilio SMS"
+                                  : "Twilio WhatsApp"}
                               </span>
                               <span className="executive-ols-whatsapp-meta-pill">
                                 <ExecutiveIcon name="clock" className="executive-ols-inline-icon" />
@@ -1575,7 +1585,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                   value={whatsappReplyDraft}
                                   onChange={(event) => updateWhatsAppDraft(selectedWhatsAppSessionId, event.target.value)}
                                   rows={4}
-                                  placeholder="Reply to this WhatsApp guest as the OneLuxStay team..."
+                                  placeholder="Reply to this guest as the OneLuxStay team..."
                                   disabled={sendingWhatsAppReply}
                                 />
                               </div>
@@ -1595,7 +1605,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                   disabled={sendingWhatsAppReply || !whatsappReplyDraft.trim()}
                                 >
                                   <ExecutiveIcon name="send" className="executive-ols-inline-icon" />
-                                  {sendingWhatsAppReply ? "Sending..." : "Send WhatsApp reply"}
+                                  {sendingWhatsAppReply ? "Sending..." : "Send Twilio reply"}
                                 </button>
                               </div>
                             </form>
@@ -1605,7 +1615,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                             <div className="executive-ols-whatsapp-start">
                               <div>
                                 <p className="executive-ols-eyebrow">Start conversation</p>
-                                <h3>Send the first WhatsApp message</h3>
+                                <h3>Send the first SMS message</h3>
                                 <p className="executive-ols-whatsapp-start-copy">
                                   Use a real guest phone number in E.164 format like `+15551234567`.
                                 </p>
@@ -1626,7 +1636,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                   value={newWhatsAppMessage}
                                   onChange={(event) => setNewWhatsAppMessage(event.target.value)}
                                   rows={4}
-                                  placeholder="Write the first WhatsApp message..."
+                                  placeholder="Write the first SMS message..."
                                   disabled={sendingNewWhatsApp}
                                 />
                                 <div className="executive-ols-composer-actions">
@@ -1643,7 +1653,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                     className="executive-ols-primary-btn"
                                     disabled={sendingNewWhatsApp || !newWhatsAppPhone.trim() || !newWhatsAppMessage.trim()}
                                   >
-                                    {sendingNewWhatsApp ? "Sending..." : "Start WhatsApp chat"}
+                                    {sendingNewWhatsApp ? "Sending..." : "Start SMS chat"}
                                   </button>
                                 </div>
                               </form>

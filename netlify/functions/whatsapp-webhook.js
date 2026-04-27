@@ -9,7 +9,7 @@ const DEFAULT_PAGE_CONTEXT = {
   pageType: "whatsapp",
   city: "",
   listingId: "",
-  title: "OneLuxStay WhatsApp Concierge",
+  title: "OneLuxStay Messaging Concierge",
 };
 const MAX_HISTORY_MESSAGES = 10;
 
@@ -80,9 +80,12 @@ const xmlResponse = (body = "", statusCode = 200) => ({
 const buildTwimlMessage = (message = "") =>
   xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${xmlEscape(message)}</Message></Response>`);
 
-const buildSessionId = (from = "") => {
+const getChannelFromAddress = (from = "") => (/^whatsapp:/i.test(String(from || "").trim()) ? "whatsapp" : "sms");
+
+const buildSessionId = (from = "", channel = "whatsapp") => {
   const digits = String(from || "").replace(/[^\d+]/g, "");
-  return sanitizeId(`whatsapp:${digits || "guest"}`, 80);
+  const prefix = channel === "sms" ? "sms" : "whatsapp";
+  return sanitizeId(`${prefix}:${digits || "guest"}`, 80);
 };
 
 const getPublicSiteUrl = () =>
@@ -120,6 +123,8 @@ const buildSignatureCandidates = (event = {}) => {
     `${publicSiteUrl}${eventPath}`,
     `${baseUrl}/api/whatsapp`,
     `${publicSiteUrl}/api/whatsapp`,
+    `${baseUrl}/api/sms`,
+    `${publicSiteUrl}/api/sms`,
     `${baseUrl}/.netlify/functions/whatsapp-webhook`,
     `${publicSiteUrl}/.netlify/functions/whatsapp-webhook`,
   ]
@@ -209,7 +214,7 @@ export async function handler(event) {
   }
 
   if (event.httpMethod !== "POST") {
-    return buildTwimlMessage("This endpoint accepts POST requests from Twilio WhatsApp.");
+    return buildTwimlMessage("This endpoint accepts POST requests from Twilio Messaging.");
   }
 
   const params = parseFormBody(event);
@@ -225,10 +230,14 @@ export async function handler(event) {
   const incomingMessage = sanitizeString(params.get("Body"), 1600);
   const from = sanitizeString(params.get("From"), 80);
   const profileName = sanitizeString(params.get("ProfileName"), 160);
-  const chatSessionId = buildSessionId(from);
+  const channel = getChannelFromAddress(from);
+  const chatSessionId = buildSessionId(from, channel);
   const pageContext = {
     ...DEFAULT_PAGE_CONTEXT,
-    title: profileName ? `OneLuxStay WhatsApp Concierge (${profileName})` : DEFAULT_PAGE_CONTEXT.title,
+    pageType: channel,
+    title: profileName
+      ? `OneLuxStay ${channel === "sms" ? "SMS" : "WhatsApp"} Concierge (${profileName})`
+      : `OneLuxStay ${channel === "sms" ? "SMS" : "WhatsApp"} Concierge`,
   };
 
   if (!incomingMessage) {
@@ -287,7 +296,7 @@ export async function handler(event) {
           role: "user",
           content: incomingMessage,
           senderType: "guest",
-          senderName: profileName || "WhatsApp guest",
+          senderName: profileName || (channel === "sms" ? "SMS guest" : "WhatsApp guest"),
         },
         assistantMessage: {
           role: "assistant",

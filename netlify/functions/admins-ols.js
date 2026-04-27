@@ -50,11 +50,19 @@ const sanitizeId = (value = "", maxLength = 120) =>
     .slice(0, maxLength);
 
 const isWhatsAppSessionId = (value = "") => sanitizeId(value, 120).toLowerCase().startsWith("whatsapp:");
+const isSmsSessionId = (value = "") => sanitizeId(value, 120).toLowerCase().startsWith("sms:");
 
 const extractWhatsAppNumberFromSessionId = (value = "") => {
   const normalized = sanitizeId(value, 120);
   if (!isWhatsAppSessionId(normalized)) return "";
   const digits = normalized.slice("whatsapp:".length).replace(/[^\d]/g, "");
+  return digits ? `+${digits}` : "";
+};
+
+const extractSmsNumberFromSessionId = (value = "") => {
+  const normalized = sanitizeId(value, 120);
+  if (!isSmsSessionId(normalized)) return "";
+  const digits = normalized.slice("sms:".length).replace(/[^\d]/g, "");
   return digits ? `+${digits}` : "";
 };
 
@@ -73,6 +81,16 @@ const normalizePhoneNumber = (value = "") => {
   const digits = raw.replace(/[^\d]/g, "");
   if (!digits) return "";
   return `${hasPlus ? "+" : ""}${digits}`;
+};
+
+const getTwilioSmsConfig = () => {
+  const accountSid = sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120);
+  const authToken = sanitizeString(getEnv("TWILIO_SMS_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240);
+  const fromNumber = normalizePhoneNumber(
+    sanitizeString(getEnv("TWILIO_SMS_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER"), 80),
+  );
+
+  return { accountSid, authToken, fromNumber };
 };
 
 const getRequestBaseUrl = (event = {}) => {
@@ -257,6 +275,61 @@ const sendWhatsAppAdminReply = async ({ sessionId = "", content = "" } = {}) => 
         payload?.message || payload?.error_message || "Twilio could not send the WhatsApp reply.",
         320,
       ),
+    );
+    error.statusCode = response.status || 502;
+    throw error;
+  }
+
+  return {
+    sid: sanitizeString(payload?.sid, 120),
+    status: sanitizeString(payload?.status, 80),
+    to: sanitizeString(payload?.to, 80),
+    from: sanitizeString(payload?.from, 80),
+  };
+};
+
+const sendSmsAdminReply = async ({ sessionId = "", content = "" } = {}) => {
+  const toNumber = extractSmsNumberFromSessionId(sessionId);
+  if (!toNumber) {
+    const error = new Error("Unable to resolve the SMS guest number for this conversation.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { accountSid, authToken, fromNumber } = getTwilioSmsConfig();
+  if (!accountSid || !authToken || !fromNumber) {
+    const error = new Error(
+      "Twilio SMS outbound messaging is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_SMS_FROM.",
+    );
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const body = new URLSearchParams({
+    To: toNumber,
+    From: fromNumber,
+    Body: sanitizeMultiline(content, 1600),
+  });
+
+  const response = await fetchWithTimeout(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    },
+    20_000,
+  );
+
+  const rawText = await response.text();
+  const payload = parseJson(rawText);
+
+  if (!response.ok) {
+    const error = new Error(
+      sanitizeString(payload?.message || payload?.error_message || "Twilio could not send the SMS reply.", 320),
     );
     error.statusCode = response.status || 502;
     throw error;
@@ -1715,11 +1788,16 @@ const createAdminReply = async (payload, tables, adminUser = {}) => {
   const nowIso = new Date().toISOString();
   const adminName = sanitizeString(adminUser?.fullName || adminUser?.name, 160);
   const adminEmail = sanitizeString(adminUser?.email, 160);
-  const whatsappDelivery = isWhatsAppSessionId(sessionId)
+  const twilioDelivery = isWhatsAppSessionId(sessionId)
     ? await sendWhatsAppAdminReply({
         sessionId,
         content,
       })
+    : isSmsSessionId(sessionId)
+      ? await sendSmsAdminReply({
+          sessionId,
+          content,
+        })
     : null;
   const rows = await supabaseRestRequest(tables.messages, {
     method: "POST",
@@ -1739,11 +1817,11 @@ const createAdminReply = async (payload, tables, adminUser = {}) => {
           senderType: "admin",
           senderName: adminName || null,
           senderEmail: adminEmail || null,
-          channel: isWhatsAppSessionId(sessionId) ? "whatsapp" : "web",
-          twilioMessageSid: whatsappDelivery?.sid || null,
-          twilioStatus: whatsappDelivery?.status || null,
-          twilioTo: whatsappDelivery?.to || null,
-          twilioFrom: whatsappDelivery?.from || null,
+          channel: isWhatsAppSessionId(sessionId) ? "whatsapp" : isSmsSessionId(sessionId) ? "sms" : "web",
+          twilioMessageSid: twilioDelivery?.sid || null,
+          twilioStatus: twilioDelivery?.status || null,
+          twilioTo: twilioDelivery?.to || null,
+          twilioFrom: twilioDelivery?.from || null,
         },
         created_at: nowIso,
       },
