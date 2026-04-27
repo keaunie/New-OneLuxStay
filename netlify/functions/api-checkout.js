@@ -157,7 +157,7 @@ export async function handler(event) {
             unit_amount: stripeAmount,
             product_data: {
               name: listingTitle || "OneLuxStay booking",
-              description: `${checkIn} to ${checkOut} • ${guests} guest${guests === 1 ? "" : "s"}`,
+              description: `${checkIn} to ${checkOut} - ${guests} guest${guests === 1 ? "" : "s"}`,
             },
           },
         },
@@ -178,6 +178,7 @@ export async function handler(event) {
         check_in: checkIn,
         check_out: checkOut,
         guests: String(guests),
+        ...(availability?.quoteId ? { quote_id: String(availability.quoteId) } : {}),
         guest_first_name: String(guest.firstName || ""),
         guest_last_name: String(guest.lastName || ""),
         guest_email: guestEmail,

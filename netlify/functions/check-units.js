@@ -1086,21 +1086,43 @@ const getGuestyToken = async () => {
 
 const createGuestyReservation = async (payload) => {
   const { token } = await getGuestyToken();
-  const response = await fetchWithTimeout(`${OPEN_API_V1}/reservations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const postOnce = async (body) => {
+    const response = await fetchWithTimeout(`${OPEN_API_V1}/reservations`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (!response.ok) {
-    throw new Error(await response.text());
+    const text = await response.text();
+    if (!response.ok) {
+      const error = new Error(text || `Guesty reservation create failed (${response.status})`);
+      error.statusCode = response.status;
+      error.body = text;
+      throw error;
+    }
+
+    return text ? JSON.parse(text) : {};
+  };
+
+  try {
+    return await postOnce(payload);
+  } catch (error) {
+    const msg = String(error?.body || error?.message || "");
+    const isSchemaReject =
+      Number(error?.statusCode) === 400 &&
+      (msg.includes("guestsCount") || msg.includes("numberOfGuests") || msg.includes("additionalProperties"));
+    if (!isSchemaReject) throw error;
+
+    // Some Guesty accounts/environments reject these optional fields. Retry without them.
+    const fallback = { ...(payload || {}) };
+    delete fallback.guestsCount;
+    delete fallback.numberOfGuests;
+    return await postOnce(fallback);
   }
-
-  return response.json();
 };
 
 const buildGuestyReservationPayload = ({
@@ -1138,12 +1160,19 @@ const buildGuestyReservationPayload = ({
   const securityDeposit = Number(breakdown?.securityDeposit);
   const vat = Number(breakdown?.vat);
   const cityTax = Number(breakdown?.cityTax);
+  const discountAmountRaw = Number(breakdown?.discountAmount ?? breakdown?.discount ?? 0);
+  const promoDiscountAmountRaw = Number(breakdown?.promoDiscountAmount ?? 0);
+  const promoCode = String(breakdown?.promoCode || "").trim();
   const taxProfile = String(breakdown?.taxProfile || "").trim().toUpperCase();
   const effectiveTotal = Number.isFinite(Number(amount)) ? Number(amount) : null;
   const money = {};
   const invoiceItems = [];
   const roundMoney = (value) =>
     Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+  const discountAmount = Number.isFinite(discountAmountRaw) && discountAmountRaw > 0 ? roundMoney(discountAmountRaw) : 0;
+  const promoDiscountAmount =
+    Number.isFinite(promoDiscountAmountRaw) && promoDiscountAmountRaw > 0 ? roundMoney(promoDiscountAmountRaw) : 0;
+  const totalDiscount = (discountAmount || 0) + (promoDiscountAmount || 0);
   const cleaningValue = Number.isFinite(cleaning) ? roundMoney(cleaning) : null;
   const taxesValue = Number.isFinite(taxes) ? roundMoney(taxes) : null;
   const feesValue = Number.isFinite(fees) ? roundMoney(fees) : null;
@@ -1159,6 +1188,8 @@ const buildGuestyReservationPayload = ({
   const parsedGuests = Number(guests);
   const normalizedGuests =
     Number.isFinite(parsedGuests) && parsedGuests > 0 ? Math.round(parsedGuests) : 1;
+  payload.guestsCount = normalizedGuests;
+  payload.numberOfGuests = { numberOfAdults: normalizedGuests };
   const derivedNightsMs = checkOutDate.getTime() - checkInDate.getTime();
   const normalizedNights =
     Number.isFinite(derivedNightsMs) && derivedNightsMs > 0
@@ -1190,6 +1221,14 @@ const buildGuestyReservationPayload = ({
     money.fareAccommodation = fareAccommodation;
   } else if (Number.isFinite(effectiveTotal) && effectiveTotal > 0) {
     money.fareAccommodation = roundMoney(effectiveTotal);
+  }
+
+  if (discountAmount > 0) {
+    invoiceItems.push({ title: "Discount", amount: roundMoney(-discountAmount), normalType: "DISC" });
+  }
+  if (promoDiscountAmount > 0) {
+    const label = promoCode ? `Promo Discount (${promoCode})` : "Promo Discount";
+    invoiceItems.push({ title: label, amount: roundMoney(-promoDiscountAmount), normalType: "DISC" });
   }
 
   if (cleaningValue !== null && cleaningValue > 0) {
@@ -1880,6 +1919,483 @@ const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
   });
 };
 
+const normalizeString = (value) => String(value ?? "").trim();
+
+const diffNights = (checkIn, checkOut) => {
+  const start = new Date(String(checkIn || ""));
+  const end = new Date(String(checkOut || ""));
+  const ms = end.getTime() - start.getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+};
+
+const quoteMoneyForPlan = (quoteData, ratePlanId = "") => {
+  const plansRaw = Array.isArray(quoteData?.rates?.ratePlans)
+    ? quoteData.rates.ratePlans
+    : quoteData?.rates?.ratePlans
+      ? [quoteData.rates.ratePlans]
+      : [];
+  const normalizedPlanId = normalizeString(ratePlanId);
+  const selected =
+    (normalizedPlanId
+      ? plansRaw.find((plan) => {
+          const meta = plan?.ratePlan || {};
+          const id = normalizeString(meta?._id || plan?._id);
+          return id && id === normalizedPlanId;
+        })
+      : null) ||
+    plansRaw[0] ||
+    null;
+
+  const meta = selected?.ratePlan || {};
+  const labelSource = normalizeString(meta?.name || meta?.title || meta?.description || "");
+  const nonRefundable =
+    Boolean(meta?.cancellationPolicy?.isNonRefundable ?? meta?.nonRefundable) ||
+    (/non[- ]?refundable/i.test(labelSource) ? true : false);
+
+  const money =
+    selected?.money?.money ||
+    selected?.money ||
+    quoteData?.money?.money ||
+    quoteData?.money ||
+    null;
+  const days = Array.isArray(selected?.days) ? selected.days : [];
+  const currency = normalizeString(money?.currency || days[0]?.currency || quoteData?.currency || "USD") || "USD";
+
+  return {
+    selectedPlan: selected,
+    selectedPlanId: normalizeString(meta?._id || selected?._id),
+    nonRefundable,
+    currency,
+    money,
+    days,
+    plansRaw,
+  };
+};
+
+const sumInvoiceItems = (invoiceItems = []) => {
+  const result = {
+    accommodation: 0,
+    cleaning: 0,
+    taxes: 0,
+    vat: 0,
+    cityTax: 0,
+    fees: 0,
+  };
+
+  const items = Array.isArray(invoiceItems) ? invoiceItems : [];
+  items.forEach((item) => {
+    const amount = Number(item?.amount);
+    if (!Number.isFinite(amount)) return;
+    const normalType = String(item?.normalType || item?.type || "").toUpperCase();
+    const secondType = String(item?.secondIdentifier || item?.secondType || "").toUpperCase();
+    const label = String(item?.title || item?.name || item?.description || "").toUpperCase();
+
+    const isCleaning =
+      normalType === "CF" ||
+      normalType === "CLEANING_FEE" ||
+      /\bCLEAN(ING)?\b/.test(normalType) ||
+      /\bCLEAN(ING)?\b/.test(secondType) ||
+      /\bCLEAN(ING)?\b/.test(label);
+
+    const isVat =
+      normalType === "VAT" ||
+      /\bVAT\b/.test(normalType) ||
+      /\bVAT\b/.test(secondType) ||
+      /\bVAT\b/.test(label);
+
+    const isCityTax =
+      normalType === "CT" ||
+      normalType === "CITY_TAX" ||
+      /\bCITY\s*TAX\b/.test(label) ||
+      /\bTOURISM\s*TAX\b/.test(label);
+
+    const isTax =
+      normalType === "OCT" ||
+      normalType === "TAX" ||
+      normalType === "OCCUPANCY_TAX" ||
+      isVat ||
+      isCityTax ||
+      /\b(TAX)\b/.test(normalType) ||
+      /\b(TAX)\b/.test(secondType) ||
+      /\b(TAX)\b/.test(label);
+
+    if (normalType === "AF" || normalType === "ACCOMMODATION_FARE") {
+      result.accommodation += amount;
+      return;
+    }
+    if (isCleaning) {
+      result.cleaning += amount;
+      return;
+    }
+    if (isTax) {
+      result.taxes += amount;
+      if (isVat) result.vat += amount;
+      if (isCityTax) result.cityTax += amount;
+      return;
+    }
+    result.fees += amount;
+  });
+
+  return Object.fromEntries(Object.entries(result).map(([k, v]) => [k, roundMoney(v) || 0]));
+};
+
+const summarizeQuotePricing = (quoteData, { checkIn, checkOut, guestsCount = 1, ratePlanId = "" } = {}) => {
+  const { money, days, currency, nonRefundable, selectedPlanId } = quoteMoneyForPlan(quoteData, ratePlanId);
+  const invoiceItems = Array.isArray(money?.invoiceItems) ? money.invoiceItems : [];
+  const inv = sumInvoiceItems(invoiceItems);
+  const nights = days.length || diffNights(checkIn, checkOut);
+  const safeGuests = Math.max(1, Math.round(Number(guestsCount) || 1));
+
+  const daySum = Array.isArray(days)
+    ? days.reduce((sum, d) => {
+        const price = d?.manualPrice ?? d?.price ?? d?.basePrice;
+        return sum + (typeof price === "number" ? price : 0);
+      }, 0)
+    : 0;
+
+  const accommodation = firstNumber(money?.fareAccommodation, inv.accommodation, daySum);
+  const cleaning = firstNumber(money?.fareCleaning, money?.cleaning, money?.cleaningFee, inv.cleaning);
+  const taxes = firstNumber(money?.fareTaxes, money?.fareTax, money?.taxes, money?.taxAmount, money?.totalTaxes, inv.taxes);
+
+  const invoiceItemsTotal = invoiceItems.length
+    ? invoiceItems.reduce((sum, item) => sum + (Number.isFinite(Number(item?.amount)) ? Number(item.amount) : 0), 0)
+    : null;
+
+  const total = firstNumber(
+    money?.totalPrice,
+    money?.total,
+    quoteData?.total,
+    quoteData?.price?.total,
+    quoteData?.price?.totalAmount,
+    quoteData?.price?.totalPrice,
+    typeof quoteData?.price?.total === "object" ? quoteData?.price?.total?.amount : null,
+    invoiceItemsTotal,
+  );
+
+  const breakdown = {
+    accommodation: accommodation !== null ? roundMoney(accommodation) : null,
+    cleaning: cleaning !== null ? roundMoney(cleaning) : null,
+    taxes: taxes !== null ? roundMoney(taxes) : null,
+    vat: inv.vat ? roundMoney(inv.vat) : null,
+    cityTax: inv.cityTax ? roundMoney(inv.cityTax) : null,
+    fees: inv.fees ? roundMoney(inv.fees) : null,
+    subtotal: total !== null ? roundMoney(total) : null,
+    total: total !== null ? roundMoney(total) : null,
+  };
+
+  return {
+    currency,
+    nights,
+    guestsCount: safeGuests,
+    nonRefundable,
+    ratePlanId: selectedPlanId || normalizeString(ratePlanId),
+    breakdown,
+  };
+};
+
+const parseVouchersConfig = () => {
+  const rawJson = normalizeString(process.env.CHECKOUT_VOUCHERS_JSON || "");
+  const legacyCode = normalizeString(process.env.CHECKOUT_DEFAULT_VOUCHER_CODE || "");
+  const legacyRate = Number(process.env.CHECKOUT_DEFAULT_VOUCHER_RATE || 0);
+
+  const list = [];
+  if (rawJson) {
+    try {
+      const parsed = JSON.parse(rawJson);
+      if (Array.isArray(parsed)) list.push(...parsed);
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  if (legacyCode && Number.isFinite(legacyRate) && legacyRate > 0) {
+    list.push({ code: legacyCode, rate: legacyRate });
+  }
+
+  return list
+    .map((entry) => ({
+      code: normalizeString(entry?.code).toUpperCase(),
+      rate: Math.max(0, Math.min(1, Number(entry?.rate) || 0)),
+      label: normalizeString(entry?.label || ""),
+    }))
+    .filter((entry) => entry.code && entry.rate > 0);
+};
+
+const VOUCHERS = parseVouchersConfig();
+const resolveVoucher = (code) => {
+  const normalized = normalizeString(code).toUpperCase();
+  if (!normalized) return null;
+  return VOUCHERS.find((v) => v.code === normalized) || null;
+};
+
+const fetchGuestyQuotesMultiple = async (token, quotes, { mergeAccommodationFarePriceComponents = true } = {}) => {
+  const qs = new URLSearchParams({
+    mergeAccommodationFarePriceComponents: mergeAccommodationFarePriceComponents ? "true" : "false",
+  });
+  const res = await fetchWithTimeout(`${OPEN_API_V1}/quotes/multiple?${qs.toString()}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ quotes: Array.isArray(quotes) ? quotes : [] }),
+  });
+
+  if (res.status === 429) {
+    const error = new Error("Rate limited by Guesty");
+    error.statusCode = 429;
+    throw error;
+  }
+
+  const text = await res.text();
+  if (!res.ok) {
+    const error = new Error(text || `Guesty quotes request failed (${res.status})`);
+    error.statusCode = res.status;
+    error.body = text;
+    throw error;
+  }
+
+  return text ? JSON.parse(text) : {};
+};
+
+const applyGuestyCouponsToQuote = async (token, quoteId, coupons, { mergeAccommodationFarePriceComponents = true } = {}) => {
+  const qs = new URLSearchParams({
+    mergeAccommodationFarePriceComponents: mergeAccommodationFarePriceComponents ? "true" : "false",
+  });
+  const res = await fetchWithTimeout(`${OPEN_API_V1}/quotes/${encodeURIComponent(String(quoteId))}/coupons?${qs.toString()}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ coupons: Array.isArray(coupons) ? coupons : [] }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    const error = new Error(text || `Guesty coupon apply failed (${res.status})`);
+    error.statusCode = res.status;
+    error.body = text;
+    throw error;
+  }
+
+  return text ? JSON.parse(text) : {};
+};
+
+const createGuestyQuoteForCheckout = async ({
+  listingId,
+  checkIn,
+  checkOut,
+  guestsCount,
+  ratePlanId = "",
+  voucherCode = "",
+  mergeAccommodationFarePriceComponents = true,
+} = {}) => {
+  const { token } = await getGuestyToken();
+  const guests = Math.max(1, Math.round(Number(guestsCount) || 1));
+  const quoteRequest = {
+    checkInDateLocalized: String(checkIn),
+    checkOutDateLocalized: String(checkOut),
+    unitTypeId: String(listingId),
+    ...(ratePlanId ? { ratePlanId: String(ratePlanId) } : {}),
+    guestsCount: guests,
+    numberOfGuests: { numberOfAdults: guests },
+    source: "website",
+    applyPromotions: true,
+    count: 1,
+  };
+
+  const payload = await fetchGuestyQuotesMultiple(token, [quoteRequest], { mergeAccommodationFarePriceComponents });
+  const results = Array.isArray(payload?.results) ? payload.results : [];
+  const quote = results[0] || null;
+  if (!quote) {
+    throw new Error("Guesty quote response did not include a quote result.");
+  }
+
+  const quoteId = quote?._id || quote?.id || null;
+  if (!quoteId) {
+    throw new Error("Guesty quote response missing quote id.");
+  }
+
+  const before = summarizeQuotePricing(quote, {
+    checkIn,
+    checkOut,
+    guestsCount: guests,
+    ratePlanId,
+  });
+
+  const normalizedVoucherCode = normalizeString(voucherCode).toUpperCase();
+  if (!normalizedVoucherCode) {
+    return { quote, quoteId, pricing: before, pricingBefore: before, voucher: null, discountAmount: 0 };
+  }
+
+  const voucher = resolveVoucher(normalizedVoucherCode);
+  if (!voucher) {
+    const error = new Error("Invalid voucher code.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let afterQuote = quote;
+  try {
+    afterQuote = await applyGuestyCouponsToQuote(token, quoteId, [voucher.code], {
+      mergeAccommodationFarePriceComponents,
+    });
+  } catch (err) {
+    const message = String(err?.body || err?.message || "");
+    const wrapped = new Error(
+      message
+        ? `Unable to apply voucher in Guesty: ${message}`
+        : "Unable to apply voucher in Guesty.",
+    );
+    wrapped.statusCode = Number(err?.statusCode) || 502;
+    throw wrapped;
+  }
+
+  const after = summarizeQuotePricing(afterQuote, {
+    checkIn,
+    checkOut,
+    guestsCount: guests,
+    ratePlanId,
+  });
+
+  const totalBefore = Number(before?.breakdown?.total);
+  const totalAfter = Number(after?.breakdown?.total);
+  const discountAmount =
+    Number.isFinite(totalBefore) && Number.isFinite(totalAfter) && totalBefore > totalAfter
+      ? roundMoney(totalBefore - totalAfter) || 0
+      : 0;
+
+  return {
+    quote: afterQuote,
+    quoteId,
+    pricing: after,
+    pricingBefore: before,
+    voucher,
+    discountAmount,
+  };
+};
+
+const createGuestyReservationFromQuote = async ({ quoteId, guest, status = "confirmed" } = {}) => {
+  const { token } = await getGuestyToken();
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+  const firstName = guest?.firstName || nameParts[0] || "Guest";
+  const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
+  const phone = normalizeString(guest?.phone || "");
+  const phones = phone ? [phone] : [];
+
+  const res = await fetchWithTimeout(`${OPEN_API_V1}/reservations-v3/quote`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      quoteId: String(quoteId),
+      status: status || "confirmed",
+      guest: {
+        firstName,
+        lastName,
+        phones,
+        email: guest?.email || "",
+      },
+    }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    const error = new Error(text || `Guesty reservation-from-quote failed (${res.status})`);
+    error.statusCode = res.status;
+    error.body = text;
+    throw error;
+  }
+
+  return text ? JSON.parse(text) : {};
+};
+
+const createGuestyInvoiceItem = async (reservationId, { title, amount, normalType, secondIdentifier, description } = {}) => {
+  const numericAmount = roundMoney(amount);
+  if (!reservationId) return null;
+  if (!Number.isFinite(numericAmount) || numericAmount === 0) return null;
+  const safeTitle = normalizeString(title) || "Additional fee";
+  const safeNormalType = normalizeString(normalType).toUpperCase() || "AFE";
+  const safeSecond = normalizeString(secondIdentifier).toUpperCase() || "MISCELLANEOUS";
+  const safeDescription = normalizeString(description);
+
+  const { token } = await getGuestyToken();
+  const postOnce = async (path, body) => {
+    const res = await fetchWithTimeout(`${OPEN_API_V1}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      const error = new Error(text || `Guesty invoice item create failed (${res.status})`);
+      error.statusCode = res.status;
+      error.body = text;
+      throw error;
+    }
+    return text ? JSON.parse(text) : {};
+  };
+
+  const body = {
+    title: safeTitle,
+    amount: numericAmount,
+    normalType: safeNormalType,
+    ...(safeNormalType === "AFE" ? { secondIdentifier: safeSecond } : {}),
+    ...(safeDescription ? { description: safeDescription } : {}),
+  };
+
+  try {
+    return await postOnce(`/invoice-items/reservation/${encodeURIComponent(String(reservationId))}`, body);
+  } catch (err) {
+    const msg = String(err?.body || err?.message || "");
+    const isNotFoundOrDenied = Number(err?.statusCode) === 404 || Number(err?.statusCode) === 403;
+    if (!isNotFoundOrDenied) throw err;
+
+    // Legacy fallback (deprecated Guesty API path).
+    return await postOnce(`/reservations/${encodeURIComponent(String(reservationId))}/invoiceItems`, {
+      ...body,
+      secondIdentifier: safeSecond,
+    });
+  }
+};
+
+const createMinimalGuestyReservationPayload = ({ listingId, checkIn, checkOut, guests, guest } = {}) => {
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+  const firstName = guest?.firstName || nameParts[0] || "Guest";
+  const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
+  const parsedGuests = Number(guests);
+  const normalizedGuests =
+    Number.isFinite(parsedGuests) && parsedGuests > 0 ? Math.round(parsedGuests) : 1;
+
+  return {
+    listingId: String(listingId),
+    checkInDateLocalized: String(checkIn),
+    checkOutDateLocalized: String(checkOut),
+    status: "confirmed",
+    source: "website",
+    guestsCount: normalizedGuests,
+    numberOfGuests: { numberOfAdults: normalizedGuests },
+    guest: {
+      firstName,
+      lastName,
+      email: guest?.email || "",
+      phone: guest?.phone || "",
+    },
+  };
+};
+
 const handleQuotesBulk = async (event, token, tokenSource) => {
   let body = {};
   try {
@@ -1939,7 +2455,18 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   const resultsArray = Array.isArray(payload?.results) ? payload.results : [];
   const results = resultsArray.reduce((acc, item) => {
     const key = item?.unitTypeId || item?.listingId || item?._id;
-    if (key) acc[key] = item;
+    if (key) {
+      const req = (Array.isArray(requests) ? requests : []).find(
+        (r) => String(r?.listingId || "") === String(key),
+      );
+      const summary = summarizeQuotePricing(item, {
+        checkIn: req?.checkInDateLocalized,
+        checkOut: req?.checkOutDateLocalized,
+        guestsCount: Number(req?.guestsCount) || 1,
+        ratePlanId: req?.ratePlanId || req?.planId || "",
+      });
+      acc[key] = { ...item, olsPricing: summary };
+    }
     return acc;
   }, {});
 
@@ -2109,12 +2636,10 @@ const handleFreeCheckout = async (event) => {
     checkIn,
     checkOut,
     guests,
-    amount,
-    currency,
     breakdown: incomingBreakdown,
     promoCode,
-    promoDiscountAmount,
-    promoDiscountRate,
+    voucherCode,
+    ratePlanId,
     guest,
     consentText,
     consentAcceptedAt,
@@ -2123,29 +2648,77 @@ const handleFreeCheckout = async (event) => {
     verification,
   } = body || {};
 
-  if (!listingId || !checkIn || !checkOut || amount == null) {
-    return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
+  if (!listingId || !checkIn || !checkOut) {
+    return jsonResponse(400, { message: "Missing listingId or dates" });
   }
 
   if (!guest?.email) {
     return jsonResponse(400, { message: "Guest email is required" });
   }
 
-  const breakdownTotal = incomingBreakdown && typeof incomingBreakdown === "object"
-    ? Number(incomingBreakdown.total ?? incomingBreakdown.subtotal)
-    : NaN;
-  const baseAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  const guestsCount = Math.max(1, Math.round(Number(guests) || 1));
+  const requestedVoucherCode = normalizeString(voucherCode || promoCode).toUpperCase();
+  const defaultVoucherCode = normalizeString(process.env.CHECKOUT_DEFAULT_VOUCHER_CODE).toUpperCase();
+  const effectiveVoucherCode = requestedVoucherCode || defaultVoucherCode;
+
+  let quoteResult;
+  try {
+    quoteResult = await createGuestyQuoteForCheckout({
+      listingId,
+      checkIn,
+      checkOut,
+      guestsCount,
+      ratePlanId: normalizeString(ratePlanId),
+      voucherCode: effectiveVoucherCode,
+      mergeAccommodationFarePriceComponents: true,
+    });
+  } catch (err) {
+    const status = Number(err?.statusCode) || 502;
+    return jsonResponse(status >= 400 && status < 500 ? status : 502, {
+      message: err?.message || "Unable to fetch Guesty pricing.",
+      error: err?.message || "Unknown error",
+    });
+  }
+
+  const quoteId = quoteResult?.quoteId || "";
+  const pricing = quoteResult?.pricing || null;
+  const pricingBreakdown = pricing?.breakdown || null;
+  const normalizedCurrency = (normalizeString(pricing?.currency || "USD") || "USD").toUpperCase();
+  const quoteTotal = pricingBreakdown ? Number(pricingBreakdown.total ?? pricingBreakdown.subtotal) : NaN;
+  if (!Number.isFinite(quoteTotal) || quoteTotal < 0) {
+    return jsonResponse(502, { message: "Guesty quote did not include a valid total." });
+  }
+
+  const resolvedPromoCode = quoteResult?.voucher?.code || "";
+  const resolvedPromoDiscountAmount = Number.isFinite(Number(quoteResult?.discountAmount))
+    ? Number(quoteResult.discountAmount)
+    : 0;
+  const resolvedPromoDiscountRate = Number.isFinite(Number(quoteResult?.voucher?.rate))
+    ? Number(quoteResult.voucher.rate)
+    : 0;
+
   const resolvedSecurityDeposit = await resolveSecurityDeposit({
     listingId,
     country: incomingBreakdown?.country || body?.country || body?.listingCountry,
     bedrooms: incomingBreakdown?.bedrooms || body?.bedrooms || body?.listingBedrooms,
-    currency,
+    currency: normalizedCurrency,
   });
+
+  const baseCheckoutBreakdown =
+    pricingBreakdown && typeof pricingBreakdown === "object"
+      ? {
+          ...pricingBreakdown,
+          promoCode: resolvedPromoCode,
+          promoDiscountAmount: resolvedPromoDiscountAmount,
+          promoDiscountRate: resolvedPromoDiscountRate,
+        }
+      : null;
+
   const withSecurityDeposit = applySecurityDepositToAmount({
-    numericAmount: baseAmount,
-    breakdown: incomingBreakdown,
+    numericAmount: quoteTotal,
+    breakdown: baseCheckoutBreakdown,
     securityDepositAmount: resolvedSecurityDeposit?.amount || 0,
-    securityDepositCurrency: resolvedSecurityDeposit?.currency || String(currency || "USD").toUpperCase(),
+    securityDepositCurrency: resolvedSecurityDeposit?.currency || normalizedCurrency,
   });
   const numericAmount = withSecurityDeposit.numericAmount;
   const breakdown = withSecurityDeposit.breakdown;
@@ -2155,23 +2728,8 @@ const handleFreeCheckout = async (event) => {
     });
   }
 
-  const normalizedCurrency = (currency || "USD").toUpperCase();
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
   const normalizedVerification = normalizeVerificationPayload(verification || {});
-  const resolvedPromoCode =
-    (typeof promoCode === "string" && promoCode.trim()) ||
-    (typeof breakdown?.promoCode === "string" && breakdown.promoCode.trim()) ||
-    "";
-  const resolvedPromoDiscountAmount = Number.isFinite(Number(promoDiscountAmount))
-    ? Number(promoDiscountAmount)
-    : Number.isFinite(Number(breakdown?.promoDiscountAmount))
-      ? Number(breakdown.promoDiscountAmount)
-      : 0;
-  const resolvedPromoDiscountRate = Number.isFinite(Number(promoDiscountRate))
-    ? Number(promoDiscountRate)
-    : Number.isFinite(Number(breakdown?.promoDiscountRate))
-      ? Number(breakdown.promoDiscountRate)
-      : 0;
 
   const confirmationId = `FREE-${Date.now().toString(36)}-${Math.random()
     .toString(36)
@@ -2181,17 +2739,26 @@ const handleFreeCheckout = async (event) => {
   let reservationId = null;
 
   try {
-    const reservationPayload = buildGuestyReservationPayload({
-      listingId,
-      checkIn,
-      checkOut,
-      guests: Number(guests) || 1,
-      guest,
-      currency: normalizedCurrency,
-      amount: numericAmount,
-      breakdown,
-    });
-    const reservation = await createGuestyReservation(reservationPayload);
+    let reservation = null;
+    if (quoteId) {
+      try {
+        reservation = await createGuestyReservationFromQuote({ quoteId, guest, status: "confirmed" });
+      } catch {
+        reservation = null;
+      }
+    }
+
+    if (!reservation) {
+      const reservationPayload = createMinimalGuestyReservationPayload({
+        listingId,
+        checkIn,
+        checkOut,
+        guests: guestsCount,
+        guest,
+      });
+      reservation = await createGuestyReservation(reservationPayload);
+    }
+
     reservationId = reservation?._id || reservation?.id || null;
   } catch (err) {
     return jsonResponse(502, {
@@ -2344,12 +2911,10 @@ const handleCheckout = async (event) => {
     checkIn,
     checkOut,
     guests,
-    amount,
-    currency,
     breakdown: incomingBreakdown,
     promoCode,
-    promoDiscountAmount,
-    promoDiscountRate,
+    voucherCode,
+    ratePlanId,
     guest,
     consentText,
     consentAcceptedAt,
@@ -2359,31 +2924,82 @@ const handleCheckout = async (event) => {
     cancelPath,
   } = body || {};
 
-  if (!listingId || !checkIn || !checkOut || amount == null) {
-    return jsonResponse(400, { message: "Missing listingId, dates, or amount" });
+  if (!listingId || !checkIn || !checkOut) {
+    return jsonResponse(400, { message: "Missing listingId or dates" });
   }
 
-  const breakdownTotal = incomingBreakdown && typeof incomingBreakdown === "object"
-    ? Number(incomingBreakdown.total ?? incomingBreakdown.subtotal)
-    : NaN;
-  const baseAmount = Number.isFinite(breakdownTotal) ? breakdownTotal : Number(amount);
+  if (!guest?.email) {
+    return jsonResponse(400, { message: "Guest email is required" });
+  }
+
+  const guestsCount = Math.max(1, Math.round(Number(guests) || 1));
+  const requestedVoucherCode = normalizeString(voucherCode || promoCode).toUpperCase();
+
+  let quoteResult;
+  try {
+    quoteResult = await createGuestyQuoteForCheckout({
+      listingId,
+      checkIn,
+      checkOut,
+      guestsCount,
+      ratePlanId: normalizeString(ratePlanId),
+      voucherCode: effectiveVoucherCode,
+      mergeAccommodationFarePriceComponents: true,
+    });
+  } catch (err) {
+    const status = Number(err?.statusCode) || 502;
+    return jsonResponse(status >= 400 && status < 500 ? status : 502, {
+      message: err?.message || "Unable to fetch Guesty pricing.",
+      error: err?.message || "Unknown error",
+    });
+  }
+
+  const quoteId = quoteResult?.quoteId || "";
+  const pricing = quoteResult?.pricing || null;
+  const pricingBreakdown = pricing?.breakdown || null;
+  const quoteCurrency = (normalizeString(pricing?.currency || "USD") || "USD").toUpperCase();
+  const quoteTotal = pricingBreakdown ? Number(pricingBreakdown.total ?? pricingBreakdown.subtotal) : NaN;
+  if (!Number.isFinite(quoteTotal) || quoteTotal < 0) {
+    return jsonResponse(502, { message: "Guesty quote did not include a valid total." });
+  }
+
+  const resolvedPromoCode = quoteResult?.voucher?.code || "";
+  const resolvedPromoDiscountAmount = Number.isFinite(Number(quoteResult?.discountAmount))
+    ? Number(quoteResult.discountAmount)
+    : 0;
+  const resolvedPromoDiscountRate = Number.isFinite(Number(quoteResult?.voucher?.rate))
+    ? Number(quoteResult.voucher.rate)
+    : 0;
+
   const resolvedSecurityDeposit = await resolveSecurityDeposit({
     listingId,
     country: incomingBreakdown?.country || body?.country || body?.listingCountry,
     bedrooms: incomingBreakdown?.bedrooms || body?.bedrooms || body?.listingBedrooms,
-    currency,
+    currency: quoteCurrency,
   });
+
+  const baseCheckoutBreakdown =
+    pricingBreakdown && typeof pricingBreakdown === "object"
+      ? {
+          ...pricingBreakdown,
+          promoCode: resolvedPromoCode,
+          promoDiscountAmount: resolvedPromoDiscountAmount,
+          promoDiscountRate: resolvedPromoDiscountRate,
+        }
+      : null;
+
   const withSecurityDeposit = applySecurityDepositToAmount({
-    numericAmount: baseAmount,
-    breakdown: incomingBreakdown,
+    numericAmount: quoteTotal,
+    breakdown: baseCheckoutBreakdown,
     securityDepositAmount: resolvedSecurityDeposit?.amount || 0,
-    securityDepositCurrency: resolvedSecurityDeposit?.currency || String(currency || "USD").toUpperCase(),
+    securityDepositCurrency: resolvedSecurityDeposit?.currency || quoteCurrency,
   });
   const numericAmount = withSecurityDeposit.numericAmount;
   const breakdown = withSecurityDeposit.breakdown;
-  const unitAmount = toStripeAmount(numericAmount, currency);
+
+  const unitAmount = toStripeAmount(numericAmount, quoteCurrency);
   if (!unitAmount || unitAmount <= 0) {
-    return jsonResponse(400, { message: "Invalid amount" });
+    return jsonResponse(400, { message: "Invalid amount. Use zero-total checkout if total is 0." });
   }
 
   const stripe = getStripeClient();
@@ -2403,20 +3019,31 @@ const handleCheckout = async (event) => {
   }
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
   const normalizedVerification = normalizeVerificationPayload(verification || {});
-  const resolvedPromoCode =
-    (typeof promoCode === "string" && promoCode.trim()) ||
-    (typeof breakdown?.promoCode === "string" && breakdown.promoCode.trim()) ||
-    "";
-  const resolvedPromoDiscountAmount = Number.isFinite(Number(promoDiscountAmount))
-    ? Number(promoDiscountAmount)
-    : Number.isFinite(Number(breakdown?.promoDiscountAmount))
-      ? Number(breakdown.promoDiscountAmount)
-      : 0;
-  const resolvedPromoDiscountRate = Number.isFinite(Number(promoDiscountRate))
-    ? Number(promoDiscountRate)
-    : Number.isFinite(Number(breakdown?.promoDiscountRate))
-      ? Number(breakdown.promoDiscountRate)
-      : 0;
+
+  const clientTotalCandidate = firstNumber(
+    incomingBreakdown?.total,
+    incomingBreakdown?.subtotal,
+    body?.amount,
+    body?.price?.grand_total,
+    body?.price?.grandTotal,
+  );
+  if (
+    Number.isFinite(clientTotalCandidate) &&
+    Number.isFinite(numericAmount) &&
+    Math.abs(Number(clientTotalCandidate) - Number(numericAmount)) >= 0.5
+  ) {
+    console.warn("[check-units] Pricing mismatch between client and server quote; proceeding with server total.", {
+      listingId,
+      checkIn,
+      checkOut,
+      guests: guestsCount,
+      client_total: Number(clientTotalCandidate),
+      server_total: Number(numericAmount),
+      currency: quoteCurrency,
+      voucher: resolvedPromoCode || "",
+      quoteId: quoteId || "",
+    });
+  }
 
   const breakdownFields =
     breakdown && typeof breakdown === "object"
@@ -2445,7 +3072,7 @@ const handleCheckout = async (event) => {
       {
         quantity: 1,
         price_data: {
-          currency: (currency || "USD").toLowerCase(),
+          currency: quoteCurrency.toLowerCase(),
           unit_amount: unitAmount,
           product_data: {
             name: listingTitle || "OneLuxStay reservation",
@@ -2463,10 +3090,11 @@ const handleCheckout = async (event) => {
       checkOut,
       guests: String(guests || 1),
       amount: String(numericAmount),
-      currency: (currency || "USD").toLowerCase(),
+      currency: quoteCurrency.toLowerCase(),
+      ...(quoteId ? { quote_id: String(quoteId) } : {}),
       security_deposit: String(withSecurityDeposit.securityDeposit || 0),
       security_deposit_currency: String(
-        withSecurityDeposit.securityDepositCurrency || currency || "USD",
+        withSecurityDeposit.securityDepositCurrency || quoteCurrency,
       ).toUpperCase(),
       ...(consentText ? { consent_text: String(consentText) } : {}),
       ...(consentAcceptedAt ? { consent_at: String(consentAcceptedAt) } : {}),
@@ -2500,7 +3128,7 @@ const handleCheckout = async (event) => {
     checkOut,
     guests: Number(guests) || 1,
     amount: numericAmount,
-    currency: (currency || "USD").toUpperCase(),
+    currency: quoteCurrency.toUpperCase(),
     consentText: consentText || "",
     consentAcceptedAt: consentAcceptedAt || "",
     consentSignerName: consentSignerName || "",
@@ -2514,7 +3142,17 @@ const handleCheckout = async (event) => {
     guestPhone: guest?.phone || "",
   });
 
-  return jsonResponse(200, { url: session.url, id: session.id });
+  return jsonResponse(200, {
+    url: session.url,
+    id: session.id,
+    amount: numericAmount,
+    currency: quoteCurrency,
+    quoteId: quoteId || "",
+    breakdown: breakdown || null,
+    promoCode: resolvedPromoCode || "",
+    promoDiscountAmount: resolvedPromoDiscountAmount || 0,
+    promoDiscountRate: resolvedPromoDiscountRate || 0,
+  });
 };
 
 const buildPaidConfirmationRedirectUrl = (baseUrl, summary = {}) => {
@@ -2743,18 +3381,53 @@ const handleCheckoutSuccess = async (event) => {
 
   let reservationId = "";
   try {
-    const reservationPayload = buildGuestyReservationPayload({
-      listingId,
-      checkIn,
-      checkOut,
-      guests,
-      guest,
-      currency: (metadata.currency || session?.currency || "USD").toUpperCase(),
-      amount,
-      breakdown,
-    });
-    const reservation = await createGuestyReservation(reservationPayload);
+    let reservation = null;
+    const quoteId = normalizeString(metadata.quote_id || metadata.quoteId || "");
+
+    if (quoteId) {
+      try {
+        reservation = await createGuestyReservationFromQuote({ quoteId, guest, status: "confirmed" });
+      } catch (err) {
+        console.warn("[check-units] Reservation-from-quote failed; falling back to minimal create.", {
+          sessionId,
+          quoteId,
+          error: err?.message || String(err),
+        });
+        reservation = null;
+      }
+    }
+
+    if (!reservation) {
+      const reservationPayload = createMinimalGuestyReservationPayload({
+        listingId,
+        checkIn,
+        checkOut,
+        guests,
+        guest,
+      });
+      reservation = await createGuestyReservation(reservationPayload);
+    }
+
     reservationId = reservation?._id || reservation?.id || "";
+
+    const securityDepositAmount = firstNumber(metadata.bd_security_deposit, metadata.security_deposit);
+    if (reservationId && Number.isFinite(Number(securityDepositAmount)) && Number(securityDepositAmount) > 0) {
+      try {
+        await createGuestyInvoiceItem(reservationId, {
+          title: "Security Deposit",
+          amount: Number(securityDepositAmount),
+          normalType: "AFE",
+          secondIdentifier: "DEPOSIT",
+          description: "Security deposit collected via OneLuxStay website checkout.",
+        });
+      } catch (err) {
+        console.warn("[check-units] Unable to add security deposit invoice item in Guesty.", {
+          reservationId,
+          sessionId,
+          error: err?.message || String(err),
+        });
+      }
+    }
   } catch (err) {
     await writeStripeSessionRecord(sessionId, {
       ...(cached || {}),

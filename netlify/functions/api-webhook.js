@@ -151,7 +151,9 @@ export async function handler(event) {
       propertyId: metadata.property_id || session.client_reference_id,
       checkIn: metadata.check_in,
       checkOut: metadata.check_out,
+      guestsCount: metadata.guests,
       guest,
+      quoteId: metadata.quote_id || metadata.quoteId || "",
       price: {
         room_total: Number(metadata.room_total || 0) || 0,
         fees: Number(metadata.fees || 0) || 0,

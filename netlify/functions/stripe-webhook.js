@@ -916,6 +916,8 @@ const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
   return pdfDoc.save();
 };
 
+const normalizeString = (value) => String(value ?? "").trim();
+
 const buildReservationPayload = (session) => {
   const metadata = session.metadata || {};
   const listingId = metadata.listingId;
@@ -961,6 +963,9 @@ const buildReservationPayload = (session) => {
   const securityDeposit = toNumber(metadata.bd_security_deposit ?? metadata.security_deposit);
   const vat = toNumber(metadata.bd_vat);
   const cityTax = toNumber(metadata.bd_city_tax);
+  const discountAmountRaw = toNumber(metadata.bd_discount);
+  const promoDiscountAmountRaw = toNumber(metadata.bd_promo_discount);
+  const promoCode = String(metadata.promo_code || "").trim();
   const taxProfile = String(metadata.bd_tax_profile || "").trim().toUpperCase();
   const fees = toNumber(metadata.bd_fees);
   const currency = (metadata.currency || "").toUpperCase();
@@ -968,6 +973,11 @@ const buildReservationPayload = (session) => {
   const invoiceItems = [];
   const roundMoney = (value) =>
     Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+  const discountAmount =
+    discountAmountRaw !== null && discountAmountRaw > 0 ? roundMoney(discountAmountRaw) : 0;
+  const promoDiscountAmount =
+    promoDiscountAmountRaw !== null && promoDiscountAmountRaw > 0 ? roundMoney(promoDiscountAmountRaw) : 0;
+  const totalDiscount = (discountAmount || 0) + (promoDiscountAmount || 0);
   const cleaningValue = cleaning !== null ? roundMoney(cleaning) : null;
   const taxesValue = taxes !== null ? roundMoney(taxes) : null;
   const securityDepositValue =
@@ -984,6 +994,8 @@ const buildReservationPayload = (session) => {
   const parsedGuests = Number(guests);
   const normalizedGuests =
     Number.isFinite(parsedGuests) && parsedGuests > 0 ? Math.round(parsedGuests) : 1;
+  payload.guestsCount = normalizedGuests;
+  payload.numberOfGuests = { numberOfAdults: normalizedGuests };
   const derivedNightsMs = checkOutDate.getTime() - checkInDate.getTime();
   const normalizedNights =
     Number.isFinite(derivedNightsMs) && derivedNightsMs > 0
@@ -1015,6 +1027,14 @@ const buildReservationPayload = (session) => {
     money.fareAccommodation = fareAccommodation;
   } else if (Number.isFinite(amount) && amount > 0) {
     money.fareAccommodation = roundMoney(amount);
+  }
+
+  if (discountAmount > 0) {
+    invoiceItems.push({ title: "Discount", amount: roundMoney(-discountAmount), normalType: "DISC" });
+  }
+  if (promoDiscountAmount > 0) {
+    const label = promoCode ? `Promo Discount (${promoCode})` : "Promo Discount";
+    invoiceItems.push({ title: label, amount: roundMoney(-promoDiscountAmount), normalType: "DISC" });
   }
 
   if (cleaningValue !== null && cleaningValue > 0) {
@@ -1074,6 +1094,121 @@ const buildReservationPayload = (session) => {
   if (Object.keys(money).length) payload.money = money;
 
   return payload;
+};
+
+const createMinimalGuestyReservationPayload = ({ listingId, checkIn, checkOut, guests, guest } = {}) => {
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+  const firstName = guest?.firstName || nameParts[0] || "Guest";
+  const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
+  const parsedGuests = Number(guests);
+  const normalizedGuests = Number.isFinite(parsedGuests) && parsedGuests > 0 ? Math.round(parsedGuests) : 1;
+
+  return {
+    listingId: String(listingId),
+    checkInDateLocalized: String(checkIn),
+    checkOutDateLocalized: String(checkOut),
+    status: "confirmed",
+    source: "website",
+    guestsCount: normalizedGuests,
+    numberOfGuests: { numberOfAdults: normalizedGuests },
+    guest: {
+      firstName,
+      lastName,
+      email: guest?.email || "",
+      phone: guest?.phone || "",
+    },
+  };
+};
+
+const createGuestyReservationFromQuote = async ({ quoteId, guest, status = "confirmed" } = {}) => {
+  const { token } = await getGuestyToken();
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+  const firstName = guest?.firstName || nameParts[0] || "Guest";
+  const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
+  const phone = normalizeString(guest?.phone || "");
+  const phones = phone ? [phone] : [];
+
+  const res = await fetchWithTimeout(`${OPEN_API_V1}/reservations-v3/quote`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      quoteId: String(quoteId),
+      status: status || "confirmed",
+      guest: {
+        firstName,
+        lastName,
+        phones,
+        email: guest?.email || "",
+      },
+    }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    const error = new Error(text || `Guesty reservation-from-quote failed (${res.status})`);
+    error.statusCode = res.status;
+    error.body = text;
+    throw error;
+  }
+
+  return text ? JSON.parse(text) : {};
+};
+
+const createGuestyInvoiceItem = async (reservationId, { title, amount, normalType, secondIdentifier, description } = {}) => {
+  const parsedAmount = Number(amount);
+  const numericAmount = Number.isFinite(parsedAmount) ? Math.round(parsedAmount * 100) / 100 : null;
+  if (!reservationId) return null;
+  if (!Number.isFinite(numericAmount) || numericAmount === 0) return null;
+  const safeTitle = normalizeString(title) || "Additional fee";
+  const safeNormalType = normalizeString(normalType).toUpperCase() || "AFE";
+  const safeSecond = normalizeString(secondIdentifier).toUpperCase() || "MISCELLANEOUS";
+  const safeDescription = normalizeString(description);
+
+  const { token } = await getGuestyToken();
+  const postOnce = async (path, body) => {
+    const res = await fetchWithTimeout(`${OPEN_API_V1}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      const error = new Error(text || `Guesty invoice item create failed (${res.status})`);
+      error.statusCode = res.status;
+      error.body = text;
+      throw error;
+    }
+    return text ? JSON.parse(text) : {};
+  };
+
+  const body = {
+    title: safeTitle,
+    amount: numericAmount,
+    normalType: safeNormalType,
+    ...(safeNormalType === "AFE" ? { secondIdentifier: safeSecond } : {}),
+    ...(safeDescription ? { description: safeDescription } : {}),
+  };
+
+  try {
+    return await postOnce(`/invoice-items/reservation/${encodeURIComponent(String(reservationId))}`, body);
+  } catch (err) {
+    const isNotFoundOrDenied = Number(err?.statusCode) === 404 || Number(err?.statusCode) === 403;
+    if (!isNotFoundOrDenied) throw err;
+    return await postOnce(`/reservations/${encodeURIComponent(String(reservationId))}/invoiceItems`, {
+      ...body,
+      secondIdentifier: safeSecond,
+    });
+  }
 };
 
 const fromStripeAmount = (amount, currency) => {
@@ -1152,21 +1287,42 @@ const createReservationPayment = async (reservationId, session) => {
 
 const createGuestyReservation = async (payload) => {
   const { token } = await getGuestyToken();
-  const response = await fetchWithTimeout(`${OPEN_API_V1}/reservations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const postOnce = async (body) => {
+    const response = await fetchWithTimeout(`${OPEN_API_V1}/reservations`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (!response.ok) {
-    throw new Error(await response.text());
+    const text = await response.text();
+    if (!response.ok) {
+      const error = new Error(text || `Guesty reservation create failed (${response.status})`);
+      error.statusCode = response.status;
+      error.body = text;
+      throw error;
+    }
+
+    return text ? JSON.parse(text) : {};
+  };
+
+  try {
+    return await postOnce(payload);
+  } catch (error) {
+    const msg = String(error?.body || error?.message || "");
+    const isSchemaReject =
+      Number(error?.statusCode) === 400 &&
+      (msg.includes("guestsCount") || msg.includes("numberOfGuests") || msg.includes("additionalProperties"));
+    if (!isSchemaReject) throw error;
+
+    const fallback = { ...(payload || {}) };
+    delete fallback.guestsCount;
+    delete fallback.numberOfGuests;
+    return await postOnce(fallback);
   }
-
-  return response.json();
 };
 
 const guestyRequest = async (path, method, body) => {
@@ -1798,21 +1954,82 @@ export async function handler(event) {
     });
   }
 
-  const payload = buildReservationPayload(session);
-  if (!payload.listingId || !payload.checkInDateLocalized || !payload.checkOutDateLocalized) {
-    return jsonResponse(400, { message: "Missing reservation metadata" });
-  }
-
   try {
-    const reservation = await createGuestyReservation(payload);
+    const metadata = session?.metadata || {};
+    const listingId = metadata.listingId;
+    const checkIn = metadata.checkIn;
+    const checkOut = metadata.checkOut;
+    const guests = Number(metadata.guests) || 1;
+    const quoteId = normalizeString(metadata.quote_id || metadata.quoteId || "");
+
+    const guestFirstName = metadata.guestFirstName || "";
+    const guestLastName = metadata.guestLastName || "";
+    const guestName = metadata.guestName || "";
+    const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+    const guest = {
+      firstName: guestFirstName || nameParts[0] || "Guest",
+      lastName: guestLastName || nameParts.slice(1).join(" ") || "Guest",
+      email: metadata.guestEmail || session.customer_email || "",
+      phone: metadata.guestPhone || "",
+    };
+
+    if (!listingId || !checkIn || !checkOut) {
+      return jsonResponse(400, { message: "Missing reservation metadata" });
+    }
+
+    let reservation = null;
+    if (quoteId) {
+      try {
+        reservation = await createGuestyReservationFromQuote({ quoteId, guest, status: "confirmed" });
+      } catch (err) {
+        console.warn("[stripe-webhook] Reservation-from-quote failed; falling back to minimal create.", {
+          sessionId: session.id,
+          quoteId,
+          error: err?.message || String(err),
+        });
+        reservation = null;
+      }
+    }
+
+    if (!reservation) {
+      const minimal = createMinimalGuestyReservationPayload({
+        listingId,
+        checkIn,
+        checkOut,
+        guests,
+        guest,
+      });
+      reservation = await createGuestyReservation(minimal);
+    }
+
     const reservationId = reservation?._id || reservation?.id || null;
     const guestId = extractGuestId(reservation);
+
+    const securityDepositAmount = Number(metadata.bd_security_deposit ?? metadata.security_deposit);
+    if (reservationId && Number.isFinite(securityDepositAmount) && securityDepositAmount > 0) {
+      try {
+        await createGuestyInvoiceItem(reservationId, {
+          title: "Security Deposit",
+          amount: securityDepositAmount,
+          normalType: "AFE",
+          secondIdentifier: "DEPOSIT",
+          description: "Security deposit collected via OneLuxStay website checkout.",
+        });
+      } catch (err) {
+        console.warn("[stripe-webhook] Unable to add security deposit invoice item in Guesty.", {
+          reservationId,
+          sessionId: session.id,
+          error: err?.message || String(err),
+        });
+      }
+    }
+
     await writeStripeSessionRecord(session?.id || "", {
       ...(existingSession || {}),
       sessionId: session?.id || null,
       reservationId,
       guestId,
-      listingId: payload.listingId,
+      listingId,
       reservationCreatedAt: Date.now(),
       source: "stripe-webhook",
       sourceEventId: stripeEvent.id,
@@ -1926,7 +2143,7 @@ export async function handler(event) {
       processedAt: Date.now(),
       reservationId,
       guestId,
-      listingId: payload.listingId,
+      listingId,
       sessionId: session?.id || null,
       paymentIntentId: proof?.paymentIntentId || null,
       receiptUrl: proof?.receiptUrl || null,

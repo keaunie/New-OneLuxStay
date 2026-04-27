@@ -130,6 +130,7 @@ export const guestyRequest = async (path, { method = "GET", body } = {}) => {
 };
 
 const extractQuotePricing = (quote, { checkIn, checkOut } = {}) => {
+  const quoteId = quote?._id || quote?.id || null;
   const ratePlan = quote?.rates?.ratePlans?.[0] || quote?.ratePlans?.[0] || null;
   const quoteMoney =
     ratePlan?.money?.money ||
@@ -211,6 +212,7 @@ const extractQuotePricing = (quote, { checkIn, checkOut } = {}) => {
     nightlyRate: roundMoney(nightlyRate),
     cleaningFee: roundMoney(cleaningFee),
     taxes: roundMoney(taxes),
+    quoteId,
     rawQuote: quote,
   };
 };
@@ -286,30 +288,12 @@ export const getAvailabilityAndPricing = async ({
   };
 };
 
-const buildGuestyReservationPayload = ({
-  propertyId,
-  checkIn,
-  checkOut,
-  guest,
-  amount,
-  currency,
-  roomTotal,
-  cleaningFee,
-  taxes,
-  fees,
-  securityDeposit,
-} = {}) => {
+const buildMinimalReservationPayload = ({ propertyId, checkIn, checkOut, guest, guestsCount } = {}) => {
   const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
-  const nameParts = guestName.split(/\s+/).filter(Boolean);
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
   const firstName = guest?.firstName || nameParts[0] || "Guest";
   const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
-  const normalizedSecurityDeposit = roundMoney(Number(securityDeposit) || 0);
-  const miscFees = roundMoney(
-    (Number(fees) || 0) -
-      (Number(cleaningFee) || 0) -
-      (Number(taxes) || 0) -
-      (Number(normalizedSecurityDeposit) || 0),
-  );
+  const safeGuests = Math.max(1, Math.round(Number(guestsCount) || 1));
 
   return {
     listingId: String(propertyId),
@@ -317,26 +301,70 @@ const buildGuestyReservationPayload = ({
     checkOutDateLocalized: String(checkOut),
     status: "confirmed",
     source: "website",
+    guestsCount: safeGuests,
+    numberOfGuests: { numberOfAdults: safeGuests },
     guest: {
       firstName,
       lastName,
       email: guest?.email || "",
       phone: guest?.phone || "",
     },
-    money: {
-      currency: String(currency || "USD").toUpperCase(),
-      fareAccommodation: roundMoney(roomTotal),
-      fareCleaning: roundMoney(cleaningFee),
-      invoiceItems: [
-        ...(Number(taxes) > 0 ? [{ title: "Occupancy Tax", amount: roundMoney(taxes), normalType: "OCT" }] : []),
-        ...(normalizedSecurityDeposit > 0
-          ? [{ title: "Security Deposit", amount: normalizedSecurityDeposit, normalType: "OTHER" }]
-          : []),
-        ...(miscFees > 0 ? [{ title: "Fees", amount: miscFees, normalType: "OTHER" }] : []),
-      ],
-      total: roundMoney(amount),
-    },
   };
+};
+
+const createReservationFromQuote = async ({ quoteId, guest } = {}) => {
+  const guestName = [guest?.firstName, guest?.lastName].filter(Boolean).join(" ").trim();
+  const nameParts = guestName ? guestName.trim().split(/\s+/) : [];
+  const firstName = guest?.firstName || nameParts[0] || "Guest";
+  const lastName = guest?.lastName || nameParts.slice(1).join(" ") || "Guest";
+  const phone = String(guest?.phone || "").trim();
+  const phones = phone ? [phone] : [];
+
+  return guestyRequest("/reservations-v3/quote", {
+    method: "POST",
+    body: {
+      quoteId: String(quoteId),
+      status: "confirmed",
+      guest: {
+        firstName,
+        lastName,
+        phones,
+        email: guest?.email || "",
+      },
+    },
+  });
+};
+
+const createReservationInvoiceItem = async (reservationId, { title, amount, description } = {}) => {
+  const numericAmount = roundMoney(amount);
+  if (!reservationId) return null;
+  if (!Number.isFinite(numericAmount) || numericAmount === 0) return null;
+
+  try {
+    return await guestyRequest(`/invoice-items/reservation/${encodeURIComponent(String(reservationId))}`, {
+      method: "POST",
+      body: {
+        title: String(title || "Additional fee"),
+        amount: numericAmount,
+        normalType: "AFE",
+        secondIdentifier: "DEPOSIT",
+        ...(description ? { description: String(description) } : {}),
+      },
+    });
+  } catch (error) {
+    const message = error?.message || String(error);
+    if (!/404|403/.test(message)) throw error;
+    return guestyRequest(`/reservations/${encodeURIComponent(String(reservationId))}/invoiceItems`, {
+      method: "POST",
+      body: {
+        title: String(title || "Additional fee"),
+        amount: numericAmount,
+        normalType: "AFE",
+        secondIdentifier: "DEPOSIT",
+        ...(description ? { description: String(description) } : {}),
+      },
+    });
+  }
 };
 
 export const createBooking = async ({
@@ -345,25 +373,44 @@ export const createBooking = async ({
   checkOut,
   guest,
   price,
+  quoteId,
+  guestsCount,
 } = {}) => {
-  const payload = buildGuestyReservationPayload({
-    propertyId,
-    checkIn,
-    checkOut,
-    guest,
-    amount: price?.grand_total,
-    currency: price?.currency,
-    roomTotal: price?.room_total,
-    cleaningFee: price?.cleaning_fee,
-    taxes: price?.taxes,
-    fees: price?.fees,
-    securityDeposit: price?.security_deposit,
-  });
+  const safeQuoteId = String(quoteId || "").trim();
+  let reservation = null;
 
-  const reservation = await guestyRequest("/reservations", {
-    method: "POST",
-    body: payload,
-  });
+  if (safeQuoteId) {
+    try {
+      reservation = await createReservationFromQuote({ quoteId: safeQuoteId, guest });
+    } catch {
+      reservation = null;
+    }
+  }
+
+  if (!reservation) {
+    const payload = buildMinimalReservationPayload({
+      propertyId,
+      checkIn,
+      checkOut,
+      guest,
+      guestsCount: Math.max(1, Math.round(Number(guestsCount) || 1)),
+    });
+    reservation = await guestyRequest("/reservations", { method: "POST", body: payload });
+  }
+
+  const reservationId = reservation?._id || reservation?.id || null;
+  const securityDeposit = roundMoney(price?.security_deposit);
+  if (reservationId && Number.isFinite(securityDeposit) && securityDeposit > 0) {
+    try {
+      await createReservationInvoiceItem(reservationId, {
+        title: "Security Deposit",
+        amount: securityDeposit,
+        description: "Security deposit collected via OneLuxStay website checkout.",
+      });
+    } catch {
+      // ignore invoice item failures; reservation is still created
+    }
+  }
 
   return reservation;
 };
