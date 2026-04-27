@@ -876,7 +876,8 @@ function ExecutiveOlsPage({ forceView = null }) {
         body: JSON.stringify({
           phone_number: phoneNumber,
           message,
-          channel: "sms",
+          channel: "whatsapp",
+          from: "whatsapp:+17159218069",
         }),
       });
 
@@ -1310,14 +1311,14 @@ function ExecutiveOlsPage({ forceView = null }) {
                   <>
                     <div className="executive-ols-card-head">
                       <div>
-                        <p className="executive-ols-eyebrow">WhatsApp</p>
+                        <p className="executive-ols-eyebrow">WhatsApp — US Line</p>
                         <div className="executive-ols-whatsapp-title-row">
                           <span className="executive-ols-icon-badge is-whatsapp">
                             <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
                           </span>
                           <div>
                             <h3>Inbox studio</h3>
-                            <p>A cleaner, faster messaging workspace for live SMS and WhatsApp conversations.</p>
+                            <p>US WhatsApp line · +1 (715) 921-8069 · Live SMS and WhatsApp conversations.</p>
                           </div>
                         </div>
                       </div>
@@ -1615,10 +1616,10 @@ function ExecutiveOlsPage({ forceView = null }) {
                           <div className="executive-ols-whatsapp-empty is-thread">
                             <div className="executive-ols-whatsapp-start">
                               <div>
-                                <p className="executive-ols-eyebrow">Start conversation</p>
-                                <h3>Send the first SMS message</h3>
+                                <p className="executive-ols-eyebrow">Start WhatsApp conversation</p>
+                                <h3>Send the first WhatsApp message</h3>
                                 <p className="executive-ols-whatsapp-start-copy">
-                                  Use a real guest phone number in E.164 format like `+15551234567`.
+                                  Sending from US WhatsApp line · +1 (715) 921-8069. Use the guest's number in E.164 format (e.g. +15551234567).
                                 </p>
                               </div>
 
@@ -1654,7 +1655,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                     className="executive-ols-primary-btn"
                                     disabled={sendingNewWhatsApp || !newWhatsAppPhone.trim() || !newWhatsAppMessage.trim()}
                                   >
-                                    {sendingNewWhatsApp ? "Sending..." : "Start SMS chat"}
+                                    {sendingNewWhatsApp ? "Sending..." : "Start WhatsApp chat"}
                                   </button>
                                 </div>
                               </form>

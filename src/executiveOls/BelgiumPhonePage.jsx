@@ -10,6 +10,7 @@ import "./ExecutiveOls.css";
 
 const BELGIUM_VOICE_CALL_NUMBER_KEY = "ols-belgium-voice-call-number";
 const BELGIUM_COUNTRY_CODE = "+32";
+const BELGIUM_TWILIO_NUMBER = "+32460254886";
 
 const sanitizePhoneInput = (value = "") => {
   const raw = String(value || "").trim();
@@ -445,7 +446,7 @@ function BelgiumPhonePage() {
       const res = await fetch(`${apiBase}/send-message`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getExecutiveOlsAuthHeaders(session) },
-        body: JSON.stringify({ phone_number: phone, message, channel: "sms" }),
+        body: JSON.stringify({ phone_number: phone, message, channel: "sms", from: BELGIUM_TWILIO_NUMBER }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -627,14 +628,14 @@ function BelgiumPhonePage() {
               <section className="executive-ols-chat-card is-whatsapp">
                 <div className="executive-ols-card-head">
                   <div>
-                    <p className="executive-ols-eyebrow">Belgium</p>
+                    <p className="executive-ols-eyebrow">Belgium — +32 460 254 886</p>
                     <div className="executive-ols-whatsapp-title-row">
                       <span className="executive-ols-icon-badge">
                         <Icon name="phone" className="executive-ols-inline-icon" />
                       </span>
                       <div>
                         <h3>Belgium Number</h3>
-                        <p>Track calls, send SMS, and manage Antwerp guest conversations.</p>
+                        <p>Belgium SMS line · +32 460 254 886 · Antwerp guest conversations, calls, and SMS.</p>
                       </div>
                     </div>
                   </div>
