@@ -1428,11 +1428,11 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
   const plans = plansRaw
     .map(buildPlanPricing)
     .filter(Boolean)
-    .filter((plan) => /standard|non[- ]?refundable/i.test(plan.label));
+    .filter((plan) => !plan.isNonRefundable);
   if (!plans.length) return null;
   const standardPlan =
     plans.find((plan) => /standard/i.test(plan.label)) ||
-    plans.find((plan) => !plan.isNonRefundable) ||
+    plans[0] ||
     null;
   return {
     plans,
@@ -4695,7 +4695,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           : [];
         const filteredPlans = plans.filter((plan) => {
           const label = plan?.ratePlan?.name || plan?.ratePlan?.title || plan?.ratePlan?.description || "";
-          return /standard|non[- ]?refundable/i.test(label);
+          return !/non[- ]?refundable/i.test(label) && !Boolean(plan?.ratePlan?.cancellationPolicy?.isNonRefundable);
         });
         let minTotal = null;
         (filteredPlans.length ? filteredPlans : plans).forEach((plan) => {
