@@ -143,7 +143,6 @@ function CallsPage() {
             <nav className="executive-ols-nav">
               <Link to="/executive-ols" className="executive-ols-nav-item">Executive</Link>
               <Link to="/executive-ols/whatsapp" className="executive-ols-nav-item">WhatsApp</Link>
-              <Link to="/executive-ols/belgium" className="executive-ols-nav-item">Belgium</Link>
               <span className="executive-ols-nav-item is-active">Calls</span>
               <Link to="/executive-ols/guest-journeys" className="executive-ols-nav-item">Guest Journeys</Link>
               <Link to="/executive-ols/audit" className="executive-ols-nav-item">Audit</Link>

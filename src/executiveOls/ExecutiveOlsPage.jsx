@@ -1236,7 +1236,6 @@ function ExecutiveOlsPage({ forceView = null }) {
                   {item.label}
                 </button>
               ))}
-              <Link to="/executive-ols/belgium" className="executive-ols-nav-item">Belgium Number</Link>
               <Link to="/executive-ols/calls" className="executive-ols-nav-item">Calls</Link>
             </nav>
             

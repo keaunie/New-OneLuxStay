@@ -1721,10 +1721,6 @@ function AdminsOlsPage() {
                     <span>WhatsApp Workspace</span>
                     <span className="admins-ols-side-nav-count">View</span>
                   </button>
-                  <Link className="admins-ols-profile-action" to="/executive-ols/belgium">
-                    <span>Belgium Number</span>
-                    <span className="admins-ols-side-nav-count">View</span>
-                  </Link>
                   <Link className="admins-ols-profile-action" to="/executive-ols/calls">
                     <span>Call Center</span>
                     <span className="admins-ols-side-nav-count">View</span>
