@@ -98,10 +98,7 @@ function AppRoutes() {
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
-  const hideChatConcierge =
-    location.pathname.startsWith("/admins-ols") ||
-    location.pathname.startsWith("/executive-ols") ||
-    location.pathname.startsWith("/private/roadmap/");
+  const hideChatConcierge = true;
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
