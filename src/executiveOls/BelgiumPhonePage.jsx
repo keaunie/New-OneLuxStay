@@ -619,6 +619,7 @@ function BelgiumPhonePage() {
               <Link to="/executive-ols" className="executive-ols-nav-item">Executive</Link>
               <Link to="/executive-ols/whatsapp" className="executive-ols-nav-item">WhatsApp</Link>
               <span className="executive-ols-nav-item is-active">Belgium</span>
+              <Link to="/executive-ols/calls" className="executive-ols-nav-item">Calls</Link>
             </nav>
 
             {error && <div className="executive-ols-alert is-error">{error}</div>}

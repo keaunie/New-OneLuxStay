@@ -29,6 +29,7 @@ const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
 const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
 const BelgiumPhonePage = lazy(routePreloaders.belgiumPhone);
+const CallsPage = lazy(routePreloaders.callsPage);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -217,6 +218,7 @@ function AppRoutes() {
           <Route path="/executive-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
           <Route path="/executive-ols/whatsapp" element={renderLazyRoute(ExecutiveOlsPage)} />
           <Route path="/executive-ols/belgium" element={renderLazyRoute(BelgiumPhonePage)} />
+          <Route path="/executive-ols/calls" element={renderLazyRoute(CallsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />

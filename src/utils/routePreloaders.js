@@ -21,6 +21,8 @@ const preloadAdminsOlsAuditPage = () => import("../AdminsOlsAuditPage");
 const preloadAdminsOlsGuestJourneysPage = () => import("../AdminsOlsGuestJourneysPage");
 const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage");
 const preloadBelgiumPhonePage = () => import("../executiveOls/BelgiumPhonePage");
+const preloadCallsPage = () => import("../executiveOls/CallsPage");
+const preloadCallsPage = () => import("../executiveOls/CallsPage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -47,6 +49,7 @@ export const routePreloaders = {
   adminsOlsGuestJourneys: preloadAdminsOlsGuestJourneysPage,
   executiveOls: preloadExecutiveOlsPage,
   belgiumPhone: preloadBelgiumPhonePage,
+  callsPage: preloadCallsPage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 

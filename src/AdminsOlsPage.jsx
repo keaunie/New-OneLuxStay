@@ -1725,6 +1725,10 @@ function AdminsOlsPage() {
                     <span>Belgium Number</span>
                     <span className="admins-ols-side-nav-count">View</span>
                   </Link>
+                  <Link className="admins-ols-profile-action" to="/executive-ols/calls">
+                    <span>Call Center</span>
+                    <span className="admins-ols-side-nav-count">View</span>
+                  </Link>
                   <button
                     type="button"
                     className={`admins-ols-profile-action${unreadAttentionCount > 0 ? " is-attention" : ""}`}
