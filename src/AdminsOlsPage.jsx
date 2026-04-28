@@ -9,7 +9,6 @@ import {
   refreshAdminsOlsSession,
   saveAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
-import ExecutiveOlsPage from "./executiveOls/ExecutiveOlsPage";
 import "./AdminsOlsPage.css";
 
 const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
@@ -1598,7 +1597,6 @@ function AdminsOlsPage() {
     { id: "lessons", label: "Lessons" },
     { id: "feedback", label: "Feedback" },
     { id: "assistant-turns", label: "Assistant Turns" },
-    { id: "whatsapp", label: "WhatsApp Inbox" },
     { id: "account", label: "Account" },
   ];
 
@@ -1713,14 +1711,10 @@ function AdminsOlsPage() {
                       <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
                     </Link>
                   )}
-                  <button
-                    type="button"
-                    className="admins-ols-profile-action"
-                    onClick={() => handleNavigateToSection("whatsapp")}
-                  >
+                  <Link className="admins-ols-profile-action" to="/executive-ols/whatsapp">
                     <span>WhatsApp Workspace</span>
                     <span className="admins-ols-side-nav-count">View</span>
-                  </button>
+                  </Link>
                   <Link className="admins-ols-profile-action" to="/executive-ols/calls">
                     <span>Call Center</span>
                     <span className="admins-ols-side-nav-count">View</span>
@@ -2642,15 +2636,6 @@ function AdminsOlsPage() {
           )}
         </section>
 
-        <section
-          id="panel-whatsapp"
-          role="tabpanel"
-          aria-labelledby="tab-whatsapp"
-          hidden={displayedTabId !== "whatsapp"}
-          className="admins-ols-whatsapp-embed"
-        >
-          <ExecutiveOlsPage forceView="whatsapp" />
-        </section>
             </div>
           </main>
         </div>
