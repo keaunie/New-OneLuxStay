@@ -1711,10 +1711,6 @@ function AdminsOlsPage() {
                       <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
                     </Link>
                   )}
-                  <Link className="admins-ols-profile-action" to="/executive-ols/whatsapp">
-                    <span>WhatsApp Workspace</span>
-                    <span className="admins-ols-side-nav-count">View</span>
-                  </Link>
                   <Link className="admins-ols-profile-action" to="/executive-ols/calls">
                     <span>Call Center</span>
                     <span className="admins-ols-side-nav-count">View</span>
