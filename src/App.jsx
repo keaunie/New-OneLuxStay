@@ -98,10 +98,7 @@ function AppRoutes() {
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
-  const hideChatConcierge =
-    location.pathname.startsWith("/admins-ols") ||
-    location.pathname.startsWith("/executive-ols") ||
-    location.pathname.startsWith("/private/roadmap/");
+  const hideChatConcierge = true;
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -218,7 +215,7 @@ function AppRoutes() {
           <Route path="/executive-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
           <Route path="/executive-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
           <Route path="/executive-ols/whatsapp" element={renderLazyRoute(ExecutiveOlsPage)} />
-          <Route path="/executive-ols/belgium" element={renderLazyRoute(BelgiumPhonePage)} />
+          <Route path="/executive-ols/calls" element={renderLazyRoute(CallsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
