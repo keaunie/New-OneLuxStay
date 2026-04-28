@@ -147,7 +147,7 @@ function PrivacyPolicy() {
             </div>
             <div>
               <p className="policy-contact-label">EU</p>
-              <p>+32 38080719</p>
+              <p>+32 460 25 48 86</p>
             </div>
           </div>
         </section>

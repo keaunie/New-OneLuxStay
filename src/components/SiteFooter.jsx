@@ -19,16 +19,21 @@ const FOOTER_EXPLORE_LINKS = [
 
 const FOOTER_CITY_LINKS = [
   { label: "Antwerp", to: "/antwerp", city: "Antwerp" },
+  { label: "Antwerp Attractions", to: "/antwerp/attractions", city: "Antwerp" },
   { label: "Dubai", to: "/dubai", city: "Dubai" },
+  { label: "Dubai Attractions", to: "/dubai/attractions", city: "Dubai" },
   { label: "Los Angeles", to: "/los-angeles", city: "Los Angeles" },
+  { label: "LA Attractions", to: "/los-angeles/attractions", city: "Los Angeles" },
   { label: "Miami", to: "/miami", city: "Miami" },
+  { label: "Miami Attractions", to: "/miami/attractions", city: "Miami" },
   { label: "Redondo Beach", to: "/redondo-beach", city: "Redondo Beach" },
+  { label: "Redondo Attractions", to: "/redondo-beach/attractions", city: "Redondo Beach" },
 ];
 
 const FOOTER_CONTACT_ITEMS = [
   { label: "USA", value: "+1 213 866 3589", href: "tel:+12138663589", icon: "phone" },
   { label: "UAE", value: "+971 55 727 7059", href: "tel:+971557277059", icon: "phone" },
-  { label: "EU", value: "+32 493 81 34 41", href: "tel:+32493813441", icon: "phone" },
+  { label: "EU", value: "+32 460 25 48 86", href: "tel:+32460254886", icon: "phone" },
   { label: "Email", value: "reservations@oneluxstay.com", href: "mailto:reservations@oneluxstay.com", icon: "mail" },
 ];
 

@@ -1500,7 +1500,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
       ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
       : "";
   const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
-  return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/32460254886?text=${encodeURIComponent(message)}`;
 };
 
 const BOOKING_STORAGE_KEY = "antwerpBookingFilters";
@@ -6335,7 +6335,7 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+32493813441">+32 493 81 34 41</a>
+                <a href="tel:+32460254886">+32 460 25 48 86</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                                 <a
                   href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
@@ -8313,7 +8313,7 @@ const applyCheckoutPromoCode = () => {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Antwerp</strong>
-                      <a href="tel:+32493813441">+32 493 81 34 41</a>
+                      <a href="tel:+32460254886">+32 460 25 48 86</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                                             <a
                         href={buildWhatsAppLink(sectionParent?.title || sectionLabel, sectionCheckIn, sectionCheckOut)}
@@ -8978,7 +8978,7 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+32493813441">+32 493 81 34 41</a>
+                <a href="tel:+32460254886">+32 460 25 48 86</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                                 <a
                   href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}

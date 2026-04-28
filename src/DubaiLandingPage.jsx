@@ -1597,6 +1597,7 @@ const sanitizeText = (value = "") => {
 };
 
 const USA_CONTACT_PHONE = { e164: "12138663589", label: "+1 213 866 3589" };
+const USA_WHATSAPP_PHONE_E164 = "17159218069";
 const DEFAULT_CONTACT_PHONE = { e164: "971588858935", label: "+971 58 885 8935" };
 const DUBAI_WHATSAPP_PHONE_E164 = "971588858935";
 
@@ -1624,7 +1625,7 @@ const isUsaUnit = (unit) =>
 
 const resolveReservationContactPhone = (unit) => (isUsaUnit(unit) ? USA_CONTACT_PHONE : DEFAULT_CONTACT_PHONE);
 const resolveWhatsAppPhoneE164 = (unit) =>
-  isUsaUnit(unit) ? USA_CONTACT_PHONE.e164 : DUBAI_WHATSAPP_PHONE_E164;
+  isUsaUnit(unit) ? USA_WHATSAPP_PHONE_E164 : DUBAI_WHATSAPP_PHONE_E164;
 
 const buildWhatsAppLink = (title, checkIn, checkOut) => {
   const unitData = typeof title === "object" && title ? title : null;

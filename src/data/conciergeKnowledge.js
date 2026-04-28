@@ -5,7 +5,7 @@ export const conciergeKnowledge = {
       "Luxury short-term stays and curated property experiences across selected international cities.",
     contactEmail: "reservations@oneluxstay.com",
     contactPhone: "",
-    contactWhatsApp: "",
+    contactWhatsApp: "+1 715 921 8069 (USA) | +32 460 25 48 86 (Belgium)",
     bookingSummary:
       "Guests typically choose a city or listing, select dates and guest count, review the stay details, and continue through checkout on the website.",
     humanEscalation:

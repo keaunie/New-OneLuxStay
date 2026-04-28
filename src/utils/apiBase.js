@@ -35,11 +35,11 @@ const forceRemoteFunctionsBase =
   String(import.meta.env.VITE_FORCE_REMOTE_FUNCTIONS || "").trim().toLowerCase() === "true";
 
 const shouldUseRelativeFunctionsBase =
-  !forceRemoteFunctionsBase && (isLocalHost || isNetlifyLikeHost || isOneLuxStayDomain);
+  !forceRemoteFunctionsBase && (isLocalHost || isNetlifyLikeHost);
 
 // On localhost, keep relative paths so `netlify dev` / local proxies still work.
 // On Netlify-hosted domains, prefer same-origin function paths.
-// On external hosts (for example Hostinger), force absolute Netlify function endpoints by default.
+// On oneluxstay.com (Hostinger) and other external hosts, force absolute Netlify function endpoints.
 let rawApiBase = LOCAL_FUNCTIONS_BASE;
 
 if (configuredApiBase) {

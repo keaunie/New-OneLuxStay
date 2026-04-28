@@ -4697,6 +4697,14 @@ export async function handler(event) {
         });
       }
 
+      await notifyAdminsOfGuestAttention({
+        event,
+        chatSessionId,
+        pageContext,
+        latestUserMessage,
+        reason: "listing_price_unavailable",
+      }).catch(() => null);
+
       return respondWithIntentPayload({
         event,
         apiKey,
@@ -4706,7 +4714,8 @@ export async function handler(event) {
         intent: detectedIntent,
         tool: CHAT_TOOLS.listing_quote_lookup,
         reply:
-          "I couldn't confirm the live price for this listing right now. Please try again in a moment, or contact reservations@oneluxstay.com and we'll confirm the exact rate for your dates.",
+          "I wasn't able to retrieve the live price right now. I've let our team know and they'll follow up with the exact rate for your dates.",
+        notice: "Admin team notified for follow-up.",
         smarten: true,
       });
     }

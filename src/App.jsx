@@ -29,6 +29,7 @@ const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
 const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
 const BelgiumPhonePage = lazy(routePreloaders.belgiumPhone);
+const CityAttractionsPage = lazy(routePreloaders.cityAttractions);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -143,6 +144,7 @@ function AppRoutes() {
       <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
         <Routes>
           <Route path="/" element={<RootRoute />} />
+          <Route path="/:citySlug/attractions" element={renderLazyRoute(CityAttractionsPage)} />
           <Route path="/antwerpen" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerpen/:areaSlug/:bookingBundle" element={renderLazyRoute(AntwerpLandingPage)} />

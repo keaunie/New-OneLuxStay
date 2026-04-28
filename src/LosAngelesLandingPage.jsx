@@ -1492,7 +1492,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
       ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
       : "";
   const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
-  return `https://wa.me/12138663589?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/17159218069?text=${encodeURIComponent(message)}`;
 };
 
 const BOOKING_STORAGE_KEY = "laBookingFilters";

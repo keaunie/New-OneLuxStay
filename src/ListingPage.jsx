@@ -618,7 +618,14 @@ function ListingPage() {
   const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
     inquirySubject
   )}&body=${encodeURIComponent(inquiryBody)}`;
-  const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
+  const inquiryWhatsAppNumber = (() => {
+    const hint = [inquiryListing?.city, inquiryListing?.location, inquiryListing?.address?.city, inquiryListing?.address?.state, inquiryListing?.address?.country, inquiryListing?.title]
+      .filter(Boolean).join(" ").toLowerCase();
+    if (/antwerp|belgium|belgi/i.test(hint)) return "32460254886";
+    if (/california|los angeles|miami|florida|redondo|usa|united states/i.test(hint)) return "17159218069";
+    return "971588858935";
+  })();
+  const inquiryWhatsAppHref = `https://wa.me/${inquiryWhatsAppNumber}?text=${encodeURIComponent(
     inquiryBody
   )}`;
 
