@@ -20,7 +20,7 @@ const preloadAdminsOlsInviteAcceptPage = () => import("../AdminsOlsInviteAcceptP
 const preloadAdminsOlsAuditPage = () => import("../AdminsOlsAuditPage");
 const preloadAdminsOlsGuestJourneysPage = () => import("../AdminsOlsGuestJourneysPage");
 const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage");
-const preloadBelgiumPhonePage = () => import("../executiveOls/BelgiumPhonePage");
+const preloadBelgiumPhonePage = () => import("../executiveOls/CallsPage");
 const preloadCityAttractionsPage = () => import("../CityAttractionsPage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 

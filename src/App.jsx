@@ -28,7 +28,7 @@ const AdminsOlsInviteAcceptPage = lazy(routePreloaders.adminsOlsInviteAccept);
 const AdminsOlsAuditPage = lazy(routePreloaders.adminsOlsAudit);
 const AdminsOlsGuestJourneysPage = lazy(routePreloaders.adminsOlsGuestJourneys);
 const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
-const BelgiumPhonePage = lazy(routePreloaders.belgiumPhone);
+const CallsPage = lazy(routePreloaders.belgiumPhone);
 const CityAttractionsPage = lazy(routePreloaders.cityAttractions);
 
 const CITY_ROOT_PATHS = new Set([

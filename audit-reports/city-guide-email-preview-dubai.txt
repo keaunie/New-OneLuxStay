@@ -1,0 +1,8 @@
+Hi Alex,
+
+Your Dubai city guide is ready:
+http://localhost:5174/dubai/attractions
+
+Your dates: 2026-05-10 – 2026-05-13
+
+— OneLuxStay

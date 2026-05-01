@@ -1,3 +1,6 @@
+const U = (id, w = 1400) =>
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=78`;
+
 export const CITY_ATTRACTIONS = {
   antwerp: {
     cityName: "Antwerp",
@@ -8,12 +11,16 @@ export const CITY_ATTRACTIONS = {
     cityPath: "/antwerp",
     bookPath: "/antwerp",
     heroGradient: "linear-gradient(135deg, #2c2420 0%, #4a3728 60%, #6b4f38 100%)",
+    heroImage: U("1518005020951-eccb494ad742", 1800),
     accentColor: "#c9a96e",
     categories: [
       {
         id: "culture",
         label: "Culture & History",
         icon: "museum",
+        image: U("1543783207-ec64e4d95325"),
+        narrative:
+          "Begin in the shadow of Gothic spires where Peter Paul Rubens once walked these same cobblestones. Antwerp's past is not locked in glass cases — it breathes through every street, every guild house, every cathedral door left open to the afternoon light.",
         attractions: [
           {
             name: "Cathedral of Our Lady",
@@ -63,6 +70,9 @@ export const CITY_ATTRACTIONS = {
         id: "shopping",
         label: "Shopping & Fashion",
         icon: "shopping",
+        image: U("1483985988355-763728e1935b"),
+        narrative:
+          "Antwerp gave the world the Antwerp Six. This is where fashion is not followed but invented, block by block, from the grand boulevard to the indie backstreets where tomorrow's designers are quietly at work.",
         attractions: [
           {
             name: "Meir",
@@ -98,6 +108,9 @@ export const CITY_ATTRACTIONS = {
         id: "food",
         label: "Food & Drink",
         icon: "food",
+        image: U("1414235077428-338989a2e8c0"),
+        narrative:
+          "The Belgians take their pleasure seriously. A late afternoon in an Antwerp café, with a glass of something local and nowhere particular to be, is not an indulgence — it is a civic duty.",
         attractions: [
           {
             name: "Zurenborg Neighbourhood",
@@ -126,6 +139,9 @@ export const CITY_ATTRACTIONS = {
         id: "outdoor",
         label: "Parks & the River",
         icon: "nature",
+        image: U("1505118380757-91f5f5632de0"),
+        narrative:
+          "The Scheldt has carried ships for centuries. Its banks today are for walking, cycling, and simply being still while the world drifts past on the current. Antwerp's relationship with this river is the oldest love story in the city.",
         attractions: [
           {
             name: "Scheldt River Promenade",
@@ -162,12 +178,16 @@ export const CITY_ATTRACTIONS = {
     cityPath: "/los-angeles",
     bookPath: "/los-angeles",
     heroGradient: "linear-gradient(135deg, #1a2a3a 0%, #2c4a6e 60%, #4a7fa0 100%)",
+    heroImage: U("1534430480872-3498386e7856", 1800),
     accentColor: "#f0a850",
     categories: [
       {
         id: "culture",
         label: "Culture & Arts",
         icon: "museum",
+        image: U("1580657018950-f5f1de37ac69"),
+        narrative:
+          "Behind the spectacle and the sunshine, Los Angeles has quietly built some of the world's most remarkable art institutions. The Getty alone — perched above the Pacific — is worth flying here for.",
         attractions: [
           {
             name: "The Getty Center",
@@ -203,6 +223,9 @@ export const CITY_ATTRACTIONS = {
         id: "entertainment",
         label: "Entertainment & Icons",
         icon: "star",
+        image: U("1541963463532-d68292c34b19"),
+        narrative:
+          "There is a reason people still come here to dream. This is where the mythology of modern life was invented — the Walk of Fame, the studio lots, the stadium crowds. Mythic and completely real at the same time.",
         attractions: [
           {
             name: "Hollywood Walk of Fame",
@@ -238,6 +261,9 @@ export const CITY_ATTRACTIONS = {
         id: "outdoor",
         label: "Beaches & Outdoors",
         icon: "nature",
+        image: U("1507525428034-b723cf961d3e"),
+        narrative:
+          "The Pacific runs through the DNA of this city. Follow it from the Santa Monica Pier to the canyons above Malibu — the coast is where Los Angeles stops performing and simply exists.",
         attractions: [
           {
             name: "Santa Monica Beach & Pier",
@@ -266,6 +292,9 @@ export const CITY_ATTRACTIONS = {
         id: "shopping",
         label: "Shopping & Neighbourhoods",
         icon: "shopping",
+        image: U("1476610182048-b716b8518aae"),
+        narrative:
+          "Los Angeles is not one city but dozens of villages, each with its own character. The best way to understand it is to walk its streets — from the luxury of Rodeo Drive to the murals of Melrose.",
         attractions: [
           {
             name: "Rodeo Drive",
@@ -302,12 +331,16 @@ export const CITY_ATTRACTIONS = {
     cityPath: "/miami",
     bookPath: "/miami",
     heroGradient: "linear-gradient(135deg, #0d2b40 0%, #1a5276 60%, #148f77 100%)",
+    heroImage: U("1533106418989-88406c7cc8ca", 1800),
     accentColor: "#f4c87a",
     categories: [
       {
         id: "culture",
         label: "Art & Culture",
         icon: "museum",
+        image: U("1558618666-fcd25c85cd64"),
+        narrative:
+          "Miami doesn't ask permission to be vivid. Its art lives on warehouse walls and bayfront terraces, in palatial villas and converted factories. This is a city that turned creativity into a civic religion.",
         attractions: [
           {
             name: "Wynwood Walls",
@@ -343,6 +376,9 @@ export const CITY_ATTRACTIONS = {
         id: "outdoor",
         label: "Beaches & Nature",
         icon: "nature",
+        image: U("1507525428034-b723cf961d3e"),
+        narrative:
+          "The water here is not a backdrop — it is the reason for everything. South Beach, the Everglades, the quiet barrier islands. They tell the same story of impossible beauty at the edge of the continent.",
         attractions: [
           {
             name: "South Beach",
@@ -378,6 +414,9 @@ export const CITY_ATTRACTIONS = {
         id: "food",
         label: "Food & Nightlife",
         icon: "food",
+        image: U("1414235077428-338989a2e8c0"),
+        narrative:
+          "Miami's table is set by the Caribbean, Latin America, and the entire world. Pull up a chair on Calle Ocho, order a cortadito, and let the city feed you. The night, when it comes, is another story entirely.",
         attractions: [
           {
             name: "Little Havana",
@@ -406,6 +445,9 @@ export const CITY_ATTRACTIONS = {
         id: "entertainment",
         label: "Shopping & Entertainment",
         icon: "star",
+        image: U("1477959858617-67f85cf4f1df"),
+        narrative:
+          "In Miami, even a walk down Lincoln Road becomes an event. There is always something performing, opening, or arriving — a city permanently in the act of staging itself.",
         attractions: [
           {
             name: "Lincoln Road Mall",
@@ -442,12 +484,16 @@ export const CITY_ATTRACTIONS = {
     cityPath: "/redondo-beach",
     bookPath: "/redondo-beach",
     heroGradient: "linear-gradient(135deg, #1a3040 0%, #1a5276 60%, #2e86a8 100%)",
+    heroImage: U("1507525428034-b723cf961d3e", 1800),
     accentColor: "#f0c060",
     categories: [
       {
         id: "outdoor",
         label: "Beach & Waterfront",
         icon: "nature",
+        image: U("1468436385273-8abca6dfd8d3"),
+        narrative:
+          "The pier has been the town's gathering point since 1889. Everything here begins and ends at the water — the smell of salt in the morning, pelicans coasting at eye level, the light going golden over the marina.",
         attractions: [
           {
             name: "Redondo Beach Pier & Boardwalk",
@@ -483,6 +529,9 @@ export const CITY_ATTRACTIONS = {
         id: "neighbourhoods",
         label: "Local Neighbourhoods",
         icon: "star",
+        image: U("1476610182048-b716b8518aae"),
+        narrative:
+          "Beyond Redondo's boardwalk, the South Bay reveals itself as a string of beach towns, each quietly extraordinary. Walk north for ten minutes and you're somewhere else entirely.",
         attractions: [
           {
             name: "Hermosa Beach Pier",
@@ -511,6 +560,9 @@ export const CITY_ATTRACTIONS = {
         id: "nature",
         label: "Nature & Parks",
         icon: "nature",
+        image: U("1494526585095-c41746248156"),
+        narrative:
+          "The Palos Verdes Peninsula rises from the flat coastline like a chapter break — a reminder that California's wildness is never far away, that the dramatic cliffs and tidal pools are just a short drive from the pier.",
         attractions: [
           {
             name: "Palos Verdes Peninsula",
@@ -539,6 +591,9 @@ export const CITY_ATTRACTIONS = {
         id: "food",
         label: "Dining & Local Life",
         icon: "food",
+        image: U("1504674900247-0877df9cc836"),
+        narrative:
+          "Redondo Beach eats fresh. The fish was in the ocean yesterday. The farmers' market came with the morning fog. The craft beer was brewed down the road. This is South Bay living at its most honest.",
         attractions: [
           {
             name: "International Boardwalk",
@@ -575,12 +630,16 @@ export const CITY_ATTRACTIONS = {
     cityPath: "/dubai",
     bookPath: "/dubai",
     heroGradient: "linear-gradient(135deg, #1a1a2e 0%, #2d2d4a 60%, #5c3d1e 100%)",
+    heroImage: U("1512453979798-5ea266f8880c", 1800),
     accentColor: "#d4af6a",
     categories: [
       {
         id: "icons",
         label: "Iconic Landmarks",
         icon: "star",
+        image: U("1512453979798-5ea266f8880c"),
+        narrative:
+          "Dubai decided to become the tallest, the largest, the most extraordinary — and then it did. Standing at the base of the Burj Khalifa, that ambition is no longer abstract. It is simply there, above you.",
         attractions: [
           {
             name: "Burj Khalifa & Dubai Fountain",
@@ -616,6 +675,9 @@ export const CITY_ATTRACTIONS = {
         id: "culture",
         label: "Culture & Heritage",
         icon: "museum",
+        image: U("1539113718695-a17361f5d954"),
+        narrative:
+          "Behind every gleaming tower is a thousand-year-old trade route. Cross Dubai Creek by wooden abra, step into the Gold Souk at dusk, and watch the city's first chapter quietly tell its story.",
         attractions: [
           {
             name: "Al Fahidi Historic District & Dubai Museum",
@@ -651,6 +713,9 @@ export const CITY_ATTRACTIONS = {
         id: "outdoor",
         label: "Desert & Outdoors",
         icon: "nature",
+        image: U("1509316785289-025f5b846b35"),
+        narrative:
+          "Before the glass towers, there was the desert. Vast, ancient, and utterly indifferent to records. It is still there, an hour from the city, waiting — and the Gulf's warm waters stretch out on the other side.",
         attractions: [
           {
             name: "Desert Safari",
@@ -679,6 +744,9 @@ export const CITY_ATTRACTIONS = {
         id: "shopping",
         label: "Shopping & Dining",
         icon: "shopping",
+        image: U("1441986300917-64674bd600d8"),
+        narrative:
+          "Dubai turned shopping into architecture, dining into theatre, and leisure into a spectacle. Even an afternoon at the mall is, somehow, an experience worth having — especially when that mall has an indoor ski slope.",
         attractions: [
           {
             name: "The Dubai Mall",

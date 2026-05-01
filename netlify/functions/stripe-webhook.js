@@ -3,6 +3,7 @@ import { getStore } from "@netlify/blobs";
 import crypto from "crypto";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
+import { buildCityGuideEmailTemplate } from "./_shared/cityGuideEmailTemplate.js";
 
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
@@ -400,6 +401,45 @@ const toProofBaseUrl = (event = {}) => {
     headers.Host ||
     "";
   if (!host) return "";
+  const proto =
+    headers["x-forwarded-proto"] ||
+    headers["X-Forwarded-Proto"] ||
+    (String(host).includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`.replace(/\/+$/, "");
+};
+
+const resolvePublicSiteBase = (event = {}) => {
+  const fromEnv =
+    process.env.PUBLIC_SITE_URL ||
+    process.env.URL ||
+    process.env.DEPLOY_PRIME_URL ||
+    process.env.DEPLOY_URL ||
+    "";
+  if (fromEnv) {
+    try {
+      return new URL(String(fromEnv)).origin;
+    } catch {
+      // ignore invalid configured base
+    }
+  }
+
+  const headers = event?.headers || {};
+  const originHeader = String(headers.origin || headers.Origin || "").trim();
+  if (originHeader) {
+    try {
+      return new URL(originHeader).origin;
+    } catch {
+      // ignore invalid origin
+    }
+  }
+
+  const host =
+    headers["x-forwarded-host"] ||
+    headers["X-Forwarded-Host"] ||
+    headers.host ||
+    headers.Host ||
+    "";
+  if (!host) return "https://oneluxstay.com";
   const proto =
     headers["x-forwarded-proto"] ||
     headers["X-Forwarded-Proto"] ||
@@ -918,6 +958,23 @@ const buildConsentPdf = async ({ reservationId, metadata, consent }) => {
 
 const normalizeString = (value) => String(value ?? "").trim();
 
+const slugify = (value) =>
+  normalizeString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const guessCitySlugFromText = (value) => {
+  const lower = normalizeString(value).toLowerCase();
+  if (!lower) return "";
+  if (lower.includes("antwerp") || lower.includes("antwerpen")) return "antwerp";
+  if (lower.includes("los angeles")) return "los-angeles";
+  if (lower.includes("miami")) return "miami";
+  if (lower.includes("redondo")) return "redondo-beach";
+  if (lower.includes("dubai")) return "dubai";
+  return "";
+};
+
 const buildReservationPayload = (session) => {
   const metadata = session.metadata || {};
   const listingId = metadata.listingId;
@@ -1403,6 +1460,158 @@ const updateGuestNotes = async (guestId, notes) => {
   throw new Error(`Unable to write guest notes. ${errors.join(" | ")}`);
 };
 
+const normalizeGuestyListing = (data) => {
+  if (!data) return null;
+  if (data.listing && typeof data.listing === "object") return data.listing;
+  if (data.data && !Array.isArray(data.data) && typeof data.data === "object") return data.data;
+  if (Array.isArray(data.results) && data.results.length > 0) return data.results[0];
+  if (typeof data === "object") return data;
+  return null;
+};
+
+const fetchGuestyListingSummary = async (listingId) => {
+  if (!listingId) return null;
+  const safeListingId = String(listingId).trim();
+  if (!safeListingId) return null;
+  const fields = [
+    "_id",
+    "title",
+    "nickname",
+    "address.city",
+    "address.country",
+    "address.state",
+    "picture.thumbnail",
+  ].join(" ");
+
+  try {
+    const raw = await guestyRequest(
+      `/listings/${encodeURIComponent(safeListingId)}?fields=${encodeURIComponent(fields)}`,
+      "GET",
+    );
+    return normalizeGuestyListing(raw);
+  } catch (err) {
+    console.warn("[stripe-webhook] Unable to fetch listing summary for city guide email.", {
+      listingId: safeListingId,
+      error: err?.message || String(err),
+    });
+    return null;
+  }
+};
+
+const resolveCityGuideCandidate = async ({ session, event } = {}) => {
+  const metadata = session?.metadata || {};
+  const listingId = normalizeString(metadata.listingId || metadata.listing_id || "");
+
+  let citySlugCandidate = normalizeString(
+    metadata.citySlug || metadata.city_slug || metadata.city || "",
+  );
+
+  if (!citySlugCandidate) {
+    const taxProfile = normalizeString(metadata.bd_tax_profile || "").toUpperCase();
+    if (taxProfile === ANTWERP_BE_TAX_PROFILE) citySlugCandidate = "antwerp";
+  }
+
+  if (!citySlugCandidate && listingId) {
+    const listing = await fetchGuestyListingSummary(listingId);
+    const cityLabel =
+      normalizeString(listing?.address?.city || listing?.city || "") ||
+      normalizeString(listing?.address?.state || "");
+    if (cityLabel) citySlugCandidate = slugify(cityLabel);
+  }
+
+  if (!citySlugCandidate) {
+    citySlugCandidate = guessCitySlugFromText(
+      [metadata.listingTitle || metadata.listing_title || "", metadata.country || ""].join(" "),
+    );
+  }
+
+  if (!citySlugCandidate) {
+    return {
+      skipped: true,
+      permanent: true,
+      reason: "Unable to determine destination city for guide email.",
+      listingId,
+    };
+  }
+
+  return { skipped: false, citySlugCandidate, listingId };
+};
+
+const sendCityGuideEmail = async ({ to, reservationId, session, event } = {}) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  const recipients = uniqueEmails([...(Array.isArray(to) ? to : [to])]);
+
+  if (!apiKey || !from || !recipients.length) {
+    const missing = [];
+    if (!apiKey) missing.push("RESEND_API_KEY");
+    if (!from) missing.push("RESEND_FROM_EMAIL");
+    if (!recipients.length) missing.push("recipient email");
+    return {
+      skipped: true,
+      permanent: false,
+      reason: `City guide email skipped due to missing ${missing.join(", ")}.`,
+      recipients,
+    };
+  }
+
+  const metadata = session?.metadata || {};
+  const fullName =
+    [metadata?.guestFirstName, metadata?.guestLastName].filter(Boolean).join(" ").trim() ||
+    metadata?.guestName ||
+    "Guest";
+  const checkIn = normalizeString(metadata?.checkIn || metadata?.check_in || "");
+  const checkOut = normalizeString(metadata?.checkOut || metadata?.check_out || "");
+
+  const guideCandidate = await resolveCityGuideCandidate({ session, event });
+  if (guideCandidate?.skipped) {
+    return { ...guideCandidate, recipients };
+  }
+
+  const baseUrl = resolvePublicSiteBase(event);
+  const template = buildCityGuideEmailTemplate({
+    baseUrl,
+    citySlug: guideCandidate.citySlugCandidate,
+    fullName,
+    checkIn,
+    checkOut,
+    reservationId,
+  });
+  if (template?.skipped) {
+    return { ...template, recipients, listingId: guideCandidate?.listingId || "" };
+  }
+
+  const citySlug = String(template.cityPath || "").replace(/^\/+/, "");
+  const cityName = template.cityName || "";
+  const guideUrl = template.guideUrl || "";
+
+  const response = await fetchWithTimeout(
+    "https://api.resend.com/emails",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: recipients,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      }),
+    },
+    30_000,
+  );
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.message || `Unable to send city guide email (${response.status}).`);
+  }
+
+  return { ...payload, recipients, citySlug, cityName, guideUrl };
+};
+
 const sendReceiptEmail = async ({ to, reservationId, metadata, session, proof = {} }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -1686,6 +1895,9 @@ export async function handler(event) {
 
   let existing = await readStripeEvent(stripeEvent.id);
   if (existing) {
+    let didRetryReceiptEmail = false;
+    let didRetryGuideEmail = false;
+
     if (existing?.paymentError && existing?.reservationId) {
       const retryAt = Date.now();
       const paymentRetryCount = Number(existing?.paymentRetryCount || 0) + 1;
@@ -1765,6 +1977,7 @@ export async function handler(event) {
       };
       await writeStripeEvent(stripeEvent.id, retryPayload);
       await writeStripeSessionRecord(session?.id || existing?.sessionId || "", retryPayload);
+      existing = retryPayload;
 
       if (emailRetryError) {
         return jsonResponse(500, {
@@ -1774,11 +1987,88 @@ export async function handler(event) {
           emailError: emailRetryError,
         });
       }
+      didRetryReceiptEmail = true;
+    }
 
+    if (existing?.guideEmailError) {
+      const retryAt = Date.now();
+      const guideEmailRetryCount = Number(existing?.guideEmailRetryCount || 0) + 1;
+      const guestReceiptEmail = getGuestReceiptEmail(session);
+      let guideEmailRetryError = null;
+      let guideEmailSent = false;
+      let guideEmailSkippedReason = normalizeString(existing?.guideEmailSkippedReason || "");
+      let guideEmailSkippedAt = existing?.guideEmailSkippedAt ?? null;
+      let guideEmailRecipients = Array.isArray(existing?.guideEmailRecipients)
+        ? existing.guideEmailRecipients
+        : [];
+      let guideCitySlug = normalizeString(existing?.guideCitySlug || "");
+      let guideCityName = normalizeString(existing?.guideCityName || "");
+      let guideUrl = normalizeString(existing?.guideUrl || "");
+
+      try {
+        const guideResult = await sendCityGuideEmail({
+          to: [guestReceiptEmail],
+          reservationId: existing?.reservationId || null,
+          session,
+          event,
+        });
+
+        if (guideResult?.skipped) {
+          guideEmailSkippedReason = guideResult?.reason || "City guide email skipped.";
+          if (guideResult?.permanent) {
+            guideEmailRetryError = null;
+            guideEmailSkippedAt = retryAt;
+          } else {
+            guideEmailRetryError = guideEmailSkippedReason;
+          }
+        } else {
+          guideEmailSent = true;
+          guideEmailSkippedReason = "";
+          guideEmailSkippedAt = null;
+          guideEmailRecipients = Array.isArray(guideResult?.recipients) ? guideResult.recipients : [];
+          guideCitySlug = normalizeString(guideResult?.citySlug || "");
+          guideCityName = normalizeString(guideResult?.cityName || "");
+          guideUrl = normalizeString(guideResult?.guideUrl || "");
+        }
+      } catch (err) {
+        guideEmailRetryError = err?.message || "Unable to send city guide email.";
+      }
+
+      const retryPayload = {
+        ...existing,
+        guideEmailRetryCount,
+        guideEmailRetriedAt: retryAt,
+        guideEmailError: guideEmailRetryError,
+        ...(guideEmailSent ? { guideEmailSentAt: retryAt } : {}),
+        guideEmailSkippedReason,
+        guideEmailSkippedAt,
+        guideEmailRecipients,
+        guideCitySlug,
+        guideCityName,
+        guideUrl,
+      };
+
+      await writeStripeEvent(stripeEvent.id, retryPayload);
+      await writeStripeSessionRecord(session?.id || existing?.sessionId || "", retryPayload);
+      existing = retryPayload;
+
+      if (guideEmailRetryError) {
+        return jsonResponse(500, {
+          received: true,
+          duplicate: true,
+          retryable: true,
+          guideEmailError: guideEmailRetryError,
+        });
+      }
+      didRetryGuideEmail = true;
+    }
+
+    if (didRetryReceiptEmail || didRetryGuideEmail) {
       return jsonResponse(200, {
         received: true,
         duplicate: true,
-        emailRetried: true,
+        ...(didRetryReceiptEmail ? { emailRetried: true } : {}),
+        ...(didRetryGuideEmail ? { guideEmailRetried: true } : {}),
       });
     }
     return jsonResponse(200, { received: true, duplicate: true });
@@ -1796,6 +2086,9 @@ export async function handler(event) {
     if (waited) existingSession = waited;
   }
   if (existingSession?.reservationId || existingSession?.processedAt) {
+    let didRetryReceiptEmail = false;
+    let didRetryGuideEmail = false;
+
     if (existingSession?.paymentError && existingSession?.reservationId) {
       const retryAt = Date.now();
       const paymentRetryCount = Number(existingSession?.paymentRetryCount || 0) + 1;
@@ -1898,13 +2191,98 @@ export async function handler(event) {
           emailError: emailRetryError,
         });
       }
+      existingSession = retryPayload;
+      didRetryReceiptEmail = true;
+    }
 
+    if (existingSession?.guideEmailError) {
+      const retryAt = Date.now();
+      const guideEmailRetryCount = Number(existingSession?.guideEmailRetryCount || 0) + 1;
+      const guestReceiptEmail = getGuestReceiptEmail(session);
+      let guideEmailRetryError = null;
+      let guideEmailSent = false;
+      let guideEmailSkippedReason = normalizeString(existingSession?.guideEmailSkippedReason || "");
+      let guideEmailSkippedAt = existingSession?.guideEmailSkippedAt ?? null;
+      let guideEmailRecipients = Array.isArray(existingSession?.guideEmailRecipients)
+        ? existingSession.guideEmailRecipients
+        : [];
+      let guideCitySlug = normalizeString(existingSession?.guideCitySlug || "");
+      let guideCityName = normalizeString(existingSession?.guideCityName || "");
+      let guideUrl = normalizeString(existingSession?.guideUrl || "");
+
+      try {
+        const guideResult = await sendCityGuideEmail({
+          to: [guestReceiptEmail],
+          reservationId: existingSession?.reservationId || null,
+          session,
+          event,
+        });
+
+        if (guideResult?.skipped) {
+          guideEmailSkippedReason = guideResult?.reason || "City guide email skipped.";
+          if (guideResult?.permanent) {
+            guideEmailRetryError = null;
+            guideEmailSkippedAt = retryAt;
+          } else {
+            guideEmailRetryError = guideEmailSkippedReason;
+          }
+        } else {
+          guideEmailSent = true;
+          guideEmailSkippedReason = "";
+          guideEmailSkippedAt = null;
+          guideEmailRecipients = Array.isArray(guideResult?.recipients) ? guideResult.recipients : [];
+          guideCitySlug = normalizeString(guideResult?.citySlug || "");
+          guideCityName = normalizeString(guideResult?.cityName || "");
+          guideUrl = normalizeString(guideResult?.guideUrl || "");
+        }
+      } catch (err) {
+        guideEmailRetryError = err?.message || "Unable to send city guide email.";
+      }
+
+      const retryPayload = {
+        ...existingSession,
+        guideEmailRetryCount,
+        guideEmailRetriedAt: retryAt,
+        guideEmailError: guideEmailRetryError,
+        ...(guideEmailSent ? { guideEmailSentAt: retryAt } : {}),
+        guideEmailSkippedReason,
+        guideEmailSkippedAt,
+        guideEmailRecipients,
+        guideCitySlug,
+        guideCityName,
+        guideUrl,
+      };
+
+      await writeStripeSessionRecord(session?.id || "", retryPayload);
+      await writeStripeEvent(stripeEvent.id, {
+        ...retryPayload,
+        replayedByEventId: stripeEvent.id,
+        replayedAt: retryAt,
+        duplicateSession: true,
+      });
+      existingSession = retryPayload;
+
+      if (guideEmailRetryError) {
+        return jsonResponse(500, {
+          received: true,
+          duplicate: true,
+          duplicateSession: true,
+          retryable: true,
+          sessionId: session.id,
+          guideEmailError: guideEmailRetryError,
+        });
+      }
+      didRetryGuideEmail = true;
+    }
+
+    if (didRetryReceiptEmail || didRetryGuideEmail) {
       return jsonResponse(200, {
         received: true,
         duplicate: true,
         duplicateSession: true,
-        emailRetried: true,
         sessionId: session.id,
+        ...(didRetryReceiptEmail ? { emailRetried: true } : {}),
+        ...(didRetryGuideEmail ? { guideEmailRetried: true } : {}),
       });
     }
 
@@ -2139,6 +2517,38 @@ export async function handler(event) {
     } catch (err) {
       emailError = err.message;
     }
+
+    let guideEmailError = null;
+    let guideEmailSentAt = null;
+    let guideEmailRecipients = [];
+    let guideCitySlug = "";
+    let guideCityName = "";
+    let guideUrl = "";
+    let guideEmailSkippedReason = "";
+    try {
+      const guideResult = await sendCityGuideEmail({
+        to: [guestReceiptEmail],
+        reservationId,
+        session,
+        event,
+      });
+
+      if (guideResult?.skipped) {
+        guideEmailSkippedReason = guideResult?.reason || "City guide email skipped.";
+        if (!guideResult?.permanent) {
+          guideEmailError = guideEmailSkippedReason;
+        }
+      } else {
+        guideEmailSentAt = Date.now();
+        guideEmailRecipients = Array.isArray(guideResult?.recipients) ? guideResult.recipients : [];
+        guideCitySlug = normalizeString(guideResult?.citySlug || "");
+        guideCityName = normalizeString(guideResult?.cityName || "");
+        guideUrl = normalizeString(guideResult?.guideUrl || "");
+      }
+    } catch (err) {
+      guideEmailError = err?.message || "Unable to send city guide email.";
+    }
+
     const processedPayload = {
       processedAt: Date.now(),
       reservationId,
@@ -2162,6 +2572,14 @@ export async function handler(event) {
       emailRetryCount: 0,
       emailError,
       ...(emailSentAt ? { emailSentAt } : {}),
+      guideCitySlug,
+      guideCityName,
+      guideUrl,
+      guideEmailRecipients,
+      guideEmailRetryCount: 0,
+      guideEmailError,
+      ...(guideEmailSentAt ? { guideEmailSentAt } : {}),
+      ...(guideEmailSkippedReason ? { guideEmailSkippedReason } : {}),
     };
     const stored = await writeStripeEvent(stripeEvent.id, processedPayload);
     await writeStripeSessionRecord(session?.id || "", {
@@ -2212,6 +2630,27 @@ export async function handler(event) {
         emailError,
       });
     }
+    if (guideEmailError && stored) {
+      return jsonResponse(500, {
+        message: "City guide delivery failed; retry scheduled via Stripe webhook retries.",
+        received: true,
+        retryable: true,
+        reservationId,
+        guideEmailError,
+        paymentError,
+        noteError,
+        guestNoteError,
+        consentPdfUrl,
+        consentPdfError,
+      });
+    }
+    if (guideEmailError && !stored) {
+      console.error("[stripe-webhook] City guide delivery failed, but webhook event storage is unavailable", {
+        eventId: stripeEvent.id,
+        reservationId,
+        guideEmailError,
+      });
+    }
     return jsonResponse(200, {
       received: true,
       reservationId,
@@ -2219,6 +2658,10 @@ export async function handler(event) {
       noteError,
       guestNoteError,
       emailError,
+      guideEmailError,
+      guideUrl,
+      guideCitySlug,
+      guideCityName,
       consentPdfUrl,
       consentPdfError,
     });
