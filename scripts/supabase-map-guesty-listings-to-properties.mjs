@@ -119,13 +119,18 @@ const readGuestyListingId = (listing) =>
   normalizeString(listing?._id || listing?.id || listing?.listingId);
 
 const readGuestyListingName = (listing) =>
-  normalizeString(listing?.nickname || listing?.title || listing?.name || "");
+  normalizeString(listing?.title || listing?.nickname || listing?.name || "");
 
 const readGuestyListingStats = (listing) => ({
   bedrooms: toRoundedInt(listing?.bedrooms || listing?.bedroomCount),
   bathrooms: toRoundedInt(listing?.bathrooms || listing?.bathroomCount),
   accommodates: toRoundedInt(listing?.accommodates || listing?.capacity || listing?.guests),
 });
+
+const readGuestyListingTimestamp = (listing) => {
+  const ts = Date.parse(listing?.updatedAt || listing?.createdAt || "");
+  return Number.isFinite(ts) ? ts : 0;
+};
 
 const readGuestyLatLng = (listing) => {
   const lat = toNumber(listing?.address?.lat || listing?.address?.latitude || listing?.location?.lat);
@@ -182,6 +187,7 @@ const fetchProperties = async () => {
   try {
     const selectWithCode = "id,name,property_code,address,city,country,latitude,longitude,bedrooms,bathrooms,accommodates,guesty_listing_id";
     const selectWithoutCode = "id,name,address,city,country,latitude,longitude,bedrooms,bathrooms,accommodates,guesty_listing_id";
+    const selectWithoutCodeWithoutAccommodates = "id,name,address,city,country,latitude,longitude,bedrooms,bathrooms,guesty_listing_id";
 
     try {
       const rows = await supabaseRestRequest("properties", {
@@ -197,14 +203,31 @@ const fetchProperties = async () => {
       if (msg.includes("property_code") && msg.includes("does not exist")) {
         console.log("note: `properties.property_code` column not found; mapping will use `properties.name` only.");
         console.log("");
-        const rows = await supabaseRestRequest("properties", {
-          query: {
-            select: selectWithoutCode,
-            limit: Math.min(1000, MAX_PROPERTIES),
-            offset: 0,
-          },
-        });
-        return Array.isArray(rows) ? rows.slice(0, MAX_PROPERTIES) : [];
+        try {
+          const rows = await supabaseRestRequest("properties", {
+            query: {
+              select: selectWithoutCode,
+              limit: Math.min(1000, MAX_PROPERTIES),
+              offset: 0,
+            },
+          });
+          return Array.isArray(rows) ? rows.slice(0, MAX_PROPERTIES) : [];
+        } catch (fallbackError) {
+          const fallbackMsg = String(fallbackError?.message || "");
+          if (fallbackMsg.includes("accommodates") && fallbackMsg.includes("does not exist")) {
+            console.log("note: `properties.accommodates` column not found; mapping will skip occupancy matching.");
+            console.log("");
+            const rows = await supabaseRestRequest("properties", {
+              query: {
+                select: selectWithoutCodeWithoutAccommodates,
+                limit: Math.min(1000, MAX_PROPERTIES),
+                offset: 0,
+              },
+            });
+            return Array.isArray(rows) ? rows.slice(0, MAX_PROPERTIES) : [];
+          }
+          throw fallbackError;
+        }
       }
       if (msg.includes("does not exist") || msg.includes("column") || msg.includes("Unknown field")) {
         console.log(`note: properties column mismatch (${msg}); falling back to select="*".`);
@@ -364,14 +387,16 @@ const chooseBestCandidate = ({ property, candidates, candidatesWithDistance = []
     const id = readGuestyListingId(listing);
     const distance =
       candidatesWithDistance.find((row) => readGuestyListingId(row.listing) === id)?.distance ?? null;
-    return { listing, score, listingName, distance };
+    return { listing, score, listingName, distance, timestamp: readGuestyListingTimestamp(listing) };
   });
 
   withScores.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     const aDist = Number.isFinite(Number(a.distance)) ? Number(a.distance) : Number.POSITIVE_INFINITY;
     const bDist = Number.isFinite(Number(b.distance)) ? Number(b.distance) : Number.POSITIVE_INFINITY;
-    return aDist - bDist;
+    if (aDist !== bDist) return aDist - bDist;
+    if (b.timestamp !== a.timestamp) return b.timestamp - a.timestamp;
+    return String(readGuestyListingId(a.listing)).localeCompare(String(readGuestyListingId(b.listing)));
   });
 
   const best = withScores[0];
@@ -380,6 +405,33 @@ const chooseBestCandidate = ({ property, candidates, candidatesWithDistance = []
   const okByDelta = best.score - second.score >= MIN_SCORE_DELTA;
 
   if (okByScore && okByDelta) return { best: best.listing, reason: `name_score:${best.score.toFixed(2)}` };
+
+  // If top-scored candidates are effectively duplicates of the same marketed unit,
+  // deterministically pick the freshest listing record.
+  if (okByScore) {
+    const topScore = best.score;
+    const tied = withScores.filter((row) => row.score === topScore);
+    const signature = (row) => {
+      const stats = readGuestyListingStats(row.listing);
+      return [
+        normalizeMatchText(row.listingName),
+        stats.bedrooms ?? "",
+        stats.bathrooms ?? "",
+        stats.accommodates ?? "",
+        normalizeKey(readGuestyAddressKey(row.listing)),
+      ].join("|");
+    };
+    const tiedSignature = signature(best);
+    const allTiedSameSignature = tied.every((row) => signature(row) === tiedSignature);
+    if (allTiedSameSignature) {
+      return { best: best.listing, reason: `name_score_tiebreak:${best.score.toFixed(2)}` };
+    }
+  }
+
+  if (okByScore && withScores.length === 1) {
+    return { best: best.listing, reason: `name_score_single:${best.score.toFixed(2)}` };
+  }
+
   return {
     best: null,
     reason: `ambiguous:name_scores best=${best.score.toFixed(2)} second=${second.score.toFixed(2)}`,
@@ -426,8 +478,13 @@ const main = async () => {
     const id = readGuestyListingId(listing);
     if (!id) return false;
     if (INCLUDE_DUMMY) return true;
-    const name = readGuestyListingName(listing);
-    return !/(^|\b)(dummy|test|sample)(\b|$)/i.test(name);
+    const combined = [
+      normalizeString(listing?.title || listing?.name || ""),
+      normalizeString(listing?.nickname || ""),
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return !/(^|\b)(dummy|test|sample)(\b|$)/i.test(combined);
   });
   const guestyByAddress = new Map();
   for (const listing of guestyListings) {
@@ -453,6 +510,11 @@ const main = async () => {
   let ambiguous = 0;
   let unmatched = 0;
   const ambiguousSamples = [];
+  const usedGuestyIds = new Set(
+    properties
+      .map((property) => normalizeString(property?.guesty_listing_id))
+      .filter(Boolean),
+  );
 
   for (const property of properties) {
     const propertyId = normalizeString(property?.id);
@@ -461,6 +523,7 @@ const main = async () => {
     if (!propertyId) continue;
     if (existing) {
       alreadyMapped += 1;
+      usedGuestyIds.add(existing);
       if (ONLY_UNMAPPED) continue;
     }
 
@@ -476,13 +539,19 @@ const main = async () => {
         if (d <= DISTANCE_METERS) nearby.push({ listing, distance: d });
       }
       nearby.sort((a, b) => a.distance - b.distance);
-      const nearbyListings = nearby.map((row) => row.listing);
+      const nearbyListings = nearby
+        .map((row) => row.listing)
+        .filter((listing) => {
+          const id = readGuestyListingId(listing);
+          return id && !usedGuestyIds.has(id);
+        });
 
       if (nearbyListings.length === 1) {
         const guestyId = readGuestyListingId(nearbyListings[0]);
         if (guestyId) {
           await updatePropertyMapping(propertyId, guestyId);
           mapped += 1;
+          usedGuestyIds.add(guestyId);
           if (MIN_DELAY_MS) await sleep(MIN_DELAY_MS);
           continue;
         }
@@ -495,6 +564,7 @@ const main = async () => {
           if (guestyId) {
             await updatePropertyMapping(propertyId, guestyId);
             mapped += 1;
+            usedGuestyIds.add(guestyId);
             if (MIN_DELAY_MS) await sleep(MIN_DELAY_MS);
             continue;
           }
@@ -503,12 +573,16 @@ const main = async () => {
     }
 
     const addressKey = buildPropertyAddressKey(property);
-    const candidates = guestyByAddress.get(addressKey) || [];
+    const candidates = (guestyByAddress.get(addressKey) || []).filter((listing) => {
+      const id = readGuestyListingId(listing);
+      return id && !usedGuestyIds.has(id);
+    });
     if (candidates.length === 1) {
       const guestyId = readGuestyListingId(candidates[0]);
       if (guestyId) {
         await updatePropertyMapping(propertyId, guestyId);
         mapped += 1;
+        usedGuestyIds.add(guestyId);
         if (MIN_DELAY_MS) await sleep(MIN_DELAY_MS);
         continue;
       }
@@ -531,6 +605,7 @@ const main = async () => {
         if (guestyId) {
           await updatePropertyMapping(propertyId, guestyId);
           mapped += 1;
+          usedGuestyIds.add(guestyId);
           if (MIN_DELAY_MS) await sleep(MIN_DELAY_MS);
           continue;
         }
