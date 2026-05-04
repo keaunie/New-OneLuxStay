@@ -23,6 +23,8 @@ const ONLY_PROPERTY_ID = String(getArg("--only-property-id") || "").trim();
 const PRICES_TABLE =
   String(process.env.SUPABASE_PROPERTY_NIGHTLY_PRICES_TABLE || "property_nightly_prices").trim() ||
   "property_nightly_prices";
+let HAS_GUESTY_LISTING_ID = false;
+let HAS_GUESTY_ID = false;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -61,6 +63,15 @@ const isDayAvailable = (day) => {
 const normalizeCalendarItems = (payload) => {
   if (!payload) return [];
   if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data?.days)) {
+    return [
+      {
+        listingId: payload?.data?.listingId || payload?.listingId || payload?.id || payload?._id || null,
+        days: payload.data.days,
+        currency: payload?.data?.currency || payload?.currency || null,
+      },
+    ];
+  }
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.listings)) return payload.listings;
   if (Array.isArray(payload?.calendars)) return payload.calendars;
@@ -147,29 +158,35 @@ const upsertNightlyPrices = async (rows) => {
 
 const ensureSchema = async () => {
   try {
-    // Prefer `guesty_listing_id` (explicit mapping), but allow legacy `guesty_id`.
-    await supabaseRestRequest("properties", { query: { select: "id,guesty_id,guesty_listing_id", limit: 1 } });
+    await supabaseRestRequest("properties", { query: { select: "id,guesty_listing_id", limit: 1 } });
+    HAS_GUESTY_LISTING_ID = true;
   } catch (error) {
     const msg = String(error?.message || "");
-    if (msg.includes("guesty_listing_id") && msg.includes("does not exist")) {
-      // Column doesn't exist yet; this is OK as long as `guesty_id` exists.
-      try {
-        await supabaseRestRequest("properties", { query: { select: "id,guesty_id", limit: 1 } });
-        console.log(
-          "note: `properties.guesty_listing_id` column not found; falling back to `properties.guesty_id` for Guesty listing ids.",
-        );
-        console.log(
-          "note: optional migration to add `guesty_listing_id`: supabase/migrations/20260423102000_add_properties_guesty_listing_id.sql",
-        );
-        console.log("");
-        return;
-      } catch {
-        throw new Error(
-          "Missing `properties.guesty_id` (or `properties.guesty_listing_id`). Ensure your `properties` table has a Guesty listing id column.",
-        );
-      }
-    }
-    throw error;
+    if (!(msg.includes("guesty_listing_id") && msg.includes("does not exist"))) throw error;
+  }
+
+  try {
+    await supabaseRestRequest("properties", { query: { select: "id,guesty_id", limit: 1 } });
+    HAS_GUESTY_ID = true;
+  } catch (error) {
+    const msg = String(error?.message || "");
+    if (!(msg.includes("guesty_id") && msg.includes("does not exist"))) throw error;
+  }
+
+  if (!HAS_GUESTY_LISTING_ID && !HAS_GUESTY_ID) {
+    throw new Error(
+      "Missing `properties.guesty_id` (or `properties.guesty_listing_id`). Ensure your `properties` table has a Guesty listing id column.",
+    );
+  }
+
+  if (!HAS_GUESTY_LISTING_ID && HAS_GUESTY_ID) {
+    console.log(
+      "note: `properties.guesty_listing_id` column not found; falling back to `properties.guesty_id` for Guesty listing ids.",
+    );
+    console.log(
+      "note: optional migration to add `guesty_listing_id`: supabase/migrations/20260423102000_add_properties_guesty_listing_id.sql",
+    );
+    console.log("");
   }
 
   try {
@@ -203,9 +220,15 @@ await ensureSchema();
 const startDate = toIsoDate(getArg("--start") || new Date().toISOString()) || new Date().toISOString().slice(0, 10);
 const endDate = addDaysIso(startDate, LOOKAHEAD_DAYS);
 
+const propertySelectColumns = [
+  "id",
+  "name",
+  ...(HAS_GUESTY_ID ? ["guesty_id"] : []),
+  ...(HAS_GUESTY_LISTING_ID ? ["guesty_listing_id"] : []),
+];
 const properties = await supabaseRestRequest("properties", {
   query: {
-    select: "id,guesty_id,guesty_listing_id,name",
+    select: propertySelectColumns.join(","),
     ...(ONLY_PROPERTY_ID ? { id: `eq.${ONLY_PROPERTY_ID}` } : {}),
     limit: Math.min(1000, MAX_PROPERTIES),
     offset: 0,
