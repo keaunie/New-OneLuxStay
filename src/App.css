@@ -14979,7 +14979,7 @@ a[href="#redondo-city-tour"],
 /* Premium footer redesign */
 .policy-footer {
   position: relative;
-  overflow: clip;
+  overflow: visible;
   border-top: 1px solid rgba(188, 161, 127, 0.34);
   background:
     radial-gradient(120% 90% at 0% 0%, rgba(207, 184, 151, 0.3), transparent 50%),
@@ -15010,7 +15010,7 @@ a[href="#redondo-city-tour"],
   max-width: 1180px;
   margin: 0 auto;
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .policy-footer-intro {
@@ -15101,10 +15101,10 @@ a[href="#redondo-city-tour"],
   max-width: none;
   margin: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(150px, 0.72fr) minmax(140px, 0.72fr) minmax(0, 1.22fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(150px, 0.72fr) minmax(140px, 0.72fr) minmax(0, 1.35fr);
   gap: 22px;
   align-items: start;
-  padding: 24px;
+  padding: 20px;
   border: 1px solid rgba(191, 162, 127, 0.28);
   border-radius: 26px;
   background:
@@ -15123,17 +15123,22 @@ a[href="#redondo-city-tour"],
 
 .policy-footer-tagline {
   margin: 0;
-  display: inline-flex;
+  display: inline-block;
   width: fit-content;
-  padding: 6px 11px;
+  max-width: 100%;
+  padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid rgba(183, 152, 118, 0.34);
   background: rgba(255, 249, 241, 0.82);
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   font-weight: 700;
   color: #7e6141;
+  white-space: normal;
+  line-height: 1.35;
+  text-wrap: pretty;
+  text-align: center;
 }
 
 .policy-footer-brand-intro {
@@ -15199,6 +15204,16 @@ a[href="#redondo-city-tour"],
   gap: 9px;
 }
 
+.policy-footer-list--cities {
+  columns: 2;
+  column-gap: 26px;
+}
+
+.policy-footer-list--cities li {
+  break-inside: avoid;
+  padding-bottom: 2px;
+}
+
 .policy-footer-list-link,
 .policy-footer-contact-item,
 .policy-footer-links a {
@@ -15235,7 +15250,7 @@ a[href="#redondo-city-tour"],
 .policy-footer-contact-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   font-style: normal;
 }
 
@@ -15247,6 +15262,11 @@ a[href="#redondo-city-tour"],
   border: 1px solid rgba(191, 162, 127, 0.26);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.62);
+  min-height: 56px;
+}
+
+.policy-footer-contact-item--wide {
+  grid-column: 1 / -1;
 }
 
 .policy-footer-contact-item:hover,
@@ -15272,9 +15292,34 @@ a[href="#redondo-city-tour"],
 
 .policy-footer-contact-value {
   font-size: 0.9rem;
-  line-height: 1.3;
+  line-height: 1.45;
   color: #342821;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.policy-footer-contact-value[data-contact-label="UAE"] {
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+}
+
+.policy-footer-contact-value[data-contact-label="USA"] {
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+}
+
+.policy-footer-contact-item[href^="tel:"] .policy-footer-contact-value {
+  white-space: normal;
+  letter-spacing: 0.01em;
+}
+
+.policy-footer-contact-value[data-contact-label="Email"] {
+  font-size: 0.86rem;
+}
+
+.policy-footer-phone-part {
+  display: inline;
 }
 
 .policy-footer-proof {

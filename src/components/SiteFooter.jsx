@@ -31,7 +31,7 @@ const FOOTER_CITY_LINKS = [
 ];
 
 const FOOTER_CONTACT_ITEMS = [
-  { label: "USA", value: "+1 213 866 3589", href: "tel:+12138663589", icon: "phone" },
+  { label: "USA", value: "+1 (213) 866-3589", href: "tel:+12138663589", icon: "phone" },
   { label: "UAE", value: "+971 55 727 7059", href: "tel:+971557277059", icon: "phone" },
   { label: "EU", value: "+32 460 25 48 86", href: "tel:+32460254886", icon: "phone" },
   { label: "Email", value: "reservations@oneluxstay.com", href: "mailto:reservations@oneluxstay.com", icon: "mail" },
@@ -48,6 +48,38 @@ const FOOTER_SECURITY_ITEMS = [
   "No hidden fees",
   "Direct booking perks",
 ];
+
+const renderFooterPhoneValue = (value = "") => {
+  const groups = String(value || "").split(" ");
+  if (groups.length <= 1) return value;
+
+  return (
+    <>
+      {groups.map((part, index) => (
+        <span key={`${part}-${index}`} className="policy-footer-phone-part">
+          {part}
+          {index === groups.length - 1 ? null : <wbr />}
+          {index === groups.length - 1 ? null : " "}
+        </span>
+      ))}
+    </>
+  );
+};
+
+const renderFooterContactValue = (item) => {
+  if (item.icon === "phone") return renderFooterPhoneValue(item.value);
+  if (item.icon !== "mail") return item.value;
+
+  const [user, domain] = String(item.value || "").split("@");
+  if (!user || !domain) return item.value;
+
+  return (
+    <>
+      {user}@<wbr />
+      {domain}
+    </>
+  );
+};
 
 const FOOTER_LEGAL_LINKS = [
   { label: "Privacy Policy", to: "/privacy-policy" },
@@ -142,9 +174,9 @@ function SiteFooter() {
           </div>
         </section>
 
-        <div className="policy-footer-inner">
+            <div className="policy-footer-inner">
           <div className="policy-footer-brand">
-            <p className="policy-footer-tagline">Hotel standards. Private living.</p>
+            <p className="policy-footer-tagline">Hotel standards. Private&nbsp;living.</p>
             <div className="policy-footer-brand-intro">
               <Link to="/" className="landing-logo-mark landing-logo-mark--image">
                 <img
@@ -194,13 +226,21 @@ function SiteFooter() {
             <h3>Contact & Trust</h3>
             <address className="policy-footer-contact-list">
               {FOOTER_CONTACT_ITEMS.map((item) => (
-                <a key={item.label} href={item.href} className="policy-footer-contact-item">
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className={`policy-footer-contact-item${
+                    item.icon === "mail" || item.label === "EU" ? " policy-footer-contact-item--wide" : ""
+                  }`}
+                >
                   <span className="policy-footer-icon-badge" aria-hidden="true">
                     <TrustIcon kind={item.icon} />
                   </span>
                   <span className="policy-footer-contact-copy">
                     <span className="policy-footer-contact-label">{item.label}</span>
-                    <span className="policy-footer-contact-value">{item.value}</span>
+                    <span className="policy-footer-contact-value" data-contact-label={item.label}>
+                      {renderFooterContactValue(item)}
+                    </span>
                   </span>
                 </a>
               ))}
