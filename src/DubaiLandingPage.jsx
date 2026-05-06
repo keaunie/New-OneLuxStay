@@ -7,6 +7,7 @@ import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
+import MasonryGalleryModal from "./components/MasonryGalleryModal";
 import Stepper, { Step } from "./components/Stepper";
 import LottieInlineHint from "./components/LottieInlineHint";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
@@ -2748,14 +2749,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
-  const autoScrollRef = useRef({ id: null, element: null, direction: 0 });
-  const hoveredThumbsRef = useRef(null);
-  const thumbsRef = useRef(null);
-  const sectionThumbsRef = useRef(null);
   const [isListingMapOpen, setIsListingMapOpen] = useState(false);
   const [zoomImageUrl, setZoomImageUrl] = useState("");
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPan, setZoomPan] = useState({ x: 0, y: 0 });
+  const [isMasonryGalleryOpen, setIsMasonryGalleryOpen] = useState(false);
+  const [masonryGalleryImages, setMasonryGalleryImages] = useState([]);
+  const [masonryGalleryIndex, setMasonryGalleryIndex] = useState(0);
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const panOriginRef = useRef({ x: 0, y: 0 });
@@ -2911,65 +2911,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     [sectionCalendarCurrentMonth]
   );
 
-  const stopAutoScroll = () => {
-    if (autoScrollRef.current.id) {
-      cancelAnimationFrame(autoScrollRef.current.id);
-      autoScrollRef.current.id = null;
-      autoScrollRef.current.element = null;
-      autoScrollRef.current.direction = 0;
-    }
-  };
-
-  const startAutoScroll = (element, direction) => {
-    if (!element) return;
-    const current = autoScrollRef.current;
-    if (current.element === element && current.direction === direction && current.id) return;
-    stopAutoScroll();
-    autoScrollRef.current.element = element;
-    autoScrollRef.current.direction = direction;
-    const step = () => {
-      if (!autoScrollRef.current.element) return;
-      autoScrollRef.current.element.scrollBy({ left: direction * 6, behavior: "auto" });
-      autoScrollRef.current.id = requestAnimationFrame(step);
-    };
-    autoScrollRef.current.id = requestAnimationFrame(step);
-  };
-
-  const handleThumbsMove = (event, targetRef) => {
-    const target = targetRef?.current || event.currentTarget;
-    if (!target) {
-      console.log("[Thumbs] no target for hover scroll");
-      return;
-    }
-    const rect = target.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const edge = rect.width * 0.35;
-    if (x < edge) {
-      console.log("[Thumbs] hover left edge");
-      startAutoScroll(target, -1);
-    } else if (x > rect.width - edge) {
-      console.log("[Thumbs] hover right edge");
-      startAutoScroll(target, 1);
-    } else {
-      stopAutoScroll();
-    }
-  };
-
-  useEffect(() => {
-    const handleMove = (event) => {
-      if (!hoveredThumbsRef.current) return;
-      handleThumbsMove(event, { current: hoveredThumbsRef.current });
-    };
-    window.addEventListener("mousemove", handleMove);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      stopAutoScroll();
-    };
-  }, []);
-
   useEffect(() => {
     if (!activeListing) {
-      stopAutoScroll();
       setActiveImageIndex(0);
       return;
     }
@@ -3068,6 +3011,22 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setZoomLevel(1);
     setZoomPan({ x: 0, y: 0 });
   };
+
+  const openMasonryGallery = useCallback((images, index = 0) => {
+    const cleanImages = Array.isArray(images) ? images.filter(Boolean) : [];
+    if (!cleanImages.length) return;
+    const requestedIndex = Number.isFinite(index) ? Math.round(index) : 0;
+    const mappedIndex = Array.isArray(images)
+      ? Math.max(0, images.slice(0, requestedIndex + 1).filter(Boolean).length - 1)
+      : requestedIndex;
+    setMasonryGalleryImages(cleanImages);
+    setMasonryGalleryIndex(Math.max(0, Math.min(mappedIndex, cleanImages.length - 1)));
+    setIsMasonryGalleryOpen(true);
+  }, []);
+
+  const closeMasonryGallery = useCallback(() => {
+    setIsMasonryGalleryOpen(false);
+  }, []);
 
   const handleImagePreview = (event, src, nextIndex) => {
     if (event) {
@@ -6191,8 +6150,11 @@ const applyCheckoutPromoCode = () => {
           .filter((entry, idx, arr) => (
             arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
           ));
-        const sideImages = uniqueEntries.slice(0, 2);
-        const thumbImages = uniqueEntries.slice(0, 24);
+        const sideImages = uniqueEntries.slice(0, 4);
+        const totalPhotos = images.filter(Boolean).length;
+        const floorPlanIndex = images.findIndex((src) =>
+          typeof src === "string" && /(floor|plan|layout)/i.test(src)
+        );
         const coords = getListingCoords(activeListing);
         const addressQuery = getListingAddressQuery(activeListing);
         const mapCoords = coords || PROPERTY_COORDS;
@@ -6264,15 +6226,19 @@ const applyCheckoutPromoCode = () => {
           null;
         return (
           <>
-            <div className="la-unit-modal__grid" id="la-overview">
+            <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
               <div className="la-unit-modal__gallery">
                 <div className="la-unit-modal__main">
                   {mainImage ? (
                     <button
                       type="button"
                       className="la-unit-modal__image-button"
-                      onClick={(event) => handleImagePreview(event, mainImage)}
-                      aria-label="Open image preview"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openMasonryGallery(images, mainEntry?.idx ?? safeIndex);
+                      }}
+                      aria-label="View all photos"
                     >
                       <img
                         src={mainImage}
@@ -6284,6 +6250,24 @@ const applyCheckoutPromoCode = () => {
                   ) : (
                     <div className="la-unit-modal__placeholder">Image loading</div>
                   )}
+                  <div className="la-unit-modal__media-actions">
+                    <button
+                      type="button"
+                      className="la-unit-modal__media-action"
+                      onClick={() => openMasonryGallery(images, safeIndex)}
+                    >
+                      View all photos ({totalPhotos})
+                    </button>
+                    {floorPlanIndex >= 0 ? (
+                      <button
+                        type="button"
+                        className="la-unit-modal__media-action"
+                        onClick={() => openMasonryGallery(images, floorPlanIndex)}
+                      >
+                        Floor Plan
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="la-unit-modal__side">
                   {sideImages.length ? (
@@ -6292,8 +6276,8 @@ const applyCheckoutPromoCode = () => {
                         key={`side-${entry.idx}`}
                         type="button"
                         className="la-unit-modal__image-button"
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                        aria-label="Select image"
+                        onClick={() => openMasonryGallery(images, entry.idx)}
+                        aria-label="View photo"
                       >
                         <img
                           src={entry.src}
@@ -6304,61 +6288,13 @@ const applyCheckoutPromoCode = () => {
                       </button>
                     ))
                   ) : (
-                    [0, 1].map((idx) => (
+                    [0, 1, 2, 3].map((idx) => (
                       <div key={`side-${idx}`} className="la-unit-modal__placeholder">
                         Image loading
                       </div>
                     ))
                   )}
                 </div>
-                {thumbImages.length > 1 && (
-                  <div
-                    className="la-unit-modal__thumbs"
-                    role="list"
-                    ref={thumbsRef}
-                    onMouseEnter={(event) => {
-                      hoveredThumbsRef.current = thumbsRef.current;
-                      handleThumbsMove(event, thumbsRef);
-                    }}
-                    onMouseMove={handleThumbsMove}
-                    onMouseLeave={() => {
-                      hoveredThumbsRef.current = null;
-                      stopAutoScroll();
-                    }}
-                  >
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover left zone");
-                        startAutoScroll(thumbsRef.current, -1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover right zone");
-                        startAutoScroll(thumbsRef.current, 1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    {thumbImages.map((entry, idx) => (
-                      <button
-                        key={`${entry.src}-${entry.idx}`}
-                        type="button"
-                        className={entry.idx === safeIndex ? "is-active" : ""}
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                      >
-                        <img
-                          src={entry.src}
-                          alt=""
-                          loading={idx === 0 ? "eager" : "lazy"}
-                          onError={handleImageError}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
                   <DateRangePicker
                     value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
@@ -6962,6 +6898,16 @@ const applyCheckoutPromoCode = () => {
         zoomPortalTarget
       )
     : null;
+
+  const masonryModal = (
+    <MasonryGalleryModal
+      open={isMasonryGalleryOpen}
+      images={masonryGalleryImages}
+      initialIndex={masonryGalleryIndex}
+      title="Unit photos"
+      onClose={closeMasonryGallery}
+    />
+  );
 
   const tourPortalTarget = typeof document !== "undefined" ? document.body : null;
   const tourHighlights = Array.isArray(activeTourSlide.highlights) ? activeTourSlide.highlights : [];
@@ -7651,6 +7597,7 @@ const applyCheckoutPromoCode = () => {
         {checkoutGuestModal}
         {listingMapModal}
         {zoomModal}
+        {masonryModal}
         {tourModal}
       </div>
     );
@@ -7660,6 +7607,7 @@ const applyCheckoutPromoCode = () => {
     <div className="antwerp-page has-silk">
       {listingMapModal}
       {zoomModal}
+      {masonryModal}
       {tourModal}
       <div className="city-viewport-shell city-viewport-shell--dubai" ref={viewportShellRef}>
       {/* <section className="la-bounce-section" aria-label="Dubai highlights">
@@ -8250,7 +8198,12 @@ const applyCheckoutPromoCode = () => {
                 .slice(0, 8);
               const safeIndex = Math.min(sectionHeroIndex, Math.max(images.length - 1, 0));
               const mainImage = images[safeIndex];
-              const sideImages = [images[(safeIndex + 1) % images.length], images[(safeIndex + 2) % images.length]];
+              const sideImages = [
+                images[(safeIndex + 1) % images.length],
+                images[(safeIndex + 2) % images.length],
+                images[(safeIndex + 3) % images.length],
+                images[(safeIndex + 4) % images.length],
+              ];
               const stats = activeSection.listings.reduce(
                 (acc, listing) => {
                   const { rating, count } = getReviewStats(getListingReviews(listing));
@@ -8307,7 +8260,10 @@ const applyCheckoutPromoCode = () => {
                         <button
                           type="button"
                           className="la-section-hero__button"
-                          onClick={() => setSectionHeroIndex(safeIndex)}
+                          onClick={() => {
+                            setSectionHeroIndex(safeIndex);
+                            openMasonryGallery(images, safeIndex);
+                          }}
                         >
                           <img src={mainImage} alt={`${activeSection.label} featured`} loading="eager" />
                         </button>
@@ -8322,7 +8278,11 @@ const applyCheckoutPromoCode = () => {
                             key={`side-${idx}`}
                             type="button"
                             className="la-section-hero__button"
-                            onClick={() => setSectionHeroIndex((safeIndex + idx + 1) % images.length)}
+                            onClick={() => {
+                              const nextIndex = (safeIndex + idx + 1) % images.length;
+                              setSectionHeroIndex(nextIndex);
+                              openMasonryGallery(images, nextIndex);
+                            }}
                           >
                             <img src={src} alt="" loading={idx === 0 ? "eager" : "lazy"} />
                           </button>
@@ -8333,50 +8293,6 @@ const applyCheckoutPromoCode = () => {
                         )
                       )}
                     </div>
-                    {images.length > 3 && (
-                      <div
-                        className="la-section-hero__thumbs"
-                        role="list"
-                        ref={sectionThumbsRef}
-                        onMouseEnter={(event) => {
-                          hoveredThumbsRef.current = sectionThumbsRef.current;
-                          handleThumbsMove(event, sectionThumbsRef);
-                        }}
-                        onMouseMove={handleThumbsMove}
-                        onMouseLeave={() => {
-                          hoveredThumbsRef.current = null;
-                          stopAutoScroll();
-                        }}
-                      >
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover left zone");
-                            startAutoScroll(sectionThumbsRef.current, -1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover right zone");
-                            startAutoScroll(sectionThumbsRef.current, 1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        {images.map((src, idx) => (
-                          <button
-                            key={`${src}-${idx}`}
-                            type="button"
-                            className={idx === safeIndex ? "is-active" : ""}
-                            onClick={() => setSectionHeroIndex(idx)}
-                            aria-label={`View image ${idx + 1}`}
-                          >
-                            <img src={src} alt="" loading={idx === 0 ? "eager" : "lazy"} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <aside className="la-section-hero__aside">
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
@@ -9113,8 +9029,11 @@ const applyCheckoutPromoCode = () => {
                 .filter((entry, idx, arr) => (
                   arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
                 ));
-              const sideEntries = uniqueEntries.slice(0, 2);
-              const thumbImages = uniqueEntries.slice(0, 24);
+              const sideEntries = uniqueEntries.slice(0, 4);
+              const totalPhotos = images.filter(Boolean).length;
+              const floorPlanIndex = images.findIndex((src) =>
+                typeof src === "string" && /(floor|plan|layout)/i.test(src)
+              );
               const coords = getListingCoords(activeListing);
               const addressQuery = getListingAddressQuery(activeListing);
               const mapCoords = coords || PROPERTY_COORDS;
@@ -9169,8 +9088,12 @@ const applyCheckoutPromoCode = () => {
                         <button
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={(event) => handleImagePreview(event, current)}
-                          aria-label="Open image preview"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openMasonryGallery(images, safeIndex);
+                          }}
+                          aria-label="View all photos"
                         >
                           <img
                             src={current}
@@ -9182,6 +9105,24 @@ const applyCheckoutPromoCode = () => {
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
                       )}
+                      <div className="la-unit-modal__media-actions">
+                        <button
+                          type="button"
+                          className="la-unit-modal__media-action"
+                          onClick={() => openMasonryGallery(images, safeIndex)}
+                        >
+                          View all photos ({totalPhotos})
+                        </button>
+                        {floorPlanIndex >= 0 ? (
+                          <button
+                            type="button"
+                            className="la-unit-modal__media-action"
+                            onClick={() => openMasonryGallery(images, floorPlanIndex)}
+                          >
+                            Floor Plan
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="la-unit-modal__side">
                       {sideEntries.map((entry) => (
@@ -9189,68 +9130,19 @@ const applyCheckoutPromoCode = () => {
                           key={`side-${entry.idx}`}
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={() => setActiveImageIndex(entry.idx)}
-                          aria-label="Select image"
+                          onClick={() => openMasonryGallery(images, entry.idx)}
+                          aria-label="View photo"
                         >
                           <img src={entry.src} alt="" loading="lazy" onError={handleImageError} />
                         </button>
                       ))}
-                      {sideEntries.length < 2 &&
-                        Array.from({ length: 2 - sideEntries.length }).map((_, idx) => (
+                      {sideEntries.length < 4 &&
+                        Array.from({ length: 4 - sideEntries.length }).map((_, idx) => (
                           <div key={`side-placeholder-${idx}`} className="la-unit-modal__placeholder">
                             Image loading
                           </div>
                         ))}
                     </div>
-                    {thumbImages.length > 1 && (
-                      <div
-                        className="la-unit-modal__thumbs"
-                        role="list"
-                        ref={thumbsRef}
-                        onMouseEnter={(event) => {
-                          hoveredThumbsRef.current = thumbsRef.current;
-                          handleThumbsMove(event, thumbsRef);
-                        }}
-                        onMouseMove={handleThumbsMove}
-                        onMouseLeave={() => {
-                          hoveredThumbsRef.current = null;
-                          stopAutoScroll();
-                        }}
-                      >
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover left zone");
-                            startAutoScroll(thumbsRef.current, -1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover right zone");
-                            startAutoScroll(thumbsRef.current, 1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        {thumbImages.map((entry, idx) => (
-                          <button
-                            key={`${entry.src}-${entry.idx}`}
-                            type="button"
-                            className={entry.idx === safeIndex ? "is-active" : ""}
-                            onClick={() => setActiveImageIndex(entry.idx)}
-                            aria-label={`View image ${idx + 1}`}
-                          >
-                            <img
-                              src={entry.src}
-                              alt=""
-                              loading={idx === 0 ? "eager" : "lazy"}
-                              onError={handleImageError}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <div className="la-unit-modal__sidebar">
                     <div className="la-unit-modal__card">

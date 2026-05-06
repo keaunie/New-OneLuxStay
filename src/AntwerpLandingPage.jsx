@@ -7,6 +7,7 @@ import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import Silk from "./components/Silk";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
+import MasonryGalleryModal from "./components/MasonryGalleryModal";
 import Stepper, { Step } from "./components/Stepper";
 import LottieInlineHint from "./components/LottieInlineHint";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
@@ -1673,7 +1674,14 @@ const AMENITY_GROUPS = [
 ];
 
 const groupAmenities = (items) => {
-  const clean = items.filter((item) => typeof item === "string" && item.trim());
+  const seen = new Set();
+  const clean = items.filter((item) => {
+    if (typeof item !== "string" || !item.trim()) return false;
+    const key = item.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const groups = new Map(AMENITY_GROUPS.map((group) => [group.key, { ...group, items: [] }]));
   const misc = { key: "misc", label: "More amenities", items: [] };
   clean.forEach((amenity) => {
@@ -2163,6 +2171,90 @@ const renderFacilityIcon = (label) => {
   return (
     <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
       {iconPath}
+    </svg>
+  );
+};
+
+const getAmenityItemIcon = (item) => {
+  const s = String(item || "").toLowerCase();
+  let path = null;
+  if (/coffee|espresso|cappuccino|latte|nespresso|pod|keurig|french press/.test(s))
+    path = <><path d="M5 8h9v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8z"/><path d="M14 9h3a2 2 0 0 1 0 4h-3"/><path d="M8 4v2m4-2v2"/></>;
+  else if (/tea|kettle/.test(s))
+    path = <><path d="M5 8h9v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8z"/><path d="M14 9h3a2 2 0 0 1 0 4h-3"/><path d="M12 3c0 1-1 2-1 3"/></>;
+  else if (/wifi|wi-fi|internet|wireless/.test(s))
+    path = <path d="M4 9a12 12 0 0 1 16 0m-12 4a6 6 0 0 1 8 0m-4 4h.01"/>;
+  else if (/\btv\b|television|streaming|netflix|smart tv/.test(s))
+    path = <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 21h8m-4-2v2"/></>;
+  else if (/washer|washing machine|dryer/.test(s))
+    path = <><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h4m4 0h.01"/><circle cx="12" cy="13" r="4"/></>;
+  else if (/dishwasher|dishes|silverware|plates/.test(s))
+    path = <><path d="M3 17h18M3 7h18"/><path d="M12 7v10M7 10l2 2-2 2m10-4-2 2 2 2"/></>;
+  else if (/microwave/.test(s))
+    path = <><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M18 10h.01M18 13h.01"/><path d="M6 10h8v6H6z"/></>;
+  else if (/oven|stove|range|cooktop|burner/.test(s))
+    path = <><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="2"/><circle cx="16" cy="8" r="2"/><path d="M6 14h12v4H6z"/></>;
+  else if (/fridge|refrigerator|freezer/.test(s))
+    path = <><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M5 10h14M9 6v2m0 6v2"/></>;
+  else if (/kitchen|cookware|pots|pans|utensil/.test(s))
+    path = <><path d="M3 2v6a6 6 0 0 0 12 0V2"/><path d="M3 2h12M15 2c0 2 2 2 2 4s-2 2-2 4 2 2 2 4"/><path d="M9 12v10M12 12v10M6 12v10"/></>;
+  else if (/shower|bath|jacuzzi|hot tub/.test(s))
+    path = <><circle cx="11" cy="7" r="2"/><path d="M5 22V10a7 7 0 0 1 14 0v12"/><path d="M5 15h14m-7 7v-7"/></>;
+  else if (/towel/.test(s))
+    path = <><path d="M4 3h16v18H4z"/><path d="M4 9h16"/></>;
+  else if (/hair dryer|hairdryer/.test(s))
+    path = <><path d="M8 5v14m0-14c3-3 9-3 10 2s-6 7-10 7"/><path d="M2 3l6 6m0 6-6 6"/></>;
+  else if (/shampoo|soap|body wash|conditioner/.test(s))
+    path = <><path d="M9 3h6l1 3H8L9 3z"/><path d="M8 6h8v14a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V6z"/></>;
+  else if (/\bbed\b|linens|bedding|pillow|mattress/.test(s))
+    path = <><path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z"/></>;
+  else if (/closet|wardrobe|hanger|drawer/.test(s))
+    path = <><path d="M3 3h18v18H3V3z"/><path d="M12 3v18m-3-9 3-3 3 3"/></>;
+  else if (/sofa|couch|living/.test(s))
+    path = <><path d="M2 11v3h2v4h16v-4h2v-3a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M4 9V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></>;
+  else if (/desk|workspace|laptop|office|work area/.test(s))
+    path = <><rect x="2" y="13" width="20" height="2" rx="1"/><path d="M6 15v4m12-4v4"/><rect x="7" y="5" width="10" height="7" rx="1"/></>;
+  else if (/pool|swimming|jacuzzi/.test(s))
+    path = <><circle cx="7.5" cy="7" r="2"/><path d="M3 17c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2 2 2 4 2"/><path d="M5 12l4-2 4 2 3-1"/></>;
+  else if (/balcony|terrace|patio|garden|outdoor/.test(s))
+    path = <><path d="M4 18h16m-8-14v9m-5 0h10"/><path d="M6 18l2-6m10 6-2-6"/></>;
+  else if (/parking|garage/.test(s))
+    path = <><circle cx="12" cy="12" r="9"/><path d="M10 8h3.2a2.6 2.6 0 0 1 0 5.2H10V8zm0 0v8"/></>;
+  else if (/air condition|ac|climate|cooling/.test(s))
+    path = <><path d="M12 2v20M2 12h20m-5.66-6.34-8.68 8.68M19.66 18.34l-8.68-8.68"/><circle cx="12" cy="12" r="3"/></>;
+  else if (/heat|radiator|warming/.test(s))
+    path = <><path d="M12 2c0 4-2 4-2 8s2 4 2 8m-4-14c0 4-2 4-2 8s2 4 2 8m8-14c0 4-2 4-2 8s2 4 2 8"/></>;
+  else if (/iron|ironing/.test(s))
+    path = <><path d="M3 18h18M3 14c0-3 2-5 6-5h8a4 4 0 0 1 4 4v1H3v-1z"/><path d="M7 9V7a5 5 0 0 1 10 0v2"/></>;
+  else if (/smoke detector|smoke alarm/.test(s))
+    path = <><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3m0 4h.01"/></>;
+  else if (/carbon monoxide|co detector/.test(s))
+    path = <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>;
+  else if (/fire extinguisher/.test(s))
+    path = <><path d="M9 2h6v4H9zm3 4v2"/><path d="M5 8h14l-2 12H7L5 8z"/></>;
+  else if (/first aid|kit/.test(s))
+    path = <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/></>;
+  else if (/safe|locker/.test(s))
+    path = <><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9v-4m0 14v-4m-3-3H5m14 0h-4"/></>;
+  else if (/pets|pet friendly|dogs|cats/.test(s))
+    path = <><path d="M10 3.5a2.5 2.5 0 0 1 5 0m-2 3a2.5 2.5 0 0 1 5 0m-9-1a2.5 2.5 0 0 1 5 0m-9 3a2.5 2.5 0 0 1 5 0"/><path d="M7 14c0 3 1.5 5 5 5s5-2 5-5c0-2-3-4-5-4s-5 2-5 4z"/></>;
+  else if (/bbq|grill|barbecue/.test(s))
+    path = <><path d="M6 11h12m-8 0v3a4 4 0 0 0 8 0v-3"/><path d="M7 18l-2 3m14-3 2 3M10 3h4m-3 0v3m2-3v3"/></>;
+  else if (/elevator|lift/.test(s))
+    path = <><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7l3-3 3 3m-6 10 3 3 3-3"/></>;
+  else if (/gym|fitness|exercise/.test(s))
+    path = <path d="M3 11h3v2H3zm15 0h3v2h-3zM7 9h2v6H7zm8 0h2v6h-2zM9 11h6v2H9z"/>;
+  else if (/key|lockbox|self check|keyless/.test(s))
+    path = <><circle cx="7" cy="15" r="4"/><path d="M10.6 11.4 19 3m0 0h-5m5 0v5"/></>;
+  else if (/luggage|storage|locker/.test(s))
+    path = <><rect x="4" y="8" width="16" height="13" rx="2"/><path d="M8 8V5a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></>;
+  else if (/long term|monthly|weekly|flexible/.test(s))
+    path = <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></>;
+  else
+    path = <path d="M9 12l2 2 4-4m-9 8h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"/>;
+  return (
+    <svg className="la-amenity-item-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {path}
     </svg>
   );
 };
@@ -2725,14 +2817,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [showCityTour, setShowCityTour] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
-  const autoScrollRef = useRef({ id: null, element: null, direction: 0 });
-  const hoveredThumbsRef = useRef(null);
-  const thumbsRef = useRef(null);
-  const sectionThumbsRef = useRef(null);
   const [isListingMapOpen, setIsListingMapOpen] = useState(false);
   const [zoomImageUrl, setZoomImageUrl] = useState("");
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomPan, setZoomPan] = useState({ x: 0, y: 0 });
+  const [isMasonryGalleryOpen, setIsMasonryGalleryOpen] = useState(false);
+  const [masonryGalleryImages, setMasonryGalleryImages] = useState([]);
+  const [masonryGalleryIndex, setMasonryGalleryIndex] = useState(0);
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const panOriginRef = useRef({ x: 0, y: 0 });
@@ -2883,65 +2974,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     [sectionCalendarCurrentMonth]
   );
 
-  const stopAutoScroll = () => {
-    if (autoScrollRef.current.id) {
-      cancelAnimationFrame(autoScrollRef.current.id);
-      autoScrollRef.current.id = null;
-      autoScrollRef.current.element = null;
-      autoScrollRef.current.direction = 0;
-    }
-  };
-
-  const startAutoScroll = (element, direction) => {
-    if (!element) return;
-    const current = autoScrollRef.current;
-    if (current.element === element && current.direction === direction && current.id) return;
-    stopAutoScroll();
-    autoScrollRef.current.element = element;
-    autoScrollRef.current.direction = direction;
-    const step = () => {
-      if (!autoScrollRef.current.element) return;
-      autoScrollRef.current.element.scrollBy({ left: direction * 6, behavior: "auto" });
-      autoScrollRef.current.id = requestAnimationFrame(step);
-    };
-    autoScrollRef.current.id = requestAnimationFrame(step);
-  };
-
-  const handleThumbsMove = (event, targetRef) => {
-    const target = targetRef?.current || event.currentTarget;
-    if (!target) {
-      console.log("[Thumbs] no target for hover scroll");
-      return;
-    }
-    const rect = target.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const edge = rect.width * 0.35;
-    if (x < edge) {
-      console.log("[Thumbs] hover left edge");
-      startAutoScroll(target, -1);
-    } else if (x > rect.width - edge) {
-      console.log("[Thumbs] hover right edge");
-      startAutoScroll(target, 1);
-    } else {
-      stopAutoScroll();
-    }
-  };
-
-  useEffect(() => {
-    const handleMove = (event) => {
-      if (!hoveredThumbsRef.current) return;
-      handleThumbsMove(event, { current: hoveredThumbsRef.current });
-    };
-    window.addEventListener("mousemove", handleMove);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      stopAutoScroll();
-    };
-  }, []);
-
   useEffect(() => {
     if (!activeListing) {
-      stopAutoScroll();
       setActiveImageIndex(0);
       return;
     }
@@ -3039,6 +3073,22 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setZoomLevel(1);
     setZoomPan({ x: 0, y: 0 });
   };
+
+  const openMasonryGallery = useCallback((images, index = 0) => {
+    const cleanImages = Array.isArray(images) ? images.filter(Boolean) : [];
+    if (!cleanImages.length) return;
+    const requestedIndex = Number.isFinite(index) ? Math.round(index) : 0;
+    const mappedIndex = Array.isArray(images)
+      ? Math.max(0, images.slice(0, requestedIndex + 1).filter(Boolean).length - 1)
+      : requestedIndex;
+    setMasonryGalleryImages(cleanImages);
+    setMasonryGalleryIndex(Math.max(0, Math.min(mappedIndex, cleanImages.length - 1)));
+    setIsMasonryGalleryOpen(true);
+  }, []);
+
+  const closeMasonryGallery = useCallback(() => {
+    setIsMasonryGalleryOpen(false);
+  }, []);
 
   const handleImagePreview = (event, src, nextIndex) => {
     if (event) {
@@ -6040,36 +6090,6 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section>
-      <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
-        <button
-          type="button"
-          className={listingTab === "overview" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("overview")}
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          className={listingTab === "facilities" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("facilities")}
-        >
-          Facilities
-        </button>
-        <button
-          type="button"
-          className={listingTab === "guest-reviews" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("guest-reviews")}
-        >
-          Guest reviews
-        </button>
-        <button
-          type="button"
-          className={listingTab === "house-rules" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("house-rules")}
-        >
-          House rules
-        </button>
-      </div>
       {(() => {
         const galleryListing = getGalleryListing(activeListing, listings);
         const images = getListingImageUrls(galleryListing);
@@ -6085,8 +6105,11 @@ const applyCheckoutPromoCode = () => {
           .filter((entry, idx, arr) => (
             arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
           ));
-        const sideImages = uniqueEntries.slice(0, 2);
-        const thumbImages = uniqueEntries.slice(0, 24);
+        const sideImages = uniqueEntries.slice(0, 4);
+        const totalPhotos = images.filter(Boolean).length;
+        const floorPlanIndex = images.findIndex((src) =>
+          typeof src === "string" && /(floor|plan|layout)/i.test(src)
+        );
         const coords = getListingCoords(activeListing);
         const addressQuery = getListingAddressQuery(activeListing);
         const mapCoords = coords || PROPERTY_COORDS;
@@ -6158,15 +6181,19 @@ const applyCheckoutPromoCode = () => {
           null;
         return (
           <>
-            <div className="la-unit-modal__grid" id="la-overview">
+            <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
               <div className="la-unit-modal__gallery">
                 <div className="la-unit-modal__main">
                   {mainImage ? (
                     <button
                       type="button"
                       className="la-unit-modal__image-button"
-                      onClick={(event) => handleImagePreview(event, mainImage)}
-                      aria-label="Open image preview"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openMasonryGallery(images, mainEntry?.idx ?? safeIndex);
+                      }}
+                      aria-label="View all photos"
                     >
                       <img
                         src={mainImage}
@@ -6180,6 +6207,24 @@ const applyCheckoutPromoCode = () => {
                   ) : (
                     <div className="la-unit-modal__placeholder">Image loading</div>
                   )}
+                  <div className="la-unit-modal__media-actions">
+                    <button
+                      type="button"
+                      className="la-unit-modal__media-action"
+                      onClick={() => openMasonryGallery(images, safeIndex)}
+                    >
+                      View all photos ({totalPhotos})
+                    </button>
+                    {floorPlanIndex >= 0 ? (
+                      <button
+                        type="button"
+                        className="la-unit-modal__media-action"
+                        onClick={() => openMasonryGallery(images, floorPlanIndex)}
+                      >
+                        Floor Plan
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="la-unit-modal__side">
                   {sideImages.length ? (
@@ -6188,8 +6233,8 @@ const applyCheckoutPromoCode = () => {
                         key={`side-${entry.idx}`}
                         type="button"
                         className="la-unit-modal__image-button"
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                        aria-label="Select image"
+                        onClick={() => openMasonryGallery(images, entry.idx)}
+                        aria-label="View photo"
                       >
                         <img
                           src={entry.src}
@@ -6202,169 +6247,140 @@ const applyCheckoutPromoCode = () => {
                       </button>
                     ))
                   ) : (
-                    [0, 1].map((idx) => (
+                    [0, 1, 2, 3].map((idx) => (
                       <div key={`side-${idx}`} className="la-unit-modal__placeholder">
                         Image loading
                       </div>
                     ))
                   )}
                 </div>
-                {thumbImages.length > 1 && (
-                  <div
-                    className="la-unit-modal__thumbs"
-                    role="list"
-                    ref={thumbsRef}
-                    onMouseEnter={(event) => {
-                      hoveredThumbsRef.current = thumbsRef.current;
-                      handleThumbsMove(event, thumbsRef);
-                    }}
-                    onMouseMove={handleThumbsMove}
-                    onMouseLeave={() => {
-                      hoveredThumbsRef.current = null;
-                      stopAutoScroll();
-                    }}
-                  >
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover left zone");
-                        startAutoScroll(thumbsRef.current, -1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    <div
-                      className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                      onMouseEnter={() => {
-                        console.log("[Thumbs] hover right zone");
-                        startAutoScroll(thumbsRef.current, 1);
-                      }}
-                      onMouseLeave={stopAutoScroll}
-                    />
-                    {thumbImages.map((entry, idx) => (
-                      <button
-                        key={`${entry.src}-${entry.idx}`}
-                        type="button"
-                        className={entry.idx === safeIndex ? "is-active" : ""}
-                        onClick={() => setActiveImageIndex(entry.idx)}
-                      >
-                        <img
-                          src={entry.src}
-                          alt=""
-                          loading={idx === 0 ? "eager" : "lazy"}
-                          onError={handleImageError}
-                          width="160"
-                          height="120"
-                        />
-                      </button>
-                    ))}
+              </div>
+            </div>
+            <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
+              <button
+                type="button"
+                className={listingTab === "overview" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("overview")}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                className={listingTab === "facilities" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("facilities")}
+              >
+                Facilities
+              </button>
+              <button
+                type="button"
+                className={listingTab === "guest-reviews" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("guest-reviews")}
+              >
+                Guest reviews
+              </button>
+              <button
+                type="button"
+                className={listingTab === "house-rules" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("house-rules")}
+              >
+                House rules
+              </button>
+            </div>
+            <div className="la-unit-modal__sidebar">
+              <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
+                <div className="la-unit-modal__bp-price">
+                  <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
+                  <small>per night {"\u00b7"} taxes at checkout</small>
+                </div>
+                <div className="la-unit-modal__bp-divider" />
+                <DateRangePicker
+                  value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                  dayPrices={calendarDayMap}
+                  dayAvailability={calendarAvailabilityMap}
+                  onValidationChange={handleSectionDateValidation}
+                  onChange={({ checkIn, checkOut }) => {
+                    setSectionCheckIn(checkIn);
+                    setSectionCheckOut(checkOut);
+                  }}
+                  onMonthChange={(nextMonth) => {
+                    const listingId = getCalendarListingId(activeListing, losAngelesListings);
+                    if (!listingId) return;
+                    const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                    setCalendarStartDate(monthStart);
+                    setCalendarMonthIndex(0);
+                    const loadMonth = (targetMonth) => {
+                      fetchCalendarMonth(
+                        listingId,
+                        targetMonth,
+                        calendarCacheRef,
+                        calendarDaysRef,
+                        calendarInflightRef,
+                        setCalendarLoading,
+                        setCalendarError,
+                        setCalendarPrices
+                      );
+                    };
+                    loadMonth(monthStart);
+                    if (isDesktopCalendarViewport()) {
+                      const nextVisibleMonth = addMonths(monthStart, 1);
+                      nextVisibleMonth.setDate(1);
+                      nextVisibleMonth.setHours(0, 0, 0, 0);
+                      loadMonth(nextVisibleMonth);
+                    }
+                  }}
+                  onOpenChange={handleListingCalendarOpen}
+                  isLoading={calendarLoading}
+                  fallbackPrice={activeListing.basePrice}
+                  fallbackCurrency={activeListing.currency}
+                  fallbackMinNights={listingMinNightsFallback}
+                />
+                {cityDateNightCount > 0 && (
+                  <div className="la-unit-modal__bp-nights">
+                    {cityDateNightCount} night{cityDateNightCount !== 1 ? "s" : ""}
                   </div>
                 )}
-                <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
-                  <DateRangePicker
-                    value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                    dayPrices={calendarDayMap}
-                    dayAvailability={calendarAvailabilityMap}
-                    onValidationChange={handleSectionDateValidation}
-                    onChange={({ checkIn, checkOut }) => {
-                      setSectionCheckIn(checkIn);
-                      setSectionCheckOut(checkOut);
-                    }}
-                    onMonthChange={(nextMonth) => {
-                      const listingId = getCalendarListingId(activeListing, losAngelesListings);
-                      if (!listingId) return;
-                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                      setCalendarStartDate(monthStart);
-                      setCalendarMonthIndex(0);
-                      const loadMonth = (targetMonth) => {
-                        fetchCalendarMonth(
-                          listingId,
-                          targetMonth,
-                          calendarCacheRef,
-                          calendarDaysRef,
-                          calendarInflightRef,
-                          setCalendarLoading,
-                          setCalendarError,
-                          setCalendarPrices
-                        );
-                      };
-                      loadMonth(monthStart);
-                      if (isDesktopCalendarViewport()) {
-                        const nextVisibleMonth = addMonths(monthStart, 1);
-                        nextVisibleMonth.setDate(1);
-                        nextVisibleMonth.setHours(0, 0, 0, 0);
-                        loadMonth(nextVisibleMonth);
-                      }
-                    }}
-                    onOpenChange={handleListingCalendarOpen}
-                    isLoading={calendarLoading}
-                    fallbackPrice={activeListing.basePrice}
-                    fallbackCurrency={activeListing.currency}
-                    fallbackMinNights={listingMinNightsFallback}
-                  />
-                  <div>
-                    <label htmlFor="la-section-guests">Guests</label>
-                    <select
-                      id="la-section-guests"
-                      value={sectionGuests}
-                      onChange={(event) => setSectionGuests(event.target.value)}
-                    >
-                      {sectionGuestOptions.map((guestOption) => (
-                        <option key={guestOption} value={guestOption}>
-                          {guestOption}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    className="la-unit-modal__booking-cta"
-                    disabled={sectionAvailabilityLoading || isStayTooShort}
-                    onClick={() => {
-                      if (isStayTooShort) {
-                        setSectionAvailabilityError(stayTooShortMessage);
-                        return;
-                      }
-                      fetchAvailabilityListings({ shouldScroll: true });
-                    }}
+                <div className="la-unit-modal__bp-guests">
+                  <label htmlFor="la-section-guests">Guests</label>
+                  <select
+                    id="la-section-guests"
+                    value={sectionGuests}
+                    onChange={(event) => setSectionGuests(event.target.value)}
                   >
-                    {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
-                  </button>
+                    {sectionGuestOptions.map((guestOption) => (
+                      <option key={guestOption} value={guestOption}>
+                        {guestOption}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-            <div className="la-unit-modal__sidebar">
-              <div className="la-unit-modal__contact" aria-label="Reservation contact">
-                <p>For Reservation Contact</p>
-                <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+32460254886">+32 460 25 48 86</a>
-                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                                <a
-                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
-                  className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                  disabled={sectionAvailabilityLoading || isStayTooShort}
+                  onClick={() => {
+                    if (isStayTooShort) {
+                      setSectionAvailabilityError(stayTooShortMessage);
+                      return;
+                    }
+                    fetchAvailabilityListings({ shouldScroll: true });
+                  }}
                 >
-                  WhatsApp
-                </a>
-              </div>
-              <div className="la-unit-modal__card la-unit-modal__price">
-                <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
-                <small>per night {"\u00b7"} taxes calculated at checkout</small>
-                {isListingAvailable ? (
-                  <button
-                    type="button"
-                    className="la-listing-hero__reserve"
-                    disabled={sectionAvailabilityLoading || isStayTooShort}
-                    onClick={() => {
-                      if (isStayTooShort) {
-                        setSectionAvailabilityError(stayTooShortMessage);
-                        return;
-                      }
-                      fetchAvailabilityListings({ shouldScroll: true });
-                    }}
+                  {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                </button>
+                <div className="la-unit-modal__bp-divider" />
+                <div className="la-unit-modal__bp-contact">
+                  <strong>OneLuxStay Antwerp</strong>
+                  <a href="tel:+32460254886">+32 460 25 48 86</a>
+                  <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                  <a
+                    href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                    className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    Reserve your dates
-                  </button>
-                ) : null}
+                    WhatsApp
+                  </a>
+                </div>
               </div>
               <div className="la-unit-modal__card" id="la-guest-reviews">
                 {(() => {
@@ -6594,7 +6610,6 @@ const applyCheckoutPromoCode = () => {
                   </div>
                 </div>
               </div>
-            </div>
             {sectionValidationNotice && (
               <div role="alert" className="la-section-hero__notice">
                 {sectionValidationNotice}
@@ -6682,7 +6697,10 @@ const applyCheckoutPromoCode = () => {
                     </div>
                     <ul>
                       {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
-                        <li key={`${group.key}-${idx}-${item}`}>{item}</li>
+                        <li key={`${group.key}-${idx}-${item}`}>
+                          {getAmenityItemIcon(item)}
+                          <span>{item}</span>
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -6870,6 +6888,16 @@ const applyCheckoutPromoCode = () => {
         zoomPortalTarget
       )
     : null;
+
+  const masonryModal = (
+    <MasonryGalleryModal
+      open={isMasonryGalleryOpen}
+      images={masonryGalleryImages}
+      initialIndex={masonryGalleryIndex}
+      title="Unit photos"
+      onClose={closeMasonryGallery}
+    />
+  );
 
   const tourPortalTarget = typeof document !== "undefined" ? document.body : null;
   const tourHighlights = Array.isArray(activeTourSlide.highlights) ? activeTourSlide.highlights : [];
@@ -7563,6 +7591,7 @@ const applyCheckoutPromoCode = () => {
         {checkoutGuestModal}
         {listingMapModal}
         {zoomModal}
+        {masonryModal}
         {tourModal}
       </div>
     );
@@ -7572,6 +7601,7 @@ const applyCheckoutPromoCode = () => {
     <div className="antwerp-page has-silk">
       {listingMapModal}
       {zoomModal}
+      {masonryModal}
       {tourModal}
       <div className="city-viewport-shell city-viewport-shell--dubai" ref={viewportShellRef}>
       {/* <section className="la-bounce-section" aria-label="Antwerp highlights">
@@ -8164,7 +8194,12 @@ const applyCheckoutPromoCode = () => {
                 .slice(0, 8);
               const safeIndex = Math.min(sectionHeroIndex, Math.max(images.length - 1, 0));
               const mainImage = images[safeIndex];
-              const sideImages = [images[(safeIndex + 1) % images.length], images[(safeIndex + 2) % images.length]];
+              const sideImages = [
+                images[(safeIndex + 1) % images.length],
+                images[(safeIndex + 2) % images.length],
+                images[(safeIndex + 3) % images.length],
+                images[(safeIndex + 4) % images.length],
+              ];
               const stats = activeSection.listings.reduce(
                 (acc, listing) => {
                   const { rating, count } = getReviewStats(getListingReviews(listing));
@@ -8220,7 +8255,10 @@ const applyCheckoutPromoCode = () => {
                         <button
                           type="button"
                           className="la-section-hero__button"
-                          onClick={() => setSectionHeroIndex(safeIndex)}
+                          onClick={() => {
+                            setSectionHeroIndex(safeIndex);
+                            openMasonryGallery(images, safeIndex);
+                          }}
                         >
                           <img
                             src={mainImage}
@@ -8241,7 +8279,11 @@ const applyCheckoutPromoCode = () => {
                             key={`side-${idx}`}
                             type="button"
                             className="la-section-hero__button"
-                            onClick={() => setSectionHeroIndex((safeIndex + idx + 1) % images.length)}
+                            onClick={() => {
+                              const nextIndex = (safeIndex + idx + 1) % images.length;
+                              setSectionHeroIndex(nextIndex);
+                              openMasonryGallery(images, nextIndex);
+                            }}
                           >
                             <img
                               src={src}
@@ -8258,56 +8300,6 @@ const applyCheckoutPromoCode = () => {
                         )
                       )}
                     </div>
-                    {images.length > 3 && (
-                      <div
-                        className="la-section-hero__thumbs"
-                        role="list"
-                        ref={sectionThumbsRef}
-                        onMouseEnter={(event) => {
-                          hoveredThumbsRef.current = sectionThumbsRef.current;
-                          handleThumbsMove(event, sectionThumbsRef);
-                        }}
-                        onMouseMove={handleThumbsMove}
-                        onMouseLeave={() => {
-                          hoveredThumbsRef.current = null;
-                          stopAutoScroll();
-                        }}
-                      >
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover left zone");
-                            startAutoScroll(sectionThumbsRef.current, -1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover right zone");
-                            startAutoScroll(sectionThumbsRef.current, 1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        {images.map((src, idx) => (
-                          <button
-                            key={`${src}-${idx}`}
-                            type="button"
-                            className={idx === safeIndex ? "is-active" : ""}
-                            onClick={() => setSectionHeroIndex(idx)}
-                            aria-label={`View image ${idx + 1}`}
-                          >
-                            <img
-                              src={src}
-                              alt=""
-                              loading={idx === 0 ? "eager" : "lazy"}
-                              width="160"
-                              height="120"
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <aside className="la-section-hero__aside">
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
@@ -9057,8 +9049,11 @@ const applyCheckoutPromoCode = () => {
                 .filter((entry, idx, arr) => (
                   arr.findIndex((item) => getImageKey(item.src) === getImageKey(entry.src)) === idx
                 ));
-              const sideEntries = uniqueEntries.slice(0, 2);
-              const thumbImages = uniqueEntries.slice(0, 24);
+              const sideEntries = uniqueEntries.slice(0, 4);
+              const totalPhotos = images.filter(Boolean).length;
+              const floorPlanIndex = images.findIndex((src) =>
+                typeof src === "string" && /(floor|plan|layout)/i.test(src)
+              );
               const coords = getListingCoords(activeListing);
               const addressQuery = getListingAddressQuery(activeListing);
               const mapCoords = coords || PROPERTY_COORDS;
@@ -9113,8 +9108,12 @@ const applyCheckoutPromoCode = () => {
                         <button
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={(event) => handleImagePreview(event, current)}
-                          aria-label="Open image preview"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openMasonryGallery(images, safeIndex);
+                          }}
+                          aria-label="View all photos"
                         >
                           <img
                             src={current}
@@ -9128,6 +9127,24 @@ const applyCheckoutPromoCode = () => {
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
                       )}
+                      <div className="la-unit-modal__media-actions">
+                        <button
+                          type="button"
+                          className="la-unit-modal__media-action"
+                          onClick={() => openMasonryGallery(images, safeIndex)}
+                        >
+                          View all photos ({totalPhotos})
+                        </button>
+                        {floorPlanIndex >= 0 ? (
+                          <button
+                            type="button"
+                            className="la-unit-modal__media-action"
+                            onClick={() => openMasonryGallery(images, floorPlanIndex)}
+                          >
+                            Floor Plan
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="la-unit-modal__side">
                       {sideEntries.map((entry) => (
@@ -9135,8 +9152,8 @@ const applyCheckoutPromoCode = () => {
                           key={`side-${entry.idx}`}
                           type="button"
                           className="la-unit-modal__image-button"
-                          onClick={() => setActiveImageIndex(entry.idx)}
-                          aria-label="Select image"
+                          onClick={() => openMasonryGallery(images, entry.idx)}
+                          aria-label="View photo"
                         >
                           <img
                             src={entry.src}
@@ -9148,64 +9165,13 @@ const applyCheckoutPromoCode = () => {
                           />
                         </button>
                       ))}
-                      {sideEntries.length < 2 &&
-                        Array.from({ length: 2 - sideEntries.length }).map((_, idx) => (
+                      {sideEntries.length < 4 &&
+                        Array.from({ length: 4 - sideEntries.length }).map((_, idx) => (
                           <div key={`side-placeholder-${idx}`} className="la-unit-modal__placeholder">
                             Image loading
                           </div>
                         ))}
                     </div>
-                    {thumbImages.length > 1 && (
-                      <div
-                        className="la-unit-modal__thumbs"
-                        role="list"
-                        ref={thumbsRef}
-                        onMouseEnter={(event) => {
-                          hoveredThumbsRef.current = thumbsRef.current;
-                          handleThumbsMove(event, thumbsRef);
-                        }}
-                        onMouseMove={handleThumbsMove}
-                        onMouseLeave={() => {
-                          hoveredThumbsRef.current = null;
-                          stopAutoScroll();
-                        }}
-                      >
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--left"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover left zone");
-                            startAutoScroll(thumbsRef.current, -1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        <div
-                          className="la-thumb-scroll-zone la-thumb-scroll-zone--right"
-                          onMouseEnter={() => {
-                            console.log("[Thumbs] hover right zone");
-                            startAutoScroll(thumbsRef.current, 1);
-                          }}
-                          onMouseLeave={stopAutoScroll}
-                        />
-                        {thumbImages.map((entry, idx) => (
-                          <button
-                            key={`${entry.src}-${entry.idx}`}
-                            type="button"
-                            className={entry.idx === safeIndex ? "is-active" : ""}
-                            onClick={() => setActiveImageIndex(entry.idx)}
-                            aria-label={`View image ${idx + 1}`}
-                          >
-                            <img
-                              src={entry.src}
-                              alt=""
-                              loading={idx === 0 ? "eager" : "lazy"}
-                              onError={handleImageError}
-                              width="160"
-                              height="120"
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <div className="la-unit-modal__sidebar">
                     <div className="la-unit-modal__card">

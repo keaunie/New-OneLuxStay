@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Select-String -Path src\\\\App.css -Pattern \"^\\\\.\\(la-listing-shell|la-listing-page|la-unit-modal|la-unit-modal__grid|la-listing-hero__top|la-unit-modal__section|la-unit-modal__tabs|la-unit-modal__nav\\)\")",
+      "Bash(Select-Object -First 100)",
+      "Bash(Select-String -Path AntwerpLandingPage.jsx -Pattern \"la-unit-modal__grid|la-unit-modal__sidebar\" -Context 1)",
+      "Bash(python -c ' *)"
     ]
   }
 }
