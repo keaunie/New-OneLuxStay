@@ -5,7 +5,13 @@
       "Bash(Select-String -Path src\\\\App.css -Pattern \"^\\\\.\\(la-listing-shell|la-listing-page|la-unit-modal|la-unit-modal__grid|la-listing-hero__top|la-unit-modal__section|la-unit-modal__tabs|la-unit-modal__nav\\)\")",
       "Bash(Select-Object -First 100)",
       "Bash(Select-String -Path AntwerpLandingPage.jsx -Pattern \"la-unit-modal__grid|la-unit-modal__sidebar\" -Context 1)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\src\\\\utils\" -Filter \"leafletMapsAdapter.*\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\" -Recurse -Filter \"*Range*\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 20)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\src\\\\components\" -File -Recurse | Where-Object {$_.Name -match \"Date|date|Calendar|calendar|picker|Picker\"})",
+      "Bash(npx vite *)"
     ]
   }
 }

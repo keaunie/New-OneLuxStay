@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useState } from "r
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
+import ScrollToTop from "./components/ScrollToTop";
 import { trackGuestPageView } from "./utils/guestAnalytics";
 import "./App.css";
 
@@ -138,6 +139,7 @@ function AppRoutes() {
           <LoadingScreen active={!appLoaded} />
         </Suspense>
       )}
+      <ScrollToTop />
       <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
         <Routes>
           <Route path="/" element={<RootRoute />} />

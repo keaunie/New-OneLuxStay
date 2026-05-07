@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import PhotoLightbox from "./PhotoLightbox";
 
 export default function MasonryGalleryModal({
   open,
@@ -16,17 +17,29 @@ export default function MasonryGalleryModal({
   const hasScrolledRef = useRef(false);
   const portalTarget = typeof document !== "undefined" ? document.body : null;
 
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (idx) => {
+    setLightboxIndex(idx);
+    setLightboxOpen(true);
+  };
+  const closeLightbox = () => setLightboxOpen(false);
+
   useEffect(() => {
     if (!open) {
       hasScrolledRef.current = false;
+      setLightboxOpen(false);
       return undefined;
     }
     const handleEsc = (event) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape") {
+        if (!lightboxOpen) onClose?.();
+      }
     };
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
-  }, [open, onClose]);
+  }, [open, onClose, lightboxOpen]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -54,51 +67,74 @@ export default function MasonryGalleryModal({
   if (!open || !portalTarget) return null;
 
   return createPortal(
-    <div
-      className="ols-masonry-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${title} gallery`}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose?.();
-      }}
-    >
-      <div className="ols-masonry-modal__inner">
-        <header className="ols-masonry-modal__header">
-          <button type="button" className="ols-masonry-modal__back" onClick={onClose}>
-            Back to apartment
-          </button>
-          <div className="ols-masonry-modal__title">
-            <strong>{title}</strong>
-            {cleanImages.length ? <span>{cleanImages.length} photos</span> : null}
-          </div>
-          <button type="button" className="ols-masonry-modal__close" onClick={onClose} aria-label="Close">
-            Close
-          </button>
-        </header>
-        <div className="ols-masonry-modal__content">
-          <div className="ols-masonry-modal__masonry" role="list">
-            {cleanImages.map((src, idx) => (
-              <div
-                key={`${src}-${idx}`}
-                className="ols-masonry-modal__item"
-                role="listitem"
-                ref={(node) => {
-                  if (!node) {
-                    itemRefs.current.delete(idx);
-                    return;
-                  }
-                  itemRefs.current.set(idx, node);
-                }}
-              >
-                <img src={src} alt="" loading={idx < 4 ? "eager" : "lazy"} />
-              </div>
-            ))}
+    <>
+      <div
+        className="ols-masonry-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${title} gallery`}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose?.();
+        }}
+      >
+        <div className="ols-masonry-modal__inner">
+          <header className="ols-masonry-modal__header">
+            <button type="button" className="ols-masonry-modal__back" onClick={onClose}>
+              Back to apartment
+            </button>
+            <div className="ols-masonry-modal__title">
+              <strong>{title}</strong>
+              {cleanImages.length ? <span>{cleanImages.length} photos</span> : null}
+            </div>
+            <button
+              type="button"
+              className="ols-masonry-modal__close"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              Close
+            </button>
+          </header>
+          <div className="ols-masonry-modal__content">
+            <div className="ols-masonry-modal__masonry" role="list">
+              {cleanImages.map((src, idx) => (
+                <div
+                  key={`${src}-${idx}`}
+                  className="ols-masonry-modal__item"
+                  role="listitem"
+                  ref={(node) => {
+                    if (!node) {
+                      itemRefs.current.delete(idx);
+                      return;
+                    }
+                    itemRefs.current.set(idx, node);
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="ols-masonry-modal__item-btn"
+                    onClick={() => openLightbox(idx)}
+                    aria-label={`View photo ${idx + 1} of ${cleanImages.length}`}
+                  >
+                    <img
+                      src={src}
+                      alt=""
+                      loading={idx < 4 ? "eager" : "lazy"}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>,
+      <PhotoLightbox
+        open={lightboxOpen}
+        images={cleanImages}
+        index={lightboxIndex}
+        onClose={closeLightbox}
+      />
+    </>,
     portalTarget,
   );
 }
-

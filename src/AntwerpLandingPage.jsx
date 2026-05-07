@@ -2578,6 +2578,257 @@ const formatFullDescription = (listing) => {
   return fallback.length ? `Details: ${fallback.join(" | ")}` : "No description available.";
 };
 
+const NEIGHBORHOOD_HIGHLIGHTS = [
+  {
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="14" rx="3" />
+        <path d="M4 10h16" />
+        <circle cx="9" cy="13.5" r="1" />
+        <circle cx="15" cy="13.5" r="1" />
+        <path d="M9 17l-1.5 4M15 17l1.5 4" />
+      </svg>
+    ),
+    title: "Antwerp Central Station",
+    distance: "3 min walk",
+    desc: "One of Europe's most celebrated railway stations — an architectural masterpiece steps from your door.",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 2l2.5 5 5.5.8-4 3.9.95 5.5L12 14.5l-4.95 2.7.95-5.5-4-3.9 5.5-.8z" />
+      </svg>
+    ),
+    title: "Diamond District",
+    distance: "2 min walk",
+    desc: "The world's foremost diamond trading quarter — centuries of craft and commerce on every street.",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 01-8 0" />
+      </svg>
+    ),
+    title: "Meir Shopping Street",
+    distance: "8 min walk",
+    desc: "Belgium's premier retail boulevard — flagship boutiques, artisan chocolatiers, and Belgian design.",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 21h18" />
+        <path d="M5 21V7l7-4 7 4v14" />
+        <path d="M9 21v-8h6v8" />
+      </svg>
+    ),
+    title: "Groenplaats",
+    distance: "12 min walk",
+    desc: "The living heart of old Antwerp, framed by café terraces, heritage facades, and the Cathedral of Our Lady.",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="5" r="2" />
+        <path d="M12 7v4" />
+        <path d="M5 21l7-10 7 10" />
+        <path d="M8 17h8" />
+      </svg>
+    ),
+    title: "Fashion District",
+    distance: "7 min walk",
+    desc: "Home to the Antwerp Six legacy, MoMu fashion museum, and an international community of designers.",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 11l19-9-9 19-2-8-8-2z" />
+      </svg>
+    ),
+    title: "Tram & Transit Access",
+    distance: "1 min walk",
+    desc: "Direct tram and De Lijn bus lines connect you to every corner of Antwerp with ease.",
+  },
+];
+
+function NeighborhoodHighlightsSection() {
+  return (
+    <section className="ols-nbh" aria-label="Neighborhood highlights">
+      <div className="ols-nbh__inner">
+        <header className="ols-nbh__header">
+          <span className="ols-nbh__eyebrow">Location</span>
+          <h2 className="ols-nbh__title">Neighborhood highlights</h2>
+          <p className="ols-nbh__intro">
+            Stay in the heart of Antwerp&rsquo;s fashion and diamond district &mdash; steps from the city&rsquo;s
+            most celebrated landmarks, transport connections, and dining.
+          </p>
+        </header>
+        <ul className="ols-nbh__grid">
+          {NEIGHBORHOOD_HIGHLIGHTS.map((item) => (
+            <li key={item.title} className="ols-nbh__card">
+              <div className="ols-nbh__icon" aria-hidden="true">
+                {item.icon}
+              </div>
+              <div className="ols-nbh__card-body">
+                <div className="ols-nbh__card-top">
+                  <h3 className="ols-nbh__card-title">{item.title}</h3>
+                  <span className="ols-nbh__pill">{item.distance}</span>
+                </div>
+                <p className="ols-nbh__card-desc">{item.desc}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function SimilarUnitsSection({ listings }) {
+  const trackRef = useRef(null);
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
+
+  const syncBtns = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    setAtStart(el.scrollLeft <= 8);
+    setAtEnd(el.scrollLeft >= el.scrollWidth - el.clientWidth - 8);
+  }, []);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    syncBtns();
+    el.addEventListener("scroll", syncBtns, { passive: true });
+    const ro = new ResizeObserver(syncBtns);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", syncBtns);
+      ro.disconnect();
+    };
+  }, [syncBtns, listings]);
+
+  const nudge = (dir) => {
+    trackRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
+
+  const items = (Array.isArray(listings) ? listings : []).slice(0, 3);
+  if (!items.length) return null;
+
+  return (
+    <section className="ols-similar" aria-label="Similar units">
+      <div className="ols-similar__head">
+        <div className="ols-similar__head-text">
+          <span className="ols-similar__eyebrow">Keep exploring</span>
+          <h2 className="ols-similar__title">Similar units</h2>
+        </div>
+        {items.length > 3 && <div className="ols-similar__nav" aria-hidden="true">
+          <button
+            type="button"
+            className="ols-similar__nav-btn"
+            onClick={() => nudge(-1)}
+            disabled={atStart}
+            aria-label="Scroll left"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="ols-similar__nav-btn"
+            onClick={() => nudge(1)}
+            disabled={atEnd}
+            aria-label="Scroll right"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>}
+      </div>
+
+      <div className="ols-similar__track" ref={trackRef} role="list">
+        {items.map((listing) => {
+          const id = getListingId(listing);
+          const path = id ? `/antwerp/listing/${encodeURIComponent(id)}` : "/antwerp";
+          const images = getListingImageUrls(listing);
+          const imgSrc =
+            (images[0] && images[0] !== FALLBACK_IMAGE ? images[0] : null) ||
+            getImageUrl(listing?.picture) ||
+            FALLBACK_IMAGE;
+          const title = sanitizeText(listing?.title || "OneLuxStay Antwerp");
+          const area = resolveGroupTitle(listing);
+          const addr = formatAddress(listing);
+          const bedrooms = firstNumber(listing?.bedrooms, listing?.beds);
+          const bathrooms = firstNumber(listing?.bathrooms);
+          const sqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
+          const basePrice = firstNumber(
+            listing?.basePrice,
+            listing?.prices?.basePrice,
+            listing?.prices?.basePricePerNight,
+            listing?.prices?.nightly?.amount,
+            listing?.prices?.nightly,
+          );
+          const currency = listing?.currency || listing?.prices?.currency || "EUR";
+          const priceStr =
+            typeof basePrice === "number"
+              ? `${formatCurrency(basePrice, currency)} / night`
+              : null;
+          const meta =
+            [
+              bedrooms != null ? `${bedrooms} bd` : null,
+              bathrooms != null ? `${bathrooms} ba` : null,
+              sqft != null ? `${sqft} ft²` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || null;
+
+          return (
+            <div key={id || path} className="ols-similar__item" role="listitem">
+              <Link to={path} className="ols-similar__card">
+                <div className="ols-similar__media">
+                  <img
+                    src={imgSrc}
+                    alt={title}
+                    className="ols-similar__img"
+                    loading="lazy"
+                    onError={handleImageError}
+                    draggable={false}
+                  />
+                  <span className="ols-similar__badge">Available now</span>
+                  <button
+                    type="button"
+                    className="ols-similar__fav"
+                    aria-label="Save to wishlist"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="ols-similar__body">
+                  {area ? <p className="ols-similar__area">{area}</p> : null}
+                  <h3 className="ols-similar__name">{title}</h3>
+                  {meta ? <p className="ols-similar__meta">{meta}</p> : null}
+                  {addr ? <p className="ols-similar__addr">{addr}</p> : null}
+                  {priceStr ? <p className="ols-similar__price">{priceStr}</p> : null}
+                </div>
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function AntwerpLandingPage() {
   const {
     listingId: routeListingId,
@@ -2641,6 +2892,7 @@ export default function AntwerpLandingPage() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const viewportShellRef = useRef(null);
   const stickySearchShellRef = useRef(null);
+  const listingOverlayRef = useRef(null);
   const [activeListing, setActiveListing] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
@@ -2829,6 +3081,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const listingMapRef = useRef(null);
   const listingMapInstanceRef = useRef(null);
   const listingMapMarkerRef = useRef(null);
+  const inlineListingMapRef = useRef(null);
+  const inlineListingMapInstanceRef = useRef(null);
+  const inlineListingMapMarkerRef = useRef(null);
   const [listingMapTarget, setListingMapTarget] = useState(null);
   const [isSectionMapOpen, setIsSectionMapOpen] = useState(false);
   const [sectionMapTarget, setSectionMapTarget] = useState(null);
@@ -2837,6 +3092,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const sectionMapMarkerRef = useRef(null);
   const autoRouteAvailabilityKeyRef = useRef("");
   const availabilityTableRef = useRef(null);
+  const sectionDatePickerRef = useRef(null);
+  const autoDateCheckKeyRef = useRef("");
+  const autoDateCheckTimerRef = useRef(null);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const mapsApiRef = useRef(null);
@@ -3293,21 +3551,31 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setActiveListing(null);
       return;
     }
-    const resolved =
-      isChildListing(match) && getListingGroupKey(match)
-        ? listings.find(
-          (entry) =>
-            !isChildListing(entry) && getListingGroupKey(entry) === getListingGroupKey(match)
-        ) || match
-        : match;
-    setActiveListing(resolved);
+    setActiveListing(match);
     setActiveImageIndex(0);
   }, [routeListingId, listings]);
 
   useEffect(() => {
     if (!isListingRoute) return;
-    window.scrollTo({ top: 0, behavior: "auto" });
+    const overlay = listingOverlayRef.current;
+    if (overlay && typeof overlay.scrollTo === "function") {
+      overlay.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [isListingRoute, routeListingId]);
+
+  useEffect(() => {
+    if (!routeListingId) return;
+    setListingTab("overview");
+    setIsReviewExpanded(false);
+    setShowAllAmenities(false);
+    setZoomImageUrl("");
+    setIsMasonryGalleryOpen(false);
+    setIsListingMapOpen(false);
+    setListingMapTarget(null);
+    setIsListingCalendarOpen(false);
+  }, [routeListingId]);
 
   useEffect(() => {
     if (!isListingRoute) return;
@@ -4297,6 +4565,48 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setSectionQuotes({});
     setSectionAvailabilityError(stayTooShortMessage);
   }, [isStayTooShort, sectionCheckIn, sectionCheckOut, stayTooShortMessage]);
+
+  // Auto-check availability whenever both dates (and guest count) are set
+  useEffect(() => {
+    if (autoDateCheckTimerRef.current) {
+      clearTimeout(autoDateCheckTimerRef.current);
+      autoDateCheckTimerRef.current = null;
+    }
+
+    if (!sectionCheckIn || !sectionCheckOut) {
+      autoDateCheckKeyRef.current = "";
+      setSectionAvailabilityMap({});
+      setSectionAvailabilityActive(false);
+      setSectionQuotes({});
+      setSectionAvailabilityError("");
+      return;
+    }
+
+    if (isStayTooShort) return;
+
+    const key = `${sectionCheckIn}|${sectionCheckOut}|${sectionGuests}`;
+    if (autoDateCheckKeyRef.current === key) return;
+
+    setSectionAvailabilityMap({});
+    setSectionAvailabilityActive(false);
+    setSectionQuotes({});
+    setSectionAvailabilityError("");
+
+    autoDateCheckTimerRef.current = setTimeout(() => {
+      autoDateCheckKeyRef.current = key;
+      fetchAvailabilityListings({ shouldScroll: false });
+    }, 300);
+
+    return () => {
+      if (autoDateCheckTimerRef.current) {
+        clearTimeout(autoDateCheckTimerRef.current);
+        autoDateCheckTimerRef.current = null;
+      }
+    };
+  // fetchAvailabilityListings is recreated each render; including it would loop.
+  // isStayTooShort is derived from sectionCheckIn/sectionCheckOut, always current.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionCheckIn, sectionCheckOut, sectionGuests]);
 
   const fetchCalendarMonth = async (
     listingId,
@@ -5966,6 +6276,73 @@ const applyCheckoutPromoCode = () => {
   }, [isListingMapOpen, activeListing, listingMapTarget, mapsApiKey]);
 
   useEffect(() => {
+    if (!inlineListingMapRef.current || !activeListing) return;
+    if (!mapsApiKey) return;
+    loadGoogleMaps(mapsApiKey)
+      .then((maps) => {
+        if (!inlineListingMapRef.current) return;
+        const initialCenter = getListingCoords(activeListing) || PROPERTY_COORDS;
+        const map = new maps.Map(inlineListingMapRef.current, {
+          center: initialCenter,
+          zoom: 15,
+          minZoom: 10,
+          maxZoom: 21,
+          gestureHandling: "none",
+          scrollwheel: false,
+          draggable: false,
+          keyboardShortcuts: false,
+          zoomControl: false,
+          fullscreenControl: false,
+          mapTypeControl: false,
+          streetViewControl: false,
+        });
+        inlineListingMapInstanceRef.current = map;
+        if (inlineListingMapMarkerRef.current) {
+          inlineListingMapMarkerRef.current.setMap?.(null);
+          inlineListingMapMarkerRef.current = null;
+        }
+        const placeMarker = (position) => {
+          inlineListingMapMarkerRef.current = new maps.Marker({
+            map,
+            position,
+            title: activeListing.title || "OneLuxStay",
+          });
+        };
+        const coords = getListingCoords(activeListing);
+        if (coords) {
+          placeMarker(coords);
+        } else {
+          const address = getListingAddressQuery(activeListing);
+          if (address) {
+            const geocoder = new maps.Geocoder();
+            geocoder.geocode({ address }, (results, status) => {
+              if (status === "OK" && results?.[0]?.geometry?.location) {
+                const location = results[0].geometry.location;
+                map.setCenter(location);
+                placeMarker(location);
+              } else {
+                placeMarker(initialCenter);
+              }
+            });
+          } else {
+            placeMarker(initialCenter);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      if (inlineListingMapInstanceRef.current?.__leafletMap?.remove) {
+        inlineListingMapInstanceRef.current.__leafletMap.remove();
+      }
+      inlineListingMapInstanceRef.current = null;
+      if (inlineListingMapMarkerRef.current) {
+        inlineListingMapMarkerRef.current.setMap?.(null);
+        inlineListingMapMarkerRef.current = null;
+      }
+    };
+  }, [activeListing, mapsApiKey]);
+
+  useEffect(() => {
     if (!isSectionMapOpen || !sectionMapRef.current || !sectionMapTarget) return;
     if (!mapsApiKey) {
       setMapError("Map service is unavailable.");
@@ -6292,6 +6669,7 @@ const applyCheckoutPromoCode = () => {
                   <small>per night {"\u00b7"} taxes at checkout</small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
+                <div ref={sectionDatePickerRef}>
                 <DateRangePicker
                   value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                   dayPrices={calendarDayMap}
@@ -6333,6 +6711,7 @@ const applyCheckoutPromoCode = () => {
                   fallbackCurrency={activeListing.currency}
                   fallbackMinNights={listingMinNightsFallback}
                 />
+                </div>
                 {cityDateNightCount > 0 && (
                   <div className="la-unit-modal__bp-nights">
                     {cityDateNightCount} night{cityDateNightCount !== 1 ? "s" : ""}
@@ -6352,20 +6731,198 @@ const applyCheckoutPromoCode = () => {
                     ))}
                   </select>
                 </div>
-                <button
-                  type="button"
-                  className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                  disabled={sectionAvailabilityLoading || isStayTooShort}
-                  onClick={() => {
-                    if (isStayTooShort) {
-                      setSectionAvailabilityError(stayTooShortMessage);
-                      return;
-                    }
-                    fetchAvailabilityListings({ shouldScroll: true });
-                  }}
-                >
-                  {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
-                </button>
+                <div className="la-unit-modal__bp-divider" />
+                <div className="la-unit-modal__card-head">
+                  <strong>Availability</strong>
+                  <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
+                    {availabilityStatus}
+                  </span>
+                </div>
+                <div className="la-unit-modal__availability-details">
+                  {availability === false ? (
+                    <p>Unavailable for the selected dates.</p>
+                  ) : breakdown ? (
+                    <>
+                      <div>
+                        <span>Accommodation</span>
+                        <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
+                      </div>
+                      {breakdown.discountAmount > 0 && (
+                        <div>
+                          <span>
+                            Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                          </span>
+                          <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
+                        </div>
+                      )}
+                      <div>
+                        <span>Cleaning</span>
+                        <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
+                      </div>
+                      <div>
+                        <span>Taxes</span>
+                        <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                      </div>
+                      {Number(breakdown.securityDeposit) > 0 && (
+                        <div>
+                          <span>Security deposit</span>
+                          <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
+                        </div>
+                      )}
+                      <div>
+                        <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
+                        <strong>
+                          {formatCurrency(
+                            Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
+                            priceCurrency,
+                          )}
+                        </strong>
+                      </div>
+                      <div className="la-unit-modal__total">
+                        <span>Total</span>
+                        <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                      </div>
+                    </>
+                  ) : totalPrice ? (
+                    <div className="la-unit-modal__total">
+                      <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
+                      <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
+                    </div>
+                  ) : (
+                    <p>Check availability to view pricing breakdown.</p>
+                  )}
+                </div>
+                {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
+                  <div className="la-unit-modal__rate-plan">
+                    <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                    <select
+                      id={`la-listing-rate-plan-${listingId || "active"}`}
+                      value={selectedPlanId}
+                      disabled={sectionAvailabilityLoading}
+                      onChange={(event) =>
+                        setSelectedRatePlans((prev) => ({
+                          ...prev,
+                          [listingId]: event.target.value,
+                        }))
+                      }
+                      className="la-booking-table__rate-select"
+                    >
+                      {planOptions.map((planOption) => (
+                        <option key={planOption.id} value={planOption.id}>
+                          {planOption.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {(() => {
+                  const hasDates = Boolean(sectionCheckIn && sectionCheckOut);
+                  const isReserving = sectionReserveLoadingId === listingId;
+                  const openDatePicker = () => {
+                    const trigger = sectionDatePickerRef.current?.querySelector(".la-date-input");
+                    trigger?.click();
+                    trigger?.focus();
+                  };
+
+                  if (!hasDates) {
+                    return (
+                      <button
+                        type="button"
+                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                        onClick={openDatePicker}
+                      >
+                        Check availability
+                      </button>
+                    );
+                  }
+
+                  if (sectionAvailabilityLoading) {
+                    return (
+                      <button
+                        type="button"
+                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                        disabled
+                      >
+                        Checking...
+                      </button>
+                    );
+                  }
+
+                  if (isStayTooShort) {
+                    return (
+                      <button
+                        type="button"
+                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                        onClick={() => setSectionAvailabilityError(stayTooShortMessage)}
+                      >
+                        Check availability
+                      </button>
+                    );
+                  }
+
+                  if (availability === true) {
+                    return (
+                      <button
+                        type="button"
+                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                        disabled={isReserving}
+                        onClick={() => {
+                          setPendingCheckout({
+                            listingId,
+                            listingTitle: activeListing.title,
+                            amount: typeof totalPrice === "number" ? totalPrice : null,
+                            currency: resolveCheckoutCurrency(priceCurrency),
+                            breakdown: breakdown || null,
+                            baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                            baseBreakdown: breakdown || null,
+                            promoCode: "",
+                            promoDiscountRate: 0,
+                            promoDiscountAmount: 0,
+                          });
+                          setCheckoutStep(1);
+                          setCheckoutConsentAccepted(false);
+                          setCheckoutConsentSignerName("");
+                          setCheckoutConsentSignatureDataUrl("");
+                          setCheckoutIdentityDocs({
+                            idFront: null,
+                            idBack: null,
+                            idSelfie: null,
+                          });
+                          setCheckoutIdentityError("");
+                          setCheckoutCardPhoto(null);
+                          setCheckoutCardHolderSelfie(null);
+                          setCheckoutCardPhotoError("");
+                          setCheckoutGuestError("");
+                          setIsCheckoutGuestOpen(true);
+                        }}
+                      >
+                        {isReserving ? "Redirecting..." : "Reserve"}
+                      </button>
+                    );
+                  }
+
+                  if (availability === false) {
+                    return (
+                      <button
+                        type="button"
+                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                        onClick={() => openInquiry(activeListing)}
+                      >
+                        Inquire
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <button
+                      type="button"
+                      className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                      onClick={() => fetchAvailabilityListings({ shouldScroll: false })}
+                    >
+                      Reserve
+                    </button>
+                  );
+                })()}
                 <div className="la-unit-modal__bp-divider" />
                 <div className="la-unit-modal__bp-contact">
                   <strong>OneLuxStay Antwerp</strong>
@@ -6424,189 +6981,6 @@ const applyCheckoutPromoCode = () => {
                     </>
                   );
                 })()}
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
-                  {mapEmbedUrl ? (
-                    <iframe
-                      title="Unit location map"
-                      src={mapEmbedUrl}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      allowFullScreen
-                    />
-                  ) : mapUrl ? (
-                    <img
-                      src={mapUrl}
-                      alt="Map showing the unit location"
-                      loading="lazy"
-                      width="520"
-                      height="320"
-                    />
-                  ) : (
-                    <div className="la-unit-modal__placeholder">Map loading</div>
-                  )}
-                  <button
-                    type="button"
-                    className="la-unit-modal__map-overlay"
-                    aria-label="View larger map"
-                    onClick={() => {
-                      setListingMapTarget({
-                        coords: getListingCoords(activeListing),
-                        address: getListingAddressQuery(activeListing),
-                        label: activeListing.title || "OneLuxStay",
-                      });
-                      setIsListingMapOpen(true);
-                    }}
-                  >
-                    <span className="la-unit-modal__map-cta">View larger map</span>
-                  </button>
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__availability">
-                  <div className="la-unit-modal__card-head">
-                    <strong>Availability</strong>
-                    <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                      {availabilityStatus}
-                    </span>
-                  </div>
-                  <div className="la-unit-modal__availability-details">
-                    {availability === false ? (
-                      <p>Unavailable for the selected dates.</p>
-                    ) : breakdown ? (
-                      <>
-                        <div>
-                          <span>Accommodation</span>
-                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                        </div>
-                        {breakdown.discountAmount > 0 && (
-                          <div>
-                            <span>
-                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                            </span>
-                            <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                          </div>
-                        )}
-                        <div>
-                          <span>Cleaning</span>
-                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                        </div>
-                        <div>
-                          <span>Taxes</span>
-                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                        </div>
-                        {Number(breakdown.securityDeposit) > 0 && (
-                          <div>
-                            <span>Security deposit</span>
-                            <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
-                          </div>
-                        )}
-                        <div>
-                          <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                          <strong>
-                            {formatCurrency(
-                              Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
-                              priceCurrency,
-                            )}
-                          </strong>
-                        </div>
-                        <div className="la-unit-modal__total">
-                          <span>Total</span>
-                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                        </div>
-                      </>
-                    ) : totalPrice ? (
-                      <div className="la-unit-modal__total">
-                        <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                        <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
-                      </div>
-                    ) : (
-                      <p>Check availability to view pricing breakdown.</p>
-                    )}
-                  </div>
-                  {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
-                    <div className="la-unit-modal__rate-plan">
-                      <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
-                      <select
-                        id={`la-listing-rate-plan-${listingId || "active"}`}
-                        value={selectedPlanId}
-                        disabled={sectionAvailabilityLoading}
-                        onChange={(event) =>
-                          setSelectedRatePlans((prev) => ({
-                            ...prev,
-                            [listingId]: event.target.value,
-                          }))
-                        }
-                        className="la-booking-table__rate-select"
-                      >
-                        {planOptions.map((planOption) => (
-                          <option key={planOption.id} value={planOption.id}>
-                            {planOption.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div className="la-unit-modal__actions">
-                    {(() => {
-                      const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                      if (availability === true) {
-                        const isReserving = sectionReserveLoadingId === listingId;
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__action-primary"
-                            disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
-                            onClick={() => {
-                              if (isStayTooShort) {
-                                setSectionAvailabilityError(stayTooShortMessage);
-                                return;
-                              }
-                              setPendingCheckout({
-                                listingId,
-                                listingTitle: activeListing.title,
-                                amount: typeof totalPrice === "number" ? totalPrice : null,
-                                currency: resolveCheckoutCurrency(priceCurrency),
-                                breakdown: breakdown || null,
-                                baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                                baseBreakdown: breakdown || null,
-                                promoCode: "",
-                                promoDiscountRate: 0,
-                                promoDiscountAmount: 0,
-                              });
-                              setCheckoutStep(1);
-                              setCheckoutConsentAccepted(false);
-                              setCheckoutConsentSignerName("");
-                              setCheckoutConsentSignatureDataUrl("");
-                              setCheckoutIdentityDocs({
-                                idFront: null,
-                                idBack: null,
-                                idSelfie: null,
-                              });
-                              setCheckoutIdentityError("");
-                              setCheckoutCardPhoto(null);
-                              setCheckoutCardHolderSelfie(null);
-                              setCheckoutCardPhotoError("");
-                              setCheckoutGuestError("");
-                              setIsCheckoutGuestOpen(true);
-                            }}
-                          >
-                            {isReserving ? "Redirecting..." : "Reserve"}
-                          </button>
-                        );
-                      }
-                      if (availability === false) {
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__action-primary"
-                            onClick={() => openInquiry(activeListing)}
-                          >
-                            Inquire
-                          </button>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
                 </div>
               </div>
             {sectionValidationNotice && (
@@ -6685,43 +7059,93 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
         <div className="la-unit-modal__facilities">
-          {activeListing?.amenities?.length ? (
-            <div className="la-facilities-layout">
-              <div className="la-facilities-grid">
-                {groupAmenities(activeListing.amenities).map((group) => (
-                  <div key={group.key} className="la-facilities-group">
-                    <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">{"\u2713"}</span>
-                      <h5>{group.label}</h5>
-                    </div>
-                    <ul>
-                      {(showAllAmenities ? group.items : group.items.slice(0, 6)).map((item, idx) => (
-                        <li key={`${group.key}-${idx}-${item}`}>
-                          {getAmenityItemIcon(item)}
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+          {activeListing?.amenities?.length ? (() => {
+            const allGroups = groupAmenities(activeListing.amenities);
+            const totalItems = allGroups.reduce((sum, g) => sum + g.items.length, 0);
+            // One representative item per category, max 8 \u2014 for compact preview strip
+            const previewItems = allGroups
+              .filter((g) => g.items.length > 0)
+              .slice(0, 8)
+              .map((g) => ({ item: g.items[0], key: g.key }));
+            const hasMore = totalItems > previewItems.length;
+            const renderGroup = (group) => (
+              <div key={group.key} className="la-facilities-group">
+                <div className="la-facilities-group__head">
+                  <span className="la-facilities-group__icon">{"\u2713"}</span>
+                  <h5>{group.label}</h5>
+                </div>
+                <ul>
+                  {group.items.map((item, idx) => (
+                    <li key={`${group.key}-${idx}-${item}`}>
+                      {getAmenityItemIcon(item)}
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+            return (
+              <div className="la-facilities-layout">
+                {!showAllAmenities && (
+                  <div className="la-facilities-preview">
+                    {previewItems.map(({ item, key }) => (
+                      <div key={key} className="la-facilities-preview__item">
+                        {getAmenityItemIcon(item)}
+                        <span>{item}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="la-facilities-more">
-                <a className="la-facilities-cta" href="#la-rooms">
-                  See availability
-                </a>
-                <button
-                  type="button"
-                  className="la-unit-modal__amenities-toggle"
-                  onClick={() => setShowAllAmenities((prev) => !prev)}
+                )}
+                <div
+                  id="la-facilities-full"
+                  className={`la-facilities-full-wrap${showAllAmenities ? " la-facilities-full-wrap--open" : ""}`}
+                  aria-hidden={!showAllAmenities}
                 >
-                  {showAllAmenities ? "See less" : "See more"}
-                </button>
+                  <div className="la-facilities-grid">
+                    {allGroups.map((group) => renderGroup(group))}
+                  </div>
+                </div>
+                {hasMore && (
+                  <div className="la-facilities-more">
+                    <button
+                      type="button"
+                      className="la-unit-modal__amenities-toggle"
+                      onClick={() => setShowAllAmenities((prev) => !prev)}
+                      aria-expanded={showAllAmenities}
+                      aria-controls="la-facilities-full"
+                    >
+                      {showAllAmenities ? "See less" : `Show all ${totalItems} amenities`}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          ) : (
+            );
+          })() : (
             <p>Contact us for full amenities list.</p>
           )}
         </div>
+      </div>
+      <div className="la-unit-modal__section la-unit-modal__section--map-fullbleed">
+        <div
+          ref={inlineListingMapRef}
+          className="la-inline-map__canvas"
+          aria-label="Map showing unit location"
+        />
+        <button
+          type="button"
+          className="la-unit-modal__map-overlay"
+          aria-label="View larger map"
+          onClick={() => {
+            setListingMapTarget({
+              coords: getListingCoords(activeListing),
+              address: getListingAddressQuery(activeListing),
+              label: activeListing.title || "OneLuxStay",
+            });
+            setIsListingMapOpen(true);
+          }}
+        >
+          <span className="la-unit-modal__map-cta">View larger map</span>
+        </button>
       </div>
       <div className="la-unit-modal__section" id="la-house-rules">
         <h4>House rules</h4>
@@ -6747,32 +7171,22 @@ const applyCheckoutPromoCode = () => {
           const smokingAllowed = houseRules.smokingAllowed;
           const quietBetween = houseRules.quietBetween;
           const eventsAllowed = houseRules.suitableForEvents;
-          const ruleItems = [
-            {
-              label: "Suitable for children",
-              value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
-            },
-            {
-              label: "Suitable for infants",
-              value: formatRuleValue(childrenRules.suitableForInfants ?? houseRules.suitableForInfants),
-            },
-            {
-              label: "Pets allowed",
-              value: formatRuleValue(
-                typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
-              ),
-            },
-            {
-              label: "Pets charged",
-              value: formatRuleValue(
-                typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
-              ),
-            },
-            {
-              label: "Smoking allowed",
-              value: formatRuleValue(
-                typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
-              ),
+	          const ruleItems = [
+	            {
+	              label: "Suitable for children",
+	              value: formatRuleValue(childrenRules.suitableForChildren ?? houseRules.suitableForChildren),
+	            },
+	            {
+	              label: "Pets allowed",
+	              value: formatRuleValue(
+	                typeof petsAllowed === "object" ? petsAllowed.enabled : petsAllowed
+	              ),
+	            },
+	            {
+	              label: "Smoking allowed",
+	              value: formatRuleValue(
+	                typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
+	              ),
             },
             {
               label: "Parties allowed",
@@ -6787,14 +7201,14 @@ const applyCheckoutPromoCode = () => {
                 : formatQuietHours(houseRules.quietHours),
             },
             { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
-          ];
-          return (
-            <div className="la-house-rules">
-              <ul>
-                {ruleItems.map((item) => (
-                  <li key={item.label}>
-                    <strong>{item.label}</strong>
-                    <span>{item.value}</span>
+	          ];
+	          return (
+	            <div className="la-house-rules la-house-rules--balanced">
+	              <ul>
+	                {ruleItems.map((item) => (
+	                  <li key={item.label}>
+	                    <strong>{item.label}</strong>
+	                    <span>{item.value}</span>
                   </li>
                 ))}
               </ul>
@@ -7579,7 +7993,11 @@ const applyCheckoutPromoCode = () => {
     return (
       <div className="antwerp-page">
         {listingDetail ? (
-          <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
+          <div className="antwerp-modal__overlay is-page" ref={listingOverlayRef}>
+            <div className="ols-listing-page-col">
+              {listingDetail}
+            </div>
+          </div>
         ) : (
           <ListingLoadingScreen active cityLabel="Antwerp" />
         )}
@@ -9613,7 +10031,13 @@ const applyCheckoutPromoCode = () => {
       )}
 
       {sectionMapModal}
-      <SiteFooter />
+      {isListingRoute ? (
+        <>
+          <NeighborhoodHighlightsSection />
+          <SimilarUnitsSection listings={losAngelesParentListings} />
+          <SiteFooter />
+        </>
+      ) : null}
     </div>
   );
 }

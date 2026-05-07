@@ -2565,6 +2565,7 @@ export default function DubaiLandingPage() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const viewportShellRef = useRef(null);
   const stickySearchShellRef = useRef(null);
+  const listingOverlayRef = useRef(null);
   const [activeListing, setActiveListing] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeSectionKey, setActiveSectionKey] = useState(null);
@@ -3228,25 +3229,35 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       (listing) =>
         String(listing.id || listing._id || listing.unitTypeId || "") === String(routeListingId)
     );
-    if (!match) {
-      setActiveListing(null);
-      return;
-    }
-    const resolved =
-      isChildListing(match) && getListingGroupKey(match)
-        ? listings.find(
-          (entry) =>
-            !isChildListing(entry) && getListingGroupKey(entry) === getListingGroupKey(match)
-        ) || match
-        : match;
-    setActiveListing(resolved);
-    setActiveImageIndex(0);
-  }, [routeListingId, listings]);
+	    if (!match) {
+	      setActiveListing(null);
+	      return;
+	    }
+	    setActiveListing(match);
+	    setActiveImageIndex(0);
+	  }, [routeListingId, listings]);
+	
+	  useEffect(() => {
+	    if (!isListingRoute) return;
+	    const overlay = listingOverlayRef.current;
+	    if (overlay && typeof overlay.scrollTo === "function") {
+	      overlay.scrollTo({ top: 0, left: 0, behavior: "auto" });
+	      return;
+	    }
+	    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+	  }, [isListingRoute, routeListingId]);
 
-  useEffect(() => {
-    if (!isListingRoute) return;
-    window.scrollTo({ top: 0, behavior: "auto" });
-  }, [isListingRoute, routeListingId]);
+	  useEffect(() => {
+	    if (!routeListingId) return;
+	    setListingTab("overview");
+	    setIsReviewExpanded(false);
+	    setShowAllAmenities(false);
+	    setZoomImageUrl("");
+	    setIsMasonryGalleryOpen(false);
+	    setIsListingMapOpen(false);
+	    setListingMapTarget(null);
+	    setIsListingCalendarOpen(false);
+	  }, [routeListingId]);
 
   useEffect(() => {
     if (!isListingRoute) return;
@@ -7589,7 +7600,12 @@ const applyCheckoutPromoCode = () => {
           <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
         </div>
         {listingDetail ? (
-          <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
+          <div className="antwerp-modal__overlay is-page" ref={listingOverlayRef}>
+            <div className="ols-listing-page-col">
+              {listingDetail}
+              <SiteFooter />
+            </div>
+          </div>
         ) : (
           <ListingLoadingScreen active cityLabel="Dubai" />
         )}
