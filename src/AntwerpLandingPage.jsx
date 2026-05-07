@@ -5,7 +5,6 @@ import "./App.css";
 import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
-import Silk from "./components/Silk";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import MasonryGalleryModal from "./components/MasonryGalleryModal";
 import Stepper, { Step } from "./components/Stepper";
@@ -6182,7 +6181,7 @@ const applyCheckoutPromoCode = () => {
         return (
           <>
             <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
-              <div className="la-unit-modal__gallery">
+              <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
                 <div className="la-unit-modal__main">
                   {mainImage ? (
                     <button
@@ -7578,10 +7577,7 @@ const applyCheckoutPromoCode = () => {
   ) : null;
   if (isListingRoute) {
     return (
-      <div className="antwerp-page has-silk">
-        <div className="antwerp-silk">
-          <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
-        </div>
+      <div className="antwerp-page">
         {listingDetail ? (
           <div className="antwerp-modal__overlay is-page">{listingDetail}</div>
         ) : (
@@ -7598,7 +7594,7 @@ const applyCheckoutPromoCode = () => {
   }
 
   return (
-    <div className="antwerp-page has-silk">
+    <div className="antwerp-page">
       {listingMapModal}
       {zoomModal}
       {masonryModal}
@@ -9102,7 +9098,7 @@ const applyCheckoutPromoCode = () => {
                 null;
               return (
                 <div className="la-unit-modal__grid">
-                  <div className="la-unit-modal__gallery">
+                  <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
                     <div className="la-unit-modal__main">
                       {current ? (
                         <button

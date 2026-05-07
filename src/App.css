@@ -16092,3 +16092,245 @@ a[href="#redondo-city-tour"],
     transition: none;
   }
 }
+
+/* Blueground-inspired listing details structure (OneLuxStay styling preserved) */
+.la-listing-shell__content {
+  width: min(1240px, calc(100% - 48px));
+  margin-inline: auto;
+}
+
+.la-listing-shell .la-unit-modal.la-listing-page {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 22px 0 56px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  column-gap: 28px;
+  row-gap: 20px;
+}
+
+.la-listing-shell .la-listing-hero {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+  padding: 12px 14px;
+  gap: 10px;
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(247, 238, 226, 0.92), rgba(234, 220, 199, 0.88));
+  border: 1px solid rgba(186, 159, 126, 0.34);
+  box-shadow: 0 16px 32px rgba(42, 31, 23, 0.14);
+}
+
+.la-listing-shell .la-listing-hero__intro {
+  align-items: end;
+  gap: 16px 22px;
+}
+
+.la-listing-shell .la-listing-hero__logo {
+  display: none;
+}
+
+.la-listing-shell .la-listing-hero__kicker {
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+  color: rgba(95, 75, 52, 0.88);
+  margin: 0 0 10px;
+}
+
+.la-listing-shell .la-listing-hero__intro h3 {
+  margin: 0 0 8px;
+  font-size: clamp(2rem, 2.8vw, 3rem);
+  line-height: 1.12;
+  color: #2f261e;
+}
+
+.la-listing-shell .la-unit-modal__chips {
+  margin: 0 0 10px;
+}
+
+.la-listing-shell .la-unit-modal__address,
+.la-listing-shell .la-unit-modal__rating {
+  color: #4a3f35;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__grid {
+  grid-column: 1 / -1;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__gallery {
+  height: clamp(220px, 24vw, 340px);
+  gap: 10px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+/* Force one unified rounded gallery shell (outer wrapper only) */
+.la-unit-modal__gallery.la-unit-modal__gallery--rounded-shell {
+  border-radius: 24px !important;
+  overflow: hidden !important;
+  isolation: isolate;
+}
+
+@media (max-width: 1040px) {
+  .la-unit-modal__gallery.la-unit-modal__gallery--rounded-shell {
+    border-radius: 18px !important;
+  }
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__main,
+.la-listing-shell .la-listing-page .la-unit-modal__side {
+  height: 100%;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__main {
+  border-radius: 24px 0 0 24px;
+  overflow: hidden;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__main img {
+  height: 100%;
+  border-radius: 0;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side {
+  gap: 10px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  border-radius: 0 24px 24px 0;
+  overflow: hidden;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side img,
+.la-listing-shell .la-listing-page .la-unit-modal__side .la-unit-modal__placeholder {
+  height: 100%;
+  border-radius: 0;
+}
+
+/* Explicit card rounding to match the reference mosaic shape */
+.la-listing-shell .la-listing-page .la-unit-modal__main .la-unit-modal__image-button {
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button,
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder {
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button:nth-child(1),
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder:nth-child(1) {
+  border-top-right-radius: 24px;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button:nth-child(2),
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder:nth-child(2) {
+  border-radius: 0;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button:nth-child(3),
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder:nth-child(3) {
+  border-bottom-right-radius: 24px;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button:nth-child(4),
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder:nth-child(4) {
+  border-radius: 0;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__media-action {
+  padding: 12px 16px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+  grid-column: 1;
+  margin-top: 4px;
+  margin-bottom: 0;
+  position: static;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding-bottom: 14px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar {
+  grid-column: 2;
+  grid-row: 3 / span 20;
+  position: sticky;
+  top: 18px;
+  gap: 14px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel {
+  padding: 18px;
+  border: 1px solid rgba(186, 159, 126, 0.34);
+  background: rgba(255, 251, 246, 0.96);
+  box-shadow: 0 14px 34px rgba(42, 31, 23, 0.12);
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__section,
+.la-listing-shell .la-listing-page > [role="alert"] {
+  grid-column: 1;
+}
+
+@media (max-width: 1040px) {
+  .la-listing-shell__content {
+    width: min(1240px, calc(100% - 28px));
+  }
+
+  .la-listing-shell .la-unit-modal.la-listing-page {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+    grid-column: 1;
+  }
+
+  .la-listing-shell .la-listing-hero {
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__gallery {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main,
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main img {
+    min-height: 0;
+    height: 340px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    min-height: 0;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side img,
+  .la-listing-shell .la-listing-page .la-unit-modal__side .la-unit-modal__placeholder {
+    min-height: 0;
+    height: 160px;
+  }
+}
