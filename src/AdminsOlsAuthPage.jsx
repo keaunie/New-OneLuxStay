@@ -37,6 +37,30 @@ function AdminsOlsAuthPage() {
 
     const reuseSession = async () => {
       const existingSession = loadAdminsOlsSession();
+      const urlAccessKey = params.get("access_key") || params.get("accessKey");
+
+      if (urlAccessKey) {
+        setLoading(true);
+        try {
+          const response = await fetch(`${apiBase}/admins-ols-auth`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "shared_key", accessKey: urlAccessKey }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (response.ok && payload?.session) {
+            saveAdminsOlsSession(payload.session);
+            navigate(redirectTarget, { replace: true });
+            return;
+          }
+          if (active) setError(payload?.error || "Access key authentication failed.");
+        } catch (err) {
+          if (active) setError(String(err?.message || "Unable to reach auth server."));
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+
       if (!existingSession?.accessToken && !existingSession?.sharedKey) return;
 
       if (existingSession?.sharedKey) {

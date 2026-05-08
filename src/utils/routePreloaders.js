@@ -22,6 +22,7 @@ const preloadAdminsOlsGuestJourneysPage = () => import("../AdminsOlsGuestJourney
 const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage");
 const preloadBelgiumPhonePage = () => import("../executiveOls/CallsPage");
 const preloadCityAttractionsPage = () => import("../CityAttractionsPage");
+const preloadSettingConfigOlsPage = () => import("../SettingConfigOlsPage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -49,6 +50,7 @@ export const routePreloaders = {
   executiveOls: preloadExecutiveOlsPage,
   belgiumPhone: preloadBelgiumPhonePage,
   cityAttractions: preloadCityAttractionsPage,
+  settingConfigOls: preloadSettingConfigOlsPage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 
@@ -133,6 +135,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/admins-ols/whatsapp" || normalized === "/executive-ols/whatsapp") {
     return routePreloaders.executiveOls().then(() => undefined);
+  }
+  if (normalized === "/dev-ols/config") {
+    return routePreloaders.settingConfigOls().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };
