@@ -2685,7 +2685,7 @@ function NeighborhoodHighlightsSection() {
   );
 }
 
-function SimilarUnitsSection({ listings }) {
+function SimilarUnitsSection({ listings, buildListingPath, onListingClick }) {
   const trackRef = useRef(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
@@ -2700,6 +2700,7 @@ function SimilarUnitsSection({ listings }) {
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
+    el.scrollLeft = 0;
     syncBtns();
     el.addEventListener("scroll", syncBtns, { passive: true });
     const ro = new ResizeObserver(syncBtns);
@@ -2714,7 +2715,7 @@ function SimilarUnitsSection({ listings }) {
     trackRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
   };
 
-  const items = (Array.isArray(listings) ? listings : []).slice(0, 3);
+  const items = Array.isArray(listings) ? listings : [];
   if (!items.length) return null;
 
   return (
@@ -2753,7 +2754,7 @@ function SimilarUnitsSection({ listings }) {
       <div className="ols-similar__track" ref={trackRef} role="list">
         {items.map((listing) => {
           const id = getListingId(listing);
-          const path = id ? `/antwerp/listing/${encodeURIComponent(id)}` : "/antwerp";
+          const path = id ? buildListingPath(id) : "/antwerp";
           const images = getListingImageUrls(listing);
           const imgSrc =
             (images[0] && images[0] !== FALLBACK_IMAGE ? images[0] : null) ||
@@ -2788,7 +2789,7 @@ function SimilarUnitsSection({ listings }) {
 
           return (
             <div key={id || path} className="ols-similar__item" role="listitem">
-              <Link to={path} className="ols-similar__card">
+              <Link to={path} className="ols-similar__card" onClick={onListingClick}>
                 <div className="ols-similar__media">
                   <img
                     src={imgSrc}
@@ -6041,6 +6042,48 @@ const applyCheckoutPromoCode = () => {
     const query = params.toString();
     return `/antwerp/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
+  const similarListingsForActiveRoute = useMemo(() => {
+    if (!isListingRoute || !activeListing) return [];
+    const parentListings = losAngelesParentListings.length
+      ? losAngelesParentListings
+      : losAngelesListings;
+    if (!parentListings.length) return [];
+
+    const activeCanonicalId = toLookupKey(getCanonicalParentId(activeListing));
+    const activeDirectId = toLookupKey(getListingId(activeListing));
+
+    const relatedParents = getRelatedListingsByParentId(activeListing, parentListings)
+      .map((entry) => {
+        const groupKey = getListingGroupKey(entry);
+        if (!groupKey) return entry;
+        return parentListings.find(
+          (candidate) => !isChildListing(candidate) && getListingGroupKey(candidate) === groupKey
+        ) || entry;
+      })
+      .filter(Boolean);
+
+    const seen = new Set();
+    return [...relatedParents, ...parentListings]
+      .filter((listing) => {
+        const listingCanonicalId = toLookupKey(getCanonicalParentId(listing));
+        const listingDirectId = toLookupKey(getListingId(listing));
+        const dedupeKey = listingCanonicalId || listingDirectId;
+        if (!dedupeKey || seen.has(dedupeKey)) return false;
+        seen.add(dedupeKey);
+        if (activeCanonicalId && dedupeKey === activeCanonicalId) return false;
+        if (activeDirectId && listingDirectId && listingDirectId === activeDirectId) return false;
+        return true;
+      })
+      .slice(0, 8);
+  }, [isListingRoute, activeListing, losAngelesParentListings, losAngelesListings]);
+  const handleSimilarUnitClick = useCallback(() => {
+    const overlay = listingOverlayRef.current;
+    if (overlay && typeof overlay.scrollTo === "function") {
+      overlay.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
     `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.` +
@@ -7216,8 +7259,27 @@ const applyCheckoutPromoCode = () => {
           );
         })()}
       </div>
+      {isListingRoute && similarListingsForActiveRoute.length > 0 ? (
+        <div className="la-unit-modal__section" aria-label="Similar units">
+          <SimilarUnitsSection
+            listings={similarListingsForActiveRoute}
+            buildListingPath={buildListingPath}
+            onListingClick={handleSimilarUnitClick}
+          />
+        </div>
+      ) : null}
         </div>
       </div>
+      {isListingRoute ? (
+        <div className="ols-listing-fullbleed ols-listing-fullbleed--neighborhood">
+          <NeighborhoodHighlightsSection />
+        </div>
+      ) : null}
+      {isListingRoute ? (
+        <div className="ols-listing-fullbleed ols-listing-fullbleed--footer">
+          <SiteFooter />
+        </div>
+      ) : null}
     </div>
   ) : null;
 
@@ -10031,13 +10093,6 @@ const applyCheckoutPromoCode = () => {
       )}
 
       {sectionMapModal}
-      {isListingRoute ? (
-        <>
-          <NeighborhoodHighlightsSection />
-          <SimilarUnitsSection listings={losAngelesParentListings} />
-          <SiteFooter />
-        </>
-      ) : null}
     </div>
   );
 }

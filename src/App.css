@@ -16668,6 +16668,34 @@ a[href="#redondo-city-tour"],
   min-width: 0;
 }
 
+/* Full-bleed wrappers for listing-route editorial sections */
+.ols-listing-fullbleed {
+  position: relative;
+  width: 100vw;
+  max-width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  overflow-x: clip;
+}
+
+.ols-listing-fullbleed--neighborhood {
+  margin-top: 8px;
+}
+
+.ols-listing-fullbleed--footer {
+  margin-top: 0;
+}
+
+.ols-listing-fullbleed .ols-nbh__inner {
+  width: min(1240px, calc(100% - 48px));
+  max-width: none;
+  padding-inline: 0;
+}
+
+.ols-listing-fullbleed .policy-footer-shell {
+  width: min(1240px, calc(100% - 48px));
+  max-width: none;
+}
+
 /* ─────────────────────────────────────────────────────────
    Neighborhood Highlights Section
    ───────────────────────────────────────────────────────── */
@@ -16817,6 +16845,11 @@ a[href="#redondo-city-tour"],
 }
 
 @media (max-width: 600px) {
+  .ols-listing-fullbleed .ols-nbh__inner,
+  .ols-listing-fullbleed .policy-footer-shell {
+    width: min(1240px, calc(100% - 28px));
+  }
+
   .ols-nbh {
     padding: 52px 0 60px;
   }
