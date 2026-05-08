@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { handler as chatHandler } from "./chat.js";
 import { handler as chatLearningHandler } from "./chat-learning.js";
+import { normalizePhoneNumber, normalizeWhatsAppAddress, resolveSender } from "./_shared/twilioSenderResolver.js";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://oneluxstayprop.netlify.app";
 const DEFAULT_PAGE_CONTEXT = {
@@ -148,10 +149,11 @@ const isValidTwilioSignature = ({ event, params, authToken }) => {
   });
 };
 
-const buildInternalAiEvent = (event, body) => ({
+const buildInternalAiEvent = (event, body, sourceOrigin = "") => ({
   httpMethod: "POST",
   headers: {
     origin: getPublicSiteUrl(),
+    "x-source-origin": sanitizeString(sourceOrigin, 240),
     "user-agent": "OneLuxStayWhatsAppBridge/1.0",
     "x-forwarded-for":
       getHeaderValue(event, "x-nf-client-connection-ip") ||
@@ -229,12 +231,28 @@ export async function handler(event) {
 
   const incomingMessage = sanitizeString(params.get("Body"), 1600);
   const from = sanitizeString(params.get("From"), 80);
+  const to = sanitizeString(params.get("To"), 80);
   const profileName = sanitizeString(params.get("ProfileName"), 160);
   const channel = getChannelFromAddress(from);
+  const resolvedSender = resolveSender({
+    channel,
+    inboundNumber: to,
+    getEnv,
+  });
+  const senderFrom =
+    channel === "sms"
+      ? normalizePhoneNumber(resolvedSender?.from || to)
+      : normalizeWhatsAppAddress(resolvedSender?.from || to);
+  const senderTo =
+    channel === "sms"
+      ? normalizePhoneNumber(from)
+      : normalizeWhatsAppAddress(from);
+  const sourceOrigin = `twilio_${channel}_${sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us"}`;
   const chatSessionId = buildSessionId(from, channel);
   const pageContext = {
     ...DEFAULT_PAGE_CONTEXT,
     pageType: channel,
+    city: sanitizeString(resolvedSender?.region, 20).toLowerCase() === "be" ? "Belgium" : "",
     title: profileName
       ? `OneLuxStay ${channel === "sms" ? "SMS" : "WhatsApp"} Concierge (${profileName})`
       : `OneLuxStay ${channel === "sms" ? "SMS" : "WhatsApp"} Concierge`,
@@ -251,7 +269,7 @@ export async function handler(event) {
         chatSessionId,
         pageContext,
         limit: MAX_HISTORY_MESSAGES,
-      }),
+      }, sourceOrigin),
     );
     const syncedPayload = parseJsonBody(syncResponse);
     const syncedMessages = Array.isArray(syncedPayload?.messages) ? syncedPayload.messages : [];
@@ -272,7 +290,7 @@ export async function handler(event) {
         chatSessionId,
         pageContext,
         messages,
-      }),
+      }, sourceOrigin),
     );
     const chatPayload = parseJsonBody(chatResponse);
     const assistantReply = buildAssistantReply({
@@ -297,14 +315,30 @@ export async function handler(event) {
           content: incomingMessage,
           senderType: "guest",
           senderName: profileName || (channel === "sms" ? "SMS guest" : "WhatsApp guest"),
+          channel,
+          senderRegion: sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us",
+          senderChannel: channel,
+          senderFrom: senderTo,
+          senderTo: senderFrom,
+          inboundFrom: senderTo,
+          inboundTo: senderFrom,
+          twilio_to_number: senderFrom,
         },
         assistantMessage: {
           role: "assistant",
           content: assistantReply,
           senderType: "assistant",
           senderName: "Lucy",
+          channel,
+          senderRegion: sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us",
+          senderChannel: channel,
+          senderFrom,
+          senderTo,
+          inboundFrom: senderTo,
+          inboundTo: senderFrom,
+          twilio_to_number: senderFrom,
         },
-      }),
+      }, sourceOrigin),
     );
 
     return buildTwimlMessage(assistantReply);
@@ -312,6 +346,7 @@ export async function handler(event) {
     console.warn("WhatsApp webhook failed", {
       message: error?.message || String(error),
       from,
+      to,
       chatSessionId,
     });
     return buildTwimlMessage(

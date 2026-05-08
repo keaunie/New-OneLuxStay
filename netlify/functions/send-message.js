@@ -2,11 +2,13 @@ import dotenv from "dotenv";
 import { verifyAdminsOlsAccess } from "./_shared/adminsOlsAuth.js";
 import { fetchWithTimeout } from "./_shared/http.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
+import {
+  normalizePhoneNumber,
+  normalizeWhatsAppAddress,
+  resolveSender,
+} from "./_shared/twilioSenderResolver.js";
 
 dotenv.config();
-
-const DEFAULT_TWILIO_WHATSAPP_FROM = "whatsapp:+16188812613";
-const DEFAULT_TWILIO_SMS_FROM = "+16188812613";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -51,20 +53,12 @@ const parseJson = (text = "") => {
   }
 };
 
-const normalizeWhatsAppAddress = (value = "") => {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^whatsapp:/i.test(text)) return text;
-  const digits = text.replace(/[^\d+]/g, "");
-  return digits ? `whatsapp:${digits.startsWith("+") ? digits : `+${digits}`}` : "";
-};
-
 const normalizeSmsAddress = (value = "") => {
-  const text = String(value || "").trim();
+  const text = String(value || "")
+    .trim()
+    .replace(/^sms:/i, "");
   if (!text) return "";
-  const withoutPrefix = text.replace(/^sms:/i, "");
-  const digits = withoutPrefix.replace(/[^\d+]/g, "");
-  return digits ? `${digits.startsWith("+") ? digits : `+${digits}`}` : "";
+  return normalizePhoneNumber(text);
 };
 
 const buildSessionIdFromPhone = (phoneNumber = "", channel = "whatsapp") => {
@@ -72,26 +66,14 @@ const buildSessionIdFromPhone = (phoneNumber = "", channel = "whatsapp") => {
   return sanitizeId(`${channel === "sms" ? "sms" : "whatsapp"}:${digits}`, 80);
 };
 
-const getTwilioConfig = () => ({
+const getTwilioWhatsAppAuthConfig = () => ({
   accountSid: sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120),
   authToken: sanitizeString(getEnv("TWILIO_WHATSAPP_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240),
-  fromAddress: normalizeWhatsAppAddress(
-    sanitizeString(
-      getEnv("TWILIO_WHATSAPP_FROM") || getEnv("TWILIO_WHATSAPP_NUMBER") || DEFAULT_TWILIO_WHATSAPP_FROM,
-      80,
-    ),
-  ),
 });
 
-const getTwilioSmsConfig = () => ({
+const getTwilioSmsAuthConfig = () => ({
   accountSid: sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120),
   authToken: sanitizeString(getEnv("TWILIO_SMS_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240),
-  fromAddress: normalizeSmsAddress(
-    sanitizeString(
-      getEnv("TWILIO_SMS_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER") || DEFAULT_TWILIO_SMS_FROM,
-      80,
-    ),
-  ),
 });
 
 const getChatTables = () => ({
@@ -99,11 +81,12 @@ const getChatTables = () => ({
   messages: sanitizeId(getEnv("SUPABASE_CHAT_MESSAGES_TABLE") || "chat_messages", 120) || "chat_messages",
 });
 
-const sendTwilioWhatsAppMessage = async ({ phoneNumber = "", message = "" } = {}) => {
-  const { accountSid, authToken, fromAddress } = getTwilioConfig();
+const sendTwilioWhatsAppMessage = async ({ phoneNumber = "", message = "", sender = null } = {}) => {
+  const { accountSid, authToken } = getTwilioWhatsAppAuthConfig();
+  const fromAddress = normalizeWhatsAppAddress(sender?.from || "");
   if (!accountSid || !authToken || !fromAddress) {
     const error = new Error(
-      "Twilio WhatsApp outbound messaging is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM.",
+      "Twilio WhatsApp outbound messaging is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_US_WHATSAPP_FROM (plus optional TWILIO_BE_WHATSAPP_FROM).",
     );
     error.statusCode = 500;
     throw error;
@@ -154,11 +137,12 @@ const sendTwilioWhatsAppMessage = async ({ phoneNumber = "", message = "" } = {}
   };
 };
 
-const sendTwilioSmsMessage = async ({ phoneNumber = "", message = "" } = {}) => {
-  const { accountSid, authToken, fromAddress } = getTwilioSmsConfig();
+const sendTwilioSmsMessage = async ({ phoneNumber = "", message = "", sender = null } = {}) => {
+  const { accountSid, authToken } = getTwilioSmsAuthConfig();
+  const fromAddress = normalizeSmsAddress(sender?.from || "");
   if (!accountSid || !authToken || !fromAddress) {
     const error = new Error(
-      "Twilio SMS outbound messaging is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_SMS_FROM.",
+      "Twilio SMS outbound messaging is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_US_SMS_FROM (plus optional TWILIO_BE_SMS_FROM).",
     );
     error.statusCode = 500;
     throw error;
@@ -209,8 +193,9 @@ const sendTwilioSmsMessage = async ({ phoneNumber = "", message = "" } = {}) => 
   };
 };
 
-const upsertSession = async ({ tables, sessionId, channel }) => {
+const upsertSession = async ({ tables, sessionId, channel, sender }) => {
   const nowIso = new Date().toISOString();
+  const senderRegion = sanitizeString(sender?.region, 20).toLowerCase() || "us";
 
   await supabaseRestRequest(`${tables.sessions}?on_conflict=session_id`, {
     method: "POST",
@@ -221,7 +206,7 @@ const upsertSession = async ({ tables, sessionId, channel }) => {
         city: null,
         listing_id: null,
         pathname: "/executive-ols",
-        source_origin: `twilio_${channel}`,
+        source_origin: `twilio_${channel}_${senderRegion}`,
         user_agent: "manual_send_message",
         last_seen_at: nowIso,
       },
@@ -231,8 +216,11 @@ const upsertSession = async ({ tables, sessionId, channel }) => {
   });
 };
 
-const storeOutboundMessage = async ({ tables, sessionId, message, twilioMessage, adminUser, channel }) => {
+const storeOutboundMessage = async ({ tables, sessionId, message, twilioMessage, adminUser, channel, sender }) => {
   const nowIso = new Date().toISOString();
+  const senderRegion = sanitizeString(sender?.region, 20).toLowerCase() || "us";
+  const senderFrom = sanitizeString(sender?.from, 120) || twilioMessage?.from || null;
+  const senderTo = twilioMessage?.to || null;
   const rows = await supabaseRestRequest(tables.messages, {
     method: "POST",
     body: [
@@ -252,6 +240,12 @@ const storeOutboundMessage = async ({ tables, sessionId, message, twilioMessage,
           senderName: sanitizeString(adminUser?.fullName || adminUser?.name, 160) || null,
           senderEmail: sanitizeString(adminUser?.email, 160) || null,
           channel,
+          senderRegion,
+          senderChannel: channel,
+          senderFrom,
+          senderTo,
+          senderSource: sanitizeString(sender?.source, 40) || "default",
+          twilio_to_number: senderFrom,
           twilioMessageSid: twilioMessage?.sid || null,
           twilioStatus: twilioMessage?.status || null,
           twilioTo: twilioMessage?.to || null,
@@ -293,6 +287,15 @@ export async function handler(event) {
       requestedChannel === "sms" || /^sms:/i.test(phoneNumber)
         ? "sms"
         : "whatsapp";
+    const country = sanitizeString(payload?.country || payload?.region, 120);
+    const property = sanitizeString(payload?.property || payload?.city || payload?.listingId, 120);
+    const guestRegion = sanitizeString(payload?.guestRegion, 120);
+    const twilioToNumber = sanitizeString(payload?.twilio_to_number || payload?.twilioToNumber, 120);
+    const inboundNumber = sanitizeString(
+      twilioToNumber || payload?.inboundNumber || payload?.inbound_number || payload?.from,
+      120,
+    );
+    const explicitFrom = sanitizeString(payload?.from, 120);
 
     if (!phoneNumber) {
       return jsonResponse(400, { error: "phone_number is required" });
@@ -302,20 +305,37 @@ export async function handler(event) {
       return jsonResponse(400, { error: "message is required" });
     }
 
+    const resolvedSender = resolveSender({
+      channel,
+      country,
+      property,
+      inboundNumber,
+      guestRegion,
+      getEnv,
+    });
+    if (explicitFrom) {
+      resolvedSender.from =
+        channel === "sms"
+          ? normalizeSmsAddress(explicitFrom)
+          : normalizeWhatsAppAddress(explicitFrom);
+    }
+
     const twilioMessage =
       channel === "sms"
         ? await sendTwilioSmsMessage({
             phoneNumber,
             message,
+            sender: resolvedSender,
           })
         : await sendTwilioWhatsAppMessage({
             phoneNumber,
             message,
+            sender: resolvedSender,
           });
 
     const tables = getChatTables();
     const sessionId = buildSessionIdFromPhone(phoneNumber, channel);
-    await upsertSession({ tables, sessionId, channel });
+    await upsertSession({ tables, sessionId, channel, sender: resolvedSender });
     const stored = await storeOutboundMessage({
       tables,
       sessionId,
@@ -323,6 +343,7 @@ export async function handler(event) {
       twilioMessage,
       adminUser: adminAccess.user,
       channel,
+      sender: resolvedSender,
     });
 
     return jsonResponse(200, {
@@ -330,6 +351,13 @@ export async function handler(event) {
       session_id: sessionId,
       channel,
       phone_number: phoneNumber,
+      sender: {
+        from: resolvedSender.from,
+        region: resolvedSender.region,
+        channel: resolvedSender.channel,
+        source: resolvedSender.source,
+        twilio_to_number: resolvedSender.from,
+      },
       twilio: twilioMessage,
       stored_message_id: sanitizeString(stored?.id || stored?.message_id, 120),
     });

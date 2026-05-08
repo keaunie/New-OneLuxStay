@@ -90,6 +90,14 @@ const sanitizeMessagePayload = (message, fallbackRole = "assistant") => {
     senderType: sanitizeString(message.senderType, 40).toLowerCase(),
     senderName: sanitizeString(message.senderName, 160),
     senderEmail: sanitizeString(message.senderEmail, 160),
+    channel: sanitizeString(message.channel, 20).toLowerCase(),
+    senderRegion: sanitizeString(message.senderRegion, 20).toLowerCase(),
+    senderChannel: sanitizeString(message.senderChannel, 20).toLowerCase(),
+    senderFrom: sanitizeString(message.senderFrom, 120),
+    senderTo: sanitizeString(message.senderTo, 120),
+    inboundFrom: sanitizeString(message.inboundFrom, 120),
+    inboundTo: sanitizeString(message.inboundTo, 120),
+    twilioToNumber: sanitizeString(message.twilio_to_number || message.twilioToNumber, 120),
   };
 };
 
@@ -114,6 +122,9 @@ const getHeaderValue = (event = {}, targetName = "") => {
 };
 
 const getSourceOrigin = (event = {}) => {
+  const explicitSourceOrigin = sanitizeString(getHeaderValue(event, "x-source-origin"), 240);
+  if (explicitSourceOrigin) return explicitSourceOrigin;
+
   const origin = sanitizeString(getHeaderValue(event, "origin"), 240);
   if (origin) return origin;
   const referer = sanitizeString(getHeaderValue(event, "referer"), 900);
@@ -186,6 +197,14 @@ const storeTurn = async ({
         message.senderType || (message.role === "user" ? "guest" : "assistant"),
       senderName: message.senderName || null,
       senderEmail: message.senderEmail || null,
+      channel: message.channel || null,
+      senderRegion: message.senderRegion || null,
+      senderChannel: message.senderChannel || null,
+      senderFrom: message.senderFrom || null,
+      senderTo: message.senderTo || null,
+      inboundFrom: message.inboundFrom || null,
+      inboundTo: message.inboundTo || null,
+      twilio_to_number: message.twilioToNumber || null,
     },
     created_at: new Date(now + index).toISOString(),
   }));
@@ -206,6 +225,14 @@ const sanitizeSyncedMessageRow = (row = {}) => ({
   senderType: sanitizeString(row?.metadata?.senderType, 40).toLowerCase() || "assistant",
   senderName: sanitizeString(row?.metadata?.senderName, 160),
   senderEmail: sanitizeString(row?.metadata?.senderEmail, 160),
+  channel: sanitizeString(row?.metadata?.channel, 20).toLowerCase(),
+  senderRegion: sanitizeString(row?.metadata?.senderRegion, 20).toLowerCase(),
+  senderChannel: sanitizeString(row?.metadata?.senderChannel, 20).toLowerCase(),
+  senderFrom: sanitizeString(row?.metadata?.senderFrom, 120),
+  senderTo: sanitizeString(row?.metadata?.senderTo, 120),
+  inboundFrom: sanitizeString(row?.metadata?.inboundFrom, 120),
+  inboundTo: sanitizeString(row?.metadata?.inboundTo, 120),
+  twilioToNumber: sanitizeString(row?.metadata?.twilio_to_number, 120),
   createdAt: sanitizeString(row?.created_at, 80),
 });
 

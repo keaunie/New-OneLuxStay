@@ -113,6 +113,62 @@ const getWhatsAppPhoneE164 = (thread = {}) => {
   return digits ? `+${digits}` : "";
 };
 
+const formatSenderNumber = (value = "") => {
+  const raw = String(value || "").trim().replace(/^whatsapp:/i, "");
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return `+${digits}`;
+};
+
+const getRegionFromSourceOrigin = (sourceOrigin = "") => {
+  const normalized = String(sourceOrigin || "").trim().toLowerCase();
+  if (normalized.endsWith("_be")) return "be";
+  if (normalized.endsWith("_us")) return "us";
+  return "";
+};
+
+const getThreadSenderRegion = (thread = {}) => {
+  const direct = String(thread?.senderRegion || "").trim().toLowerCase();
+  if (direct === "be" || direct === "us") return direct;
+
+  const messages = Array.isArray(thread?.messages) ? [...thread.messages].reverse() : [];
+  const messageRegion = messages
+    .map((message) => String(message?.metadata?.senderRegion || "").trim().toLowerCase())
+    .find((value) => value === "be" || value === "us");
+  if (messageRegion) return messageRegion;
+
+  const sourceRegion = getRegionFromSourceOrigin(thread?.sourceOrigin);
+  if (sourceRegion) return sourceRegion;
+  return "us";
+};
+
+const getThreadSenderRegionBadge = (thread = {}) => (getThreadSenderRegion(thread) === "be" ? "BE" : "US");
+const getThreadSenderLineLabel = (thread = {}) => (getThreadSenderRegion(thread) === "be" ? "Belgium Line" : "US Line");
+
+const getThreadSenderNumber = (thread = {}) => {
+  const direct = String(thread?.twilioToNumber || thread?.senderFrom || "").trim();
+  if (direct) return direct;
+
+  const messages = Array.isArray(thread?.messages) ? [...thread.messages].reverse() : [];
+  const fromMessage = messages.find((message) => {
+    const metadata = message?.metadata || {};
+    return metadata?.twilioToNumber || metadata?.twilio_to_number || metadata?.senderFrom || metadata?.twilioFrom || metadata?.inboundTo;
+  });
+  return (
+    String(fromMessage?.metadata?.twilioToNumber || "").trim() ||
+    String(fromMessage?.metadata?.twilio_to_number || "").trim() ||
+    String(fromMessage?.metadata?.senderFrom || "").trim() ||
+    String(fromMessage?.metadata?.twilioFrom || "").trim() ||
+    String(fromMessage?.metadata?.inboundTo || "").trim()
+  );
+};
+
 const getConversationLatestMessage = (thread = {}) => {
   const threadMessages = Array.isArray(thread?.messages) ? thread.messages : [];
   return threadMessages[threadMessages.length - 1] || null;
@@ -403,6 +459,7 @@ function ExecutiveOlsPage({ forceView = null }) {
   const [newWhatsAppPhone, setNewWhatsAppPhone] = useState("");
   const [newWhatsAppMessage, setNewWhatsAppMessage] = useState("");
   const [sendingNewWhatsApp, setSendingNewWhatsApp] = useState(false);
+  const [newConversationSender, setNewConversationSender] = useState({ from: "", region: "us" });
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappNotice, setWhatsappNotice] = useState("");
   const [notificationPermission, setNotificationPermission] = useState(() =>
@@ -877,7 +934,6 @@ function ExecutiveOlsPage({ forceView = null }) {
           phone_number: phoneNumber,
           message,
           channel: "whatsapp",
-          from: "whatsapp:+16188812613",
         }),
       });
 
@@ -909,9 +965,13 @@ function ExecutiveOlsPage({ forceView = null }) {
       if (payload?.session_id) {
         setSelectedWhatsAppSessionId(String(payload.session_id));
       }
+      setNewConversationSender({
+        from: String(payload?.sender?.from || "").trim(),
+        region: String(payload?.sender?.region || "").trim().toLowerCase() || "us",
+      });
       setNewWhatsAppPhone("");
       setNewWhatsAppMessage("");
-      setWhatsappNotice("SMS message sent and conversation started.");
+      setWhatsappNotice("Message sent and conversation started.");
     } catch (requestError) {
       setWhatsappError(String(requestError?.message || "Unable to start SMS conversation."));
     } finally {
@@ -1055,6 +1115,18 @@ function ExecutiveOlsPage({ forceView = null }) {
   const replyPreview = aiSuggestedReply || replyAssist.polishedDraft;
   const showUseReplyButton = hasUsableSuggestion || replyAssist.hasPolishChanges;
   const selectedGuestPhoneNumber = getWhatsAppPhoneE164(selectedWhatsAppThread);
+  const selectedSenderRegionBadge = selectedWhatsAppThread ? getThreadSenderRegionBadge(selectedWhatsAppThread) : "US";
+  const selectedSenderLineLabel = selectedWhatsAppThread ? getThreadSenderLineLabel(selectedWhatsAppThread) : "US Line";
+  const selectedSenderNumber = selectedWhatsAppThread ? formatSenderNumber(getThreadSenderNumber(selectedWhatsAppThread)) : "";
+  const fallbackThread = filteredWhatsappThreads[0] || whatsappThreads[0] || null;
+  const fallbackSenderNumber = formatSenderNumber(
+    getThreadSenderNumber(fallbackThread) || newConversationSender?.from || "",
+  );
+  const fallbackSenderRegionBadge = fallbackThread
+    ? getThreadSenderRegionBadge(fallbackThread)
+    : String(newConversationSender?.region || "").toLowerCase() === "be"
+      ? "BE"
+      : "US";
   const selectedPropertyLabel = propertyId
     ? propertyOptions.find((item) => item.value === propertyId)?.label || "Selected property"
     : "All properties";
@@ -1311,14 +1383,17 @@ function ExecutiveOlsPage({ forceView = null }) {
                   <>
                     <div className="executive-ols-card-head">
                       <div>
-                        <p className="executive-ols-eyebrow">WhatsApp — US Line</p>
+                        <p className="executive-ols-eyebrow">Twilio Inbox</p>
                         <div className="executive-ols-whatsapp-title-row">
                           <span className="executive-ols-icon-badge is-whatsapp">
                             <ExecutiveIcon name="chat" className="executive-ols-inline-icon" />
                           </span>
                           <div>
                             <h3>Inbox studio</h3>
-                            <p>US WhatsApp line · +1 (618) 881-2613 · Live SMS and WhatsApp conversations.</p>
+                            <p>
+                              Active sender {fallbackSenderRegionBadge} · {fallbackSenderNumber || "Configured Twilio line"} ·
+                              Live SMS and WhatsApp conversations.
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -1386,6 +1461,9 @@ function ExecutiveOlsPage({ forceView = null }) {
                                     <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
                                     {getWhatsAppPhoneLabel(thread) || "Twilio guest"}
                                   </span>
+                                  <span className="executive-ols-whatsapp-meta-pill">
+                                    {getThreadSenderLineLabel(thread)} · {formatSenderNumber(getThreadSenderNumber(thread)) || "sender"}
+                                  </span>
                                   <span className="executive-ols-whatsapp-counter">{thread.messageCount || 0}</span>
                                 </div>
                                 <p>{getConversationPreview(thread)}</p>
@@ -1452,6 +1530,9 @@ function ExecutiveOlsPage({ forceView = null }) {
                               <span className="executive-ols-whatsapp-meta-pill">
                                 <ExecutiveIcon name="phone" className="executive-ols-inline-icon" />
                                 {getWhatsAppPhoneLabel(selectedWhatsAppThread) || "Twilio guest"}
+                              </span>
+                              <span className="executive-ols-whatsapp-meta-pill">
+                                {selectedSenderLineLabel} · {selectedSenderNumber || "Configured Twilio line"}
                               </span>
                               <span className="executive-ols-whatsapp-meta-pill">
                                 <ExecutiveIcon name="spark" className="executive-ols-inline-icon" />
@@ -1619,7 +1700,8 @@ function ExecutiveOlsPage({ forceView = null }) {
                                 <p className="executive-ols-eyebrow">Start WhatsApp conversation</p>
                                 <h3>Send the first WhatsApp message</h3>
                                 <p className="executive-ols-whatsapp-start-copy">
-                                  Sending from US WhatsApp line · +1 (618) 881-2613. Use the guest's number in E.164 format (e.g. +15551234567).
+                                  Sending from active sender {fallbackSenderRegionBadge} · {fallbackSenderNumber || "configured Twilio line"}.
+                                  Use the guest's number in E.164 format (e.g. +15551234567).
                                 </p>
                               </div>
 
@@ -1638,7 +1720,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                   value={newWhatsAppMessage}
                                   onChange={(event) => setNewWhatsAppMessage(event.target.value)}
                                   rows={4}
-                                  placeholder="Write the first SMS message..."
+                                  placeholder="Write the first message..."
                                   disabled={sendingNewWhatsApp}
                                 />
                                 <div className="executive-ols-composer-actions">

@@ -2149,6 +2149,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://oneluxstay.com/dev-ols/config</loc>
+    <lastmod>2026-05-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://oneluxstay.com/dubai</loc>
     <lastmod>2026-05-08</lastmod>
     <changefreq>monthly</changefreq>

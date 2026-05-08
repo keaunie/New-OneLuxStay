@@ -1,4 +1,5 @@
 import { supabaseRestRequest, isSupabaseConfigured } from "./_shared/supabaseClient.js";
+import { inferRegionFromNumber, normalizePhoneNumber as normalizeSenderPhoneNumber } from "./_shared/twilioSenderResolver.js";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -9,12 +10,7 @@ const sanitizeString = (value = "", maxLength = 4000) =>
     .slice(0, maxLength);
 
 const normalizePhoneNumber = (value = "") => {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const hasPlus = raw.startsWith("+");
-  const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) return "";
-  return `${hasPlus ? "+" : ""}${digits}`;
+  return normalizeSenderPhoneNumber(value);
 };
 
 const xmlEscape = (value = "") =>
@@ -59,10 +55,8 @@ const getRequestBaseUrl = (event = {}) => {
   ).replace(/\/+$/, "");
 };
 
-// Belgium numbers start with +32; everything else treated as US.
 const detectCountry = (toNumber = "") => {
-  const digits = String(toNumber || "").replace(/[^\d]/g, "");
-  return digits.startsWith("32") ? "be" : "us";
+  return inferRegionFromNumber(toNumber) || "us";
 };
 
 const getForwardNumber = (country = "us") => {

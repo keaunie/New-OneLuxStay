@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import twilio from "twilio";
+import { resolveSender } from "./_shared/twilioSenderResolver.js";
 
 dotenv.config();
 
@@ -13,8 +14,8 @@ export async function handler(event) {
   const { action, to, message, sandbox } = JSON.parse(event.body || "{}");
   const accountSid = getEnv("TWILIO_ACCOUNT_SID");
   const authToken = getEnv("TWILIO_AUTH_TOKEN");
-  const fromWhatsApp = getEnv("TWILIO_WHATSAPP_FROM");
-  const fromSms = getEnv("TWILIO_SMS_FROM");
+  const fromWhatsApp = resolveSender({ channel: "whatsapp", getEnv }).from;
+  const fromSms = resolveSender({ channel: "sms", getEnv }).from;
 
   if (sandbox) {
     return {
@@ -51,7 +52,7 @@ export async function handler(event) {
 
     if (action === "make_call") {
       const twimlUrl = getEnv("TWILIO_VOICE_TWIML_URL");
-      const fromVoice = getEnv("TWILIO_VOICE_FROM") || fromSms || fromWhatsApp;
+      const fromVoice = resolveSender({ channel: "voice", getEnv }).from || fromSms || fromWhatsApp;
 
       if (!twimlUrl) {
         return { statusCode: 400, body: JSON.stringify({ error: "TWILIO_VOICE_TWIML_URL not set in .env" }) };
