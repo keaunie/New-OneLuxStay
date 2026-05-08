@@ -5,7 +5,8 @@ import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 
 dotenv.config();
 
-const DEFAULT_TWILIO_WHATSAPP_FROM = "whatsapp:+17159218069";
+const DEFAULT_TWILIO_WHATSAPP_FROM = "whatsapp:+16188812613";
+const DEFAULT_TWILIO_SMS_FROM = "+16188812613";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -86,7 +87,10 @@ const getTwilioSmsConfig = () => ({
   accountSid: sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120),
   authToken: sanitizeString(getEnv("TWILIO_SMS_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240),
   fromAddress: normalizeSmsAddress(
-    sanitizeString(getEnv("TWILIO_SMS_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER"), 80),
+    sanitizeString(
+      getEnv("TWILIO_SMS_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER") || DEFAULT_TWILIO_SMS_FROM,
+      80,
+    ),
   ),
 });
 

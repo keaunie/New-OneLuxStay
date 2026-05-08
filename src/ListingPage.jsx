@@ -622,7 +622,7 @@ function ListingPage() {
     const hint = [inquiryListing?.city, inquiryListing?.location, inquiryListing?.address?.city, inquiryListing?.address?.state, inquiryListing?.address?.country, inquiryListing?.title]
       .filter(Boolean).join(" ").toLowerCase();
     if (/antwerp|belgium|belgi/i.test(hint)) return "32460254886";
-    if (/california|los angeles|miami|florida|redondo|usa|united states/i.test(hint)) return "17159218069";
+    if (/california|los angeles|miami|florida|redondo|usa|united states/i.test(hint)) return "16188812613";
     return "971588858935";
   })();
   const inquiryWhatsAppHref = `https://wa.me/${inquiryWhatsAppNumber}?text=${encodeURIComponent(
@@ -1519,7 +1519,6 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
 
 
 

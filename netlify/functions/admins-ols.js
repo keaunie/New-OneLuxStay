@@ -23,7 +23,9 @@ dotenv.config();
 
 const DEFAULT_SENTIMENT_TABLE = "chat_sentiment_lessons";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_TWILIO_WHATSAPP_FROM = "whatsapp:+17159218069";
+const DEFAULT_TWILIO_WHATSAPP_FROM = "whatsapp:+16188812613";
+const DEFAULT_TWILIO_SMS_FROM = "+16188812613";
+const DEFAULT_TWILIO_VOICE_FROM = "+16188812613";
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -87,7 +89,10 @@ const getTwilioSmsConfig = () => {
   const accountSid = sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120);
   const authToken = sanitizeString(getEnv("TWILIO_SMS_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240);
   const fromNumber = normalizePhoneNumber(
-    sanitizeString(getEnv("TWILIO_SMS_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER"), 80),
+    sanitizeString(
+      getEnv("TWILIO_SMS_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER") || DEFAULT_TWILIO_SMS_FROM,
+      80,
+    ),
   );
 
   return { accountSid, authToken, fromNumber };
@@ -146,7 +151,10 @@ const getTwilioVoiceConfig = () => {
   const accountSid = sanitizeString(getEnv("TWILIO_ACCOUNT_SID"), 120);
   const authToken = sanitizeString(getEnv("TWILIO_VOICE_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"), 240);
   const fromNumber = normalizePhoneNumber(
-    sanitizeString(getEnv("TWILIO_VOICE_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER"), 80),
+    sanitizeString(
+      getEnv("TWILIO_VOICE_FROM") || getEnv("TWILIO_PHONE_NUMBER") || getEnv("TWILIO_FROM_NUMBER") || DEFAULT_TWILIO_VOICE_FROM,
+      80,
+    ),
   );
   const bridgeSecret = sanitizeString(getEnv("TWILIO_VOICE_BRIDGE_SECRET") || authToken, 240);
 

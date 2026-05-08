@@ -588,6 +588,18 @@ const buildLowestPriceCalendarByDate = (daysByListing = {}) => {
 
 const getListingId = (listing) => listing?.id || listing?._id || null;
 
+const getListingLookupKeys = (listing) =>
+  [...new Set(
+    [
+      getListingId(listing),
+      listing?.unitTypeId,
+      getParentListingId(listing),
+      getCanonicalParentId(listing),
+    ]
+      .map((value) => toLookupKey(value))
+      .filter(Boolean)
+  )];
+
 const isChildListing = (listing) => {
   if (!listing) return false;
   const type = typeof listing.type === "string" ? listing.type.toUpperCase() : "";
@@ -1496,7 +1508,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
       ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
       : "";
   const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
-  return `https://wa.me/17159218069?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/16188812613?text=${encodeURIComponent(message)}`;
 };
 
 const BOOKING_STORAGE_KEY = "laBookingFilters";
@@ -5128,7 +5140,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         .filter(Boolean);
 
       setSectionAvailability(availableParents);
-      setSectionAvailabilityMap(parentAvailabilityMap);
+      setSectionAvailabilityMap({
+        ...availabilityMap,
+        ...parentAvailabilityMap,
+      });
       setSectionAvailabilityActive(true);
 
       const calendarListingId = toLookupKey(listingId || getPrimaryListingId(listingPool));
@@ -5199,6 +5214,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         if (res.ok) {
           const data = await res.json();
           const quotes = {};
+          const assignQuote = (listing, pricing) => {
+            if (!listing || !pricing) return;
+            const relatedListings = getRelatedListingsByParentId(listing, listingPool);
+            const candidates = relatedListings.length ? relatedListings : [listing];
+            candidates.forEach((candidate) => {
+              getListingLookupKeys(candidate).forEach((key) => {
+                quotes[key] = pricing;
+              });
+            });
+          };
           availableParents.forEach((listing) => {
             const listingKey = listing.id || listing._id;
             const quoteListingId = listing.id || listing._id;
@@ -5211,7 +5236,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
               nights,
               Number(sectionGuests) || 1
             );
-            if (pricing) quotes[listingKey] = pricing;
+            if (!pricing) return;
+            assignQuote(listing, pricing);
           });
           setSectionQuotes(quotes);
         } else {

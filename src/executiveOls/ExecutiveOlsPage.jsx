@@ -877,7 +877,7 @@ function ExecutiveOlsPage({ forceView = null }) {
           phone_number: phoneNumber,
           message,
           channel: "whatsapp",
-          from: "whatsapp:+17159218069",
+          from: "whatsapp:+16188812613",
         }),
       });
 
@@ -1318,7 +1318,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                           </span>
                           <div>
                             <h3>Inbox studio</h3>
-                            <p>US WhatsApp line · +1 (715) 921-8069 · Live SMS and WhatsApp conversations.</p>
+                            <p>US WhatsApp line · +1 (618) 881-2613 · Live SMS and WhatsApp conversations.</p>
                           </div>
                         </div>
                       </div>
@@ -1619,7 +1619,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                                 <p className="executive-ols-eyebrow">Start WhatsApp conversation</p>
                                 <h3>Send the first WhatsApp message</h3>
                                 <p className="executive-ols-whatsapp-start-copy">
-                                  Sending from US WhatsApp line · +1 (715) 921-8069. Use the guest's number in E.164 format (e.g. +15551234567).
+                                  Sending from US WhatsApp line · +1 (618) 881-2613. Use the guest's number in E.164 format (e.g. +15551234567).
                                 </p>
                               </div>
 
