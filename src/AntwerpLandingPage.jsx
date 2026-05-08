@@ -7,8 +7,11 @@ import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import MasonryGalleryModal from "./components/MasonryGalleryModal";
+import SharedSimilarUnitsSection from "./components/listing/SimilarUnitsSection";
+import SharedNeighborhoodHighlightsSection from "./components/listing/NeighborhoodHighlightsSection";
 import Stepper, { Step } from "./components/Stepper";
 import LottieInlineHint from "./components/LottieInlineHint";
+import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
@@ -52,6 +55,7 @@ const formatCurrency = (value, currency = "USD") =>
     : "--";
 
 const CHECKOUT_DEFAULT_CURRENCY = "EUR";
+const ENABLE_CHECKOUT_VERIFICATION = false;
 const resolveCheckoutCurrency = (currency) => {
   const normalized = typeof currency === "string" ? currency.trim().toUpperCase() : "";
   return normalized || CHECKOUT_DEFAULT_CURRENCY;
@@ -3082,9 +3086,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const listingMapRef = useRef(null);
   const listingMapInstanceRef = useRef(null);
   const listingMapMarkerRef = useRef(null);
-  const inlineListingMapRef = useRef(null);
-  const inlineListingMapInstanceRef = useRef(null);
-  const inlineListingMapMarkerRef = useRef(null);
+  const inlineListingMapRef = useInlineListingMap({
+    activeListing,
+    mapsApiKey,
+    defaultCoords: PROPERTY_COORDS,
+    getListingCoords,
+    getListingAddressQuery,
+    loadMaps: loadGoogleMaps,
+  });
   const [listingMapTarget, setListingMapTarget] = useState(null);
   const [isSectionMapOpen, setIsSectionMapOpen] = useState(false);
   const [sectionMapTarget, setSectionMapTarget] = useState(null);
@@ -5595,11 +5604,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return;
     }
 
-    const verification = await buildCheckoutVerificationPayload({
-      identityDocs: checkoutIdentityDocs,
-      cardPhoto: checkoutCardPhoto,
-      cardHolderSelfie: checkoutCardHolderSelfie,
-    });
+    let verification = null;
+    if (ENABLE_CHECKOUT_VERIFICATION) {
+      verification = await buildCheckoutVerificationPayload({
+        identityDocs: checkoutIdentityDocs,
+        cardPhoto: checkoutCardPhoto,
+        cardHolderSelfie: checkoutCardHolderSelfie,
+      });
+    }
 
     setCheckoutGuestError("");
     setSectionAvailabilityError("");
@@ -5625,7 +5637,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           guest,
           consentSignerName,
           consentSignatureDataUrl,
-          verification,
+          ...(ENABLE_CHECKOUT_VERIFICATION ? { verification } : {}),
           cancelPath: `${window.location.pathname}${window.location.search}`,
         }),
       });
@@ -5656,17 +5668,21 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setCheckoutGuestError("Add guest name, email, and phone to continue.");
       return;
     }
-    if (!checkoutIdentityDocs.idFront || !checkoutIdentityDocs.idBack || !checkoutIdentityDocs.idSelfie) {
-      setCheckoutIdentityError("Please upload ID front, ID back, and a selfie holding your ID.");
-      return;
+    if (ENABLE_CHECKOUT_VERIFICATION) {
+      if (!checkoutIdentityDocs.idFront || !checkoutIdentityDocs.idBack || !checkoutIdentityDocs.idSelfie) {
+        setCheckoutIdentityError("Please upload ID front, ID back, and a selfie holding your ID.");
+        return;
+      }
+      setCheckoutIdentityError("");
+      if (!checkoutCardPhoto || !checkoutCardHolderSelfie) {
+        setCheckoutCardPhotoError("Please upload the credit card photo and a selfie while holding the card.");
+        return;
+      }
+      setCheckoutCardPhotoError("");
+    } else {
+      setCheckoutIdentityError("");
+      setCheckoutCardPhotoError("");
     }
-    setCheckoutIdentityError("");
-    if (!checkoutCardPhoto ||
-                                      !checkoutCardHolderSelfie) {
-      setCheckoutCardPhotoError("Please upload the credit card photo and a selfie while holding the card.");
-      return;
-    }
-    setCheckoutCardPhotoError("");
     if (!checkoutConsentSignerName.trim()) {
       setCheckoutGuestError("Please add the signer full name.");
       return;
@@ -5702,7 +5718,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const isCheckoutGuestValid = Boolean(
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim() && checkoutGuest.phone.trim()
   );
-  const isCheckoutIdentityValid = Boolean(
+  const isCheckoutIdentityValid = !ENABLE_CHECKOUT_VERIFICATION || Boolean(
     checkoutIdentityDocs.idFront && checkoutIdentityDocs.idBack && checkoutIdentityDocs.idSelfie
   );
   const checkoutIdentityUploadedCount = [
@@ -5711,7 +5727,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     checkoutIdentityDocs.idSelfie,
   ].filter(Boolean).length;
   const checkoutCardUploadedCount = [checkoutCardPhoto, checkoutCardHolderSelfie].filter(Boolean).length;
-  const isCheckoutCardPhotoValid = Boolean(checkoutCardPhoto && checkoutCardHolderSelfie);
+  const isCheckoutCardPhotoValid =
+    !ENABLE_CHECKOUT_VERIFICATION || Boolean(checkoutCardPhoto && checkoutCardHolderSelfie);
+  const isCheckoutVerificationValid =
+    !ENABLE_CHECKOUT_VERIFICATION || (isCheckoutIdentityValid && isCheckoutCardPhotoValid);
+  const checkoutConsentStep = ENABLE_CHECKOUT_VERIFICATION ? 4 : 2;
+  const checkoutReviewStep = ENABLE_CHECKOUT_VERIFICATION ? 6 : 4;
   const canContinueToPayment =
     isCheckoutGuestValid &&
     isCheckoutIdentityValid &&
@@ -6317,73 +6338,6 @@ const applyCheckoutPromoCode = () => {
         setMapError("Unable to load map.");
       });
   }, [isListingMapOpen, activeListing, listingMapTarget, mapsApiKey]);
-
-  useEffect(() => {
-    if (!inlineListingMapRef.current || !activeListing) return;
-    if (!mapsApiKey) return;
-    loadGoogleMaps(mapsApiKey)
-      .then((maps) => {
-        if (!inlineListingMapRef.current) return;
-        const initialCenter = getListingCoords(activeListing) || PROPERTY_COORDS;
-        const map = new maps.Map(inlineListingMapRef.current, {
-          center: initialCenter,
-          zoom: 15,
-          minZoom: 10,
-          maxZoom: 21,
-          gestureHandling: "none",
-          scrollwheel: false,
-          draggable: false,
-          keyboardShortcuts: false,
-          zoomControl: false,
-          fullscreenControl: false,
-          mapTypeControl: false,
-          streetViewControl: false,
-        });
-        inlineListingMapInstanceRef.current = map;
-        if (inlineListingMapMarkerRef.current) {
-          inlineListingMapMarkerRef.current.setMap?.(null);
-          inlineListingMapMarkerRef.current = null;
-        }
-        const placeMarker = (position) => {
-          inlineListingMapMarkerRef.current = new maps.Marker({
-            map,
-            position,
-            title: activeListing.title || "OneLuxStay",
-          });
-        };
-        const coords = getListingCoords(activeListing);
-        if (coords) {
-          placeMarker(coords);
-        } else {
-          const address = getListingAddressQuery(activeListing);
-          if (address) {
-            const geocoder = new maps.Geocoder();
-            geocoder.geocode({ address }, (results, status) => {
-              if (status === "OK" && results?.[0]?.geometry?.location) {
-                const location = results[0].geometry.location;
-                map.setCenter(location);
-                placeMarker(location);
-              } else {
-                placeMarker(initialCenter);
-              }
-            });
-          } else {
-            placeMarker(initialCenter);
-          }
-        }
-      })
-      .catch(() => {});
-    return () => {
-      if (inlineListingMapInstanceRef.current?.__leafletMap?.remove) {
-        inlineListingMapInstanceRef.current.__leafletMap.remove();
-      }
-      inlineListingMapInstanceRef.current = null;
-      if (inlineListingMapMarkerRef.current) {
-        inlineListingMapMarkerRef.current.setMap?.(null);
-        inlineListingMapMarkerRef.current = null;
-      }
-    };
-  }, [activeListing, mapsApiKey]);
 
   useEffect(() => {
     if (!isSectionMapOpen || !sectionMapRef.current || !sectionMapTarget) return;
@@ -7261,10 +7215,22 @@ const applyCheckoutPromoCode = () => {
       </div>
       {isListingRoute && similarListingsForActiveRoute.length > 0 ? (
         <div className="la-unit-modal__section" aria-label="Similar units">
-          <SimilarUnitsSection
+          <SharedSimilarUnitsSection
             listings={similarListingsForActiveRoute}
             buildListingPath={buildListingPath}
             onListingClick={handleSimilarUnitClick}
+            getListingId={getListingId}
+            getListingImageUrls={getListingImageUrls}
+            fallbackImage={FALLBACK_IMAGE}
+            getImageUrl={getImageUrl}
+            sanitizeText={sanitizeText}
+            resolveGroupTitle={resolveGroupTitle}
+            formatAddress={formatAddress}
+            firstNumber={firstNumber}
+            formatCurrency={formatCurrency}
+            handleImageError={handleImageError}
+            defaultTitle="OneLuxStay Antwerp"
+            defaultCurrency="EUR"
           />
         </div>
       ) : null}
@@ -7272,7 +7238,7 @@ const applyCheckoutPromoCode = () => {
       </div>
       {isListingRoute ? (
         <div className="ols-listing-fullbleed ols-listing-fullbleed--neighborhood">
-          <NeighborhoodHighlightsSection />
+          <SharedNeighborhoodHighlightsSection cityKey="antwerp" />
         </div>
       ) : null}
       {isListingRoute ? (
@@ -7647,13 +7613,13 @@ const applyCheckoutPromoCode = () => {
                 nextButtonProps={{
                   disabled:
                     (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                    (checkoutStep === 2 && !isCheckoutIdentityValid) ||
-                    (checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
-                    (checkoutStep === 4 &&
+                    (ENABLE_CHECKOUT_VERIFICATION && checkoutStep === 2 && !isCheckoutIdentityValid) ||
+                    (ENABLE_CHECKOUT_VERIFICATION && checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
+                    (checkoutStep === checkoutConsentStep &&
                   (!checkoutConsentAccepted ||
                     !checkoutConsentSignerName.trim() ||
                     !checkoutConsentSignatureDataUrl)) ||
-                    (checkoutStep === 6 &&
+                    (checkoutStep === checkoutReviewStep &&
                       (!Number.isFinite(Number(pendingCheckout?.amount)) ||
                         Number(pendingCheckout?.amount) < 0 ||
                         Boolean(sectionReserveLoadingId))),
@@ -7737,6 +7703,8 @@ const applyCheckoutPromoCode = () => {
                 )}
               </div>
             </Step>
+            {ENABLE_CHECKOUT_VERIFICATION && (
+              <>
             <Step>
               <div className="la-inquiry-modal__step">
                 <div className="la-inquiry-modal__upload-head">
@@ -7862,6 +7830,8 @@ const applyCheckoutPromoCode = () => {
                 )}
               </div>
             </Step>
+              </>
+            )}
             <Step>
               <div className="la-inquiry-modal__step">
                 <label className="la-inquiry-modal__field">
@@ -7986,17 +7956,21 @@ const applyCheckoutPromoCode = () => {
                     <strong>Email</strong>
                     <span>{checkoutGuest.email}</span>
                   </div>
-                  <div>
-                    <strong>ID verification</strong>
-                    <span>Front: {checkoutIdentityDocs.idFront?.name || "--"}</span>
-                    <span>Back: {checkoutIdentityDocs.idBack?.name || "--"}</span>
-                    <span>Selfie with ID: {checkoutIdentityDocs.idSelfie?.name || "--"}</span>
-                  </div>
-                  <div>
-                    <strong>Card verification</strong>
-                    <span>Card photo: {checkoutCardPhoto?.name || "--"}</span>
-                    <span>Selfie with card: {checkoutCardHolderSelfie?.name || "--"}</span>
-                  </div>
+                  {ENABLE_CHECKOUT_VERIFICATION && (
+                    <div>
+                      <strong>ID verification</strong>
+                      <span>Front: {checkoutIdentityDocs.idFront?.name || "--"}</span>
+                      <span>Back: {checkoutIdentityDocs.idBack?.name || "--"}</span>
+                      <span>Selfie with ID: {checkoutIdentityDocs.idSelfie?.name || "--"}</span>
+                    </div>
+                  )}
+                  {ENABLE_CHECKOUT_VERIFICATION && (
+                    <div>
+                      <strong>Card verification</strong>
+                      <span>Card photo: {checkoutCardPhoto?.name || "--"}</span>
+                      <span>Selfie with card: {checkoutCardHolderSelfie?.name || "--"}</span>
+                    </div>
+                  )}
                   <div>
                     <strong>Signed by</strong>
                     <span>{checkoutConsentSignerName || "--"}</span>
@@ -9352,11 +9326,7 @@ const applyCheckoutPromoCode = () => {
                                       !checkoutGuest.lastName ||
                                       !checkoutGuest.email ||
                                       !checkoutGuest.phone ||
-                                      !checkoutIdentityDocs.idFront ||
-                                      !checkoutIdentityDocs.idBack ||
-                                      !checkoutIdentityDocs.idSelfie ||
-                                      !checkoutCardPhoto ||
-                                      !checkoutCardHolderSelfie ||
+                                      !isCheckoutVerificationValid ||
                                       !checkoutConsentAccepted ||
                                       !checkoutConsentSignerName.trim() ||
                                       !checkoutConsentSignatureDataUrl
@@ -9799,11 +9769,7 @@ const applyCheckoutPromoCode = () => {
                                     !checkoutGuest.lastName ||
                                     !checkoutGuest.email ||
                                     !checkoutGuest.phone ||
-                                    !checkoutIdentityDocs.idFront ||
-                                    !checkoutIdentityDocs.idBack ||
-                                    !checkoutIdentityDocs.idSelfie ||
-                                    !checkoutCardPhoto ||
-                                      !checkoutCardHolderSelfie ||
+                                    !isCheckoutVerificationValid ||
                                     !checkoutConsentAccepted ||
                                     !checkoutConsentSignerName.trim() ||
                                     !checkoutConsentSignatureDataUrl

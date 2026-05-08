@@ -4189,18 +4189,7 @@ body {
   position: relative;
 }
 
-.antwerp-page.has-silk {
-  background: transparent;
-}
-
-.antwerp-silk {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.antwerp-page > :not(.antwerp-silk):not(.app-loading-overlay):not(.listing-loading-overlay):not(.antwerp-modal__overlay) {
+.antwerp-page > :not(.app-loading-overlay):not(.listing-loading-overlay):not(.antwerp-modal__overlay) {
   position: relative;
   z-index: 1;
 }

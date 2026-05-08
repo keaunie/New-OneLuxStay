@@ -8,11 +8,13 @@ import reviewsDodger from "./data/reviews-dodger.json";
 import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
-import Silk from "./components/Silk";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import MasonryGalleryModal from "./components/MasonryGalleryModal";
+import SimilarUnitsSection from "./components/listing/SimilarUnitsSection";
+import NeighborhoodHighlightsSection from "./components/listing/NeighborhoodHighlightsSection";
 import Stepper, { Step } from "./components/Stepper";
 import LottieInlineHint from "./components/LottieInlineHint";
+import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
@@ -56,6 +58,7 @@ const formatCurrency = (value, currency = "USD") =>
     : "--";
 
 const CHECKOUT_DEFAULT_CURRENCY = "USD";
+const ENABLE_CHECKOUT_VERIFICATION = false;
 const resolveCheckoutCurrency = (currency) => {
   const normalized = typeof currency === "string" ? currency.trim().toUpperCase() : "";
   return normalized || CHECKOUT_DEFAULT_CURRENCY;
@@ -1750,6 +1753,90 @@ const renderAmenityGroupIcon = (groupKey) => {
   );
 };
 
+const getAmenityItemIcon = (item) => {
+  const s = String(item || "").toLowerCase();
+  let path = null;
+  if (/coffee|espresso|cappuccino|latte|nespresso|pod|keurig|french press/.test(s))
+    path = <><path d="M5 8h9v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8z"/><path d="M14 9h3a2 2 0 0 1 0 4h-3"/><path d="M8 4v2m4-2v2"/></>;
+  else if (/tea|kettle/.test(s))
+    path = <><path d="M5 8h9v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8z"/><path d="M14 9h3a2 2 0 0 1 0 4h-3"/><path d="M12 3c0 1-1 2-1 3"/></>;
+  else if (/wifi|wi-fi|internet|wireless/.test(s))
+    path = <path d="M4 9a12 12 0 0 1 16 0m-12 4a6 6 0 0 1 8 0m-4 4h.01"/>;
+  else if (/\btv\b|television|streaming|netflix|smart tv/.test(s))
+    path = <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 21h8m-4-2v2"/></>;
+  else if (/washer|washing machine|dryer/.test(s))
+    path = <><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h4m4 0h.01"/><circle cx="12" cy="13" r="4"/></>;
+  else if (/dishwasher|dishes|silverware|plates/.test(s))
+    path = <><path d="M3 17h18M3 7h18"/><path d="M12 7v10M7 10l2 2-2 2m10-4-2 2 2 2"/></>;
+  else if (/microwave/.test(s))
+    path = <><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M18 10h.01M18 13h.01"/><path d="M6 10h8v6H6z"/></>;
+  else if (/oven|stove|range|cooktop|burner/.test(s))
+    path = <><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="2"/><circle cx="16" cy="8" r="2"/><path d="M6 14h12v4H6z"/></>;
+  else if (/fridge|refrigerator|freezer/.test(s))
+    path = <><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M5 10h14M9 6v2m0 6v2"/></>;
+  else if (/kitchen|cookware|pots|pans|utensil/.test(s))
+    path = <><path d="M3 2v6a6 6 0 0 0 12 0V2"/><path d="M3 2h12M15 2c0 2 2 2 2 4s-2 2-2 4 2 2 2 4"/><path d="M9 12v10M12 12v10M6 12v10"/></>;
+  else if (/shower|bath|jacuzzi|hot tub/.test(s))
+    path = <><circle cx="11" cy="7" r="2"/><path d="M5 22V10a7 7 0 0 1 14 0v12"/><path d="M5 15h14m-7 7v-7"/></>;
+  else if (/towel/.test(s))
+    path = <><path d="M4 3h16v18H4z"/><path d="M4 9h16"/></>;
+  else if (/hair dryer|hairdryer/.test(s))
+    path = <><path d="M8 5v14m0-14c3-3 9-3 10 2s-6 7-10 7"/><path d="M2 3l6 6m0 6-6 6"/></>;
+  else if (/shampoo|soap|body wash|conditioner/.test(s))
+    path = <><path d="M9 3h6l1 3H8L9 3z"/><path d="M8 6h8v14a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V6z"/></>;
+  else if (/\bbed\b|linens|bedding|pillow|mattress/.test(s))
+    path = <><path d="M3 10.5c0-1.7 1.3-3 3-3h12c1.7 0 3 1.3 3 3V20h-2v-3H5v3H3v-9.5zm2 4.5h14v-4.5c0-.6-.4-1-1-1H6c-.6 0-1 .4-1 1V15zm2-8h2v2H7V7zm8 0h2v2h-2V7z"/></>;
+  else if (/closet|wardrobe|hanger|drawer/.test(s))
+    path = <><path d="M3 3h18v18H3V3z"/><path d="M12 3v18m-3-9 3-3 3 3"/></>;
+  else if (/sofa|couch|living/.test(s))
+    path = <><path d="M2 11v3h2v4h16v-4h2v-3a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M4 9V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></>;
+  else if (/desk|workspace|laptop|office|work area/.test(s))
+    path = <><rect x="2" y="13" width="20" height="2" rx="1"/><path d="M6 15v4m12-4v4"/><rect x="7" y="5" width="10" height="7" rx="1"/></>;
+  else if (/pool|swimming|jacuzzi/.test(s))
+    path = <><circle cx="7.5" cy="7" r="2"/><path d="M3 17c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2 2 2 4 2"/><path d="M5 12l4-2 4 2 3-1"/></>;
+  else if (/balcony|terrace|patio|garden|outdoor/.test(s))
+    path = <><path d="M4 18h16m-8-14v9m-5 0h10"/><path d="M6 18l2-6m10 6-2-6"/></>;
+  else if (/parking|garage/.test(s))
+    path = <><circle cx="12" cy="12" r="9"/><path d="M10 8h3.2a2.6 2.6 0 0 1 0 5.2H10V8zm0 0v8"/></>;
+  else if (/air condition|ac|climate|cooling/.test(s))
+    path = <><path d="M12 2v20M2 12h20m-5.66-6.34-8.68 8.68M19.66 18.34l-8.68-8.68"/><circle cx="12" cy="12" r="3"/></>;
+  else if (/heat|radiator|warming/.test(s))
+    path = <><path d="M12 2c0 4-2 4-2 8s2 4 2 8m-4-14c0 4-2 4-2 8s2 4 2 8m8-14c0 4-2 4-2 8s2 4 2 8"/></>;
+  else if (/iron|ironing/.test(s))
+    path = <><path d="M3 18h18M3 14c0-3 2-5 6-5h8a4 4 0 0 1 4 4v1H3v-1z"/><path d="M7 9V7a5 5 0 0 1 10 0v2"/></>;
+  else if (/smoke detector|smoke alarm/.test(s))
+    path = <><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3m0 4h.01"/></>;
+  else if (/carbon monoxide|co detector/.test(s))
+    path = <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>;
+  else if (/fire extinguisher/.test(s))
+    path = <><path d="M9 2h6v4H9zm3 4v2"/><path d="M5 8h14l-2 12H7L5 8z"/></>;
+  else if (/first aid|kit/.test(s))
+    path = <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6m-3-3v6"/></>;
+  else if (/safe|locker/.test(s))
+    path = <><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9v-4m0 14v-4m-3-3H5m14 0h-4"/></>;
+  else if (/pets|pet friendly|dogs|cats/.test(s))
+    path = <><path d="M10 3.5a2.5 2.5 0 0 1 5 0m-2 3a2.5 2.5 0 0 1 5 0m-9-1a2.5 2.5 0 0 1 5 0m-9 3a2.5 2.5 0 0 1 5 0"/><path d="M7 14c0 3 1.5 5 5 5s5-2 5-5c0-2-3-4-5-4s-5 2-5 4z"/></>;
+  else if (/bbq|grill|barbecue/.test(s))
+    path = <><path d="M6 11h12m-8 0v3a4 4 0 0 0 8 0v-3"/><path d="M7 18l-2 3m14-3 2 3M10 3h4m-3 0v3m2-3v3"/></>;
+  else if (/elevator|lift/.test(s))
+    path = <><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7l3-3 3 3m-6 10 3 3 3-3"/></>;
+  else if (/gym|fitness|exercise/.test(s))
+    path = <path d="M3 11h3v2H3zm15 0h3v2h-3zM7 9h2v6H7zm8 0h2v6h-2zM9 11h6v2H9z"/>;
+  else if (/key|lockbox|self check|keyless/.test(s))
+    path = <><circle cx="7" cy="15" r="4"/><path d="M10.6 11.4 19 3m0 0h-5m5 0v5"/></>;
+  else if (/luggage|storage|locker/.test(s))
+    path = <><rect x="4" y="8" width="16" height="13" rx="2"/><path d="M8 8V5a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></>;
+  else if (/long term|monthly|weekly|flexible/.test(s))
+    path = <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></>;
+  else
+    path = <path d="M9 12l2 2 4-4m-9 8h12a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"/>;
+  return (
+    <svg className="la-amenity-item-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {path}
+    </svg>
+  );
+};
+
 const formatDescription = (value) => {
   if (!value) return "";
   if (typeof value === "string") return sanitizeText(value);
@@ -2687,6 +2774,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const listingMapRef = useRef(null);
   const listingMapInstanceRef = useRef(null);
   const listingMapMarkerRef = useRef(null);
+  const inlineListingMapRef = useInlineListingMap({
+    activeListing,
+    mapsApiKey,
+    defaultCoords: PROPERTY_COORDS,
+    getListingCoords,
+    getListingAddressQuery,
+    loadMaps: loadGoogleMaps,
+  });
   const [listingMapTarget, setListingMapTarget] = useState(null);
   const [isSectionMapOpen, setIsSectionMapOpen] = useState(false);
   const [sectionMapTarget, setSectionMapTarget] = useState(null);
@@ -5259,11 +5354,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return;
     }
 
-    const verification = await buildCheckoutVerificationPayload({
-      identityDocs: checkoutIdentityDocs,
-      cardPhoto: checkoutCardPhoto,
-      cardHolderSelfie: checkoutCardHolderSelfie,
-    });
+    let verification = null;
+    if (ENABLE_CHECKOUT_VERIFICATION) {
+      verification = await buildCheckoutVerificationPayload({
+        identityDocs: checkoutIdentityDocs,
+        cardPhoto: checkoutCardPhoto,
+        cardHolderSelfie: checkoutCardHolderSelfie,
+      });
+    }
 
     setCheckoutGuestError("");
     setSectionAvailabilityError("");
@@ -5289,7 +5387,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           guest,
           consentSignerName,
           consentSignatureDataUrl,
-          verification,
+          ...(ENABLE_CHECKOUT_VERIFICATION ? { verification } : {}),
           cancelPath: `${window.location.pathname}${window.location.search}`,
         }),
       });
@@ -5320,17 +5418,21 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setCheckoutGuestError("Add guest name, email, and phone to continue.");
       return;
     }
-    if (!checkoutIdentityDocs.idFront || !checkoutIdentityDocs.idBack || !checkoutIdentityDocs.idSelfie) {
-      setCheckoutIdentityError("Please upload ID front, ID back, and a selfie holding your ID.");
-      return;
+    if (ENABLE_CHECKOUT_VERIFICATION) {
+      if (!checkoutIdentityDocs.idFront || !checkoutIdentityDocs.idBack || !checkoutIdentityDocs.idSelfie) {
+        setCheckoutIdentityError("Please upload ID front, ID back, and a selfie holding your ID.");
+        return;
+      }
+      setCheckoutIdentityError("");
+      if (!checkoutCardPhoto || !checkoutCardHolderSelfie) {
+        setCheckoutCardPhotoError("Please upload the credit card photo and a selfie while holding the card.");
+        return;
+      }
+      setCheckoutCardPhotoError("");
+    } else {
+      setCheckoutIdentityError("");
+      setCheckoutCardPhotoError("");
     }
-    setCheckoutIdentityError("");
-    if (!checkoutCardPhoto ||
-                                      !checkoutCardHolderSelfie) {
-      setCheckoutCardPhotoError("Please upload the credit card photo and a selfie while holding the card.");
-      return;
-    }
-    setCheckoutCardPhotoError("");
     if (!checkoutConsentSignerName.trim()) {
       setCheckoutGuestError("Please add the signer full name.");
       return;
@@ -5366,7 +5468,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const isCheckoutGuestValid = Boolean(
     checkoutGuest.firstName.trim() && checkoutGuest.lastName.trim() && checkoutGuest.email.trim() && checkoutGuest.phone.trim()
   );
-  const isCheckoutIdentityValid = Boolean(
+  const isCheckoutIdentityValid = !ENABLE_CHECKOUT_VERIFICATION || Boolean(
     checkoutIdentityDocs.idFront && checkoutIdentityDocs.idBack && checkoutIdentityDocs.idSelfie
   );
   const checkoutIdentityUploadedCount = [
@@ -5375,7 +5477,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     checkoutIdentityDocs.idSelfie,
   ].filter(Boolean).length;
   const checkoutCardUploadedCount = [checkoutCardPhoto, checkoutCardHolderSelfie].filter(Boolean).length;
-  const isCheckoutCardPhotoValid = Boolean(checkoutCardPhoto && checkoutCardHolderSelfie);
+  const isCheckoutCardPhotoValid =
+    !ENABLE_CHECKOUT_VERIFICATION || Boolean(checkoutCardPhoto && checkoutCardHolderSelfie);
+  const checkoutConsentStep = ENABLE_CHECKOUT_VERIFICATION ? 4 : 2;
+  const checkoutReviewStep = ENABLE_CHECKOUT_VERIFICATION ? 6 : 4;
   const canContinueToPayment =
     isCheckoutGuestValid &&
     isCheckoutIdentityValid &&
@@ -5713,6 +5818,48 @@ const applyCheckoutPromoCode = () => {
     const query = params.toString();
     return `/los-angeles/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
+  const similarListingsForActiveRoute = useMemo(() => {
+    if (!isListingRoute || !activeListing) return [];
+    const parentListings = losAngelesParentListings.length
+      ? losAngelesParentListings
+      : losAngelesListings;
+    if (!parentListings.length) return [];
+
+    const activeCanonicalId = toLookupKey(getCanonicalParentId(activeListing));
+    const activeDirectId = toLookupKey(getListingId(activeListing));
+
+    const relatedParents = getRelatedListingsByParentId(activeListing, parentListings)
+      .map((entry) => {
+        const groupKey = getListingGroupKey(entry);
+        if (!groupKey) return entry;
+        return parentListings.find(
+          (candidate) => !isChildListing(candidate) && getListingGroupKey(candidate) === groupKey
+        ) || entry;
+      })
+      .filter(Boolean);
+
+    const seen = new Set();
+    return [...relatedParents, ...parentListings]
+      .filter((listing) => {
+        const listingCanonicalId = toLookupKey(getCanonicalParentId(listing));
+        const listingDirectId = toLookupKey(getListingId(listing));
+        const dedupeKey = listingCanonicalId || listingDirectId;
+        if (!dedupeKey || seen.has(dedupeKey)) return false;
+        seen.add(dedupeKey);
+        if (activeCanonicalId && dedupeKey === activeCanonicalId) return false;
+        if (activeDirectId && listingDirectId && listingDirectId === activeDirectId) return false;
+        return true;
+      })
+      .slice(0, 8);
+  }, [isListingRoute, activeListing, losAngelesParentListings, losAngelesListings]);
+  const handleSimilarUnitClick = useCallback(() => {
+    const overlay = listingOverlayRef.current;
+    if (overlay && typeof overlay.scrollTo === "function") {
+      overlay.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
   const inquirySubject = `Inquiry: ${inquiryTitle}`;
   const inquiryBody =
     `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.` +
@@ -5990,36 +6137,6 @@ const applyCheckoutPromoCode = () => {
             </div>
         </div>
       </section>
-      <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
-        <button
-          type="button"
-          className={listingTab === "overview" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("overview")}
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          className={listingTab === "facilities" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("facilities")}
-        >
-          Facilities
-        </button>
-        <button
-          type="button"
-          className={listingTab === "guest-reviews" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("guest-reviews")}
-        >
-          Guest reviews
-        </button>
-        <button
-          type="button"
-          className={listingTab === "house-rules" ? "is-active" : ""}
-          onClick={() => handleListingTabClick("house-rules")}
-        >
-          House rules
-        </button>
-      </div>
       {(() => {
         const galleryListing = getGalleryListing(activeListing, listings);
         const images = getListingImageUrls(galleryListing);
@@ -6118,7 +6235,7 @@ const applyCheckoutPromoCode = () => {
         return (
           <>
             <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
-              <div className="la-unit-modal__gallery">
+              <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
                 <div className="la-unit-modal__main">
                   {mainImage ? (
                     <button
@@ -6186,112 +6303,282 @@ const applyCheckoutPromoCode = () => {
                     ))
                   )}
                 </div>
-                <div className="la-unit-modal__booking" id="la-rooms" aria-label="Availability check">
-                  <DateRangePicker
-                    value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                    dayPrices={calendarDayMap}
-                    dayAvailability={calendarAvailabilityMap}
-                    onValidationChange={handleSectionDateValidation}
-                    onChange={({ checkIn, checkOut }) => {
-                      setSectionCheckIn(checkIn);
-                      setSectionCheckOut(checkOut);
-                    }}
-                    onMonthChange={(nextMonth) => {
-                      const listingId = getCalendarListingId(activeListing, losAngelesListings);
-                      if (!listingId) return;
-                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                      setCalendarStartDate(monthStart);
-                      setCalendarMonthIndex(0);
-                      const loadMonth = (targetMonth) => {
-                        fetchCalendarMonth(
-                          listingId,
-                          targetMonth,
-                          calendarCacheRef,
-                          calendarDaysRef,
-                          calendarInflightRef,
-                          setCalendarLoading,
-                          setCalendarError,
-                          setCalendarPrices
-                        );
-                      };
-                      loadMonth(monthStart);
-                      if (isDesktopCalendarViewport()) {
-                        const nextVisibleMonth = addMonths(monthStart, 1);
-                        nextVisibleMonth.setDate(1);
-                        nextVisibleMonth.setHours(0, 0, 0, 0);
-                        loadMonth(nextVisibleMonth);
-                      }
-                    }}
-                    onOpenChange={handleListingCalendarOpen}
-                    isLoading={calendarLoading}
-                    fallbackPrice={activeListing.basePrice}
-                    fallbackCurrency={activeListing.currency}
-                    fallbackMinNights={listingMinNightsFallback}
-                  />
-                  <div>
-                    <label htmlFor="la-section-guests">Guests</label>
+              </div>
+            </div>
+            <div className="la-unit-modal__tabs" role="tablist" aria-label="Listing sections">
+              <button
+                type="button"
+                className={listingTab === "overview" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("overview")}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                className={listingTab === "facilities" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("facilities")}
+              >
+                Facilities
+              </button>
+              <button
+                type="button"
+                className={listingTab === "guest-reviews" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("guest-reviews")}
+              >
+                Guest reviews
+              </button>
+              <button
+                type="button"
+                className={listingTab === "house-rules" ? "is-active" : ""}
+                onClick={() => handleListingTabClick("house-rules")}
+              >
+                House rules
+              </button>
+            </div>
+            <div className="la-unit-modal__sidebar">
+              <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
+                <div className="la-unit-modal__bp-price">
+                  <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
+                  <small>per night {"\u00b7"} taxes at checkout</small>
+                </div>
+                <div className="la-unit-modal__bp-divider" />
+                <DateRangePicker
+                  value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+                  dayPrices={calendarDayMap}
+                  dayAvailability={calendarAvailabilityMap}
+                  onValidationChange={handleSectionDateValidation}
+                  onChange={({ checkIn, checkOut }) => {
+                    setSectionCheckIn(checkIn);
+                    setSectionCheckOut(checkOut);
+                  }}
+                  onMonthChange={(nextMonth) => {
+                    const listingId = getCalendarListingId(activeListing, losAngelesListings);
+                    if (!listingId) return;
+                    const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                    setCalendarStartDate(monthStart);
+                    setCalendarMonthIndex(0);
+                    const loadMonth = (targetMonth) => {
+                      fetchCalendarMonth(
+                        listingId,
+                        targetMonth,
+                        calendarCacheRef,
+                        calendarDaysRef,
+                        calendarInflightRef,
+                        setCalendarLoading,
+                        setCalendarError,
+                        setCalendarPrices
+                      );
+                    };
+                    loadMonth(monthStart);
+                    if (isDesktopCalendarViewport()) {
+                      const nextVisibleMonth = addMonths(monthStart, 1);
+                      nextVisibleMonth.setDate(1);
+                      nextVisibleMonth.setHours(0, 0, 0, 0);
+                      loadMonth(nextVisibleMonth);
+                    }
+                  }}
+                  onOpenChange={handleListingCalendarOpen}
+                  isLoading={calendarLoading}
+                  fallbackPrice={activeListing.basePrice}
+                  fallbackCurrency={activeListing.currency}
+                  fallbackMinNights={listingMinNightsFallback}
+                />
+                {cityDateNightCount > 0 && (
+                  <div className="la-unit-modal__bp-nights">
+                    {cityDateNightCount} night{cityDateNightCount !== 1 ? "s" : ""}
+                  </div>
+                )}
+                <div className="la-unit-modal__bp-guests">
+                  <label htmlFor="la-section-guests">Guests</label>
+                  <select
+                    id="la-section-guests"
+                    value={sectionGuests}
+                    onChange={(event) => setSectionGuests(event.target.value)}
+                  >
+                    {sectionGuestOptions.map((guestOption) => (
+                      <option key={guestOption} value={guestOption}>
+                        {guestOption}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="la-unit-modal__bp-divider" />
+                <div className="la-unit-modal__card-head">
+                  <strong>Availability</strong>
+                  <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
+                    {availabilityStatus}
+                  </span>
+                </div>
+                <div className="la-unit-modal__availability-details">
+                  {isStayTooShort ? (
+                    <p>{stayTooShortMessage}</p>
+                  ) : availability === false ? (
+                    <p>Unavailable for the selected dates.</p>
+                  ) : breakdown ? (
+                    <>
+                      <div>
+                        <span>Accommodation</span>
+                        <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
+                      </div>
+                      {breakdown.discountAmount > 0 && (
+                        <div>
+                          <span>
+                            Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
+                          </span>
+                          <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
+                        </div>
+                      )}
+                      <div>
+                        <span>Cleaning</span>
+                        <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
+                      </div>
+                      <div>
+                        <span>Taxes</span>
+                        <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                      </div>
+                      {Number(breakdown.securityDeposit) > 0 && (
+                        <div>
+                          <span>Security deposit</span>
+                          <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
+                        </div>
+                      )}
+                      <div>
+                        <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
+                        <strong>
+                          {formatCurrency(
+                            Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
+                            priceCurrency,
+                          )}
+                        </strong>
+                      </div>
+                      <div className="la-unit-modal__total">
+                        <span>Total</span>
+                        <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                      </div>
+                    </>
+                  ) : totalPrice ? (
+                    <div className="la-unit-modal__total">
+                      <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
+                      <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
+                    </div>
+                  ) : (
+                    <p>Check availability to view pricing breakdown.</p>
+                  )}
+                </div>
+                {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
+                  <div className="la-unit-modal__rate-plan">
+                    <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
                     <select
-                      id="la-section-guests"
-                      value={sectionGuests}
-                      onChange={(event) => setSectionGuests(event.target.value)}
+                      id={`la-listing-rate-plan-${listingId || "active"}`}
+                      value={selectedPlanId}
+                      disabled={sectionAvailabilityLoading}
+                      onChange={(event) =>
+                        setSelectedRatePlans((prev) => ({
+                          ...prev,
+                          [listingId]: event.target.value,
+                        }))
+                      }
+                      className="la-booking-table__rate-select"
                     >
-                      {sectionGuestOptions.map((guestOption) => (
-                        <option key={guestOption} value={guestOption}>
-                          {guestOption}
+                      {planOptions.map((planOption) => (
+                        <option key={planOption.id} value={planOption.id}>
+                          {planOption.label}
                         </option>
                       ))}
                     </select>
                   </div>
-                  <button
-                    type="button"
-                    className="la-unit-modal__booking-cta"
-                    disabled={sectionAvailabilityLoading || isStayTooShort}
-                    onClick={() => {
-                      if (isStayTooShort) {
-                        setSectionAvailabilityError(stayTooShortMessage);
-                        return;
-                      }
-                      fetchAvailabilityListings({ shouldScroll: true });
-                    }}
-                  >
-                    {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
-                  </button>
+                )}
+                <div className="la-unit-modal__actions">
+                  {(() => {
+                    const availability = listingId ? sectionAvailabilityMap[listingId] : null;
+                    if (availability === true) {
+                      const isReserving = sectionReserveLoadingId === listingId;
+                      return (
+                        <button
+                          type="button"
+                          className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                          disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
+                          onClick={() => {
+                            if (isStayTooShort) {
+                              setSectionAvailabilityError(stayTooShortMessage);
+                              return;
+                            }
+                            setPendingCheckout({
+                              listingId,
+                              listingTitle: activeListing.title,
+                              amount: typeof totalPrice === "number" ? totalPrice : null,
+                              currency: resolveCheckoutCurrency(priceCurrency),
+                              breakdown: breakdown || null,
+                              baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                              baseBreakdown: breakdown || null,
+                              promoCode: "",
+                              promoDiscountRate: 0,
+                              promoDiscountAmount: 0,
+                            });
+                            setCheckoutStep(1);
+                            setCheckoutConsentAccepted(false);
+                            setCheckoutConsentSignerName("");
+                            setCheckoutConsentSignatureDataUrl("");
+                            setCheckoutIdentityDocs({
+                              idFront: null,
+                              idBack: null,
+                              idSelfie: null,
+                            });
+                            setCheckoutIdentityError("");
+                            setCheckoutCardPhoto(null);
+                            setCheckoutCardHolderSelfie(null);
+                            setCheckoutCardPhotoError("");
+                            setCheckoutGuestError("");
+                            setIsCheckoutGuestOpen(true);
+                          }}
+                        >
+                          {isReserving ? "Redirecting..." : "Reserve"}
+                        </button>
+                      );
+                    }
+                    if (availability === false) {
+                      return (
+                        <button
+                          type="button"
+                          className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                          onClick={() => openInquiry(activeListing)}
+                        >
+                          Inquire
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        type="button"
+                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                        disabled={sectionAvailabilityLoading || isStayTooShort}
+                        onClick={() => {
+                          if (isStayTooShort) {
+                            setSectionAvailabilityError(stayTooShortMessage);
+                            return;
+                          }
+                          fetchAvailabilityListings({ shouldScroll: true });
+                        }}
+                      >
+                        {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                      </button>
+                    );
+                  })()}
                 </div>
-              </div>
-            <div className="la-unit-modal__sidebar">
-              <div className="la-unit-modal__contact" aria-label="Reservation contact">
-                <p>For Reservation Contact</p>
-                <strong>OneLuxStay Los Angeles</strong>
-                <a href="tel:+12138663589">+1 213 866 3589</a>
-                <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                                <a
-                  href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
-                  className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp
-                </a>
-              </div>
-              <div className="la-unit-modal__card la-unit-modal__price">
-                <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
-                <small>per night {"\u00b7"} taxes calculated at checkout</small>
-                {isListingAvailable ? (
-                  <button
-                    type="button"
-                    className="la-listing-hero__reserve"
-                    disabled={sectionAvailabilityLoading || isStayTooShort}
-                    onClick={() => {
-                      if (isStayTooShort) {
-                        setSectionAvailabilityError(stayTooShortMessage);
-                        return;
-                      }
-                      fetchAvailabilityListings({ shouldScroll: true });
-                    }}
+                <div className="la-unit-modal__bp-divider" />
+                <div className="la-unit-modal__bp-contact">
+                  <strong>OneLuxStay Los Angeles</strong>
+                  <a href="tel:+12138663589">+1 213 866 3589</a>
+                  <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+                  <a
+                    href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
+                    className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    Reserve your dates
-                  </button>
-                ) : null}
+                    WhatsApp
+                  </a>
+                </div>
               </div>
               <div className="la-unit-modal__card" id="la-guest-reviews">
                 {(() => {
@@ -6337,187 +6624,7 @@ const applyCheckoutPromoCode = () => {
                   );
                 })()}
                 </div>
-                <div className="la-unit-modal__card la-unit-modal__map la-unit-modal__map-button">
-                  {mapEmbedUrl ? (
-                    <iframe
-                      title="Unit location map"
-                      src={mapEmbedUrl}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      allowFullScreen
-                    />
-                  ) : mapUrl ? (
-                    <img src={mapUrl} alt="Map showing the unit location" loading="lazy" />
-                  ) : (
-                    <div className="la-unit-modal__placeholder">Map loading</div>
-                  )}
-                  <button
-                    type="button"
-                    className="la-unit-modal__map-overlay"
-                    aria-label="View larger map"
-                    onClick={() => {
-                      setListingMapTarget({
-                        coords: getListingCoords(activeListing),
-                        address: getListingAddressQuery(activeListing),
-                        label: activeListing.title || "OneLuxStay",
-                      });
-                      setIsListingMapOpen(true);
-                    }}
-                  >
-                    <span className="la-unit-modal__map-cta">View larger map</span>
-                  </button>
-                </div>
-                <div className="la-unit-modal__card la-unit-modal__availability">
-                  <div className="la-unit-modal__card-head">
-                    <strong>Availability</strong>
-                    <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                      {availabilityStatus}
-                    </span>
-                  </div>
-                <div className="la-unit-modal__availability-details">
-                    {isStayTooShort ? (
-                      <p>{stayTooShortMessage}</p>
-                    ) : availability === false ? (
-                      <p>Unavailable for the selected dates.</p>
-                    ) : breakdown ? (
-                      <>
-                        <div>
-                          <span>Accommodation</span>
-                          <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                        </div>
-                        {breakdown.discountAmount > 0 && (
-                          <div>
-                            <span>
-                              Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                            </span>
-                            <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                          </div>
-                        )}
-                        <div>
-                          <span>Cleaning</span>
-                          <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                        </div>
-                        <div>
-                          <span>Taxes</span>
-                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                        </div>
-                        {Number(breakdown.securityDeposit) > 0 && (
-                          <div>
-                            <span>Security deposit</span>
-                            <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
-                          </div>
-                        )}
-                        <div>
-                          <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                          <strong>
-                            {formatCurrency(
-                              Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
-                              priceCurrency,
-                            )}
-                          </strong>
-                        </div>
-                        <div className="la-unit-modal__total">
-                          <span>Total</span>
-                          <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
-                        </div>
-                      </>
-                    ) : totalPrice ? (
-                      <div className="la-unit-modal__total">
-                        <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                        <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
-                      </div>
-                    ) : (
-                      <p>Check availability to view pricing breakdown.</p>
-                    )}
-                  </div>
-                  {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
-                    <div className="la-unit-modal__rate-plan">
-                      <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
-                      <select
-                        id={`la-listing-rate-plan-${listingId || "active"}`}
-                        value={selectedPlanId}
-                        disabled={sectionAvailabilityLoading}
-                        onChange={(event) =>
-                          setSelectedRatePlans((prev) => ({
-                            ...prev,
-                            [listingId]: event.target.value,
-                          }))
-                        }
-                        className="la-booking-table__rate-select"
-                      >
-                        {planOptions.map((planOption) => (
-                          <option key={planOption.id} value={planOption.id}>
-                            {planOption.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div className="la-unit-modal__actions">
-                    {(() => {
-                      const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                      if (availability === true) {
-                        const isReserving = sectionReserveLoadingId === listingId;
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__action-primary"
-                            disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
-                            onClick={() => {
-                              if (isStayTooShort) {
-                                setSectionAvailabilityError(stayTooShortMessage);
-                                return;
-                              }
-                              setPendingCheckout({
-                                listingId,
-                                listingTitle: activeListing.title,
-                                amount: typeof totalPrice === "number" ? totalPrice : null,
-                                currency: resolveCheckoutCurrency(priceCurrency),
-                                breakdown: breakdown || null,
-                                baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                                baseBreakdown: breakdown || null,
-                                promoCode: "",
-                                promoDiscountRate: 0,
-                                promoDiscountAmount: 0,
-                              });
-                              setCheckoutStep(1);
-                              setCheckoutConsentAccepted(false);
-                              setCheckoutConsentSignerName("");
-                              setCheckoutConsentSignatureDataUrl("");
-                              setCheckoutIdentityDocs({
-                                idFront: null,
-                                idBack: null,
-                                idSelfie: null,
-                              });
-                              setCheckoutIdentityError("");
-                              setCheckoutCardPhoto(null);
-                              setCheckoutCardHolderSelfie(null);
-                              setCheckoutCardPhotoError("");
-                              setCheckoutGuestError("");
-                              setIsCheckoutGuestOpen(true);
-                            }}
-                          >
-                            {isReserving ? "Redirecting..." : "Reserve"}
-                          </button>
-                        );
-                      }
-                      if (availability === false) {
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__action-primary"
-                            onClick={() => openInquiry(activeListing)}
-                          >
-                            Inquire
-                          </button>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                </div>
               </div>
-            </div>
             {sectionValidationNotice && (
               <div role="alert" className="la-section-hero__notice">
                 {sectionValidationNotice}
@@ -6594,46 +6701,92 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
         <div className="la-unit-modal__facilities">
-          {activeAmenityList.length ? (
-            <div className="la-facilities-layout">
-              <div className="la-facilities-grid">
-                {visibleAmenityGroups.map((group) => (
-                  <div key={group.key} className="la-facilities-group">
-                    <div className="la-facilities-group__head">
-                      <span className="la-facilities-group__icon">
-                        {renderAmenityGroupIcon(group.key)}
-                      </span>
-                      <h5>{group.label}</h5>
-                    </div>
-                    <ul>
-                      {(showAllAmenities
-                        ? group.items
-                        : group.items.slice(0, collapsedAmenityItemLimit)).map((item, idx) => (
-                        <li key={`${group.key}-${idx}-${item}`}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+          {activeListing?.amenities?.length ? (() => {
+            const allGroups = groupAmenities(activeListing.amenities);
+            const totalItems = allGroups.reduce((sum, g) => sum + g.items.length, 0);
+            const previewItems = allGroups
+              .filter((g) => g.items.length > 0)
+              .slice(0, 8)
+              .map((g) => ({ item: g.items[0], key: g.key }));
+            const hasMore = totalItems > previewItems.length;
+            const renderGroup = (group) => (
+              <div key={group.key} className="la-facilities-group">
+                <div className="la-facilities-group__head">
+                  <span className="la-facilities-group__icon">{"\u2713"}</span>
+                  <h5>{group.label}</h5>
+                </div>
+                <ul>
+                  {group.items.map((item, idx) => (
+                    <li key={`${group.key}-${idx}-${item}`}>
+                      {getAmenityItemIcon(item)}
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="la-facilities-more">
-                <a className="la-facilities-cta" href="#la-rooms">
-                  See availability
-                </a>
-                {hasCollapsedAmenities && (
-                  <button
-                    type="button"
-                    className="la-unit-modal__amenities-toggle"
-                    onClick={() => setShowAllAmenities((prev) => !prev)}
-                  >
-                    {showAllAmenities ? "See less" : "See more"}
-                  </button>
+            );
+            return (
+              <div className="la-facilities-layout">
+                {!showAllAmenities && (
+                  <div className="la-facilities-preview">
+                    {previewItems.map(({ item, key }) => (
+                      <div key={key} className="la-facilities-preview__item">
+                        {getAmenityItemIcon(item)}
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div
+                  id="la-facilities-full"
+                  className={`la-facilities-full-wrap${showAllAmenities ? " la-facilities-full-wrap--open" : ""}`}
+                  aria-hidden={!showAllAmenities}
+                >
+                  <div className="la-facilities-grid">
+                    {allGroups.map((group) => renderGroup(group))}
+                  </div>
+                </div>
+                {hasMore && (
+                  <div className="la-facilities-more">
+                    <button
+                      type="button"
+                      className="la-unit-modal__amenities-toggle"
+                      onClick={() => setShowAllAmenities((prev) => !prev)}
+                      aria-expanded={showAllAmenities}
+                      aria-controls="la-facilities-full"
+                    >
+                      {showAllAmenities ? "See less" : `Show all ${totalItems} amenities`}
+                    </button>
+                  </div>
                 )}
               </div>
-            </div>
-          ) : (
+            );
+          })() : (
             <p>Contact us for full amenities list.</p>
           )}
         </div>
+      </div>
+      <div className="la-unit-modal__section la-unit-modal__section--map-fullbleed">
+        <div
+          ref={inlineListingMapRef}
+          className="la-inline-map__canvas"
+          aria-label="Map showing unit location"
+        />
+        <button
+          type="button"
+          className="la-unit-modal__map-overlay"
+          aria-label="View larger map"
+          onClick={() => {
+            setListingMapTarget({
+              coords: getListingCoords(activeListing),
+              address: getListingAddressQuery(activeListing),
+              label: activeListing.title || "OneLuxStay",
+            });
+            setIsListingMapOpen(true);
+          }}
+        >
+          <span className="la-unit-modal__map-cta">View larger map</span>
+        </button>
       </div>
       <div className="la-unit-modal__section" id="la-house-rules">
         <h4>House rules</h4>
@@ -6701,7 +6854,7 @@ const applyCheckoutPromoCode = () => {
             { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
           ];
           return (
-            <div className="la-house-rules">
+            <div className="la-house-rules la-house-rules--balanced">
               <ul>
                 {ruleItems.map((item) => (
                   <li key={item.label}>
@@ -6714,8 +6867,39 @@ const applyCheckoutPromoCode = () => {
           );
         })()}
       </div>
+      {isListingRoute && similarListingsForActiveRoute.length > 0 ? (
+        <div className="la-unit-modal__section" aria-label="Similar units">
+          <SimilarUnitsSection
+            listings={similarListingsForActiveRoute}
+            buildListingPath={buildListingPath}
+            onListingClick={handleSimilarUnitClick}
+            getListingId={getListingId}
+            getListingImageUrls={getListingImageUrls}
+            fallbackImage={FALLBACK_IMAGE}
+            getImageUrl={getImageUrl}
+            sanitizeText={sanitizeText}
+            resolveGroupTitle={resolveGroupTitle}
+            formatAddress={formatAddress}
+            firstNumber={firstNumber}
+            formatCurrency={formatCurrency}
+            handleImageError={handleImageError}
+            defaultTitle="OneLuxStay Los Angeles"
+            defaultCurrency="USD"
+          />
+        </div>
+      ) : null}
         </div>
       </div>
+      {isListingRoute ? (
+        <div className="ols-listing-fullbleed ols-listing-fullbleed--neighborhood">
+          <NeighborhoodHighlightsSection cityKey="los-angeles" />
+        </div>
+      ) : null}
+      {isListingRoute ? (
+        <div className="ols-listing-fullbleed ols-listing-fullbleed--footer">
+          <SiteFooter />
+        </div>
+      ) : null}
     </div>
   ) : null;
 
@@ -7020,21 +7204,21 @@ const applyCheckoutPromoCode = () => {
             finalButtonText={sectionReserveLoadingId ? "Redirecting..." : "Continue to payment"}
             advanceOnFinalStep={false}
             backButtonProps={{ disabled: Boolean(sectionReserveLoadingId) }}
-            nextButtonProps={{
-              disabled:
+                nextButtonProps={{
+                  disabled:
                 (checkoutStep === 1 && !isCheckoutGuestValid) ||
-                (checkoutStep === 2 && !isCheckoutIdentityValid) ||
-                (checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
-                (checkoutStep === 4 &&
-                  (!checkoutConsentAccepted ||
-                    !checkoutConsentSignerName.trim() ||
-                    !checkoutConsentSignatureDataUrl)) ||
-                (checkoutStep === 6 &&
+                (ENABLE_CHECKOUT_VERIFICATION && checkoutStep === 2 && !isCheckoutIdentityValid) ||
+                (ENABLE_CHECKOUT_VERIFICATION && checkoutStep === 3 && !isCheckoutCardPhotoValid) ||
+                (checkoutStep === checkoutConsentStep &&
+              (!checkoutConsentAccepted ||
+                !checkoutConsentSignerName.trim() ||
+                !checkoutConsentSignatureDataUrl)) ||
+                (checkoutStep === checkoutReviewStep &&
                   (!Number.isFinite(Number(pendingCheckout?.amount)) ||
                     Number(pendingCheckout?.amount) < 0 ||
                     Boolean(sectionReserveLoadingId))),
-            }}
-          >
+                }}
+              >
             <Step>
               <div className="la-inquiry-modal__step">
                 <label
@@ -7113,6 +7297,8 @@ const applyCheckoutPromoCode = () => {
                 )}
               </div>
             </Step>
+            {ENABLE_CHECKOUT_VERIFICATION && (
+              <>
             <Step>
               <div className="la-inquiry-modal__step">
                 <div className="la-inquiry-modal__upload-head">
@@ -7238,6 +7424,8 @@ const applyCheckoutPromoCode = () => {
                 )}
               </div>
             </Step>
+              </>
+            )}
             <Step>
               <div className="la-inquiry-modal__step">
                 <label className="la-inquiry-modal__field">
@@ -7371,17 +7559,21 @@ const applyCheckoutPromoCode = () => {
                     <strong>Email</strong>
                     <span>{checkoutGuest.email}</span>
                   </div>
-                  <div>
-                    <strong>ID verification</strong>
-                    <span>Front: {checkoutIdentityDocs.idFront?.name || "--"}</span>
-                    <span>Back: {checkoutIdentityDocs.idBack?.name || "--"}</span>
-                    <span>Selfie with ID: {checkoutIdentityDocs.idSelfie?.name || "--"}</span>
-                  </div>
-                  <div>
-                    <strong>Card verification</strong>
-                    <span>Card photo: {checkoutCardPhoto?.name || "--"}</span>
-                    <span>Selfie with card: {checkoutCardHolderSelfie?.name || "--"}</span>
-                  </div>
+                  {ENABLE_CHECKOUT_VERIFICATION && (
+                    <div>
+                      <strong>ID verification</strong>
+                      <span>Front: {checkoutIdentityDocs.idFront?.name || "--"}</span>
+                      <span>Back: {checkoutIdentityDocs.idBack?.name || "--"}</span>
+                      <span>Selfie with ID: {checkoutIdentityDocs.idSelfie?.name || "--"}</span>
+                    </div>
+                  )}
+                  {ENABLE_CHECKOUT_VERIFICATION && (
+                    <div>
+                      <strong>Card verification</strong>
+                      <span>Card photo: {checkoutCardPhoto?.name || "--"}</span>
+                      <span>Selfie with card: {checkoutCardHolderSelfie?.name || "--"}</span>
+                    </div>
+                  )}
                   <div>
                     <strong>Signed by</strong>
                     <span>{checkoutConsentSignerName || "--"}</span>
@@ -7492,15 +7684,11 @@ const applyCheckoutPromoCode = () => {
 
   if (isListingRoute) {
     return (
-      <div className="antwerp-page has-silk">
-        <div className="antwerp-silk">
-          <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
-        </div>
+      <div className="antwerp-page">
         {listingDetail ? (
           <div className="antwerp-modal__overlay is-page" ref={listingOverlayRef}>
             <div className="ols-listing-page-col">
               {listingDetail}
-              <SiteFooter />
             </div>
           </div>
         ) : (
@@ -7517,7 +7705,7 @@ const applyCheckoutPromoCode = () => {
   }
 
   return (
-    <div className="antwerp-page has-silk">
+    <div className="antwerp-page">
       {listingMapModal}
       {zoomModal}
       {masonryModal}
