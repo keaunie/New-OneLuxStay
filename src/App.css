@@ -17118,3 +17118,339 @@ a[href="#redondo-city-tour"],
     font-size: clamp(1.55rem, 6vw, 2rem);
   }
 }
+
+/* ========================================================
+   Global Listing Responsive Architecture (all cities)
+   ======================================================== */
+.la-listing-shell {
+  --ols-listing-max-width: 1240px;
+  --ols-listing-space-lg: clamp(20px, 2.4vw, 30px);
+  --ols-listing-space-md: clamp(14px, 1.8vw, 20px);
+  --ols-listing-space-sm: clamp(10px, 1.4vw, 14px);
+  --ols-listing-space-xs: clamp(8px, 1vw, 12px);
+  --ols-listing-pad-inline-mobile: clamp(14px, 4.2vw, 20px);
+  --ols-listing-radius-lg: 22px;
+  --ols-listing-radius-md: 16px;
+}
+
+.la-listing-shell,
+.la-listing-shell * {
+  min-width: 0;
+}
+
+.la-listing-shell img {
+  max-width: 100%;
+}
+
+.la-listing-shell .la-unit-modal.la-listing-page {
+  overflow-x: clip;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--ols-listing-space-xs);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+  padding-bottom: 10px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-height: 42px;
+  padding: 10px 14px;
+  scroll-snap-align: start;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel .la-date-input,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel select,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel input {
+  min-height: 44px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel .la-unit-modal__booking-cta,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel .la-unit-modal__action-primary {
+  min-height: 48px;
+  width: 100%;
+}
+
+.la-listing-shell .la-unit-modal__address {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1040px) {
+  .la-listing-shell__content {
+    width: min(var(--ols-listing-max-width), calc(100% - (var(--ols-listing-pad-inline-mobile) * 2)));
+  }
+
+  .la-listing-shell .la-unit-modal.la-listing-page {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--ols-listing-space-md);
+    padding: 14px 0 26px;
+  }
+
+  .la-listing-shell .la-listing-hero {
+    border-radius: var(--ols-listing-radius-md);
+    padding: 10px 12px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+    grid-column: 1;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    top: auto;
+    z-index: auto;
+    gap: var(--ols-listing-space-sm);
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel {
+    position: static;
+    width: 100%;
+    max-width: none;
+    padding: 16px;
+    border-radius: var(--ols-listing-radius-md);
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__gallery {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ols-listing-space-sm);
+    border-radius: var(--ols-listing-radius-md);
+    height: auto;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main,
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    clip-path: none;
+    border-radius: var(--ols-listing-radius-md);
+    height: auto;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main img {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    gap: var(--ols-listing-space-sm);
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side img,
+  .la-listing-shell .la-listing-page .la-unit-modal__side .la-unit-modal__placeholder {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__media-action {
+    min-height: 40px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__section {
+    grid-column: 1;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__section:not(.la-unit-modal__section--map-fullbleed) {
+    padding: 16px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__intro h3,
+  .la-listing-shell .la-listing-page .la-listing-hero__intro h3 {
+    font-size: clamp(1.6rem, 5.2vw, 2.2rem);
+    line-height: 1.18;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__chips {
+    gap: 8px;
+    row-gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__chips span {
+    max-width: 100%;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__map-overlay {
+    z-index: 2;
+  }
+
+  .la-listing-shell .la-listing-page .la-inline-map__canvas {
+    min-height: 280px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__rooms,
+  .la-listing-shell .la-listing-page .la-house-rules ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .la-listing-shell .la-listing-page .la-facilities-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__review {
+    padding: 14px;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table {
+    overflow: visible;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__head {
+    display: none;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__cell {
+    border: 0;
+    padding: 0;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__cta-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__reserve,
+  .la-listing-shell .la-listing-page .la-booking-table__cta {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__rate-select {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .ols-similar__track {
+    scroll-padding-inline: var(--ols-listing-pad-inline-mobile);
+  }
+
+  .ols-similar__item {
+    flex: 0 0 clamp(252px, 74vw, 320px);
+    max-width: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .la-listing-shell .la-listing-page .la-listing-hero__intro {
+    align-items: start;
+    gap: 12px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__address,
+  .la-listing-shell .la-listing-page .la-unit-modal__rating {
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__section:not(.la-unit-modal__section--map-fullbleed) {
+    padding: 14px;
+  }
+
+  .la-listing-shell .la-listing-page .la-facilities-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side img,
+  .la-listing-shell .la-listing-page .la-unit-modal__side .la-unit-modal__placeholder {
+    aspect-ratio: 16 / 10;
+  }
+}
+
+@media (max-width: 520px) {
+  .la-listing-shell__content {
+    width: min(var(--ols-listing-max-width), calc(100% - (var(--ols-listing-pad-inline-mobile) * 2)));
+  }
+
+  .la-listing-shell .la-unit-modal.la-listing-page {
+    row-gap: 12px;
+    padding: 10px 0 20px;
+  }
+
+  .la-listing-shell .la-listing-hero {
+    border-radius: 14px;
+    padding: 8px 10px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__bp-price strong,
+  .la-listing-shell .la-listing-page .la-unit-modal__price strong {
+    font-size: clamp(1.22rem, 5.8vw, 1.5rem);
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs button {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 0.84rem;
+  }
+
+  .la-listing-shell .la-listing-page .la-inline-map__canvas {
+    min-height: 220px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__booking-panel .la-unit-modal__bp-price small {
+    font-size: 0.78rem;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__availability-details div,
+  .la-listing-shell .la-listing-page .la-unit-modal__total {
+    gap: 8px;
+  }
+
+  .la-listing-shell .la-listing-page .la-booking-table__title h4,
+  .la-listing-shell .la-listing-page .la-unit-modal__section h4 {
+    font-size: 1.05rem;
+    line-height: 1.3;
+  }
+
+  .ols-similar__head {
+    padding-inline: var(--ols-listing-pad-inline-mobile);
+  }
+
+  .ols-similar__track {
+    padding-inline: var(--ols-listing-pad-inline-mobile);
+  }
+
+  .ols-similar__item {
+    flex: 0 0 min(86vw, 300px);
+  }
+}
