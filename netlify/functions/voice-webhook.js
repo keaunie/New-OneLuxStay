@@ -59,27 +59,35 @@ const detectCountry = (toNumber = "") => {
   return inferRegionFromNumber(toNumber) || "us";
 };
 
-const normalizeDialTargetE164 = (value = "") => {
-  const normalized = normalizePhoneNumber(sanitizeString(value, 80));
-  if (!normalized) return "";
-  if (normalized.startsWith("+")) return normalized;
+const SIP_POP_HOST = sanitizeString(getEnv("VOIPMS_POP_HOST") || "atlanta2.voip.ms", 120) || "atlanta2.voip.ms";
 
-  const digits = normalized.replace(/[^\d]/g, "");
-  if (!digits) return "";
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  return `+${digits}`;
-};
+const buildSipTargets = () => {
+  const raphUser = sanitizeString(getEnv("VOIPMS_RAPH_USERNAME") || "127056_raph", 120);
+  const angelUser = sanitizeString(getEnv("VOIPMS_ANGEL_USERNAME") || "127056_angel", 120);
+  const raphPassword = sanitizeString(getEnv("VOIPMS_RAPH_PASSWORD") || "", 200);
+  const angelPassword = sanitizeString(getEnv("VOIPMS_ANGEL_PASSWORD") || "", 200);
 
-const getVoipMsDid = () => {
-  const configuredRaw =
-    sanitizeString(getEnv("TWILIO_VOICE_VOIPMS_DID") || "", 80) ||
-    sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO") || "", 80) ||
-    sanitizeString(getEnv("OLS_CALL_FORWARD_TO") || "", 80);
-  const configured = normalizeDialTargetE164(configuredRaw);
-  if (configured) return configured;
-  // Default VoIP.ms DID used for routing to ARCHIE_S ring group.
-  return normalizeDialTargetE164("+14243543447");
+  const targets = [];
+
+  if (raphUser && raphPassword) {
+    targets.push({
+      key: "raph",
+      username: raphUser,
+      uri: `sip:${raphUser}:${raphPassword}@${SIP_POP_HOST}`,
+      redacted: `sip:${raphUser}:***@${SIP_POP_HOST}`,
+    });
+  }
+
+  if (angelUser && angelPassword) {
+    targets.push({
+      key: "angel",
+      username: angelUser,
+      uri: `sip:${angelUser}:${angelPassword}@${SIP_POP_HOST}`,
+      redacted: `sip:${angelUser}:***@${SIP_POP_HOST}`,
+    });
+  }
+
+  return targets;
 };
 
 const logCall = async ({ callSid, from, to, country }) => {
@@ -133,30 +141,43 @@ export async function handler(event) {
     // Fire-and-forget — never block the TwiML response on DB write
     logCall({ callSid, from, to, country }).catch(() => null);
 
-    const forwardTo = getVoipMsDid();
+    const sipTargets = buildSipTargets();
     console.info("voice-webhook: inbound call", {
       callSid,
       from,
       to,
       country,
-      dialTarget: forwardTo || null,
+      sipTargets: sipTargets.map((target) => target.redacted),
     });
 
-    if (forwardTo) {
+    if (sipTargets.length > 0) {
+      const sipTwiml = sipTargets
+        .map((target) => `<Sip>${xmlEscape(target.uri)}</Sip>`)
+        .join("");
+
       return xmlResponse(
-        `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting your call now.</Say><Dial answerOnBridge="true" timeout="30"${actionAttr}${callerIdAttr}><Number>${xmlEscape(forwardTo)}</Number></Dial></Response>`,
+        `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting your call now.</Say><Dial answerOnBridge="true" timeout="30"${actionAttr}${callerIdAttr}>${sipTwiml}</Dial></Response>`,
       );
     }
 
-    console.error("voice-webhook: missing dial target", {
+    console.error("voice-webhook: missing SIP targets", {
       callSid,
       from,
       to,
       country,
+      configuredUsers: {
+        raph: Boolean(sanitizeString(getEnv("VOIPMS_RAPH_USERNAME") || "127056_raph", 120)),
+        angel: Boolean(sanitizeString(getEnv("VOIPMS_ANGEL_USERNAME") || "127056_angel", 120)),
+      },
+      hasPasswords: {
+        raph: Boolean(sanitizeString(getEnv("VOIPMS_RAPH_PASSWORD") || "", 200)),
+        angel: Boolean(sanitizeString(getEnv("VOIPMS_ANGEL_PASSWORD") || "", 200)),
+      },
+      sipPopHost: SIP_POP_HOST,
     });
 
     return xmlResponse(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Please send us a message and our team will respond shortly.</Say></Response>',
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. We are temporarily unable to connect your call. Please try again shortly.</Say></Response>',
     );
   } catch (error) {
     console.error("voice-webhook: TwiML execution error", {
