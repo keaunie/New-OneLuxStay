@@ -64,26 +64,24 @@ const SIP_POP_HOST = sanitizeString(getEnv("VOIPMS_POP_HOST") || "atlanta2.voip.
 const buildSipTargets = () => {
   const raphUser = sanitizeString(getEnv("VOIPMS_RAPH_USERNAME") || "127056_raph", 120);
   const angelUser = sanitizeString(getEnv("VOIPMS_ANGEL_USERNAME") || "127056_angel", 120);
-  const raphPassword = sanitizeString(getEnv("VOIPMS_RAPH_PASSWORD") || "", 200);
-  const angelPassword = sanitizeString(getEnv("VOIPMS_ANGEL_PASSWORD") || "", 200);
 
   const targets = [];
 
-  if (raphUser && raphPassword) {
+  if (raphUser) {
     targets.push({
       key: "raph",
       username: raphUser,
-      uri: `sip:${raphUser}:${raphPassword}@${SIP_POP_HOST}`,
-      redacted: `sip:${raphUser}:***@${SIP_POP_HOST}`,
+      uri: `sip:${raphUser}@${SIP_POP_HOST}`,
+      redacted: `sip:${raphUser}@${SIP_POP_HOST}`,
     });
   }
 
-  if (angelUser && angelPassword) {
+  if (angelUser) {
     targets.push({
       key: "angel",
       username: angelUser,
-      uri: `sip:${angelUser}:${angelPassword}@${SIP_POP_HOST}`,
-      redacted: `sip:${angelUser}:***@${SIP_POP_HOST}`,
+      uri: `sip:${angelUser}@${SIP_POP_HOST}`,
+      redacted: `sip:${angelUser}@${SIP_POP_HOST}`,
     });
   }
 
@@ -151,6 +149,13 @@ export async function handler(event) {
     });
 
     if (sipTargets.length > 0) {
+      console.info("voice-webhook: SIP INVITE targets", {
+        callSid,
+        from,
+        to,
+        targets: sipTargets.map((target) => target.redacted),
+      });
+
       const sipTwiml = sipTargets
         .map((target) => `<Sip>${xmlEscape(target.uri)}</Sip>`)
         .join("");
@@ -168,10 +173,6 @@ export async function handler(event) {
       configuredUsers: {
         raph: Boolean(sanitizeString(getEnv("VOIPMS_RAPH_USERNAME") || "127056_raph", 120)),
         angel: Boolean(sanitizeString(getEnv("VOIPMS_ANGEL_USERNAME") || "127056_angel", 120)),
-      },
-      hasPasswords: {
-        raph: Boolean(sanitizeString(getEnv("VOIPMS_RAPH_PASSWORD") || "", 200)),
-        angel: Boolean(sanitizeString(getEnv("VOIPMS_ANGEL_PASSWORD") || "", 200)),
       },
       sipPopHost: SIP_POP_HOST,
     });

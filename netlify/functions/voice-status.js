@@ -58,6 +58,15 @@ export async function handler(event) {
     // DialCallDuration = seconds the outbound leg was connected
     const rawStatus = params.get("DialCallStatus") || params.get("CallStatus") || "";
     const rawDuration = params.get("DialCallDuration") || params.get("CallDuration") || "";
+    const dialCallSid = sanitizeString(params.get("DialCallSid") || "", 120);
+    const dialSipResponseCode = sanitizeString(params.get("DialSipResponseCode") || "", 20);
+    const dialSipCallId = sanitizeString(params.get("DialSipCallId") || "", 255);
+    const dialedTarget = sanitizeString(
+      params.get("DialSipUri") || params.get("DialTo") || params.get("To") || "",
+      255,
+    );
+    const from = sanitizeString(params.get("From") || "", 80);
+    const to = sanitizeString(params.get("To") || "", 80);
 
     if (callSid && isSupabaseConfigured()) {
       const table = sanitizeString(getEnv("SUPABASE_CALLS_TABLE") || "calls", 80) || "calls";
@@ -73,6 +82,27 @@ export async function handler(event) {
         },
         prefer: "return=minimal",
         timeout: 8_000,
+      });
+    }
+
+    const normalizedStatus = normalizeStatus(rawStatus);
+    if (["failed", "busy", "no-answer", "canceled"].includes(normalizedStatus)) {
+      console.error("voice-status: SIP INVITE failed", {
+        callSid,
+        dialCallSid,
+        status: normalizedStatus,
+        dialSipResponseCode,
+        dialSipCallId,
+        dialedTarget,
+        from,
+        to,
+      });
+    } else {
+      console.info("voice-status: dial callback", {
+        callSid,
+        dialCallSid,
+        status: normalizedStatus,
+        dialSipResponseCode,
       });
     }
   } catch (err) {
