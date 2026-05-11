@@ -217,10 +217,18 @@ const requestApaleoAccount = async ({ token, retries = DEFAULT_RETRY_COUNT } = {
     }
 
     if (response.ok) {
-      const id = sanitizeString(payload?.id || payload?.accountId, 240);
-      const code = sanitizeString(payload?.code, 240);
-      const name = sanitizeString(payload?.name, 240);
-      if (!id) throw new Error("Apaleo account lookup succeeded but returned no account id");
+      const root = payload?.account && typeof payload.account === "object" ? payload.account : payload;
+      const code = sanitizeString(root?.code || root?.accountCode || payload?.code || payload?.accountCode, 240);
+      const id = sanitizeString(
+        root?.id || root?.accountId || payload?.id || payload?.accountId || code,
+        240,
+      );
+      const name = sanitizeString(root?.name || payload?.name, 240);
+      if (!id) {
+        throw new Error(
+          `Apaleo account lookup succeeded but returned no usable account id/code (keys: ${Object.keys(payload || {}).join(",")})`,
+        );
+      }
       return { id, code, name };
     }
 
