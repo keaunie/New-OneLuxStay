@@ -12570,11 +12570,10 @@ body {
     margin-top: 10px;
     max-width: 100%;
     box-sizing: border-box;
-    max-height: min(68svh, 560px);
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: auto;
   }
 
   .la-date-months {
@@ -14153,7 +14152,7 @@ body {
 .la-listing-page .la-date-picker .listing-date-dropdown {
   left: 0;
   right: 0;
-  width: min(980px, 96vw);
+  width: min(760px, 94vw);
   margin-left: auto;
   margin-right: auto;
   transform: none;
@@ -16950,9 +16949,11 @@ a[href="#redondo-city-tour"],
 }
 
 .ols-similar__item {
-  flex: 1 1 0;
-  min-width: 240px;
-  max-width: 400px;
+  flex: 0 0 clamp(276px, 26vw, 360px);
+  min-width: clamp(276px, 26vw, 360px);
+  max-width: clamp(276px, 26vw, 360px);
+  width: clamp(276px, 26vw, 360px);
+  flex-shrink: 0;
   scroll-snap-align: start;
   display: flex;
 }
@@ -17136,6 +17137,30 @@ a[href="#redondo-city-tour"],
 .la-listing-shell,
 .la-listing-shell * {
   min-width: 0;
+}
+
+/* Similar Units width guard for listing detail pages */
+.la-listing-shell .ols-similar__track {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.la-listing-shell .ols-similar__item {
+  flex: 0 0 clamp(276px, 26vw, 360px);
+  min-width: clamp(276px, 26vw, 360px);
+  max-width: clamp(276px, 26vw, 360px);
+  width: clamp(276px, 26vw, 360px);
+  flex-shrink: 0;
+}
+
+.la-listing-shell .ols-similar__name,
+.la-listing-shell .ols-similar__meta,
+.la-listing-shell .ols-similar__addr {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .la-listing-shell img {
@@ -17356,9 +17381,12 @@ a[href="#redondo-city-tour"],
     scroll-padding-inline: var(--ols-listing-pad-inline-mobile);
   }
 
-  .ols-similar__item {
+  .ols-similar__item,
+  .la-listing-shell .ols-similar__item {
     flex: 0 0 clamp(252px, 74vw, 320px);
+    min-width: clamp(252px, 74vw, 320px);
     max-width: none;
+    width: auto;
   }
 }
 
@@ -17450,7 +17478,713 @@ a[href="#redondo-city-tour"],
     padding-inline: var(--ols-listing-pad-inline-mobile);
   }
 
-  .ols-similar__item {
+  .ols-similar__item,
+  .la-listing-shell .ols-similar__item {
     flex: 0 0 min(86vw, 300px);
+    min-width: min(86vw, 300px);
+    max-width: none;
+    width: auto;
   }
+}
+
+/* ========================================================
+   Luxury Listing Top Section Refresh (Global, all cities)
+   ======================================================== */
+.la-listing-shell {
+  --ols-top-radius: 24px;
+  --ols-top-gap: clamp(6px, 0.8vw, 10px);
+}
+
+.la-listing-shell .la-unit-modal.la-listing-page {
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 31vw, 430px);
+  column-gap: clamp(22px, 2.8vw, 34px);
+  row-gap: clamp(10px, 1.5vw, 16px);
+}
+
+.la-listing-shell .la-listing-hero {
+  padding: clamp(14px, 2.2vw, 24px) clamp(8px, 1.2vw, 14px) clamp(10px, 1.4vw, 16px);
+  border-bottom: none;
+}
+
+.la-listing-shell .la-listing-hero__intro {
+  gap: clamp(10px, 1.4vw, 18px) clamp(14px, 1.8vw, 24px);
+  align-items: start;
+}
+
+.la-listing-shell .la-listing-hero__intro h3,
+.la-listing-shell .la-unit-modal__intro h3 {
+  font-size: clamp(1.72rem, 2.35vw, 2.56rem);
+  line-height: 1.18;
+  letter-spacing: -0.012em;
+  max-width: 24ch;
+  margin: 0 0 clamp(8px, 1vw, 12px);
+  text-wrap: balance;
+}
+
+.la-listing-shell .la-listing-hero__kicker {
+  margin-bottom: clamp(8px, 1vw, 12px);
+}
+
+.la-listing-shell .la-unit-modal__chips {
+  margin: 0 0 clamp(10px, 1.1vw, 14px);
+  gap: 8px;
+}
+
+.la-listing-shell .la-unit-modal__address {
+  margin: 0 0 8px;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__gallery,
+.la-listing-shell .la-listing-page .la-unit-modal__gallery.la-unit-modal__gallery--rounded-shell {
+  height: clamp(320px, 34vw, 470px);
+  grid-template-columns: minmax(0, 1.52fr) minmax(0, 1fr);
+  gap: var(--ols-top-gap);
+  padding: var(--ols-top-gap);
+  border-radius: var(--ols-top-radius) !important;
+  overflow: hidden !important;
+  clip-path: inset(0 round var(--ols-top-radius));
+  background: rgba(241, 232, 218, 0.9);
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__main,
+.la-listing-shell .la-listing-page .la-unit-modal__side {
+  border-radius: 0;
+  clip-path: none;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__main img {
+  height: 100%;
+  border-radius: 0;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__main .la-unit-modal__image-button,
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button,
+.la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder {
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side {
+  gap: var(--ols-top-gap);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__side img,
+.la-listing-shell .la-listing-page .la-unit-modal__side .la-unit-modal__placeholder {
+  height: 100%;
+  border-radius: 0;
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__media-actions {
+  left: auto;
+  right: clamp(14px, 1.5vw, 20px);
+  bottom: clamp(14px, 1.5vw, 20px);
+}
+
+.la-listing-shell .la-listing-page .la-unit-modal__media-action {
+  padding: 10px 15px;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  border-radius: 999px;
+  border: 1px solid rgba(178, 153, 123, 0.48);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 26px rgba(42, 31, 23, 0.2);
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+  margin-top: clamp(4px, 0.7vw, 10px);
+  margin-bottom: 0;
+  gap: 8px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__tabs button {
+  min-height: 38px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar {
+  margin-top: clamp(8px, 1vw, 14px);
+  top: clamp(84px, 9vh, 122px);
+  gap: 12px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel {
+  padding: clamp(18px, 1.8vw, 24px);
+  border-color: rgba(174, 145, 111, 0.42);
+  background: rgba(255, 252, 247, 0.98);
+  box-shadow:
+    0 24px 48px rgba(42, 31, 23, 0.18),
+    0 6px 16px rgba(42, 31, 23, 0.08);
+}
+
+@media (max-width: 1200px) {
+  .la-listing-shell .la-unit-modal.la-listing-page {
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 34vw, 390px);
+  }
+}
+
+@media (max-width: 1040px) {
+  .la-listing-shell .la-listing-page .la-unit-modal__gallery,
+  .la-listing-shell .la-listing-page .la-unit-modal__gallery.la-unit-modal__gallery--rounded-shell {
+    grid-template-columns: 1fr;
+    padding: 0;
+    height: auto;
+    background: transparent;
+    clip-path: none;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main,
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    border-radius: var(--ols-listing-radius-md);
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main .la-unit-modal__image-button,
+  .la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__image-button,
+  .la-listing-shell .la-listing-page .la-unit-modal__side > .la-unit-modal__placeholder {
+    border-radius: var(--ols-listing-radius-md);
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__main img {
+    aspect-ratio: 16 / 10;
+    height: auto;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    grid-template-rows: none;
+    gap: var(--ols-listing-space-sm);
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+    margin-top: 2px;
+    padding-bottom: 6px;
+    gap: 6px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs button {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 0.8rem;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar {
+    margin-top: 0;
+    top: auto;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 700px) {
+  .la-listing-shell .la-listing-page .la-listing-hero__intro h3,
+  .la-listing-shell .la-listing-page .la-unit-modal__intro h3 {
+    max-width: 20ch;
+    font-size: clamp(1.45rem, 6.4vw, 1.95rem);
+    line-height: 1.2;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__media-actions {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .la-listing-shell .la-listing-page .la-unit-modal__media-action {
+    padding: 8px 11px;
+    font-size: 0.8rem;
+    box-shadow: 0 10px 22px rgba(42, 31, 23, 0.18);
+  }
+}
+
+@media (max-width: 520px) {
+  .la-listing-shell .la-listing-page .la-unit-modal__side {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================================
+   Listing Mobile Stabilization Patch (global + Antwerp guard)
+   ======================================================== */
+.la-listing-shell .la-unit-modal.la-listing-page {
+  width: min(1240px, 100%);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__card,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar * {
+  max-width: 100%;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__card-head {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-grid,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-field,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-input,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__bp-guests,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__bp-guests select,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-cta,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-booking-table__rate-select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__bp-price,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__availability-details,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__availability-details div,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar p,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar span,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar strong,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar a,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar label {
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+
+/* Booking calendar proportion + responsiveness polish (all listing detail pages) */
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-dropdown,
+.listing-page .listing-date-dropdown {
+  border-radius: 18px;
+  border-color: rgba(191, 168, 141, 0.72);
+  box-shadow: 0 16px 38px rgba(63, 54, 47, 0.18);
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-dropdown {
+  width: min(760px, 94vw);
+  max-width: min(760px, 94vw);
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-header,
+.listing-page .listing-date-dropdown .la-date-header {
+  padding: 10px 14px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-body,
+.listing-page .listing-date-dropdown .la-date-body {
+  padding: 12px 14px 14px;
+  gap: 12px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-months,
+.listing-page .listing-date-dropdown .la-date-months {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-month,
+.listing-page .listing-date-dropdown .la-date-month {
+  gap: 8px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-week,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-days,
+.listing-page .listing-date-dropdown .la-date-week,
+.listing-page .listing-date-dropdown .la-date-days {
+  gap: 5px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-week,
+.listing-page .listing-date-dropdown .la-date-week {
+  font-size: 0.72rem;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-dropdown.has-prices .listing-date-cell,
+.listing-page .listing-date-dropdown.has-prices .listing-date-cell {
+  min-height: 50px;
+  padding: 5px 4px;
+  gap: 3px;
+  border-radius: 11px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-cell__day,
+.listing-page .listing-date-dropdown .listing-date-cell__day {
+  font-size: 0.8rem;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-cell__price,
+.listing-page .listing-date-dropdown .listing-date-cell__price {
+  font-size: 0.64rem;
+  line-height: 1;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-cell__restriction,
+.listing-page .listing-date-dropdown .listing-date-cell__restriction {
+  font-size: 0.55rem;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-footer,
+.listing-page .listing-date-dropdown .la-date-footer {
+  gap: 8px;
+}
+
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-clear,
+.la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-done,
+.listing-page .listing-date-dropdown .la-date-clear,
+.listing-page .listing-date-dropdown .la-date-done {
+  min-height: 38px;
+  padding: 7px 11px;
+}
+
+@media (min-width: 1440px) {
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-dropdown,
+  .listing-page .listing-date-dropdown {
+    width: min(780px, 90vw);
+    max-width: min(780px, 90vw);
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-months,
+  .listing-page .listing-date-dropdown .la-date-months {
+    grid-template-columns: repeat(2, minmax(232px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-dropdown,
+  .listing-page .listing-date-dropdown {
+    position: static;
+    left: auto;
+    right: auto;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 10px;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-header,
+  .listing-page .listing-date-dropdown .la-date-header {
+    padding: 10px 12px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-body,
+  .listing-page .listing-date-dropdown .la-date-body {
+    padding: 10px 12px 12px;
+    gap: 10px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-months,
+  .listing-page .listing-date-dropdown .la-date-months {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-months .la-date-month:nth-child(n + 2),
+  .listing-page .listing-date-dropdown .la-date-months .la-date-month:nth-child(n + 2) {
+    display: none;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-week,
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-days,
+  .listing-page .listing-date-dropdown .la-date-week,
+  .listing-page .listing-date-dropdown .la-date-days {
+    gap: 4px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .listing-date-dropdown.has-prices .listing-date-cell,
+  .listing-page .listing-date-dropdown.has-prices .listing-date-cell {
+    min-height: 48px;
+    padding: 4px 3px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-footer,
+  .listing-page .listing-date-dropdown .la-date-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 420px) {
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-picker .la-date-footer,
+  .listing-page .listing-date-dropdown .la-date-footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1040px) {
+  .la-listing-shell .la-unit-modal.la-listing-page {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    top: auto;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel {
+    padding: 14px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__bp-price {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__bp-guests {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-date-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .ols-similar__track {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: auto;
+  }
+
+  .ols-similar__item,
+  .la-listing-shell .ols-similar__item {
+    flex: 0 0 clamp(246px, 74vw, 320px);
+    min-width: clamp(246px, 74vw, 320px);
+    max-width: none;
+    width: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .ols-similar__item,
+  .la-listing-shell .ols-similar__item {
+    flex-basis: min(86vw, 300px);
+    min-width: min(86vw, 300px);
+    max-width: none;
+    width: auto;
+  }
+}
+
+/* Antwerp-specific fail-safe for route listing overlay */
+@media (max-width: 1040px) {
+  .antwerp-page .la-listing-shell .la-unit-modal.la-listing-page,
+  .antwerp-page .la-listing-shell .la-listing-page > .la-unit-modal__sidebar,
+  .antwerp-page .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__booking-panel,
+  .antwerp-page .la-listing-shell .la-listing-page > .la-unit-modal__sidebar .la-unit-modal__card {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* Mobile listing gallery carousel (all listing detail pages) */
+.la-unit-modal__mobile-carousel {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .la-listing-shell__content {
+    width: 100%;
+    max-width: var(--ols-listing-max-width);
+    min-width: 0;
+    padding-inline: 16px;
+    box-sizing: border-box;
+  }
+
+  .la-listing-shell .la-unit-modal.la-listing-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    row-gap: 14px;
+  }
+
+  .la-unit-modal__gallery {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    height: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+    clip-path: none !important;
+    border-radius: 16px !important;
+  }
+
+  .la-unit-modal__desktop-media {
+    display: none !important;
+  }
+
+  .la-unit-modal__gallery > .la-unit-modal__side {
+    display: none !important;
+  }
+
+  .la-unit-modal__mobile-carousel {
+    display: grid;
+    gap: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+
+  .la-unit-modal__mobile-carousel-track {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    border-radius: 16px;
+    background: rgba(241, 232, 218, 0.6);
+    box-sizing: border-box;
+  }
+
+  .la-unit-modal__mobile-carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .la-unit-modal__mobile-slide {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 100%;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    scroll-snap-align: start;
+    border-radius: 0;
+    overflow: hidden;
+    aspect-ratio: 16 / 10;
+  }
+
+  .la-unit-modal__mobile-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .la-unit-modal__mobile-slide--placeholder {
+    display: grid;
+    place-items: center;
+  }
+
+  .la-unit-modal__mobile-gallery-action {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    max-width: calc(100% - 32px);
+    width: fit-content;
+    min-height: 36px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1px solid rgba(178, 153, 123, 0.48);
+    background: rgba(255, 255, 255, 0.95);
+    color: #1f1c19;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    box-shadow: 0 10px 20px rgba(42, 31, 23, 0.18);
+    z-index: 2;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin-top: 6px;
+    margin-bottom: 0;
+    padding-inline: 0 0;
+    padding-bottom: 4px;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-padding-inline: 0 16px;
+    box-sizing: border-box;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs::after {
+    content: "";
+    flex: 0 0 16px;
+  }
+
+  .la-listing-shell .la-listing-page > .la-unit-modal__tabs button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+}
+
+/* Guests field orientation/layout fix (all listing detail pages) */
+.la-unit-modal__bp-guests {
+  display: grid;
+  grid-template-columns: max-content minmax(96px, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.la-unit-modal__bp-guests label {
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  display: inline-block;
+  min-width: max-content;
+  margin: 0;
+}
+
+.la-unit-modal__bp-guests select {
+  width: 100%;
+  min-width: 96px;
+  max-width: 100%;
+  justify-self: end;
 }

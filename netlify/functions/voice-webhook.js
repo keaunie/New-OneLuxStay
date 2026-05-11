@@ -59,21 +59,16 @@ const detectCountry = (toNumber = "") => {
   return inferRegionFromNumber(toNumber) || "us";
 };
 
-const getForwardNumber = (country = "us") => {
-  const specific =
-    country === "be"
-      ? normalizePhoneNumber(sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO_BE") || "", 80))
-      : normalizePhoneNumber(sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO_US") || "", 80));
-  if (specific) return specific;
+const getVoipMsDid = () => {
+  const configured =
+    normalizePhoneNumber(sanitizeString(getEnv("TWILIO_VOICE_VOIPMS_DID") || "", 80)) ||
+    normalizePhoneNumber(sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO") || "", 80)) ||
+    normalizePhoneNumber(sanitizeString(getEnv("OLS_CALL_FORWARD_TO") || "", 80));
+  if (configured) return configured;
   return normalizePhoneNumber(
-    sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO") || getEnv("OLS_CALL_FORWARD_TO") || "", 80),
+    sanitizeString("4243543447", 80),
   );
 };
-
-const getSipConfig = () => ({
-  domain: sanitizeString(getEnv("TWILIO_SIP_DOMAIN") || "", 240),
-  username: sanitizeString(getEnv("TWILIO_SIP_USERNAME") || "", 120),
-});
 
 const logCall = async ({ callSid, from, to, country }) => {
   try {
@@ -125,18 +120,10 @@ export async function handler(event) {
   // Fire-and-forget — never block the TwiML response on DB write
   logCall({ callSid, from, to, country }).catch(() => null);
 
-  const sipConfig = getSipConfig();
-  if (sipConfig.domain && sipConfig.username) {
-    const sipAddr = xmlEscape(`sip:${sipConfig.username}@${sipConfig.domain}`);
-    return xmlResponse(
-      `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting you now.</Say><Dial${actionAttr}${callerIdAttr}><Sip>${sipAddr}</Sip></Dial></Response>`,
-    );
-  }
-
-  const forwardTo = getForwardNumber(country);
+  const forwardTo = getVoipMsDid();
   if (forwardTo) {
     return xmlResponse(
-      `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting you now.</Say><Dial${actionAttr}${callerIdAttr}><Number>${xmlEscape(forwardTo)}</Number></Dial></Response>`,
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting your call now.</Say><Dial answerOnBridge="true"${actionAttr}${callerIdAttr}><Number>${xmlEscape(forwardTo)}</Number></Dial></Response>`,
     );
   }
 

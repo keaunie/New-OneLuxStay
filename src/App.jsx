@@ -210,11 +210,15 @@ function AppRoutes() {
           <Route path="/admins-ols/audit" element={<Navigate to="/executive-ols/audit" replace />} />
           <Route path="/admins-ols/guest-journeys" element={<Navigate to="/executive-ols/guest-journeys" replace />} />
           <Route path="/admins-ols/whatsapp" element={<Navigate to="/executive-ols/whatsapp" replace />} />
+          <Route path="/admins-ols/conversations" element={<Navigate to="/executive-ols/conversations" replace />} />
+          <Route path="/admins-ols/chat/:conversationId" element={<Navigate to="/executive-ols/chat/:conversationId" replace />} />
           <Route path="/admins-ols" element={<Navigate to="/executive-ols" replace />} />
           <Route path="/admins-ols/*" element={<Navigate to="/executive-ols" replace />} />
           <Route path="/executive-ols/login" element={renderLazyRoute(AdminsOlsAuthPage)} />
           <Route path="/executive-ols/accept" element={renderLazyRoute(AdminsOlsInviteAcceptPage)} />
           <Route path="/executive-ols" element={renderLazyRoute(AdminsOlsPage)} />
+          <Route path="/executive-ols/conversations" element={renderLazyRoute(AdminsOlsPage)} />
+          <Route path="/executive-ols/chat/:conversationId" element={renderLazyRoute(AdminsOlsPage)} />
           <Route path="/executive-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
           <Route path="/executive-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
           <Route path="/executive-ols/whatsapp" element={renderLazyRoute(ExecutiveOlsPage)} />

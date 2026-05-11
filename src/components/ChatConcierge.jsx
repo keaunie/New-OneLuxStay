@@ -1,13 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import apiBase from "../utils/apiBase";
+import { PRIMARY_US_WHATSAPP_CONTACT } from "../utils/contactConfig";
 
 const STORAGE_KEY = "ols-chat-concierge-v1";
 const SESSION_ID_KEY = "ols-chat-concierge-session-v1";
 const FEEDBACK_KEY = "ols-chat-concierge-feedback-v1";
 const MAX_VISIBLE_MESSAGES = 12;
 const AUTO_SCROLL_THRESHOLD_PX = 96;
-const DEFAULT_WHATSAPP_NUMBER = "971588858935";
+const DEFAULT_WHATSAPP_NUMBER = PRIMARY_US_WHATSAPP_CONTACT.digits;
 
 const normalizeWhatsAppNumber = (value = "") => {
   const digits = String(value || "").replace(/[^\d]/g, "");

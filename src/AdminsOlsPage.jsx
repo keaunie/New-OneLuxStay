@@ -1,4 +1,4 @@
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import apiBase from "./utils/apiBase";
 import {
@@ -19,6 +19,9 @@ const ATTENTION_NOTIFIED_KEY_PREFIX = "admins-ols-attention-notified";
 const TOAST_LIFETIME_MS = 5200;
 const CONVERSATION_SUMMARY_SEEN_KEY_PREFIX = "admins-ols-conversation-summary-seen";
 const CONVERSATION_SUMMARY_CACHE_PREFIX = "admins-ols-conversation-summary-cache";
+const MOBILE_CONVERSATION_BREAKPOINT = 768;
+const TABLET_CONVERSATION_BREAKPOINT = 1024;
+const MOBILE_CONVERSATION_FILTER_DEFAULT = "all";
 
 const DEFAULT_FORM = {
   title: "",
@@ -38,6 +41,38 @@ const formatDateTime = (value = "") => {
   return parsed.toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
+  });
+};
+
+const formatConversationListTime = (value = "") => {
+  if (!value) return "Unknown";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Unknown";
+
+  const now = new Date();
+  const sameDay =
+    parsed.getFullYear() === now.getFullYear() &&
+    parsed.getMonth() === now.getMonth() &&
+    parsed.getDate() === now.getDate();
+
+  if (sameDay) {
+    return parsed.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
+  if (parsed.getFullYear() === now.getFullYear()) {
+    return parsed.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "2-digit",
   });
 };
 
@@ -187,6 +222,13 @@ const getConversationLatestMessage = (thread = {}) => {
 const isWhatsAppConversation = (thread = {}) =>
   String(thread?.pageType || "").trim().toLowerCase() === "whatsapp" ||
   String(thread?.sessionId || "").trim().toLowerCase().startsWith("whatsapp:");
+
+const getConversationChannelLabel = (thread = {}) => {
+  const sessionId = String(thread?.sessionId || "").trim().toLowerCase();
+  if (sessionId.startsWith("sms:")) return "SMS";
+  if (sessionId.startsWith("whatsapp:") || isWhatsAppConversation(thread)) return "WhatsApp";
+  return "Website";
+};
 
 const getWhatsAppPhoneLabel = (thread = {}) => {
   const sessionId = String(thread?.sessionId || "").trim();
@@ -446,6 +488,9 @@ const shouldLogDashboardOpen = () => {
 };
 
 function AdminsOlsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { conversationId: routeConversationIdParam = "" } = useParams();
   const [session, setSession] = useState(() => loadAdminsOlsSession());
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -456,11 +501,14 @@ function AdminsOlsPage() {
   const [busyLessonId, setBusyLessonId] = useState("");
   const [selectedConversationSessionId, setSelectedConversationSessionId] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
+  const [conversationSearchInput, setConversationSearchInput] = useState("");
+  const [mobileConversationFilter, setMobileConversationFilter] = useState(MOBILE_CONVERSATION_FILTER_DEFAULT);
   const [sendingReply, setSendingReply] = useState(false);
   const [conversationSummary, setConversationSummary] = useState(null);
   const [conversationSummaryLoading, setConversationSummaryLoading] = useState(false);
   const [conversationSummaryError, setConversationSummaryError] = useState("");
   const [isConversationSummaryModalOpen, setIsConversationSummaryModalOpen] = useState(false);
+  const [isMobileConversationInfoOpen, setIsMobileConversationInfoOpen] = useState(false);
   const [accountForm, setAccountForm] = useState(() => ({
     fullName: "",
     currentPassword: "",
@@ -485,6 +533,9 @@ function AdminsOlsPage() {
   const [tabContentPhase, setTabContentPhase] = useState("idle");
   const [notificationPermission, setNotificationPermission] = useState(() =>
     typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported",
+  );
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : TABLET_CONVERSATION_BREAKPOINT + 1,
   );
   const [attentionSeenSignatures, setAttentionSeenSignatures] = useState([]);
   const threadScrollRef = useRef(null);
@@ -525,10 +576,88 @@ function AdminsOlsPage() {
     (thread) => !attentionSeenSignatures.includes(getConversationAttentionSignature(thread)),
   );
   const unreadAttentionCount = unreadAttentionThreads.length;
+  const unreadAttentionSignatureSet = useMemo(
+    () => new Set(unreadAttentionThreads.map((thread) => getConversationAttentionSignature(thread)).filter(Boolean)),
+    [unreadAttentionThreads],
+  );
+  const isMobileInboxViewport = viewportWidth < MOBILE_CONVERSATION_BREAKPOINT;
+  const isTabletInboxViewport =
+    viewportWidth >= MOBILE_CONVERSATION_BREAKPOINT && viewportWidth <= TABLET_CONVERSATION_BREAKPOINT;
+  const shouldUseMobileConversationCards = isMobileInboxViewport || isTabletInboxViewport;
+  const routeConversationId = useMemo(() => {
+    try {
+      return decodeURIComponent(String(routeConversationIdParam || "").trim());
+    } catch {
+      return String(routeConversationIdParam || "").trim();
+    }
+  }, [routeConversationIdParam]);
+  const pathname = String(location.pathname || "");
+  const isMobileConversationsRoute = isMobileInboxViewport && /^\/executive-ols\/conversations\/?$/.test(pathname);
+  const isMobileChatRoute = isMobileInboxViewport && /^\/executive-ols\/chat\/[^/]+/.test(location.pathname || "");
+  const isMobileMessagingRoute = isMobileConversationsRoute || isMobileChatRoute;
+  const normalizedConversationSearch = String(conversationSearchInput || "").trim().toLowerCase();
   const selectedConversation =
     recentConversations.find((thread) => thread.sessionId === selectedConversationSessionId) ||
     recentConversations[0] ||
     null;
+  const mobileSelectedConversation =
+    recentConversations.find((thread) => thread.sessionId === routeConversationId) || null;
+  const activeConversation = isMobileInboxViewport
+    ? isMobileChatRoute
+      ? mobileSelectedConversation
+      : null
+    : selectedConversation;
+  const isMobileThreadOpen = isMobileChatRoute && Boolean(activeConversation?.sessionId);
+  const shouldRenderConversationList = !isMobileInboxViewport || !isMobileChatRoute;
+  const shouldRenderConversationThread = !isMobileInboxViewport || isMobileChatRoute;
+  const visibleConversationThreads = useMemo(() => {
+    if (!isMobileConversationsRoute) return recentConversations;
+
+    const matchesQuery = (thread) => {
+      if (!normalizedConversationSearch) return true;
+      const haystack = [
+        getConversationTitle(thread),
+        getConversationPreview(thread),
+        getConversationChannelLabel(thread),
+        thread?.city,
+        thread?.listingId,
+        thread?.sessionId,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedConversationSearch);
+    };
+
+    return recentConversations.filter((thread) => {
+      const signature = getConversationAttentionSignature(thread);
+      const isUnread = Boolean(signature && unreadAttentionSignatureSet.has(signature));
+      const needsAttention = conversationNeedsAttention(thread);
+      const matchesFilter =
+        mobileConversationFilter === "all" ||
+        (mobileConversationFilter === "unread" && isUnread) ||
+        (mobileConversationFilter === "attention" && needsAttention);
+
+      return matchesFilter && matchesQuery(thread);
+    });
+  }, [
+    isMobileConversationsRoute,
+    mobileConversationFilter,
+    normalizedConversationSearch,
+    recentConversations,
+    unreadAttentionSignatureSet,
+  ]);
+  const mobileConversationFilterCounts = useMemo(
+    () => ({
+      all: recentConversations.length,
+      unread: recentConversations.filter((thread) => {
+        const signature = getConversationAttentionSignature(thread);
+        return Boolean(signature && unreadAttentionSignatureSet.has(signature));
+      }).length,
+      attention: attentionThreads.length,
+    }),
+    [attentionThreads.length, recentConversations, unreadAttentionSignatureSet],
+  );
 
   const conversationSummarySeenStorageKey = useMemo(() => {
     const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
@@ -561,9 +690,9 @@ function AdminsOlsPage() {
   };
 
   const cachedSelectedConversationSummary = useMemo(() => {
-    if (!selectedConversation?.sessionId) return null;
-    return loadCachedConversationSummary(selectedConversation.sessionId);
-  }, [selectedConversation?.sessionId, conversationSummaryCacheKey]);
+    if (!activeConversation?.sessionId) return null;
+    return loadCachedConversationSummary(activeConversation.sessionId);
+  }, [activeConversation?.sessionId, conversationSummaryCacheKey]);
 
   const saveCachedConversationSummary = (summary) => {
     if (typeof window === "undefined" || !window.sessionStorage) return;
@@ -616,6 +745,23 @@ function AdminsOlsPage() {
     return () => {
       document.title = previousTitle;
       robotsMeta.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleViewportResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    handleViewportResize();
+    window.addEventListener("resize", handleViewportResize);
+    window.addEventListener("orientationchange", handleViewportResize);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportResize);
+      window.removeEventListener("orientationchange", handleViewportResize);
     };
   }, []);
 
@@ -731,13 +877,49 @@ function AdminsOlsPage() {
   }, [recentConversations, selectedConversationSessionId]);
 
   useEffect(() => {
+    if (!isMobileInboxViewport) return;
+    if (isMobileMessagingRoute && activeTabId !== "conversations") {
+      setActiveTabId("conversations");
+    }
+  }, [activeTabId, isMobileInboxViewport, isMobileMessagingRoute]);
+
+  useEffect(() => {
+    if (!isMobileConversationsRoute) {
+      setConversationSearchInput("");
+      setMobileConversationFilter(MOBILE_CONVERSATION_FILTER_DEFAULT);
+    }
+  }, [isMobileConversationsRoute]);
+
+  useEffect(() => {
+    if (!isMobileChatRoute || !routeConversationId) {
+      return;
+    }
+    const hasRouteConversation = recentConversations.some((thread) => thread.sessionId === routeConversationId);
+    if (hasRouteConversation) {
+      setSelectedConversationSessionId(routeConversationId);
+    }
+  }, [isMobileChatRoute, recentConversations, routeConversationId]);
+
+  useEffect(() => {
+    if (isMobileInboxViewport) return;
+    if (!/^\/executive-ols\/(conversations\/?|chat\/[^/]+)/.test(pathname)) return;
+    navigate("/executive-ols", { replace: true });
+  }, [isMobileInboxViewport, navigate, pathname]);
+
+  useEffect(() => {
+    if (!isMobileThreadOpen) {
+      setIsMobileConversationInfoOpen(false);
+    }
+  }, [activeConversation?.sessionId, isMobileThreadOpen]);
+
+  useEffect(() => {
     if (!threadScrollRef.current) return;
     threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight;
-  }, [selectedConversation?.sessionId, selectedConversation?.messageCount]);
+  }, [activeConversation?.sessionId, activeConversation?.messageCount, isMobileThreadOpen]);
 
   useEffect(() => {
     setReplyDraft("");
-  }, [selectedConversation?.sessionId]);
+  }, [activeConversation?.sessionId]);
 
   useEffect(() => {
     setAccountForm((current) => ({
@@ -883,6 +1065,9 @@ function AdminsOlsPage() {
           window.focus?.();
           setActiveTabId("conversations");
           setSelectedConversationSessionId(newestThread.sessionId);
+          if (window.innerWidth < MOBILE_CONVERSATION_BREAKPOINT) {
+            navigate(`/executive-ols/chat/${encodeURIComponent(newestThread.sessionId)}`);
+          }
           notification.close();
         };
       } catch {
@@ -892,19 +1077,19 @@ function AdminsOlsPage() {
 
     void playAlertTone();
     showBrowserNotification();
-  }, [attentionNotifiedStorageKey, attentionThreads]);
+  }, [attentionNotifiedStorageKey, attentionThreads, navigate]);
 
   useEffect(() => {
-    if (displayedTabId !== "conversations" || !selectedConversation?.sessionId) return;
-    if (!conversationNeedsAttention(selectedConversation)) return;
+    if (displayedTabId !== "conversations" || !activeConversation?.sessionId) return;
+    if (!conversationNeedsAttention(activeConversation)) return;
 
-    const signature = getConversationAttentionSignature(selectedConversation);
+    const signature = getConversationAttentionSignature(activeConversation);
     if (!signature) return;
 
     setAttentionSeenSignatures((current) =>
       current.includes(signature) ? current : [...current, signature],
     );
-  }, [displayedTabId, selectedConversation]);
+  }, [displayedTabId, activeConversation]);
 
   useEffect(() => {
     // Reset summary UI when switching conversations/tabs. We do not auto-generate summaries.
@@ -919,7 +1104,7 @@ function AdminsOlsPage() {
     } catch {
       // ignore
     }
-  }, [displayedTabId, selectedConversation?.sessionId]);
+  }, [displayedTabId, activeConversation?.sessionId]);
 
   const sanitizeConversationSummaryError = (value = "") => {
     const message = String(value || "").trim();
@@ -932,10 +1117,10 @@ function AdminsOlsPage() {
   };
 
   const handleGenerateConversationSummary = async ({ forceRefresh = false } = {}) => {
-    if (!selectedConversation?.sessionId) return;
+    if (!activeConversation?.sessionId) return;
     if (!session?.accessToken && !session?.sharedKey) return;
 
-    const sessionId = selectedConversation.sessionId;
+    const sessionId = activeConversation.sessionId;
 
     try {
       if (conversationSummaryAbortRef.current) {
@@ -1011,7 +1196,7 @@ function AdminsOlsPage() {
   };
 
   const handleOpenConversationSummaryModal = async ({ forceRefresh = false } = {}) => {
-    if (!selectedConversation?.sessionId) return;
+    if (!activeConversation?.sessionId) return;
     lastActiveElementRef.current = typeof document !== "undefined" ? document.activeElement : null;
     setIsConversationSummaryModalOpen(true);
     await handleGenerateConversationSummary({ forceRefresh });
@@ -1057,7 +1242,7 @@ function AdminsOlsPage() {
   useEffect(() => {
     // If the admin switches threads, close any open summary modal to avoid mismatched context.
     setIsConversationSummaryModalOpen(false);
-  }, [selectedConversation?.sessionId]);
+  }, [activeConversation?.sessionId]);
 
   useEffect(() => {
     document.title =
@@ -1166,10 +1351,34 @@ function AdminsOlsPage() {
     }).catch(() => null);
   }, [session?.accessToken, session?.sharedKey]);
 
+  const openConversationThread = (sessionId = "") => {
+    const nextSessionId = String(sessionId || "").trim();
+    if (!nextSessionId) return;
+    setSelectedConversationSessionId(nextSessionId);
+    setIsMobileConversationInfoOpen(false);
+    if (isMobileInboxViewport) {
+      navigate(`/executive-ols/chat/${encodeURIComponent(nextSessionId)}`);
+    }
+  };
+
+  const closeMobileConversationThread = () => {
+    navigate("/executive-ols/conversations");
+    setIsMobileConversationInfoOpen(false);
+  };
+
   const handleNavigateToSection = (sectionId = "") => {
     if (!sectionId) return;
+    if (isMobileInboxViewport && sectionId === "conversations") {
+      navigate("/executive-ols/conversations");
+      setIsSidebarOpen(false);
+      return;
+    }
     setActiveTabId(sectionId);
     setIsSidebarOpen(false);
+    if (sectionId !== "conversations") {
+      if (isMobileChatRoute) navigate("/executive-ols");
+      setIsMobileConversationInfoOpen(false);
+    }
   };
 
   const handleCollapseSidebar = () => {
@@ -1290,7 +1499,7 @@ function AdminsOlsPage() {
 
   const handleSendReply = async (event) => {
     event.preventDefault();
-    if (!selectedConversation?.sessionId) return;
+    if (!activeConversation?.sessionId) return;
 
     const content = String(replyDraft || "").trim();
     if (!content) return;
@@ -1302,13 +1511,13 @@ function AdminsOlsPage() {
     try {
       const response = await handleAdminAction({
         action: "send_reply",
-        sessionId: selectedConversation.sessionId,
+        sessionId: activeConversation.sessionId,
         content,
         pageContext: {
-          pageType: selectedConversation.pageType,
-          city: selectedConversation.city,
-          listingId: selectedConversation.listingId,
-          pathname: selectedConversation.pathname,
+          pageType: activeConversation.pageType,
+          city: activeConversation.city,
+          listingId: activeConversation.listingId,
+          pathname: activeConversation.pathname,
         },
       });
 
@@ -1317,12 +1526,12 @@ function AdminsOlsPage() {
           injectMessageIntoDashboard(
             current,
             {
-              sessionId: selectedConversation.sessionId,
-              pageType: selectedConversation.pageType,
-              city: selectedConversation.city,
-              listingId: selectedConversation.listingId,
-              pathname: selectedConversation.pathname,
-              lastSeenAt: selectedConversation.lastSeenAt,
+              sessionId: activeConversation.sessionId,
+              pageType: activeConversation.pageType,
+              city: activeConversation.city,
+              listingId: activeConversation.listingId,
+              pathname: activeConversation.pathname,
+              lastSeenAt: activeConversation.lastSeenAt,
             },
             response.message,
           ),
@@ -1602,6 +1811,354 @@ function AdminsOlsPage() {
 
   if (!session?.accessToken && !session?.sharedKey) {
     return <Navigate to="/executive-ols/login" replace />;
+  }
+
+  if (isMobileMessagingRoute) {
+    return (
+      <div className="admins-ols-page admins-ols-mobile-messaging-page">
+        {toasts.length > 0 && (
+          <div className="admins-ols-toasts" role="status" aria-live="polite" aria-relevant="additions">
+            {toasts.map((toast) => (
+              <div key={toast.id} className={`admins-ols-toast is-${toast.tone}`}>
+                <div className="admins-ols-toast-head">
+                  <strong>{toast.title || "Notification"}</strong>
+                  <button type="button" onClick={() => removeToast(toast.id)} aria-label="Dismiss notification">
+                    ×
+                  </button>
+                </div>
+                {toast.message && <p>{toast.message}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="admins-ols-mobile-messaging-app">
+          <header className="admins-ols-mobile-messaging-header">
+            <button
+              type="button"
+              className="admins-ols-mobile-messaging-back"
+              onClick={() => navigate(isMobileChatRoute ? "/executive-ols/conversations" : "/executive-ols")}
+              aria-label={isMobileChatRoute ? "Back to conversations" : "Back to dashboard"}
+            >
+              ←
+            </button>
+            <div className="admins-ols-mobile-messaging-head-copy">
+              <strong>{isMobileChatRoute ? "Conversation" : "Conversations"}</strong>
+              <small>
+                {isMobileChatRoute
+                  ? activeConversation
+                    ? getConversationTitle(activeConversation)
+                    : "Thread unavailable"
+                  : `${visibleConversationThreads.length} of ${recentConversations.length} chats`}
+              </small>
+            </div>
+            <button
+              type="button"
+              className="admins-ols-mobile-messaging-refresh"
+              onClick={handleManualRefresh}
+              disabled={loading}
+              aria-label={loading ? "Refreshing conversations" : "Refresh conversations"}
+            >
+              {loading ? "…" : "↻"}
+            </button>
+          </header>
+
+          {notice && <div className="admins-ols-banner">{notice}</div>}
+          {error && <div className="admins-ols-error">{error}</div>}
+
+          {isMobileConversationsRoute ? (
+            <>
+              <section className="admins-ols-mobile-inbox-controls" aria-label="Conversation filters">
+                <label className="admins-ols-mobile-inbox-search" htmlFor="admins-ols-mobile-conversation-search">
+                  <span>Search</span>
+                  <input
+                    id="admins-ols-mobile-conversation-search"
+                    type="search"
+                    value={conversationSearchInput}
+                    onChange={(event) => setConversationSearchInput(event.target.value)}
+                    placeholder="Search guest, city, listing, message..."
+                    autoComplete="off"
+                  />
+                </label>
+                <div className="admins-ols-mobile-inbox-filter-row" role="tablist" aria-label="Conversation filter">
+                  {[
+                    { id: "all", label: "All", count: mobileConversationFilterCounts.all },
+                    { id: "unread", label: "Unread", count: mobileConversationFilterCounts.unread },
+                    { id: "attention", label: "Needs Attention", count: mobileConversationFilterCounts.attention },
+                  ].map((filterItem) => (
+                    <button
+                      key={filterItem.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={mobileConversationFilter === filterItem.id}
+                      className={`admins-ols-mobile-inbox-filter${
+                        mobileConversationFilter === filterItem.id ? " is-active" : ""
+                      }`}
+                      onClick={() => setMobileConversationFilter(filterItem.id)}
+                    >
+                      <span>{filterItem.label}</span>
+                      <strong>{filterItem.count}</strong>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="admins-ols-mobile-inbox-panel" aria-label="Conversation inbox">
+                <div className="admins-ols-messenger is-mobile-inbox is-mobile-list-open admins-ols-mobile-fullscreen-messenger">
+                  <div
+                    className="admins-ols-messenger-list admins-ols-mobile-inbox-shell"
+                    role="list"
+                    aria-label="Recent conversation sessions"
+                  >
+                    {visibleConversationThreads.map((thread) => {
+                      const latestMessage = thread.messages?.[thread.messages.length - 1] || null;
+                      const isActive = thread.sessionId === activeConversation?.sessionId;
+                      const needsAttention = conversationNeedsAttention(thread);
+                      const unreadBadge = unreadAttentionSignatureSet.has(getConversationAttentionSignature(thread));
+
+                      return (
+                        <button
+                          key={thread.sessionId}
+                          type="button"
+                          className={`admins-ols-messenger-item${isActive ? " is-active" : ""}`}
+                          onClick={() => openConversationThread(thread.sessionId)}
+                        >
+                          <div className="admins-ols-messenger-item-avatar">{getConversationInitial(thread)}</div>
+                          <div className="admins-ols-messenger-item-body">
+                            <div className="admins-ols-messenger-item-mobile-header">
+                              <h3 className="admins-ols-messenger-item-mobile-title">{getConversationTitle(thread)}</h3>
+                              <div className="admins-ols-messenger-item-mobile-timegroup">
+                                <span className="admins-ols-messenger-item-mobile-time">
+                                  {formatConversationListTime(thread.lastSeenAt)}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="admins-ols-messenger-item-mobile-preview">{getConversationPreview(thread)}</p>
+                            <div className="admins-ols-messenger-item-mobile-tags">
+                              <span className="admins-ols-messenger-item-mobile-badge">
+                                {getConversationChannelLabel(thread)}
+                              </span>
+                              <span className="admins-ols-messenger-item-mobile-badge">
+                                {formatPageLabel(thread.pageType)}
+                              </span>
+                              <span className="admins-ols-messenger-item-mobile-badge">
+                                {isWhatsAppConversation(thread)
+                                  ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                                  : thread.listingId
+                                    ? `Listing ${shortenId(thread.listingId)}`
+                                    : "No listing"}
+                              </span>
+                            </div>
+                            <div className="admins-ols-messenger-item-mobile-footer">
+                              <div className="admins-ols-messenger-item-mobile-counts">
+                                <span className="admins-ols-messenger-item-mobile-count-pill">
+                                  {thread.messageCount} messages
+                                </span>
+                                {latestMessage?.cardCount > 0 && (
+                                  <span className="admins-ols-messenger-item-mobile-count-pill">
+                                    {latestMessage.cardCount} cards
+                                  </span>
+                                )}
+                              </div>
+                              <div className="admins-ols-messenger-item-mobile-status">
+                                {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
+                                {unreadBadge && <span className="admins-ols-messenger-item-unread">1</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {!visibleConversationThreads.length && (
+                      <p className="admins-ols-empty">No conversations matched your filters.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : (
+            <section className="admins-ols-mobile-chat-panel" aria-label="Conversation thread">
+              <div className="admins-ols-messenger is-mobile-inbox is-mobile-thread-open admins-ols-mobile-fullscreen-messenger">
+                <div className="admins-ols-messenger-thread admins-ols-mobile-chat-shell">
+                  {activeConversation ? (
+                    <>
+                      {conversationNeedsAttention(activeConversation) && (
+                        <div className="admins-ols-conversation-alert">
+                          <span className="admins-ols-badge is-negative">Needs attention</span>
+                          <p>The concierge paused this thread because it started repeating or could not answer clearly.</p>
+                        </div>
+                      )}
+                      <div className="admins-ols-conversation-head">
+                        <div className="admins-ols-mobile-thread-nav">
+                          <button
+                            type="button"
+                            className="admins-ols-mobile-back-btn"
+                            onClick={closeMobileConversationThread}
+                            aria-label="Back to conversation list"
+                          >
+                            ←
+                          </button>
+                          <div className="admins-ols-mobile-thread-nav-main">
+                            <h3 className="admins-ols-conversation-title">{getConversationTitle(activeConversation)}</h3>
+                            <p className="admins-ols-mobile-thread-nav-subtitle">
+                              {getConversationChannelLabel(activeConversation)}
+                              {" • "}
+                              {isWhatsAppConversation(activeConversation)
+                                ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
+                                : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                                  ? activeConversation.city
+                                  : "Website"}
+                            </p>
+                          </div>
+                          <div className="admins-ols-mobile-thread-nav-actions">
+                            <button
+                              type="button"
+                              className="admins-ols-mobile-head-action"
+                              onClick={() => setIsMobileConversationInfoOpen((current) => !current)}
+                              aria-label={isMobileConversationInfoOpen ? "Hide conversation info" : "Show conversation info"}
+                              aria-expanded={isMobileConversationInfoOpen}
+                              aria-controls="admins-ols-mobile-conversation-info"
+                            >
+                              Info
+                            </button>
+                            <button
+                              type="button"
+                              className="admins-ols-mobile-head-action admins-ols-mobile-head-action--summary"
+                              onClick={() =>
+                                handleOpenConversationSummaryModal({
+                                  forceRefresh: false,
+                                })
+                              }
+                              disabled={conversationSummaryLoading}
+                              title="Generate a quick admin summary for this thread"
+                              aria-label="Conversation summary"
+                            >
+                              {conversationSummaryLoading ? "..." : "AI"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {isMobileConversationInfoOpen && (
+                        <div id="admins-ols-mobile-conversation-info" className="admins-ols-mobile-conversation-info">
+                          <span>{formatPageLabel(activeConversation.pageType)}</span>
+                          <span>{activeConversation.messageCount} messages</span>
+                          <span>{formatDateTime(activeConversation.lastSeenAt)}</span>
+                          <span>
+                            {isWhatsAppConversation(activeConversation)
+                              ? "Twilio WhatsApp"
+                              : activeConversation.listingId
+                                ? `Listing ${shortenId(activeConversation.listingId)}`
+                                : "No listing"}
+                          </span>
+                          {activeConversation.pathname && (
+                            <p>{truncate(activeConversation.pathname, 96)}</p>
+                          )}
+                        </div>
+                      )}
+                      <div className="admins-ols-thread" ref={threadScrollRef}>
+                        {activeConversation.messages.map((message) => (
+                          <div
+                            key={`${activeConversation.sessionId}-${message.messageId}`}
+                            className={`admins-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
+                          >
+                            <div className="admins-ols-thread-bubble-head">
+                              <span
+                                className={`admins-ols-badge is-${
+                                  message.role === "user"
+                                    ? "neutral"
+                                    : getConversationMessageSenderType(message) === "admin"
+                                      ? "active"
+                                      : "positive"
+                                }`}
+                              >
+                                {getConversationMessageLabel(message)}
+                              </span>
+                              <small>{formatDateTime(message.createdAt)}</small>
+                            </div>
+                            <p>{message.content || "No message content captured."}</p>
+                            {message.cardCount > 0 && (
+                              <small>{message.cardCount} linked listing cards</small>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <form className="admins-ols-thread-composer" onSubmit={handleSendReply}>
+                        <label htmlFor="admins-ols-reply" className="admins-ols-thread-composer-label">
+                          {isWhatsAppConversation(activeConversation) ? "Reply to WhatsApp guest" : "Reply as admin"}
+                        </label>
+                        <div className="admins-ols-thread-composer-tools" aria-hidden="true">
+                          <span className="admins-ols-thread-composer-chip">Sender</span>
+                          <span className="admins-ols-thread-composer-chip">Attach</span>
+                        </div>
+                        <div className="admins-ols-thread-composer-row">
+                          <button
+                            type="button"
+                            className="admins-ols-thread-composer-attach"
+                            aria-label="Attachment options coming soon"
+                            title="Attachment options coming soon"
+                            onClick={(event) => event.preventDefault()}
+                          >
+                            +
+                          </button>
+                          <textarea
+                            id="admins-ols-reply"
+                            value={replyDraft}
+                            onChange={(event) => setReplyDraft(event.target.value)}
+                            placeholder={
+                              isWhatsAppConversation(activeConversation)
+                                ? "Send a WhatsApp reply as the OneLuxStay team..."
+                                : "Reply to this guest conversation as the OneLuxStay team..."
+                            }
+                            rows={1}
+                            disabled={sendingReply}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" && !event.shiftKey) {
+                                event.preventDefault();
+                                if (!sendingReply && replyDraft.trim()) {
+                                  handleSendReply(event);
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            type="submit"
+                            className="admins-ols-thread-composer-send"
+                            disabled={sendingReply || !replyDraft.trim()}
+                          >
+                            {sendingReply ? "Sending..." : "Send"}
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  ) : (
+                    <>
+                      <div className="admins-ols-conversation-head">
+                        <div className="admins-ols-mobile-thread-nav">
+                          <button
+                            type="button"
+                            className="admins-ols-mobile-back-btn"
+                            onClick={closeMobileConversationThread}
+                            aria-label="Back to conversation list"
+                          >
+                            ←
+                          </button>
+                          <div className="admins-ols-mobile-thread-nav-main">
+                            <h3 className="admins-ols-conversation-title">Conversation not available</h3>
+                            <p className="admins-ols-mobile-thread-nav-subtitle">
+                              This thread was not found or is still loading.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="admins-ols-empty">Select a conversation to read the thread.</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1975,127 +2532,304 @@ function AdminsOlsPage() {
           role="tabpanel"
           aria-labelledby="tab-conversations"
           hidden={displayedTabId !== "conversations"}
-          className="admins-ols-card"
+          className={`admins-ols-card admins-ols-conversations-panel${
+            isMobileInboxViewport ? " is-mobile-view" : ""
+          }${isTabletInboxViewport ? " is-tablet-view" : ""}${
+            isMobileInboxViewport && isMobileChatRoute ? " is-mobile-thread-open" : ""
+          }`}
         >
           <div className="admins-ols-card-head">
-            <h2>Recent Conversations</h2>
-            <span className="admins-ols-pill">{recentConversations.length} sessions</span>
+            <h2>{isMobileInboxViewport ? (isMobileChatRoute ? "Conversation" : "Inbox") : "Recent Conversations"}</h2>
+            <span className="admins-ols-pill">
+              {isMobileInboxViewport ? `${recentConversations.length} chats` : `${recentConversations.length} sessions`}
+            </span>
           </div>
-          <div className="admins-ols-messenger">
-            <div className="admins-ols-messenger-list" role="list" aria-label="Recent conversation sessions">
+          <div
+            className={`admins-ols-messenger${isMobileInboxViewport ? " is-mobile-inbox" : ""}${
+              isTabletInboxViewport ? " is-tablet-inbox" : ""
+            }${isMobileInboxViewport && isMobileChatRoute ? " is-mobile-thread-open" : " is-mobile-list-open"}`}
+          >
+            {shouldRenderConversationList && (
+              <div
+                className={`admins-ols-messenger-list${isMobileInboxViewport ? " admins-ols-mobile-inbox-shell" : ""}`}
+                role="list"
+                aria-label="Recent conversation sessions"
+              >
               {recentConversations.map((thread) => {
                 const latestMessage = thread.messages?.[thread.messages.length - 1] || null;
-                const isActive = thread.sessionId === selectedConversation?.sessionId;
+                const isActive = thread.sessionId === activeConversation?.sessionId;
                 const needsAttention = conversationNeedsAttention(thread);
+                const unreadBadge = unreadAttentionSignatureSet.has(getConversationAttentionSignature(thread));
 
                 return (
                   <button
                     key={thread.sessionId}
                     type="button"
                     className={`admins-ols-messenger-item${isActive ? " is-active" : ""}`}
-                    onClick={() => setSelectedConversationSessionId(thread.sessionId)}
+                    onClick={() => openConversationThread(thread.sessionId)}
                   >
                     <div className="admins-ols-messenger-item-avatar">{getConversationInitial(thread)}</div>
                     <div className="admins-ols-messenger-item-body">
-                      <div className="admins-ols-messenger-item-top">
-                        <strong>{getConversationTitle(thread)}</strong>
-                        <small>{formatDateTime(thread.lastSeenAt)}</small>
-                      </div>
-                      <div className="admins-ols-messenger-item-sub">
-                        <span>{formatPageLabel(thread.pageType)}</span>
-                        <span>
-                          {isWhatsAppConversation(thread)
-                            ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
-                            : thread.listingId
-                              ? `Listing ${shortenId(thread.listingId)}`
-                              : "No listing"}
-                        </span>
-                      </div>
-                      <p>{getConversationPreview(thread)}</p>
-                      <div className="admins-ols-messenger-item-foot">
-                        <span>{thread.messageCount} messages</span>
-                        {latestMessage?.cardCount > 0 && <span>{latestMessage.cardCount} cards</span>}
-                        {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
-                      </div>
+                      {isMobileInboxViewport ? (
+                        <>
+                          <div className="admins-ols-messenger-item-mobile-header">
+                            <h3 className="admins-ols-messenger-item-mobile-title">{getConversationTitle(thread)}</h3>
+                            <div className="admins-ols-messenger-item-mobile-timegroup">
+                              <span className="admins-ols-messenger-item-mobile-time">
+                                {formatConversationListTime(thread.lastSeenAt)}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="admins-ols-messenger-item-mobile-preview">{getConversationPreview(thread)}</p>
+                          <div className="admins-ols-messenger-item-mobile-tags">
+                            <span className="admins-ols-messenger-item-mobile-badge">
+                              {getConversationChannelLabel(thread)}
+                            </span>
+                            <span className="admins-ols-messenger-item-mobile-badge">
+                              {formatPageLabel(thread.pageType)}
+                            </span>
+                            <span className="admins-ols-messenger-item-mobile-badge">
+                              {isWhatsAppConversation(thread)
+                                ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                                : thread.listingId
+                                  ? `Listing ${shortenId(thread.listingId)}`
+                                  : "No listing"}
+                            </span>
+                          </div>
+                          <div className="admins-ols-messenger-item-mobile-footer">
+                            <div className="admins-ols-messenger-item-mobile-counts">
+                              <span className="admins-ols-messenger-item-mobile-count-pill">
+                                {thread.messageCount} messages
+                              </span>
+                              {latestMessage?.cardCount > 0 && (
+                                <span className="admins-ols-messenger-item-mobile-count-pill">
+                                  {latestMessage.cardCount} cards
+                                </span>
+                              )}
+                            </div>
+                            <div className="admins-ols-messenger-item-mobile-status">
+                              {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
+                              {unreadBadge && <span className="admins-ols-messenger-item-unread">1</span>}
+                            </div>
+                          </div>
+                        </>
+                      ) : shouldUseMobileConversationCards ? (
+                        <>
+                          <div className="admins-ols-messenger-item-mobile-top-row">
+                            <h3 className="admins-ols-messenger-item-mobile-title">{getConversationTitle(thread)}</h3>
+                            <div className="admins-ols-messenger-item-mobile-timegroup">
+                              <span className="admins-ols-messenger-item-mobile-time">
+                                {formatConversationListTime(thread.lastSeenAt)}
+                              </span>
+                              {unreadBadge && <span className="admins-ols-messenger-item-unread">1</span>}
+                            </div>
+                          </div>
+                          <p className="admins-ols-messenger-item-mobile-preview">{getConversationPreview(thread)}</p>
+                          <div className="admins-ols-messenger-item-mobile-badges">
+                            <span className="admins-ols-messenger-item-mobile-badge">
+                              {getConversationChannelLabel(thread)}
+                            </span>
+                            <span className="admins-ols-messenger-item-mobile-badge">
+                              {formatPageLabel(thread.pageType)}
+                            </span>
+                            <span className="admins-ols-messenger-item-mobile-badge">
+                              {isWhatsAppConversation(thread)
+                                ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                                : thread.listingId
+                                  ? `Listing ${shortenId(thread.listingId)}`
+                                  : "No listing"}
+                            </span>
+                            <span className="admins-ols-messenger-item-mobile-badge">{thread.messageCount} messages</span>
+                            {latestMessage?.cardCount > 0 && (
+                              <span className="admins-ols-messenger-item-mobile-badge">{latestMessage.cardCount} cards</span>
+                            )}
+                            {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="admins-ols-messenger-item-top">
+                            <strong>{getConversationTitle(thread)}</strong>
+                            <div className="admins-ols-messenger-item-timegroup">
+                              <small>{formatDateTime(thread.lastSeenAt)}</small>
+                              {unreadBadge && <span className="admins-ols-messenger-item-unread">1</span>}
+                            </div>
+                          </div>
+                          <div className="admins-ols-messenger-item-sub">
+                            <span>{getConversationChannelLabel(thread)}</span>
+                            <span>{formatPageLabel(thread.pageType)}</span>
+                            <span>
+                              {isWhatsAppConversation(thread)
+                                ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                                : thread.listingId
+                                  ? `Listing ${shortenId(thread.listingId)}`
+                                  : "No listing"}
+                            </span>
+                          </div>
+                          <p>{getConversationPreview(thread)}</p>
+                          <div className="admins-ols-messenger-item-foot">
+                            <span>{thread.messageCount} messages</span>
+                            {latestMessage?.cardCount > 0 && <span>{latestMessage.cardCount} cards</span>}
+                            {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </button>
                 );
               })}
-              {!recentConversations.length && (
-                <p className="admins-ols-empty">No conversation threads found yet.</p>
-              )}
-            </div>
+                {!recentConversations.length && (
+                  <p className="admins-ols-empty">No conversation threads found yet.</p>
+                )}
+              </div>
+            )}
 
-            <div className="admins-ols-messenger-thread">
-              {selectedConversation ? (
+            {shouldRenderConversationThread && (
+              <div
+                className={`admins-ols-messenger-thread${
+                  isMobileInboxViewport && isMobileChatRoute ? " admins-ols-mobile-chat-shell" : ""
+                }`}
+              >
+              {activeConversation ? (
                 <>
-                  {conversationNeedsAttention(selectedConversation) && (
+                  {conversationNeedsAttention(activeConversation) && (
                     <div className="admins-ols-conversation-alert">
                       <span className="admins-ols-badge is-negative">Needs attention</span>
                       <p>The concierge paused this thread because it started repeating or could not answer clearly.</p>
                     </div>
                   )}
                   <div className="admins-ols-conversation-head">
-                    <div className="admins-ols-conversation-head-main">
-                      <p className="admins-ols-conversation-kicker">
-                        {formatPageLabel(selectedConversation.pageType)}
-                      </p>
-                      <h3 className="admins-ols-conversation-title">
-                        {getConversationTitle(selectedConversation)}
-                      </h3>
-                      <div className="admins-ols-conversation-meta">
-                        <span>
-                          {isWhatsAppConversation(selectedConversation)
-                            ? getWhatsAppPhoneLabel(selectedConversation) || "WhatsApp guest"
-                            : selectedConversation.city && selectedConversation.city.toLowerCase() !== "unknown city"
-                            ? selectedConversation.city
-                            : "Website"}
-                        </span>
-                        <span>
-                          {isWhatsAppConversation(selectedConversation)
-                            ? "Twilio WhatsApp"
-                            : selectedConversation.listingId
-                            ? `Listing ${shortenId(selectedConversation.listingId)}`
-                            : "No listing"}
-                        </span>
-                        <span>{selectedConversation.messageCount} messages</span>
-                        {conversationNeedsAttention(selectedConversation) && (
-                          <span className="admins-ols-badge is-negative">Needs attention</span>
-                        )}
+                    {isMobileInboxViewport && isMobileThreadOpen ? (
+                      <div className="admins-ols-mobile-thread-nav">
+                        <button
+                          type="button"
+                          className="admins-ols-mobile-back-btn"
+                          onClick={closeMobileConversationThread}
+                          aria-label="Back to conversation list"
+                        >
+                          ←
+                        </button>
+                        <div className="admins-ols-mobile-thread-nav-main">
+                          <h3 className="admins-ols-conversation-title">{getConversationTitle(activeConversation)}</h3>
+                          <p className="admins-ols-mobile-thread-nav-subtitle">
+                            {getConversationChannelLabel(activeConversation)}
+                            {" • "}
+                            {isWhatsAppConversation(activeConversation)
+                              ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
+                              : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                              ? activeConversation.city
+                              : "Website"}
+                          </p>
+                        </div>
+                        <div className="admins-ols-mobile-thread-nav-actions">
+                          <button
+                            type="button"
+                            className="admins-ols-mobile-head-action"
+                            onClick={() => setIsMobileConversationInfoOpen((current) => !current)}
+                            aria-label={isMobileConversationInfoOpen ? "Hide conversation info" : "Show conversation info"}
+                            aria-expanded={isMobileConversationInfoOpen}
+                            aria-controls="admins-ols-mobile-conversation-info"
+                          >
+                            Info
+                          </button>
+                          <button
+                            type="button"
+                            className="admins-ols-mobile-head-action admins-ols-mobile-head-action--summary"
+                            onClick={() =>
+                              handleOpenConversationSummaryModal({
+                                forceRefresh: false,
+                              })
+                            }
+                            disabled={conversationSummaryLoading}
+                            title="Generate a quick admin summary for this thread"
+                            aria-label="Conversation summary"
+                          >
+                            {conversationSummaryLoading ? "..." : "AI"}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="admins-ols-conversation-head-aside">
-                      <small>{formatDateTime(selectedConversation.lastSeenAt)}</small>
-                      <button
-                        type="button"
-                        className="admins-ols-conversation-summary-trigger"
-                        onClick={() =>
-                          handleOpenConversationSummaryModal({
-                            forceRefresh: false,
-                          })
-                        }
-                        disabled={conversationSummaryLoading}
-                        title="Generate a quick admin summary for this thread"
-                      >
-                        {conversationSummaryLoading
-                          ? "Summarizing..."
-                          : cachedSelectedConversationSummary?.text ||
-                              (conversationSummary?.sessionId === selectedConversation.sessionId &&
-                                String(conversationSummary?.text || "").trim())
-                            ? "View Summary"
-                            : "Generate Summary"}
-                      </button>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="admins-ols-conversation-head-main">
+                          <p className="admins-ols-conversation-kicker">
+                            {formatPageLabel(activeConversation.pageType)}
+                          </p>
+                          <h3 className="admins-ols-conversation-title">
+                            {getConversationTitle(activeConversation)}
+                          </h3>
+                          <div className="admins-ols-conversation-meta">
+                            <span>
+                              {isWhatsAppConversation(activeConversation)
+                                ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
+                                : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                                ? activeConversation.city
+                                : "Website"}
+                            </span>
+                            <span>{getConversationChannelLabel(activeConversation)}</span>
+                            <span>
+                              {isWhatsAppConversation(activeConversation)
+                                ? "Twilio WhatsApp"
+                                : activeConversation.listingId
+                                ? `Listing ${shortenId(activeConversation.listingId)}`
+                                : "No listing"}
+                            </span>
+                            <span>{activeConversation.messageCount} messages</span>
+                            {conversationNeedsAttention(activeConversation) && (
+                              <span className="admins-ols-badge is-negative">Needs attention</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="admins-ols-conversation-head-aside">
+                          <small>{formatDateTime(activeConversation.lastSeenAt)}</small>
+                          <button
+                            type="button"
+                            className="admins-ols-conversation-summary-trigger"
+                            onClick={() =>
+                              handleOpenConversationSummaryModal({
+                                forceRefresh: false,
+                              })
+                            }
+                            disabled={conversationSummaryLoading}
+                            title="Generate a quick admin summary for this thread"
+                          >
+                            {conversationSummaryLoading
+                              ? "Summarizing..."
+                              : cachedSelectedConversationSummary?.text ||
+                                  (conversationSummary?.sessionId === activeConversation.sessionId &&
+                                    String(conversationSummary?.text || "").trim())
+                                ? "View Summary"
+                                : "Generate Summary"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  {selectedConversation.pathname && (
+                  {isMobileInboxViewport && isMobileThreadOpen && isMobileConversationInfoOpen && (
+                    <div id="admins-ols-mobile-conversation-info" className="admins-ols-mobile-conversation-info">
+                      <span>{formatPageLabel(activeConversation.pageType)}</span>
+                      <span>{activeConversation.messageCount} messages</span>
+                      <span>{formatDateTime(activeConversation.lastSeenAt)}</span>
+                      <span>
+                        {isWhatsAppConversation(activeConversation)
+                          ? "Twilio WhatsApp"
+                          : activeConversation.listingId
+                          ? `Listing ${shortenId(activeConversation.listingId)}`
+                          : "No listing"}
+                      </span>
+                      {activeConversation.pathname && (
+                        <p>{truncate(activeConversation.pathname, 96)}</p>
+                      )}
+                    </div>
+                  )}
+                  {(!isMobileInboxViewport || !isMobileThreadOpen) && activeConversation.pathname && (
                     <p className="admins-ols-conversation-path">
-                      {truncate(selectedConversation.pathname, 120)}
+                      {truncate(activeConversation.pathname, 120)}
                     </p>
                   )}
                   <div className="admins-ols-thread" ref={threadScrollRef}>
-                    {selectedConversation.messages.map((message) => (
+                    {activeConversation.messages.map((message) => (
                       <div
-                        key={`${selectedConversation.sessionId}-${message.messageId}`}
+                        key={`${activeConversation.sessionId}-${message.messageId}`}
                         className={`admins-ols-thread-bubble ${getConversationMessageBubbleClass(message)}`}
                       >
                         <div className="admins-ols-thread-bubble-head">
@@ -2121,19 +2855,34 @@ function AdminsOlsPage() {
                   </div>
                   <form className="admins-ols-thread-composer" onSubmit={handleSendReply}>
                     <label htmlFor="admins-ols-reply" className="admins-ols-thread-composer-label">
-                      {isWhatsAppConversation(selectedConversation) ? "Reply to WhatsApp guest" : "Reply as admin"}
+                      {isWhatsAppConversation(activeConversation) ? "Reply to WhatsApp guest" : "Reply as admin"}
                     </label>
+                    <div className="admins-ols-thread-composer-tools" aria-hidden="true">
+                      <span className="admins-ols-thread-composer-chip">Sender</span>
+                      <span className="admins-ols-thread-composer-chip">Attach</span>
+                    </div>
                     <div className="admins-ols-thread-composer-row">
+                      {isMobileInboxViewport && isMobileThreadOpen && (
+                        <button
+                          type="button"
+                          className="admins-ols-thread-composer-attach"
+                          aria-label="Attachment options coming soon"
+                          title="Attachment options coming soon"
+                          onClick={(event) => event.preventDefault()}
+                        >
+                          +
+                        </button>
+                      )}
                       <textarea
                         id="admins-ols-reply"
                         value={replyDraft}
                         onChange={(event) => setReplyDraft(event.target.value)}
                         placeholder={
-                          isWhatsAppConversation(selectedConversation)
+                          isWhatsAppConversation(activeConversation)
                             ? "Send a WhatsApp reply as the OneLuxStay team..."
                             : "Reply to this guest conversation as the OneLuxStay team..."
                         }
-                        rows={3}
+                        rows={isMobileInboxViewport && isMobileThreadOpen ? 1 : 3}
                         disabled={sendingReply}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" && !event.shiftKey) {
@@ -2144,16 +2893,43 @@ function AdminsOlsPage() {
                           }
                         }}
                       />
-                      <button type="submit" disabled={sendingReply || !replyDraft.trim()}>
-                        {sendingReply ? "Sending..." : "Send Reply"}
+                      <button
+                        type="submit"
+                        className="admins-ols-thread-composer-send"
+                        disabled={sendingReply || !replyDraft.trim()}
+                      >
+                        {sendingReply ? "Sending..." : isMobileInboxViewport && isMobileThreadOpen ? "Send" : "Send Reply"}
                       </button>
                     </div>
                   </form>
                 </>
               ) : (
-                <p className="admins-ols-empty">Select a conversation to read the thread.</p>
+                <>
+                  {isMobileInboxViewport && isMobileChatRoute && (
+                    <div className="admins-ols-conversation-head">
+                      <div className="admins-ols-mobile-thread-nav">
+                        <button
+                          type="button"
+                          className="admins-ols-mobile-back-btn"
+                          onClick={closeMobileConversationThread}
+                          aria-label="Back to conversation list"
+                        >
+                          ←
+                        </button>
+                        <div className="admins-ols-mobile-thread-nav-main">
+                          <h3 className="admins-ols-conversation-title">Conversation not available</h3>
+                          <p className="admins-ols-mobile-thread-nav-subtitle">
+                            This thread was not found or is still loading.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <p className="admins-ols-empty">Select a conversation to read the thread.</p>
+                </>
               )}
-            </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -2637,7 +3413,7 @@ function AdminsOlsPage() {
         </div>
       </div>
     </div>
-    {isConversationSummaryModalOpen && selectedConversation && (
+    {isConversationSummaryModalOpen && activeConversation && (
       <div
         className="admins-ols-modal-overlay"
         role="presentation"
@@ -2657,13 +3433,13 @@ function AdminsOlsPage() {
             <div className="admins-ols-modal-head-left">
               <span className="admins-ols-badge is-active">Summary</span>
               <div className="admins-ols-modal-title">
-                <strong>{getConversationTitle(selectedConversation)}</strong>
+                <strong>{getConversationTitle(activeConversation)}</strong>
                 <small>
-                  {formatPageLabel(selectedConversation.pageType)}{" "}
-                  {selectedConversation.city && selectedConversation.city.toLowerCase() !== "unknown city"
-                    ? `| ${selectedConversation.city}`
+                  {formatPageLabel(activeConversation.pageType)}{" "}
+                  {activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                    ? `| ${activeConversation.city}`
                     : ""}
-                  {selectedConversation.listingId ? ` | Listing ${shortenId(selectedConversation.listingId)}` : ""}
+                  {activeConversation.listingId ? ` | Listing ${shortenId(activeConversation.listingId)}` : ""}
                 </small>
               </div>
             </div>
@@ -2697,7 +3473,7 @@ function AdminsOlsPage() {
             {!conversationSummaryLoading &&
               !conversationSummaryError &&
               conversationSummary &&
-              conversationSummary.sessionId === selectedConversation.sessionId && (
+              conversationSummary.sessionId === activeConversation.sessionId && (
                 <>
                   <div className="admins-ols-modal-meta">
                     <small>
@@ -2749,7 +3525,7 @@ function AdminsOlsPage() {
               )}
             {!conversationSummaryLoading &&
               !conversationSummaryError &&
-              (!conversationSummary || conversationSummary.sessionId !== selectedConversation.sessionId) && (
+              (!conversationSummary || conversationSummary.sessionId !== activeConversation.sessionId) && (
                 <p className="admins-ols-empty" style={{ margin: 0 }}>
                   Summary not generated yet. Click Refresh to generate one.
                 </p>

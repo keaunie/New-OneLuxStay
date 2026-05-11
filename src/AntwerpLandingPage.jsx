@@ -15,6 +15,7 @@ import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
+import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
@@ -1507,6 +1508,10 @@ const sanitizeText = (value = "") => {
     .trim();
 };
 
+const ANTWERP_CONTACT_PROFILE = resolveListingContactProfile("antwerp");
+const ANTWERP_PHONE_CONTACT = ANTWERP_CONTACT_PROFILE.phone;
+const ANTWERP_WHATSAPP_CONTACT = ANTWERP_CONTACT_PROFILE.whatsapp;
+
 const buildWhatsAppLink = (title, checkIn, checkOut) => {
   const unitName = title ? sanitizeText(title) : "a OneLuxStay stay";
   const checkInDate = parseDateValue(checkIn);
@@ -1516,7 +1521,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
       ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
       : "";
   const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
-  return `https://wa.me/32460254886?text=${encodeURIComponent(message)}`;
+  return buildWhatsAppHref(ANTWERP_WHATSAPP_CONTACT.digits, message);
 };
 
 const BOOKING_STORAGE_KEY = "antwerpBookingFilters";
@@ -6139,9 +6144,8 @@ const applyCheckoutPromoCode = () => {
   const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
     inquirySubject
   )}&body=${encodeURIComponent(inquiryBody)}`;
-  const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
-    inquiryBody
-  )}`;
+  const inquiryWhatsAppHref = buildWhatsAppHref(ANTWERP_WHATSAPP_CONTACT.digits, inquiryBody);
+  const inquiryWhatsAppLabel = buildWhatsAppLabel(ANTWERP_WHATSAPP_CONTACT);
   const logoHomeProps = {
     role: "button",
     tabIndex: 0,
@@ -6582,7 +6586,40 @@ const applyCheckoutPromoCode = () => {
           <>
             <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
               <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
-                <div className="la-unit-modal__main">
+                <div className="la-unit-modal__mobile-carousel" aria-label="Listing photos">
+                  <div className="la-unit-modal__mobile-carousel-track">
+                    {imageEntries.length ? (
+                      imageEntries.map((entry, mobileIndex) => (
+                        <button
+                          key={"mobile-" + entry.idx}
+                          type="button"
+                          className="la-unit-modal__mobile-slide"
+                          onClick={() => openMasonryGallery(images, entry.idx)}
+                          aria-label="View photo"
+                        >
+                          <img
+                            src={entry.src}
+                            alt={sanitizeText(activeListing.title)}
+                            loading={mobileIndex === 0 ? "eager" : "lazy"}
+                            onError={handleImageError}
+                          />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="la-unit-modal__mobile-slide la-unit-modal__mobile-slide--placeholder">
+                        <div className="la-unit-modal__placeholder">Image loading</div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="la-unit-modal__mobile-gallery-action"
+                    onClick={() => openMasonryGallery(images, safeIndex)}
+                  >
+                    View all photos ({totalPhotos})
+                  </button>
+                </div>
+                <div className="la-unit-modal__main la-unit-modal__desktop-media">
                   {mainImage ? (
                     <button
                       type="button"
@@ -6949,7 +6986,7 @@ const applyCheckoutPromoCode = () => {
                 <div className="la-unit-modal__bp-divider" />
                 <div className="la-unit-modal__bp-contact">
                   <strong>OneLuxStay Antwerp</strong>
-                  <a href="tel:+32460254886">+32 460 25 48 86</a>
+                  <a href={ANTWERP_PHONE_CONTACT.telHref}>{ANTWERP_PHONE_CONTACT.display}</a>
                   <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                   <a
                     href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
@@ -7578,7 +7615,7 @@ const applyCheckoutPromoCode = () => {
                 target="_blank"
                 rel="noreferrer"
               >
-                WhatsApp +971 58 885 8935
+                {inquiryWhatsAppLabel}
               </a>
               <p className="la-inquiry-modal__note">We usually respond within an hour</p>
             </div>
@@ -8781,7 +8818,7 @@ const applyCheckoutPromoCode = () => {
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
                       <p>For Reservation Contact</p>
                       <strong>OneLuxStay Antwerp</strong>
-                      <a href="tel:+32460254886">+32 460 25 48 86</a>
+                      <a href={ANTWERP_PHONE_CONTACT.telHref}>{ANTWERP_PHONE_CONTACT.display}</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                                             <a
                         href={buildWhatsAppLink(sectionParent?.title || sectionLabel, sectionCheckIn, sectionCheckOut)}
@@ -9442,7 +9479,7 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
                 <p>For Reservation Contact</p>
                 <strong>OneLuxStay Antwerp</strong>
-                <a href="tel:+32460254886">+32 460 25 48 86</a>
+                <a href={ANTWERP_PHONE_CONTACT.telHref}>{ANTWERP_PHONE_CONTACT.display}</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
                                 <a
                   href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
@@ -9575,7 +9612,40 @@ const applyCheckoutPromoCode = () => {
               return (
                 <div className="la-unit-modal__grid">
                   <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
-                    <div className="la-unit-modal__main">
+                    <div className="la-unit-modal__mobile-carousel" aria-label="Listing photos">
+                      <div className="la-unit-modal__mobile-carousel-track">
+                        {imageEntries.length ? (
+                          imageEntries.map((entry, mobileIndex) => (
+                            <button
+                              key={"mobile-" + entry.idx}
+                              type="button"
+                              className="la-unit-modal__mobile-slide"
+                              onClick={() => openMasonryGallery(images, entry.idx)}
+                              aria-label="View photo"
+                            >
+                              <img
+                                src={entry.src}
+                                alt={sanitizeText(activeListing.title)}
+                                loading={mobileIndex === 0 ? "eager" : "lazy"}
+                                onError={handleImageError}
+                              />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="la-unit-modal__mobile-slide la-unit-modal__mobile-slide--placeholder">
+                            <div className="la-unit-modal__placeholder">Image loading</div>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="la-unit-modal__mobile-gallery-action"
+                        onClick={() => openMasonryGallery(images, safeIndex)}
+                      >
+                        View all photos ({totalPhotos})
+                      </button>
+                    </div>
+                    <div className="la-unit-modal__main la-unit-modal__desktop-media">
                       {current ? (
                         <button
                           type="button"

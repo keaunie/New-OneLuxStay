@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
+import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
 import "./App.css";
 const checkoutBase = apiBase;
 
@@ -618,16 +619,10 @@ function ListingPage() {
   const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
     inquirySubject
   )}&body=${encodeURIComponent(inquiryBody)}`;
-  const inquiryWhatsAppNumber = (() => {
-    const hint = [inquiryListing?.city, inquiryListing?.location, inquiryListing?.address?.city, inquiryListing?.address?.state, inquiryListing?.address?.country, inquiryListing?.title]
-      .filter(Boolean).join(" ").toLowerCase();
-    if (/antwerp|belgium|belgi/i.test(hint)) return "32460254886";
-    if (/california|los angeles|miami|florida|redondo|usa|united states/i.test(hint)) return "16188812613";
-    return "971588858935";
-  })();
-  const inquiryWhatsAppHref = `https://wa.me/${inquiryWhatsAppNumber}?text=${encodeURIComponent(
-    inquiryBody
-  )}`;
+  const inquiryContactProfile = resolveListingContactProfile(inquiryListing);
+  const inquiryWhatsAppNumber = inquiryContactProfile.whatsapp.digits;
+  const inquiryWhatsAppHref = buildWhatsAppHref(inquiryWhatsAppNumber, inquiryBody);
+  const inquiryWhatsAppLabel = buildWhatsAppLabel(inquiryContactProfile.whatsapp);
 
   const parentListings = useMemo(() => {
     const groups = groupListingsByParent(listings);
@@ -1507,7 +1502,7 @@ function ListingPage() {
                 target="_blank"
                 rel="noreferrer"
               >
-                WhatsApp +971 58 885 8935
+                {inquiryWhatsAppLabel}
               </a>
               <p className="la-inquiry-modal__note">We usually respond within an hour.</p>
             </div>
@@ -1519,9 +1514,6 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
-
-
 
 
 

@@ -16,6 +16,7 @@ import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
+import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHref } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 const mapsApiKey = "leaflet";
@@ -1544,7 +1545,7 @@ const buildWhatsAppLink = (title, checkIn, checkOut) => {
       ? ` for ${formatDisplayDate(checkIn)} to ${formatDisplayDate(checkOut)}`
       : "";
   const message = `Hi! I'm interested in ${unitName}${dateLine}. Could you share availability and pricing?`;
-  return `https://wa.me/16188812613?text=${encodeURIComponent(message)}`;
+  return buildWhatsAppHref(PRIMARY_US_WHATSAPP_CONTACT.digits, message);
 };
 
 const BOOKING_STORAGE_KEY = "redondoBeachBookingFilters";
@@ -5583,9 +5584,7 @@ const applyCheckoutPromoCode = () => {
   const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
     inquirySubject
   )}&body=${encodeURIComponent(inquiryBody)}`;
-  const inquiryWhatsAppHref = `https://wa.me/971588858935?text=${encodeURIComponent(
-    inquiryBody
-  )}`;
+  const inquiryWhatsAppHref = buildWhatsAppHref(PRIMARY_US_WHATSAPP_CONTACT.digits, inquiryBody);
   const logoHomeProps = {
     role: "button",
     tabIndex: 0,
@@ -5950,7 +5949,40 @@ const applyCheckoutPromoCode = () => {
               <>
             <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
               <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
-                <div className="la-unit-modal__main">
+                <div className="la-unit-modal__mobile-carousel" aria-label="Listing photos">
+                  <div className="la-unit-modal__mobile-carousel-track">
+                    {imageEntries.length ? (
+                      imageEntries.map((entry, mobileIndex) => (
+                        <button
+                          key={"mobile-" + entry.idx}
+                          type="button"
+                          className="la-unit-modal__mobile-slide"
+                          onClick={() => openMasonryGallery(images, entry.idx)}
+                          aria-label="View photo"
+                        >
+                          <img
+                            src={entry.src}
+                            alt={sanitizeText(activeListing.title)}
+                            loading={mobileIndex === 0 ? "eager" : "lazy"}
+                            onError={handleImageError}
+                          />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="la-unit-modal__mobile-slide la-unit-modal__mobile-slide--placeholder">
+                        <div className="la-unit-modal__placeholder">Image loading</div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="la-unit-modal__mobile-gallery-action"
+                    onClick={() => openMasonryGallery(images, safeIndex)}
+                  >
+                    View all photos ({totalPhotos})
+                  </button>
+                </div>
+                <div className="la-unit-modal__main la-unit-modal__desktop-media">
                   {mainImage ? (
                         <button
                           type="button"
@@ -6542,12 +6574,6 @@ const applyCheckoutPromoCode = () => {
                   ),
                 },
                 {
-                  label: "Pets charged",
-                  value: formatRuleValue(
-                    typeof petsAllowed === "object" ? petsAllowed.charged : houseRules.petsCharged
-                  ),
-                },
-                {
                   label: "Smoking allowed",
                   value: formatRuleValue(
                     typeof smokingAllowed === "object" ? smokingAllowed.enabled : smokingAllowed
@@ -6565,7 +6591,6 @@ const applyCheckoutPromoCode = () => {
                     ? formatQuietHours({ set: true, start: quietBetween.hours?.start, end: quietBetween.hours?.end })
                     : formatQuietHours(houseRules.quietHours),
                 },
-                { label: "Minimum age", value: formatRuleValue(houseRules.minimumAge) },
               ];
               return (
                 <div className="la-house-rules la-house-rules--balanced">
@@ -6916,7 +6941,7 @@ const applyCheckoutPromoCode = () => {
             target="_blank"
             rel="noreferrer"
           >
-            WhatsApp +971 58 885 8935
+            {PRIMARY_US_WHATSAPP_LABEL}
           </a>
           <p className="la-inquiry-modal__note">We usually respond within an hour</p>
         </div>
@@ -8898,8 +8923,41 @@ const applyCheckoutPromoCode = () => {
                 null;
               return (
                 <div className="la-unit-modal__grid">
-                  <div className="la-unit-modal__gallery">
-                    <div className="la-unit-modal__main">
+                  <div className="la-unit-modal__gallery la-unit-modal__gallery--rounded-shell">
+                    <div className="la-unit-modal__mobile-carousel" aria-label="Listing photos">
+                      <div className="la-unit-modal__mobile-carousel-track">
+                        {imageEntries.length ? (
+                          imageEntries.map((entry, mobileIndex) => (
+                            <button
+                              key={"mobile-" + entry.idx}
+                              type="button"
+                              className="la-unit-modal__mobile-slide"
+                              onClick={() => openMasonryGallery(images, entry.idx)}
+                              aria-label="View photo"
+                            >
+                              <img
+                                src={entry.src}
+                                alt={sanitizeText(activeListing.title)}
+                                loading={mobileIndex === 0 ? "eager" : "lazy"}
+                                onError={handleImageError}
+                              />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="la-unit-modal__mobile-slide la-unit-modal__mobile-slide--placeholder">
+                            <div className="la-unit-modal__placeholder">Image loading</div>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="la-unit-modal__mobile-gallery-action"
+                        onClick={() => openMasonryGallery(images, safeIndex)}
+                      >
+                        View all photos ({totalPhotos})
+                      </button>
+                    </div>
+                    <div className="la-unit-modal__main la-unit-modal__desktop-media">
                       {current ? (
                         <button
                           type="button"
