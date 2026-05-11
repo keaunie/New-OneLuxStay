@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
+import { CONTACT_EMAIL, CONTACT_REGION_MAP } from "./utils/contactConfig";
 
 function PrivacyPolicy() {
   return (
@@ -135,19 +136,15 @@ function PrivacyPolicy() {
 
         <section id="contact" className="policy-section policy-contact">
           <h2>Contact Us</h2>
-          <p>Email: reservations@oneluxstay.com</p>
+          <p>Email: {CONTACT_EMAIL}</p>
           <div className="policy-contact-grid">
             <div>
-              <p className="policy-contact-label">UAE</p>
-              <p>+971 557277059</p>
+              <p className="policy-contact-label">US + Dubai</p>
+              <p>{CONTACT_REGION_MAP.us.phone.display}</p>
             </div>
             <div>
-              <p className="policy-contact-label">USA</p>
-              <p>+1 2138663589</p>
-            </div>
-            <div>
-              <p className="policy-contact-label">EU</p>
-              <p>+32 460 25 48 86</p>
+              <p className="policy-contact-label">Antwerp</p>
+              <p>{CONTACT_REGION_MAP.antwerp.phone.display}</p>
             </div>
           </div>
         </section>

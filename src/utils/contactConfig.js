@@ -20,6 +20,33 @@ export const BELGIUM_CONTACT = Object.freeze({
   whatsappFrom: "whatsapp:+32460254886",
 });
 
+export const CONTACT_EMAIL = "reservations@oneluxstay.com";
+export const CONTACT_EMAIL_HREF = `mailto:${CONTACT_EMAIL}`;
+
+export const CONTACT_REGION_MAP = Object.freeze({
+  us: Object.freeze({
+    key: "us",
+    label: "US",
+    phone: PRIMARY_US_CONTACT,
+    whatsapp: PRIMARY_US_WHATSAPP_CONTACT,
+    whatsappHref: "https://wa.me/16188812613",
+  }),
+  dubai: Object.freeze({
+    key: "dubai",
+    label: "Dubai",
+    phone: PRIMARY_US_CONTACT,
+    whatsapp: PRIMARY_US_WHATSAPP_CONTACT,
+    whatsappHref: "https://wa.me/16188812613",
+  }),
+  antwerp: Object.freeze({
+    key: "antwerp",
+    label: "Antwerp",
+    phone: BELGIUM_CONTACT,
+    whatsapp: BELGIUM_CONTACT,
+    whatsappHref: "https://wa.me/32460254886",
+  }),
+});
+
 export const buildWhatsAppHref = (digits, message = "") =>
   `https://wa.me/${String(digits || "").replace(/[^\d]/g, "")}?text=${encodeURIComponent(String(message || ""))}`;
 
@@ -57,3 +84,12 @@ export const resolveListingContactProfile = (source) => {
 };
 
 export const buildWhatsAppLabel = (contact) => `WhatsApp ${(contact || PRIMARY_US_WHATSAPP_CONTACT).display}`;
+
+export const resolveContactRegionKey = (source = "") => {
+  if (isAntwerpContactHint(source)) return "antwerp";
+  const normalized = normalizeContactHint(source);
+  if (/\b(dubai|uae)\b/i.test(normalized)) return "dubai";
+  return "us";
+};
+
+export const resolveContactRegion = (source = "") => CONTACT_REGION_MAP[resolveContactRegionKey(source)];

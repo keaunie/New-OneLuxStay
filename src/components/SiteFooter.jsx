@@ -1,5 +1,11 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { trackGuestCityClick } from "../utils/guestAnalytics";
+import {
+  CONTACT_EMAIL,
+  CONTACT_EMAIL_HREF,
+  CONTACT_REGION_MAP,
+  buildWhatsAppHref,
+} from "../utils/contactConfig";
 
 const handleFooterCityClick = (city, href) => {
   trackGuestCityClick({
@@ -14,7 +20,7 @@ const FOOTER_EXPLORE_LINKS = [
   { label: "About", to: "/" },
   { label: "Locations", to: "/global" },
   { label: "Apartments", to: "/listings" },
-  { label: "Contact", href: "mailto:reservations@oneluxstay.com" },
+  { label: "Contact", href: CONTACT_EMAIL_HREF },
 ];
 
 const FOOTER_CITY_LINKS = [
@@ -30,17 +36,35 @@ const FOOTER_CITY_LINKS = [
   { label: "Redondo Attractions", to: "/redondo-beach/attractions", city: "Redondo Beach" },
 ];
 
-const FOOTER_CONTACT_ITEMS = [
-  { label: "USA", value: "+1 (213) 866-3589", href: "tel:+12138663589", icon: "phone" },
-  { label: "UAE", value: "+971 55 727 7059", href: "tel:+971557277059", icon: "phone" },
-  { label: "EU", value: "+32 460 25 48 86", href: "tel:+32460254886", icon: "phone" },
-  { label: "Email", value: "reservations@oneluxstay.com", href: "mailto:reservations@oneluxstay.com", icon: "mail" },
-];
+const isAntwerpPath = (pathname = "") => /\bantwerp|antwerpen\b/i.test(String(pathname || ""));
+
+const getFooterContactItems = (pathname = "") => {
+  const isAntwerp = isAntwerpPath(pathname);
+  const primaryRegion = isAntwerp ? CONTACT_REGION_MAP.antwerp : CONTACT_REGION_MAP.us;
+  const whatsappRegion = isAntwerp ? CONTACT_REGION_MAP.antwerp : CONTACT_REGION_MAP.dubai;
+
+  return [
+    {
+      label: isAntwerp ? "Antwerp" : "US + Dubai",
+      value: primaryRegion.phone.display,
+      href: primaryRegion.phone.telHref,
+      icon: "phone",
+    },
+    {
+      label: "WhatsApp",
+      value: whatsappRegion.whatsapp.display,
+      href: buildWhatsAppHref(whatsappRegion.whatsapp.digits),
+      icon: "whatsapp",
+      external: true,
+    },
+    { label: "Email", value: CONTACT_EMAIL, href: CONTACT_EMAIL_HREF, icon: "mail" },
+  ];
+};
 
 const FOOTER_TRUST_BADGES = [
   { label: "4.5+ rated", icon: "star" },
   { label: "Verified Business", icon: "shield" },
-  { label: "USA • EU • UAE", icon: "globe" },
+  { label: "US • Dubai • Antwerp", icon: "globe" },
 ];
 
 const FOOTER_SECURITY_ITEMS = [
@@ -120,6 +144,14 @@ const TrustIcon = ({ kind }) => {
     );
   }
 
+  if (kind === "whatsapp") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19.11 4.89A9.93 9.93 0 0012.04 2C6.53 2 2.05 6.48 2.05 11.99c0 1.76.46 3.48 1.33 5L2 22l5.16-1.35a9.9 9.9 0 004.87 1.25h.01c5.51 0 9.99-4.48 9.99-9.99a9.9 9.9 0 00-2.92-7.02zM12.04 20.2h-.01a8.2 8.2 0 01-4.18-1.14l-.3-.18-3.06.8.81-2.98-.2-.31a8.2 8.2 0 01-1.26-4.4c0-4.53 3.68-8.21 8.21-8.21 2.19 0 4.25.85 5.8 2.41a8.14 8.14 0 012.41 5.8c0 4.53-3.69 8.21-8.22 8.21zm4.5-6.16c-.25-.12-1.48-.73-1.71-.81-.23-.08-.39-.12-.56.12-.16.25-.64.81-.78.98-.14.16-.29.19-.54.06-.25-.12-1.05-.39-2-1.25-.74-.66-1.24-1.48-1.39-1.73-.15-.25-.02-.38.11-.51.11-.11.25-.29.37-.44.12-.15.16-.25.25-.41.08-.16.04-.31-.02-.44-.06-.12-.56-1.35-.77-1.85-.2-.48-.4-.41-.56-.42h-.48c-.16 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.12.16 1.77 2.7 4.28 3.78.6.26 1.07.41 1.43.52.6.19 1.14.16 1.57.1.48-.07 1.48-.6 1.69-1.19.21-.58.21-1.08.14-1.19-.06-.1-.23-.16-.48-.29z" />
+      </svg>
+    );
+  }
+
   if (kind === "check") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -152,7 +184,9 @@ const FooterLink = ({ item, className }) => {
 };
 
 function SiteFooter() {
+  const location = useLocation();
   const currentYear = new Date().getFullYear();
+  const footerContactItems = getFooterContactItems(location.pathname);
 
   return (
     <footer className="policy-footer">
@@ -225,10 +259,11 @@ function SiteFooter() {
           <div className="policy-footer-col policy-footer-col--connect">
             <h3>Contact & Trust</h3>
             <address className="policy-footer-contact-list">
-              {FOOTER_CONTACT_ITEMS.map((item) => (
+              {footerContactItems.map((item) => (
                 <a
                   key={item.label}
                   href={item.href}
+                  {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                   className={`policy-footer-contact-item${
                     item.icon === "mail" || item.label === "EU" ? " policy-footer-contact-item--wide" : ""
                   }`}

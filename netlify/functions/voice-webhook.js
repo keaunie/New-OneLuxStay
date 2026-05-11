@@ -79,7 +79,7 @@ const getVoipMsDid = () => {
   const configured = normalizeDialTargetE164(configuredRaw);
   if (configured) return configured;
   // Default VoIP.ms DID used for routing to ARCHIE_S ring group.
-  return normalizeDialTargetE164("14243543447");
+  return normalizeDialTargetE164("+14243543447");
 };
 
 const logCall = async ({ callSid, from, to, country }) => {
