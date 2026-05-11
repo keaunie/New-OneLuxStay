@@ -7,7 +7,10 @@ ensureLocalEnv();
 const APALEO_IDENTITY_URL = String(process.env.APALEO_IDENTITY_URL || "https://identity.apaleo.com").replace(/\/+$/, "");
 const APALEO_API_BASE = String(process.env.APALEO_API_BASE || "https://api.apaleo.com").replace(/\/+$/, "");
 const TOKEN_STORE_NAME = process.env.APALEO_TOKEN_BLOB_STORE || "apaleo-oauth";
-const TOKEN_KEY = process.env.APALEO_TOKEN_BLOB_KEY || "access-token";
+const ACCESS_TOKEN_KEY = process.env.APALEO_TOKEN_BLOB_ACCESS_KEY || "apaleo-access-token";
+const TOKEN_EXPIRY_KEY = process.env.APALEO_TOKEN_BLOB_EXPIRY_KEY || "apaleo-token-expiry";
+const ACCOUNT_ID_KEY = process.env.APALEO_ACCOUNT_ID_BLOB_KEY || "apaleo-account-id";
+const LEGACY_TOKEN_KEY = process.env.APALEO_TOKEN_BLOB_KEY || "access-token";
 const TOKEN_REFRESH_BUFFER_MS = Number(process.env.APALEO_TOKEN_REFRESH_BUFFER_MS || 90_000);
 const DEFAULT_TIMEOUT_MS = Number(process.env.APALEO_TIMEOUT_MS || 20_000);
 const DEFAULT_RETRY_COUNT = Math.max(0, Number(process.env.APALEO_RETRY_COUNT || 2));
@@ -15,6 +18,7 @@ const DEFAULT_RETRY_DELAY_MS = Math.max(100, Number(process.env.APALEO_RETRY_DEL
 
 let tokenStorePromise;
 let tokenRefreshPromise = null;
+let accountRefreshPromise = null;
 
 const sanitizeString = (value = "", maxLength = 600) =>
   String(value || "")
@@ -53,7 +57,6 @@ const getBlobStore = async () => {
 const getApaleoCredentials = () => {
   const clientId = sanitizeString(process.env.APALEO_CLIENT_ID, 240);
   const clientSecret = sanitizeString(process.env.APALEO_CLIENT_SECRET, 240);
-  const accountId = sanitizeString(process.env.APALEO_ACCOUNT_ID, 240);
   const scope = sanitizeString(
     process.env.APALEO_SCOPE ||
       process.env.APALEO_CLIENT_SCOPE ||
@@ -65,7 +68,7 @@ const getApaleoCredentials = () => {
     throw new Error("Missing Apaleo credentials (APALEO_CLIENT_ID / APALEO_CLIENT_SECRET)");
   }
 
-  return { clientId, clientSecret, accountId, scope };
+  return { clientId, clientSecret, scope };
 };
 
 const parseRetryAfterMs = (headerValue = "") => {
@@ -90,31 +93,90 @@ const parseResponsePayload = async (response) => {
   }
 };
 
-const requestApaleoToken = async () => {
-  const { clientId, clientSecret, scope } = getApaleoCredentials();
+const isRetriableStatus = (statusCode) => statusCode === 429 || (statusCode >= 500 && statusCode <= 599);
 
+const readBlobText = async (store, key) => {
+  if (!store || !key) return "";
+  try {
+    return sanitizeString(await store.get(key, { type: "text" }), 8000);
+  } catch (error) {
+    console.warn("[apaleo] blob read failed", {
+      key,
+      message: error?.message || String(error),
+    });
+    return "";
+  }
+};
+
+const writeBlobText = async (store, key, value) => {
+  if (!store || !key) return false;
+  try {
+    await store.set(key, String(value || ""));
+    return true;
+  } catch (error) {
+    console.warn("[apaleo] blob write failed", {
+      key,
+      message: error?.message || String(error),
+    });
+    return false;
+  }
+};
+
+const requestApaleoToken = async ({ retries = DEFAULT_RETRY_COUNT } = {}) => {
+  const { clientId, clientSecret, scope } = getApaleoCredentials();
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
     ...(scope ? { scope } : {}),
   });
 
-  const response = await fetchWithTimeout(
-    `${APALEO_IDENTITY_URL}/connect/token`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    },
-    DEFAULT_TIMEOUT_MS,
-  );
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    let response;
+    let payload = {};
+    try {
+      response = await fetchWithTimeout(
+        `${APALEO_IDENTITY_URL}/connect/token`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${basicAuth}`,
+          },
+          body: body.toString(),
+        },
+        DEFAULT_TIMEOUT_MS,
+      );
+      payload = await parseResponsePayload(response);
+    } catch (error) {
+      if (attempt < retries) {
+        await sleep(DEFAULT_RETRY_DELAY_MS * (2 ** attempt));
+        continue;
+      }
+      throw error;
+    }
 
-  const payload = await parseResponsePayload(response);
-  if (!response.ok) {
+    if (response.ok) {
+      const token = sanitizeString(payload?.access_token, 4000);
+      if (!token) throw new Error("Apaleo token response missing access_token");
+      const expiresIn = Number(payload?.expires_in || 0);
+      if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
+        throw new Error("Apaleo token response missing valid expires_in");
+      }
+
+      return {
+        token,
+        expiresAt: Date.now() + expiresIn * 1000,
+      };
+    }
+
+    if (isRetriableStatus(response.status) && attempt < retries) {
+      const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+      const backoff = retryAfterMs ?? DEFAULT_RETRY_DELAY_MS * (2 ** attempt);
+      await sleep(backoff);
+      continue;
+    }
+
     throw new Error(
       sanitizeString(
         payload?.error_description || payload?.error || payload?.message || `Apaleo token request failed (${response.status})`,
@@ -123,56 +185,195 @@ const requestApaleoToken = async () => {
     );
   }
 
-  const token = sanitizeString(payload?.access_token, 4000);
-  if (!token) throw new Error("Apaleo token response missing access_token");
-
-  return {
-    token,
-    expiresAt: Date.now() + Number(payload?.expires_in || 0) * 1000,
-  };
+  throw new Error("Apaleo token request retry cycle ended unexpectedly");
 };
 
-export const getApaleoToken = async ({ forceRefresh = false } = {}) => {
+const requestApaleoAccount = async ({ token, retries = DEFAULT_RETRY_COUNT } = {}) => {
+  const safeToken = sanitizeString(token, 4000);
+  if (!safeToken) throw new Error("Missing Apaleo access token for account lookup");
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    let response;
+    let payload = {};
+    try {
+      response = await fetchWithTimeout(
+        `${APALEO_API_BASE}/account/v1/accounts/current`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${safeToken}`,
+          },
+        },
+        DEFAULT_TIMEOUT_MS,
+      );
+      payload = await parseResponsePayload(response);
+    } catch (error) {
+      if (attempt < retries) {
+        await sleep(DEFAULT_RETRY_DELAY_MS * (2 ** attempt));
+        continue;
+      }
+      throw error;
+    }
+
+    if (response.ok) {
+      const id = sanitizeString(payload?.id || payload?.accountId, 240);
+      const code = sanitizeString(payload?.code, 240);
+      const name = sanitizeString(payload?.name, 240);
+      if (!id) throw new Error("Apaleo account lookup succeeded but returned no account id");
+      return { id, code, name };
+    }
+
+    if (isRetriableStatus(response.status) && attempt < retries) {
+      const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+      const backoff = retryAfterMs ?? DEFAULT_RETRY_DELAY_MS * (2 ** attempt);
+      await sleep(backoff);
+      continue;
+    }
+
+    throw new Error(
+      sanitizeString(
+        payload?.error_description || payload?.error || payload?.message || `Apaleo account lookup failed (${response.status})`,
+        500,
+      ),
+    );
+  }
+
+  throw new Error("Apaleo account lookup retry cycle ended unexpectedly");
+};
+
+const persistApaleoTokenCache = async (store, tokenData = {}) => {
+  const token = sanitizeString(tokenData?.token, 4000);
+  const expiresAt = Number(tokenData?.expiresAt || 0);
+  if (!token || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
+
+  await Promise.allSettled([
+    writeBlobText(store, ACCESS_TOKEN_KEY, token),
+    writeBlobText(store, TOKEN_EXPIRY_KEY, String(expiresAt)),
+    writeBlobText(store, LEGACY_TOKEN_KEY, JSON.stringify({ token, expiresAt })),
+  ]);
+};
+
+const persistApaleoAccountId = async (store, accountId = "") => {
+  const safeId = sanitizeString(accountId, 240);
+  if (!safeId) return;
+  await writeBlobText(store, ACCOUNT_ID_KEY, safeId);
+};
+
+export const getCachedApaleoToken = async () => {
   const now = Date.now();
   if (
-    !forceRefresh &&
     globalThis.APALEO_TOKEN &&
     Number(globalThis.APALEO_TOKEN_EXPIRES || 0) > now + TOKEN_REFRESH_BUFFER_MS
   ) {
-    return { token: globalThis.APALEO_TOKEN, source: "memory" };
+    return {
+      token: sanitizeString(globalThis.APALEO_TOKEN, 4000),
+      expiresAt: Number(globalThis.APALEO_TOKEN_EXPIRES || 0),
+      source: "memory",
+    };
   }
 
   const store = await getBlobStore();
-  if (!forceRefresh && store) {
-    const cached = await store.get(TOKEN_KEY, { type: "json" });
-    const cachedToken = sanitizeString(cached?.token || cached?.access_token || cached?.accessToken, 4000);
-    const cachedExpiry = Number(cached?.expiresAt ?? cached?.expires_at ?? 0);
-    if (cachedToken && cachedExpiry > now + TOKEN_REFRESH_BUFFER_MS) {
-      globalThis.APALEO_TOKEN = cachedToken;
-      globalThis.APALEO_TOKEN_EXPIRES = cachedExpiry;
-      return { token: cachedToken, source: "blob" };
+  if (!store) return null;
+
+  const [cachedTokenRaw, cachedExpiryRaw, legacyRecord] = await Promise.all([
+    readBlobText(store, ACCESS_TOKEN_KEY),
+    readBlobText(store, TOKEN_EXPIRY_KEY),
+    store.get(LEGACY_TOKEN_KEY, { type: "json" }).catch(() => null),
+  ]);
+
+  const cachedToken = sanitizeString(cachedTokenRaw, 4000) || sanitizeString(legacyRecord?.token, 4000);
+  const cachedExpiry = Number(cachedExpiryRaw || legacyRecord?.expiresAt || 0);
+
+  if (cachedToken && cachedExpiry > now + TOKEN_REFRESH_BUFFER_MS) {
+    globalThis.APALEO_TOKEN = cachedToken;
+    globalThis.APALEO_TOKEN_EXPIRES = cachedExpiry;
+    return { token: cachedToken, expiresAt: cachedExpiry, source: "blob" };
+  }
+
+  return null;
+};
+
+export const getApaleoAccount = async ({
+  accessToken = "",
+  forceRefresh = false,
+} = {}) => {
+  const providedToken = sanitizeString(accessToken, 4000);
+  if (!forceRefresh && globalThis.APALEO_ACCOUNT?.id) {
+    return globalThis.APALEO_ACCOUNT;
+  }
+
+  const store = await getBlobStore();
+  const envAccountId = sanitizeString(process.env.APALEO_ACCOUNT_ID, 240);
+  if (!forceRefresh) {
+    const cachedId = sanitizeString(await readBlobText(store, ACCOUNT_ID_KEY), 240) || envAccountId;
+    if (cachedId) {
+      const record = {
+        id: cachedId,
+        code: sanitizeString(globalThis.APALEO_ACCOUNT?.code, 240),
+        name: sanitizeString(globalThis.APALEO_ACCOUNT?.name, 240),
+      };
+      globalThis.APALEO_ACCOUNT = record;
+      return record;
     }
   }
 
-  if (!tokenRefreshPromise || forceRefresh) {
-    tokenRefreshPromise = (async () => {
-      const tokenData = await requestApaleoToken();
-      globalThis.APALEO_TOKEN = tokenData.token;
-      globalThis.APALEO_TOKEN_EXPIRES = tokenData.expiresAt;
-
-      if (store) {
-        await store.setJSON(TOKEN_KEY, tokenData);
-      }
-
-      return tokenData;
+  if (!accountRefreshPromise || forceRefresh) {
+    accountRefreshPromise = (async () => {
+      const tokenToUse = providedToken || (await getApaleoAccessToken()).token;
+      const account = await requestApaleoAccount({ token: tokenToUse });
+      globalThis.APALEO_ACCOUNT = account;
+      await persistApaleoAccountId(store, account.id);
+      return account;
     })().finally(() => {
+      accountRefreshPromise = null;
+    });
+  }
+
+  return accountRefreshPromise;
+};
+
+export const refreshApaleoToken = async () => {
+  const store = await getBlobStore();
+  const tokenData = await requestApaleoToken();
+
+  globalThis.APALEO_TOKEN = tokenData.token;
+  globalThis.APALEO_TOKEN_EXPIRES = tokenData.expiresAt;
+  await persistApaleoTokenCache(store, tokenData);
+
+  try {
+    await getApaleoAccount({ accessToken: tokenData.token, forceRefresh: true });
+  } catch (error) {
+    console.warn("[apaleo] account discovery failed after token refresh", {
+      message: error?.message || String(error),
+    });
+  }
+
+  return tokenData;
+};
+
+export const getApaleoAccessToken = async ({ forceRefresh = false } = {}) => {
+  if (!forceRefresh) {
+    const cached = await getCachedApaleoToken();
+    if (cached?.token) return cached;
+  }
+
+  if (!tokenRefreshPromise || forceRefresh) {
+    tokenRefreshPromise = refreshApaleoToken().finally(() => {
       tokenRefreshPromise = null;
     });
   }
 
   const tokenData = await tokenRefreshPromise;
-  return { token: tokenData.token, source: "fresh" };
+  return {
+    token: tokenData.token,
+    expiresAt: tokenData.expiresAt,
+    source: "fresh",
+  };
 };
+
+export const getApaleoToken = async ({ forceRefresh = false } = {}) =>
+  getApaleoAccessToken({ forceRefresh });
 
 const buildApaleoUrl = (path = "", query = {}) => {
   const safePath = String(path || "").startsWith("/") ? String(path || "") : `/${String(path || "")}`;
@@ -397,7 +598,8 @@ export const normalizeApaleoAvailability = (entry = {}, fallback = {}) => ({
 });
 
 export const listApaleoProperties = async ({ query = {} } = {}) => {
-  const { accountId } = getApaleoCredentials();
+  const account = await getApaleoAccount().catch(() => null);
+  const accountId = sanitizeString(account?.id || process.env.APALEO_ACCOUNT_ID, 240);
   const endpoint = sanitizeString(process.env.APALEO_PROPERTIES_ENDPOINT || "/inventory/v1/properties", 240);
   const response = await apaleoRequest(endpoint, {
     query: {

@@ -39,6 +39,17 @@ const request = async (path, { method = "GET", query = {}, body } = {}) => {
 export const fetchApaleoTokenMeta = async ({ forceRefresh = false } = {}) =>
   request("/apaleo-token", { query: { forceRefresh: forceRefresh ? "1" : "0" } });
 
+export const getCachedApaleoToken = async () =>
+  request("/apaleo-token", { query: { forceRefresh: "0" } });
+
+export const refreshApaleoToken = async () =>
+  request("/apaleo-token", { query: { forceRefresh: "1" } });
+
+export const getApaleoAccount = async ({ forceRefresh = false } = {}) => {
+  const payload = await request("/apaleo-token", { query: { forceRefresh: forceRefresh ? "1" : "0" } });
+  return payload?.account || null;
+};
+
 export const fetchApaleoProperties = async ({ city = "Antwerp", limit, sync = false } = {}) =>
   request("/apaleo-properties", {
     query: {
@@ -85,4 +96,3 @@ export const fetchApaleoAvailability = async ({
       ...(sync ? { sync: "1" } : {}),
     },
   });
-
