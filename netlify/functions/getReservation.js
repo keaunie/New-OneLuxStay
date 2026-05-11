@@ -1,4 +1,5 @@
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
+import { findApaleoReservationByCode } from "./_shared/apaleoService.js";
 
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
 const OPEN_API_V1_RAW = process.env.GUESTY_BASE_URL || `${OPEN_API_HOST}/v1`;
@@ -205,6 +206,48 @@ const normalizeResults = (data) => {
   return [];
 };
 
+const normalizeApaleoReservationForChat = (reservation = {}) => {
+  const id = String(reservation?.id || "").trim();
+  const propertyId = String(reservation?.propertyId || "").trim();
+  const guestName = String(reservation?.guestName || "").trim();
+  const checkIn = String(reservation?.checkIn || "").trim();
+  const checkOut = String(reservation?.checkOut || "").trim();
+  const status = String(reservation?.status || "unknown").trim();
+  const city =
+    String(
+      reservation?.raw?.city ||
+      reservation?.raw?.property?.city ||
+      reservation?.raw?.address?.city ||
+      "Antwerp",
+    ).trim() || "Antwerp";
+
+  return {
+    _id: id,
+    id,
+    confirmationCode: id,
+    number: id,
+    status,
+    provider: "apaleo",
+    listingId: propertyId,
+    listing: {
+      _id: propertyId,
+      id: propertyId,
+      title: String(reservation?.raw?.property?.name || reservation?.raw?.propertyName || "").trim(),
+      nickname: String(reservation?.raw?.property?.name || reservation?.raw?.propertyName || "").trim(),
+      city,
+      address: { city },
+    },
+    guest: {
+      fullName: guestName,
+    },
+    checkIn,
+    checkOut,
+    checkInDateLocalized: checkIn,
+    checkOutDateLocalized: checkOut,
+    rawProviderReservation: reservation,
+  };
+};
+
 const buildIdVariants = (value) => {
   const trimmed = String(value || "").trim();
   if (!trimmed) return [];
@@ -366,9 +409,34 @@ export async function handler(event) {
       }
     }
 
+    if (!results.length) {
+      try {
+        const apaleoMatch = await findApaleoReservationByCode({ reservationCode: reservationId });
+        if (apaleoMatch?.id) {
+          const normalizedApaleoResult = normalizeApaleoReservationForChat(apaleoMatch);
+          return jsonResponse(
+            200,
+            {
+              results: [normalizedApaleoResult],
+              raw: apaleoMatch.raw || null,
+              attempted: [...queryStrategies.map((item) => item.name), "apaleo-fallback"],
+            },
+            event,
+          );
+        }
+      } catch (error) {
+        errors.push({
+          strategy: "apaleo-fallback",
+          statusCode: error?.statusCode || null,
+          message: error?.message || "Unknown error",
+          requestUrl: error?.requestUrl || null,
+        });
+      }
+    }
+
     if (!raw && !results.length && errors.length) {
       return jsonResponse(502, {
-        error: "Guesty reservation lookup failed",
+        error: "Reservation lookup failed",
         details: errors,
       }, event);
     }
