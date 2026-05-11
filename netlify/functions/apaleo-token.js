@@ -21,16 +21,19 @@ export async function handler(event) {
     const query = event.queryStringParameters || {};
     const payload = event.httpMethod === "POST" ? JSON.parse(event.body || "{}") : {};
     const forceRefresh = isTruthy(query.forceRefresh || payload.forceRefresh);
+    const debug = isTruthy(query.debug || payload.debug);
 
     const tokenInfo = forceRefresh
       ? { ...(await refreshApaleoToken()), source: "fresh" }
       : (await getCachedApaleoToken()) || (await getApaleoAccessToken());
+    let accountLookupError = "";
     const account = await getApaleoAccount({
       accessToken: tokenInfo?.token || "",
       forceRefresh,
     }).catch((error) => {
+      accountLookupError = error?.message || String(error);
       console.warn("[apaleo-token] account lookup warning", {
-        message: error?.message || String(error),
+        message: accountLookupError,
       });
       return null;
     });
@@ -48,6 +51,7 @@ export async function handler(event) {
             name: account.name || null,
           }
         : null,
+      ...(debug && accountLookupError ? { accountLookupError } : {}),
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {
