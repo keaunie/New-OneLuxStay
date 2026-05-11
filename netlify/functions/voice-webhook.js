@@ -59,15 +59,27 @@ const detectCountry = (toNumber = "") => {
   return inferRegionFromNumber(toNumber) || "us";
 };
 
+const normalizeDialTargetE164 = (value = "") => {
+  const normalized = normalizePhoneNumber(sanitizeString(value, 80));
+  if (!normalized) return "";
+  if (normalized.startsWith("+")) return normalized;
+
+  const digits = normalized.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return `+${digits}`;
+};
+
 const getVoipMsDid = () => {
-  const configured =
-    normalizePhoneNumber(sanitizeString(getEnv("TWILIO_VOICE_VOIPMS_DID") || "", 80)) ||
-    normalizePhoneNumber(sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO") || "", 80)) ||
-    normalizePhoneNumber(sanitizeString(getEnv("OLS_CALL_FORWARD_TO") || "", 80));
+  const configuredRaw =
+    sanitizeString(getEnv("TWILIO_VOICE_VOIPMS_DID") || "", 80) ||
+    sanitizeString(getEnv("TWILIO_VOICE_FORWARD_TO") || "", 80) ||
+    sanitizeString(getEnv("OLS_CALL_FORWARD_TO") || "", 80);
+  const configured = normalizeDialTargetE164(configuredRaw);
   if (configured) return configured;
-  return normalizePhoneNumber(
-    sanitizeString("4243543447", 80),
-  );
+  // Default VoIP.ms DID used for routing to ARCHIE_S ring group.
+  return normalizeDialTargetE164("+14243543447");
 };
 
 const logCall = async ({ callSid, from, to, country }) => {
@@ -98,36 +110,62 @@ const logCall = async ({ callSid, from, to, country }) => {
 };
 
 export async function handler(event) {
-  if (event.httpMethod !== "POST" && event.httpMethod !== "GET") {
-    return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Method not allowed.</Say></Response>', 405);
-  }
+  try {
+    if (event.httpMethod !== "POST" && event.httpMethod !== "GET") {
+      return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Method not allowed.</Say></Response>', 405);
+    }
 
-  const params =
-    event.httpMethod === "POST"
-      ? parseFormBody(event)
-      : new URLSearchParams(event.queryStringParameters || {});
+    const params =
+      event.httpMethod === "POST"
+        ? parseFormBody(event)
+        : new URLSearchParams(event.queryStringParameters || {});
 
-  const from = normalizePhoneNumber(sanitizeString(params.get("From") || "", 80));
-  const to = normalizePhoneNumber(sanitizeString(params.get("To") || "", 80));
-  const callSid = sanitizeString(params.get("CallSid") || "", 120);
-  const country = detectCountry(to);
+    const from = normalizePhoneNumber(sanitizeString(params.get("From") || "", 80));
+    const to = normalizePhoneNumber(sanitizeString(params.get("To") || "", 80));
+    const callSid = sanitizeString(params.get("CallSid") || "", 120);
+    const country = detectCountry(to);
 
-  const baseUrl = getRequestBaseUrl(event);
-  const statusUrl = baseUrl ? `${baseUrl}/.netlify/functions/voice-status` : "";
-  const actionAttr = statusUrl ? ` action="${xmlEscape(statusUrl)}"` : "";
-  const callerIdAttr = to ? ` callerId="${xmlEscape(to)}"` : "";
+    const baseUrl = getRequestBaseUrl(event);
+    const statusUrl = baseUrl ? `${baseUrl}/.netlify/functions/voice-status` : "";
+    const actionAttr = statusUrl ? ` action="${xmlEscape(statusUrl)}"` : "";
+    const callerIdAttr = to ? ` callerId="${xmlEscape(to)}"` : "";
 
-  // Fire-and-forget — never block the TwiML response on DB write
-  logCall({ callSid, from, to, country }).catch(() => null);
+    // Fire-and-forget — never block the TwiML response on DB write
+    logCall({ callSid, from, to, country }).catch(() => null);
 
-  const forwardTo = getVoipMsDid();
-  if (forwardTo) {
+    const forwardTo = getVoipMsDid();
+    console.info("voice-webhook: inbound call", {
+      callSid,
+      from,
+      to,
+      country,
+      dialTarget: forwardTo || null,
+    });
+
+    if (forwardTo) {
+      return xmlResponse(
+        `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting your call now.</Say><Dial answerOnBridge="true" timeout="30"${actionAttr}${callerIdAttr}><Number>${xmlEscape(forwardTo)}</Number></Dial></Response>`,
+      );
+    }
+
+    console.error("voice-webhook: missing dial target", {
+      callSid,
+      from,
+      to,
+      country,
+    });
+
     return xmlResponse(
-      `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Connecting your call now.</Say><Dial answerOnBridge="true"${actionAttr}${callerIdAttr}><Number>${xmlEscape(forwardTo)}</Number></Dial></Response>`,
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Please send us a message and our team will respond shortly.</Say></Response>',
+    );
+  } catch (error) {
+    console.error("voice-webhook: TwiML execution error", {
+      message: error?.message || String(error),
+      stack: error?.stack || null,
+    });
+    return xmlResponse(
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>We are unable to connect your call right now. Please try again shortly.</Say></Response>',
+      500,
     );
   }
-
-  return xmlResponse(
-    '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling OneLuxStay. Please send us a message and our team will respond shortly.</Say></Response>',
-  );
 }

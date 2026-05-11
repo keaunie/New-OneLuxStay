@@ -1,10 +1,48 @@
 alter table if exists public.listings
   add column if not exists provider text not null default 'guesty';
 
-update public.listings
-set provider = 'apaleo'
-where coalesce(lower(source), '') = 'apaleo'
-   or coalesce(lower(metadata->>'provider'), '') = 'apaleo';
+do $$
+declare
+  has_source boolean := false;
+  has_metadata boolean := false;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'listings'
+      and column_name = 'source'
+  ) into has_source;
+
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'listings'
+      and column_name = 'metadata'
+  ) into has_metadata;
+
+  if has_source and has_metadata then
+    execute $sql$
+      update public.listings
+      set provider = 'apaleo'
+      where coalesce(lower(source), '') = 'apaleo'
+         or coalesce(lower(metadata->>'provider'), '') = 'apaleo'
+    $sql$;
+  elsif has_source then
+    execute $sql$
+      update public.listings
+      set provider = 'apaleo'
+      where coalesce(lower(source), '') = 'apaleo'
+    $sql$;
+  elsif has_metadata then
+    execute $sql$
+      update public.listings
+      set provider = 'apaleo'
+      where coalesce(lower(metadata->>'provider'), '') = 'apaleo'
+    $sql$;
+  end if;
+end $$;
 
 alter table if exists public.bookings
   add column if not exists provider text not null default 'guesty';
