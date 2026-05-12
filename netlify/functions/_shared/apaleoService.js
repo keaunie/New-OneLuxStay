@@ -756,37 +756,98 @@ export const getApaleoAvailability = async ({ propertyId, checkIn, checkOut, gue
   const safePropertyId = sanitizeString(propertyId, 120);
   const safeCheckIn = normalizeDate(checkIn);
   const safeCheckOut = normalizeDate(checkOut);
-  const endpoint = sanitizeString(process.env.APALEO_AVAILABILITY_ENDPOINT || "/booking/v1/availability", 240);
+  const configuredEndpoint = sanitizeString(process.env.APALEO_AVAILABILITY_ENDPOINT, 240);
+  const primaryEndpoint = configuredEndpoint || "/booking/v1/offers";
+  const fallbackEndpoint = "/booking/v1/offers";
+  const channelCode = sanitizeString(process.env.APALEO_CHANNEL_CODE || "Direct", 80);
+  const adults = Number.isFinite(Number(guests)) ? Math.max(1, Number(guests) || 1) : 1;
 
-  const response = await apaleoRequest(endpoint, {
-    query: {
-      ...(safePropertyId ? { propertyId: safePropertyId } : {}),
-      ...(safeCheckIn ? { arrival: safeCheckIn } : {}),
-      ...(safeCheckOut ? { departure: safeCheckOut } : {}),
-      ...(Number.isFinite(Number(guests)) ? { adults: Math.max(1, Number(guests) || 1) } : {}),
-      ...query,
-    },
-  });
+  const baseQuery = {
+    ...(safePropertyId ? { propertyId: safePropertyId } : {}),
+    ...(safeCheckIn ? { arrival: safeCheckIn } : {}),
+    ...(safeCheckOut ? { departure: safeCheckOut } : {}),
+    adults,
+    ...(channelCode ? { channelCode } : {}),
+    ...query,
+  };
 
-  const list = toArray(response?.payload?.availability || response?.payload?.items || response?.payload?.data || response?.payload);
-  const normalized = list.map((entry) => normalizeApaleoAvailability(entry, {
-    propertyId: safePropertyId,
-  }));
+  const attempts = [
+    { endpoint: primaryEndpoint, query: baseQuery },
+    ...(primaryEndpoint !== fallbackEndpoint ? [{ endpoint: fallbackEndpoint, query: baseQuery }] : []),
+  ];
 
-  if (!normalized.length && safePropertyId) {
-    return [
-      {
-        propertyId: safePropertyId,
-        available: false,
-        price: 0,
-        currency: "EUR",
-        provider: "apaleo",
-        raw: response?.payload || {},
-      },
-    ];
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const response = await apaleoRequest(attempt.endpoint, {
+        query: attempt.query,
+      });
+
+      const payload = response?.payload || {};
+      const list = toArray(
+        payload?.offers ||
+        payload?.availability ||
+        payload?.items ||
+        payload?.data ||
+        payload,
+      );
+
+      console.info("[apaleo-availability] response", {
+        endpoint: attempt.endpoint,
+        statusCode: response.statusCode,
+        url: response.url,
+        itemCount: list.length,
+      });
+
+      const normalized = list.map((entry) => {
+        const offerPrice = Number(
+          entry?.totalGrossAmount?.amount ??
+          entry?.prePaymentGrossAmount?.amount ??
+          entry?.amount?.amount ??
+          entry?.amount ??
+          entry?.totalPrice
+        );
+        const offerCurrency = sanitizeString(
+          entry?.totalGrossAmount?.currency ||
+          entry?.prePaymentGrossAmount?.currency ||
+          entry?.amount?.currency ||
+          entry?.currency,
+          12,
+        ).toUpperCase();
+
+        return normalizeApaleoAvailability(
+          {
+            ...entry,
+            available: entry?.available ?? entry?.isAvailable ?? (Number.isFinite(offerPrice) ? true : undefined),
+            price: Number.isFinite(offerPrice) ? offerPrice : entry?.price,
+            currency: offerCurrency || entry?.currency,
+            propertyId: sanitizeString(entry?.property?.id || entry?.propertyId || entry?.unitGroup?.property?.id, 120),
+          },
+          { propertyId: safePropertyId },
+        );
+      });
+
+      return normalized.filter((entry) => entry.propertyId || safePropertyId);
+    } catch (error) {
+      lastError = error;
+      console.warn("[apaleo-availability] request attempt failed", {
+        endpoint: attempt.endpoint,
+        statusCode: Number(error?.statusCode || 0) || null,
+        message: error?.message || String(error),
+        requestPath: error?.requestPath || attempt.endpoint,
+        requestQuery: error?.requestQuery || attempt.query,
+        responseBody: error?.payload || null,
+      });
+
+      if (Number(error?.statusCode) === 404) {
+        continue;
+      }
+      throw error;
+    }
   }
 
-  return normalized;
+  if (lastError) throw lastError;
+  return [];
 };
 
 export const buildApaleoSyncMetadata = ({ source = "apaleo_api", extra = {} } = {}) => ({

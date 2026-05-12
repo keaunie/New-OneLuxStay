@@ -279,7 +279,9 @@ function ApaleoTestPage() {
                 </details>
               ))}
               {!loading && !(availabilityPayload?.results || []).length && (
-                <p className="apaleo-empty">No availability results returned.</p>
+                <p className="apaleo-empty">
+                  {availabilityPayload?.noDataMessage || "No availability data returned from sandbox."}
+                </p>
               )}
             </div>
           </article>
