@@ -77,3 +77,6 @@ status = 200
 # Scheduled function - KEEP THIS
 [functions."refresh-guesty-token"]
 schedule = "@daily"
+
+[functions."refresh-apaleo-token"]
+schedule = "0 */12 * * *"

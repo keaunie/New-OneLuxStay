@@ -23,6 +23,7 @@ const preloadExecutiveOlsPage = () => import("../executiveOls/ExecutiveOlsPage")
 const preloadBelgiumPhonePage = () => import("../executiveOls/CallsPage");
 const preloadCityAttractionsPage = () => import("../CityAttractionsPage");
 const preloadSettingConfigOlsPage = () => import("../SettingConfigOlsPage");
+const preloadApaleoTestPage = () => import("../pages/ApaleoTestPage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -51,6 +52,7 @@ export const routePreloaders = {
   belgiumPhone: preloadBelgiumPhonePage,
   cityAttractions: preloadCityAttractionsPage,
   settingConfigOls: preloadSettingConfigOlsPage,
+  apaleoTest: preloadApaleoTestPage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 
@@ -138,6 +140,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/dev-ols/config") {
     return routePreloaders.settingConfigOls().then(() => undefined);
+  }
+  if (normalized === "/apaleo-test") {
+    return routePreloaders.apaleoTest().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };

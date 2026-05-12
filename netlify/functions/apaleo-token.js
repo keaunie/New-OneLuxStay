@@ -57,12 +57,16 @@ export async function handler(event) {
   } catch (error) {
     console.error("[apaleo-token] token retrieval failed", {
       message: error?.message || String(error),
+      code: error?.code || null,
+      stage: error?.stage || null,
     });
     return jsonResponse(502, {
       ok: false,
       provider: "apaleo",
       message: "Unable to fetch Apaleo token",
       error: error?.message || String(error),
+      errorCode: error?.code || "APALEO_TOKEN_UNAVAILABLE",
+      stage: error?.stage || null,
     });
   }
 }

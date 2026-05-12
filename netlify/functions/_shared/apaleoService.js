@@ -36,6 +36,12 @@ const normalizePhoneNumber = (value = "") => {
 };
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
+const buildStructuredError = (message = "", code = "APALEO_ERROR", details = {}) => {
+  const error = new Error(sanitizeString(message, 800) || "Apaleo request failed");
+  error.code = sanitizeString(code, 120) || "APALEO_ERROR";
+  Object.assign(error, details || {});
+  return error;
+};
 
 const getBlobStore = async () => {
   if (!tokenStorePromise) {
@@ -274,6 +280,10 @@ export const getCachedApaleoToken = async () => {
     globalThis.APALEO_TOKEN &&
     Number(globalThis.APALEO_TOKEN_EXPIRES || 0) > now + TOKEN_REFRESH_BUFFER_MS
   ) {
+    console.info("[apaleo] token cache hit", {
+      source: "memory",
+      expiresAt: Number(globalThis.APALEO_TOKEN_EXPIRES || 0),
+    });
     return {
       token: sanitizeString(globalThis.APALEO_TOKEN, 4000),
       expiresAt: Number(globalThis.APALEO_TOKEN_EXPIRES || 0),
@@ -296,7 +306,18 @@ export const getCachedApaleoToken = async () => {
   if (cachedToken && cachedExpiry > now + TOKEN_REFRESH_BUFFER_MS) {
     globalThis.APALEO_TOKEN = cachedToken;
     globalThis.APALEO_TOKEN_EXPIRES = cachedExpiry;
+    console.info("[apaleo] token cache hit", {
+      source: "blob",
+      expiresAt: cachedExpiry,
+    });
     return { token: cachedToken, expiresAt: cachedExpiry, source: "blob" };
+  }
+
+  if (cachedToken && cachedExpiry) {
+    console.warn("[apaleo] cached token expired", {
+      expiresAt: cachedExpiry,
+      now,
+    });
   }
 
   return null;
@@ -342,8 +363,22 @@ export const getApaleoAccount = async ({
 };
 
 export const refreshApaleoToken = async () => {
+  const startedAt = Date.now();
+  console.info("[apaleo] token refresh attempt", { startedAt });
   const store = await getBlobStore();
-  const tokenData = await requestApaleoToken();
+  let tokenData;
+  try {
+    tokenData = await requestApaleoToken();
+  } catch (error) {
+    console.error("[apaleo] token refresh failed", {
+      message: error?.message || String(error),
+    });
+    throw buildStructuredError(
+      error?.message || "Unable to refresh Apaleo token",
+      "APALEO_TOKEN_REFRESH_FAILED",
+      { stage: "request-token" },
+    );
+  }
 
   globalThis.APALEO_TOKEN = tokenData.token;
   globalThis.APALEO_TOKEN_EXPIRES = tokenData.expiresAt;
@@ -357,27 +392,42 @@ export const refreshApaleoToken = async () => {
     });
   }
 
+  console.info("[apaleo] token refresh success", {
+    durationMs: Date.now() - startedAt,
+    expiresAt: tokenData.expiresAt,
+  });
+
   return tokenData;
 };
 
 export const getApaleoAccessToken = async ({ forceRefresh = false } = {}) => {
-  if (!forceRefresh) {
-    const cached = await getCachedApaleoToken();
-    if (cached?.token) return cached;
-  }
+  try {
+    if (!forceRefresh) {
+      const cached = await getCachedApaleoToken();
+      if (cached?.token) return cached;
+    }
 
-  if (!tokenRefreshPromise || forceRefresh) {
-    tokenRefreshPromise = refreshApaleoToken().finally(() => {
-      tokenRefreshPromise = null;
-    });
-  }
+    if (!tokenRefreshPromise || forceRefresh) {
+      tokenRefreshPromise = refreshApaleoToken().finally(() => {
+        tokenRefreshPromise = null;
+      });
+    }
 
-  const tokenData = await tokenRefreshPromise;
-  return {
-    token: tokenData.token,
-    expiresAt: tokenData.expiresAt,
-    source: "fresh",
-  };
+    const tokenData = await tokenRefreshPromise;
+    return {
+      token: tokenData.token,
+      expiresAt: tokenData.expiresAt,
+      source: "fresh",
+    };
+  } catch (error) {
+    throw buildStructuredError(
+      error?.message || "Unable to retrieve Apaleo token",
+      error?.code || "APALEO_TOKEN_UNAVAILABLE",
+      {
+        stage: error?.stage || "get-access-token",
+      },
+    );
+  }
 };
 
 export const getApaleoToken = async ({ forceRefresh = false } = {}) =>
@@ -540,6 +590,30 @@ export const normalizeApaleoProperty = (property = {}) => {
   };
 };
 
+export const normalizeApaleoUnitGroup = (unitGroup = {}) => {
+  const units = toArray(unitGroup?.units || unitGroup?.unitIds || unitGroup?.unitCodes);
+  const normalizedUnitIds = units
+    .map((entry) => {
+      if (typeof entry === "string") return sanitizeString(entry, 120);
+      return sanitizeString(entry?.id || entry?.unitId || entry?.code, 120);
+    })
+    .filter(Boolean);
+
+  return {
+    id: sanitizeString(unitGroup?.id || unitGroup?.unitGroupId || unitGroup?.code, 120),
+    propertyId: sanitizeString(unitGroup?.propertyId || unitGroup?.property?.id, 120),
+    name: sanitizeString(unitGroup?.name || unitGroup?.title || unitGroup?.description, 240),
+    description: sanitizeString(
+      unitGroup?.description || unitGroup?.shortDescription || unitGroup?.name,
+      1200,
+    ),
+    maxOccupancy: Number(unitGroup?.maxPersons || unitGroup?.maxOccupancy || unitGroup?.maximumOccupancy || 0) || 0,
+    unitIds: [...new Set(normalizedUnitIds)],
+    provider: "apaleo",
+    raw: unitGroup,
+  };
+};
+
 const readGuestName = (reservation = {}) => {
   const direct = sanitizeString(reservation?.guestName || reservation?.name, 220);
   if (direct) return direct;
@@ -618,6 +692,26 @@ export const listApaleoProperties = async ({ query = {} } = {}) => {
 
   const list = toArray(response?.payload?.properties || response?.payload?.items || response?.payload?.data || response?.payload);
   return list.map((item) => normalizeApaleoProperty(item)).filter((item) => item.id);
+};
+
+export const listApaleoUnitGroups = async ({ query = {} } = {}) => {
+  const account = await getApaleoAccount().catch(() => null);
+  const accountId = sanitizeString(account?.id || process.env.APALEO_ACCOUNT_ID, 240);
+  const endpoint = sanitizeString(process.env.APALEO_UNIT_GROUPS_ENDPOINT || "/inventory/v1/unit-groups", 240);
+  const response = await apaleoRequest(endpoint, {
+    query: {
+      ...(accountId ? { accountId } : {}),
+      ...query,
+    },
+  });
+
+  const list = toArray(
+    response?.payload?.unitGroups ||
+    response?.payload?.items ||
+    response?.payload?.data ||
+    response?.payload,
+  );
+  return list.map((item) => normalizeApaleoUnitGroup(item)).filter((item) => item.id);
 };
 
 export const listApaleoReservations = async ({ query = {} } = {}) => {

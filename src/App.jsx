@@ -32,6 +32,7 @@ const ExecutiveOlsPage = lazy(routePreloaders.executiveOls);
 const CallsPage = lazy(routePreloaders.belgiumPhone);
 const CityAttractionsPage = lazy(routePreloaders.cityAttractions);
 const SettingConfigOlsPage = lazy(routePreloaders.settingConfigOls);
+const ApaleoTestPage = lazy(routePreloaders.apaleoTest);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -100,7 +101,7 @@ function AppRoutes() {
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
-  const hideChatConcierge = true;
+  const hideChatConcierge = false;
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -226,6 +227,7 @@ function AppRoutes() {
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="/dev-ols/config" element={renderLazyRoute(SettingConfigOlsPage)} />
+          <Route path="/apaleo-test" element={renderLazyRoute(ApaleoTestPage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}

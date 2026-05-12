@@ -17,23 +17,49 @@ const toQueryString = (query = {}) => {
   return qs ? `?${qs}` : "";
 };
 
-const request = async (path, { method = "GET", query = {}, body } = {}) => {
-  const response = await fetch(`${apiBase}${path}${toQueryString(query)}`, {
-    method,
-    headers: {
-      Accept: "application/json",
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
+const request = async (
+  path,
+  { method = "GET", query = {}, body, retries = 1, retryDelayMs = 250 } = {},
+) => {
+  const startedAt = performance.now();
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const response = await fetch(`${apiBase}${path}${toQueryString(query)}`, {
+      method,
+      headers: {
+        Accept: "application/json",
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) {
+      return {
+        ...payload,
+        _meta: {
+          endpoint: path,
+          durationMs: Math.round(performance.now() - startedAt),
+          statusCode: response.status,
+          retriesUsed: attempt,
+        },
+      };
+    }
+
+    const statusCode = Number(response.status || 0);
+    const shouldRetry = (statusCode === 429 || (statusCode >= 500 && statusCode <= 599)) && attempt < retries;
+    if (shouldRetry) {
+      await sleep(retryDelayMs * (2 ** attempt));
+      continue;
+    }
+
     const message = payload?.message || payload?.error || `Apaleo request failed (${response.status})`;
     throw new Error(message);
   }
 
-  return payload;
+  throw new Error(`Apaleo request failed unexpectedly for ${path}`);
 };
 
 export const fetchApaleoTokenMeta = async ({ forceRefresh = false } = {}) =>
@@ -46,9 +72,12 @@ export const refreshApaleoToken = async () =>
   request("/apaleo-token", { query: { forceRefresh: "1" } });
 
 export const getApaleoAccount = async ({ forceRefresh = false } = {}) => {
-  const payload = await request("/apaleo-token", { query: { forceRefresh: forceRefresh ? "1" : "0" } });
+  const payload = await request("/apaleo-account", { query: { forceRefresh: forceRefresh ? "1" : "0" } });
   return payload?.account || null;
 };
+
+export const fetchApaleoAccount = async ({ forceRefresh = false } = {}) =>
+  request("/apaleo-account", { query: { forceRefresh: forceRefresh ? "1" : "0" } });
 
 export const fetchApaleoProperties = async ({ city = "Antwerp", limit, sync = false } = {}) =>
   request("/apaleo-properties", {
@@ -94,5 +123,14 @@ export const fetchApaleoAvailability = async ({
       check_out: checkOut,
       guests: Math.max(1, Number(guests) || 1),
       ...(sync ? { sync: "1" } : {}),
+    },
+  });
+
+export const fetchApaleoUnitGroups = async ({ city = "Antwerp", propertyId = "", limit } = {}) =>
+  request("/apaleo-unit-groups", {
+    query: {
+      city,
+      ...(propertyId ? { propertyId } : {}),
+      ...(limit ? { limit } : {}),
     },
   });
