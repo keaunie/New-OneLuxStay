@@ -230,6 +230,19 @@ const getConversationChannelLabel = (thread = {}) => {
   return "Website";
 };
 
+const dedupeConversationLabels = (values = []) => {
+  const seen = new Set();
+  return values.filter((value) => {
+    const label = String(value || "").trim();
+    if (!label) return false;
+    const normalized = label.toLowerCase();
+    const key = normalized.includes("whatsapp") ? "whatsapp" : normalized;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const getWhatsAppPhoneLabel = (thread = {}) => {
   const sessionId = String(thread?.sessionId || "").trim();
   if (!sessionId.toLowerCase().startsWith("whatsapp:")) return "";
@@ -1914,6 +1927,17 @@ function AdminsOlsPage() {
                       const isActive = thread.sessionId === activeConversation?.sessionId;
                       const needsAttention = conversationNeedsAttention(thread);
                       const unreadBadge = unreadAttentionSignatureSet.has(getConversationAttentionSignature(thread));
+                      const conversationContextLabels = dedupeConversationLabels([
+                        getConversationChannelLabel(thread),
+                        formatPageLabel(thread.pageType),
+                        isWhatsAppConversation(thread)
+                          ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                          : thread.listingId
+                            ? `Listing ${shortenId(thread.listingId)}`
+                            : thread.city && thread.city.toLowerCase() !== "unknown city"
+                              ? thread.city
+                              : "",
+                      ]);
 
                       return (
                         <button
@@ -1934,19 +1958,11 @@ function AdminsOlsPage() {
                             </div>
                             <p className="admins-ols-messenger-item-mobile-preview">{getConversationPreview(thread)}</p>
                             <div className="admins-ols-messenger-item-mobile-tags">
-                              <span className="admins-ols-messenger-item-mobile-badge">
-                                {getConversationChannelLabel(thread)}
-                              </span>
-                              <span className="admins-ols-messenger-item-mobile-badge">
-                                {formatPageLabel(thread.pageType)}
-                              </span>
-                              <span className="admins-ols-messenger-item-mobile-badge">
-                                {isWhatsAppConversation(thread)
-                                  ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
-                                  : thread.listingId
-                                    ? `Listing ${shortenId(thread.listingId)}`
-                                    : "No listing"}
-                              </span>
+                              {conversationContextLabels.slice(0, 3).map((label) => (
+                                <span key={`${thread.sessionId}-${label}`} className="admins-ols-messenger-item-mobile-badge">
+                                  {label}
+                                </span>
+                              ))}
                             </div>
                             <div className="admins-ols-messenger-item-mobile-footer">
                               <div className="admins-ols-messenger-item-mobile-counts">
@@ -2042,13 +2058,18 @@ function AdminsOlsPage() {
                           <span>{formatPageLabel(activeConversation.pageType)}</span>
                           <span>{activeConversation.messageCount} messages</span>
                           <span>{formatDateTime(activeConversation.lastSeenAt)}</span>
-                          <span>
-                            {isWhatsAppConversation(activeConversation)
-                              ? "Twilio WhatsApp"
+                          {dedupeConversationLabels([
+                            getConversationChannelLabel(activeConversation),
+                            isWhatsAppConversation(activeConversation)
+                              ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
                               : activeConversation.listingId
                                 ? `Listing ${shortenId(activeConversation.listingId)}`
-                                : "No listing"}
-                          </span>
+                                : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                                  ? activeConversation.city
+                                  : "",
+                          ]).map((label) => (
+                            <span key={`${activeConversation.sessionId}-mobile-info-${label}`}>{label}</span>
+                          ))}
                           {activeConversation.pathname && (
                             <p>{truncate(activeConversation.pathname, 96)}</p>
                           )}
@@ -2560,6 +2581,17 @@ function AdminsOlsPage() {
                 const isActive = thread.sessionId === activeConversation?.sessionId;
                 const needsAttention = conversationNeedsAttention(thread);
                 const unreadBadge = unreadAttentionSignatureSet.has(getConversationAttentionSignature(thread));
+                const conversationContextLabels = dedupeConversationLabels([
+                  getConversationChannelLabel(thread),
+                  formatPageLabel(thread.pageType),
+                  isWhatsAppConversation(thread)
+                    ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
+                    : thread.listingId
+                      ? `Listing ${shortenId(thread.listingId)}`
+                      : thread.city && thread.city.toLowerCase() !== "unknown city"
+                        ? thread.city
+                        : "",
+                ]);
 
                 return (
                   <button
@@ -2582,19 +2614,11 @@ function AdminsOlsPage() {
                           </div>
                           <p className="admins-ols-messenger-item-mobile-preview">{getConversationPreview(thread)}</p>
                           <div className="admins-ols-messenger-item-mobile-tags">
-                            <span className="admins-ols-messenger-item-mobile-badge">
-                              {getConversationChannelLabel(thread)}
-                            </span>
-                            <span className="admins-ols-messenger-item-mobile-badge">
-                              {formatPageLabel(thread.pageType)}
-                            </span>
-                            <span className="admins-ols-messenger-item-mobile-badge">
-                              {isWhatsAppConversation(thread)
-                                ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
-                                : thread.listingId
-                                  ? `Listing ${shortenId(thread.listingId)}`
-                                  : "No listing"}
-                            </span>
+                            {conversationContextLabels.slice(0, 3).map((label) => (
+                              <span key={`${thread.sessionId}-${label}`} className="admins-ols-messenger-item-mobile-badge">
+                                {label}
+                              </span>
+                            ))}
                           </div>
                           <div className="admins-ols-messenger-item-mobile-footer">
                             <div className="admins-ols-messenger-item-mobile-counts">
@@ -2626,19 +2650,11 @@ function AdminsOlsPage() {
                           </div>
                           <p className="admins-ols-messenger-item-mobile-preview">{getConversationPreview(thread)}</p>
                           <div className="admins-ols-messenger-item-mobile-badges">
-                            <span className="admins-ols-messenger-item-mobile-badge">
-                              {getConversationChannelLabel(thread)}
-                            </span>
-                            <span className="admins-ols-messenger-item-mobile-badge">
-                              {formatPageLabel(thread.pageType)}
-                            </span>
-                            <span className="admins-ols-messenger-item-mobile-badge">
-                              {isWhatsAppConversation(thread)
-                                ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
-                                : thread.listingId
-                                  ? `Listing ${shortenId(thread.listingId)}`
-                                  : "No listing"}
-                            </span>
+                            {conversationContextLabels.slice(0, 3).map((label) => (
+                              <span key={`${thread.sessionId}-${label}`} className="admins-ols-messenger-item-mobile-badge">
+                                {label}
+                              </span>
+                            ))}
                             <span className="admins-ols-messenger-item-mobile-badge">{thread.messageCount} messages</span>
                             {latestMessage?.cardCount > 0 && (
                               <span className="admins-ols-messenger-item-mobile-badge">{latestMessage.cardCount} cards</span>
@@ -2656,15 +2672,9 @@ function AdminsOlsPage() {
                             </div>
                           </div>
                           <div className="admins-ols-messenger-item-sub">
-                            <span>{getConversationChannelLabel(thread)}</span>
-                            <span>{formatPageLabel(thread.pageType)}</span>
-                            <span>
-                              {isWhatsAppConversation(thread)
-                                ? getWhatsAppPhoneLabel(thread) || "WhatsApp guest"
-                                : thread.listingId
-                                  ? `Listing ${shortenId(thread.listingId)}`
-                                  : "No listing"}
-                            </span>
+                            {conversationContextLabels.map((label) => (
+                              <span key={`${thread.sessionId}-${label}`}>{label}</span>
+                            ))}
                           </div>
                           <p>{getConversationPreview(thread)}</p>
                           <div className="admins-ols-messenger-item-foot">
@@ -2758,21 +2768,19 @@ function AdminsOlsPage() {
                             {getConversationTitle(activeConversation)}
                           </h3>
                           <div className="admins-ols-conversation-meta">
-                            <span>
-                              {isWhatsAppConversation(activeConversation)
+                            {dedupeConversationLabels([
+                              isWhatsAppConversation(activeConversation)
                                 ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
                                 : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
-                                ? activeConversation.city
-                                : "Website"}
-                            </span>
-                            <span>{getConversationChannelLabel(activeConversation)}</span>
-                            <span>
-                              {isWhatsAppConversation(activeConversation)
-                                ? "Twilio WhatsApp"
-                                : activeConversation.listingId
+                                  ? activeConversation.city
+                                  : "Website",
+                              getConversationChannelLabel(activeConversation),
+                              activeConversation.listingId
                                 ? `Listing ${shortenId(activeConversation.listingId)}`
-                                : "No listing"}
-                            </span>
+                                : "",
+                            ]).map((label) => (
+                              <span key={`${activeConversation.sessionId}-${label}`}>{label}</span>
+                            ))}
                             <span>{activeConversation.messageCount} messages</span>
                             {conversationNeedsAttention(activeConversation) && (
                               <span className="admins-ols-badge is-negative">Needs attention</span>
@@ -2809,13 +2817,18 @@ function AdminsOlsPage() {
                       <span>{formatPageLabel(activeConversation.pageType)}</span>
                       <span>{activeConversation.messageCount} messages</span>
                       <span>{formatDateTime(activeConversation.lastSeenAt)}</span>
-                      <span>
-                        {isWhatsAppConversation(activeConversation)
-                          ? "Twilio WhatsApp"
+                      {dedupeConversationLabels([
+                        getConversationChannelLabel(activeConversation),
+                        isWhatsAppConversation(activeConversation)
+                          ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
                           : activeConversation.listingId
-                          ? `Listing ${shortenId(activeConversation.listingId)}`
-                          : "No listing"}
-                      </span>
+                            ? `Listing ${shortenId(activeConversation.listingId)}`
+                            : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                              ? activeConversation.city
+                              : "",
+                      ]).map((label) => (
+                        <span key={`${activeConversation.sessionId}-thread-info-${label}`}>{label}</span>
+                      ))}
                       {activeConversation.pathname && (
                         <p>{truncate(activeConversation.pathname, 96)}</p>
                       )}

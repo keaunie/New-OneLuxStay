@@ -84,6 +84,15 @@ const computeTaxes = (amount, _options = {}) => {
 };
 
 const STRIPE_ADMIN_FEE_RATE = 0.03;
+const REDONDO_CITY_NAME = "Redondo Beach";
+const REDONDO_MONTHLY_DISPLAY_NIGHTS = 30;
+const REDONDO_PRICING_PERIOD_WORD = "month";
+const REDONDO_PRICING_PERIOD_LABEL = `per ${REDONDO_PRICING_PERIOD_WORD}`;
+const REDONDO_PRICING_PERIOD_SLASH = ` / ${REDONDO_PRICING_PERIOD_WORD}`;
+const SHORT_STAY_APPROVAL_HINT =
+  "Shorter stays may be approved depending on season and availability.";
+const buildShortStayInquiryMessage = (minNights) =>
+  `This property typically requires a minimum stay of ${minNights} nights. You may still send an inquiry for shorter stays.`;
 const computeStripeAdminFee = (accommodation, cleaning, taxes) => {
   const base =
     (Number.isFinite(accommodation) ? accommodation : 0) +
@@ -124,6 +133,37 @@ const diffNights = (start, end) => {
   const ms = endDate - startDate;
   if (!Number.isFinite(ms) || ms <= 0) return 0;
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
+};
+
+const getMonthlyEstimate = ({
+  city,
+  accommodationTotal,
+  totalNights,
+  fallbackNightlyRate,
+}) => {
+  const cityKey = String(city || "").trim().toLowerCase();
+  if (cityKey !== REDONDO_CITY_NAME.toLowerCase()) {
+    const fallbackRate = Number(fallbackNightlyRate);
+    return Number.isFinite(fallbackRate) && fallbackRate > 0 ? fallbackRate : null;
+  }
+  const total = Number(accommodationTotal);
+  const nights = Number(totalNights);
+  if (Number.isFinite(total) && total > 0 && Number.isFinite(nights) && nights > 0) {
+    const effectiveNightly = total / nights;
+    if (Number.isFinite(effectiveNightly) && effectiveNightly > 0) {
+      return roundCurrency(effectiveNightly * REDONDO_MONTHLY_DISPLAY_NIGHTS);
+    }
+  }
+  const fallbackRate = Number(fallbackNightlyRate);
+  if (Number.isFinite(fallbackRate) && fallbackRate > 0) {
+    return roundCurrency(fallbackRate * REDONDO_MONTHLY_DISPLAY_NIGHTS);
+  }
+  return null;
+};
+
+const getNightlyCalendarPrice = (nightlyRate) => {
+  const rate = Number(nightlyRate);
+  return Number.isFinite(rate) ? rate : null;
 };
 
 const formatDateLocal = (date) => {
@@ -1192,9 +1232,15 @@ const DateRangePicker = ({
                       const between = inRange(day) && !selected;
                       const priceLabel = !isPast && !isUnavailable
                         ? priceInfo
-                          ? formatCalendarPrice(priceInfo.price, priceInfo.currency)
+                          ? formatCalendarPrice(
+                            getNightlyCalendarPrice(priceInfo.price),
+                            priceInfo.currency
+                          )
                           : !hasCalendarPricing && typeof fallbackPrice === "number"
-                            ? formatCalendarPrice(fallbackPrice, fallbackCurrency)
+                            ? formatCalendarPrice(
+                              getNightlyCalendarPrice(fallbackPrice),
+                              fallbackCurrency
+                            )
                             : ""
                         : "";
                       const isFallbackPrice =
@@ -2416,6 +2462,16 @@ export default function RedondoBeachLandingPage() {
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
+  const [inquiryForm, setInquiryForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    preferredDates: "",
+    guests: "2",
+    message: "",
+  });
+  const [inquiryFormError, setInquiryFormError] = useState("");
+  const [inquiryFormSubmitted, setInquiryFormSubmitted] = useState(false);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
 
   useEffect(() => {
@@ -3372,8 +3428,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
               : null;
           const nightly = firstNumber(dayPlusCleaning, selectedPlan?.nightly);
           if (Number.isFinite(toNumber(nightly))) {
+            const accommodationTotal = firstNumber(
+              selectedPlan?.breakdown?.accommodation,
+              selectedPlan?.pricing?.breakdown?.accommodation
+            );
+            const totalNights = firstNumber(selectedPlan?.nights, nights);
             nextRates[displayListingId] = {
               nightly,
+              accommodationTotal,
+              totalNights,
               currency:
                 dayPrices[0]?.currency ||
                 selectedPlan?.currency ||
@@ -3520,12 +3583,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       quoteLookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
     const displayCurrency = quoteRateEntry?.currency || currency;
     const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+    const displayedNightlyRate = getNightlyCalendarPrice(dailyRate);
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
     const canShowStayTotal =
       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
     const priceValue = canShowStayTotal
       ? dailyRate * stayNights
-      : dailyRate;
+      : displayedNightlyRate;
     const priceLabel =
       typeof priceValue === "number"
         ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
@@ -4033,11 +4097,17 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     activeSection?.listings?.length ? sectionMinNightsFallback : listingMinNightsFallback
   );
   const requiredMinNightsForSelection = selectedCheckInMinNights || effectiveMinNights;
+  const isRedondoInquiryFlow = String(location.pathname || "").toLowerCase().includes("redondo");
+  const isShortStayInquiryMode =
+    isRedondoInquiryFlow &&
+    sectionStayNights > 0 &&
+    sectionStayNights < requiredMinNightsForSelection;
+  const shortStayInquiryMessage = buildShortStayInquiryMessage(requiredMinNightsForSelection);
   const computedStayRestrictionMessage =
     sectionCheckIn && sectionCheckOut && sectionStayNights === 0
       ? "Please change the check-out date."
-      : sectionStayNights > 0 && sectionStayNights < requiredMinNightsForSelection
-        ? `Minimum stay is ${requiredMinNightsForSelection} nights.`
+      : isShortStayInquiryMode
+        ? shortStayInquiryMessage
         : "";
   const stayTooShortMessage = sectionDateValidationError || computedStayRestrictionMessage;
   const sectionValidationNotice = stayTooShortMessage || sectionAvailabilityError;
@@ -4069,7 +4139,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return;
     }
     if (state.violatesMinNights && Number.isFinite(reportedMinNights)) {
-      setSectionDateValidationError(`Minimum stay is ${reportedMinNights} nights.`);
+      setSectionDateValidationError(buildShortStayInquiryMessage(reportedMinNights));
       return;
     }
     setSectionDateValidationError("");
@@ -4462,8 +4532,32 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   };
 
   const openInquiry = (listing) => {
-    if (!listing) return;
-    setInquiryListing(listing);
+    const nextListing = listing || activeListing || activeSection?.listings?.[0] || null;
+    if (!nextListing) return;
+    const nextDates =
+      sectionCheckIn && sectionCheckOut
+        ? `${sectionCheckIn} to ${sectionCheckOut}`
+        : sectionCheckIn
+          ? `${sectionCheckIn} (check-in selected)`
+          : sectionCheckOut
+            ? `${sectionCheckOut} (check-out selected)`
+            : "";
+    const nextTitle = sanitizeText(nextListing?.title || "OneLuxStay Redondo Beach");
+    const nextCity = sanitizeText(normalizeCity(nextListing) || "Redondo Beach");
+    setInquiryListing(nextListing);
+    setInquiryForm({
+      fullName: "",
+      email: "",
+      phone: "",
+      preferredDates: nextDates,
+      guests: sectionGuests || "2",
+      message:
+        `Hi OneLuxStay,\n\nI would like to inquire about ${nextTitle} in ${nextCity}.` +
+        (nextDates ? `\nPreferred dates: ${nextDates}.` : "") +
+        `\nGuests: ${sectionGuests || "2"}.\n\nThank you!`,
+    });
+    setInquiryFormError("");
+    setInquiryFormSubmitted(false);
     setIsInquiryOpen(true);
   };
 
@@ -4715,7 +4809,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return;
     }
     if (stayNights > 0 && stayNights < requiredMinNightsForSelection) {
-      setSectionAvailabilityError(`Minimum stay is ${requiredMinNightsForSelection} nights.`);
+      setSectionAvailabilityError(buildShortStayInquiryMessage(requiredMinNightsForSelection));
       return;
     }
     if (sectionDateValidationError) {
@@ -5062,9 +5156,15 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       requiredMinNightsForSelection
     );
     if (stayNights < requiredMinNights) {
-      const message = `Minimum stay is ${requiredMinNights} nights.`;
+      const message = buildShortStayInquiryMessage(requiredMinNights);
       setSectionAvailabilityError(message);
       setCheckoutGuestError(message);
+      const shortStayListing =
+        listings.find(
+          (entry) =>
+            String(getListingId(entry) || entry?.unitTypeId || "") === String(listingId)
+        ) || activeListing;
+      if (shortStayListing) openInquiry(shortStayListing);
       return;
     }
     if (sectionDateValidationError) {
@@ -5595,15 +5695,49 @@ const applyCheckoutPromoCode = () => {
     }
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
-  const inquirySubject = `Inquiry: ${inquiryTitle}`;
+  const inquiryCityLabel = sanitizeText(
+    normalizeCity(inquiryListing || activeListing || {}) || "Redondo Beach"
+  );
+  const inquirySubject = `Inquiry: ${inquiryTitle} (${inquiryCityLabel})`;
   const inquiryBody =
-    `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.` +
-    (inquiryDates ? `\nDates: ${inquiryDates}.` : "") +
-    "\nPlease let me know about availability and options.\n\nThank you!";
+    `Full name: ${inquiryForm.fullName || "--"}\n` +
+    `Email: ${inquiryForm.email || "--"}\n` +
+    `Phone: ${inquiryForm.phone || "--"}\n` +
+    `Property: ${inquiryTitle}\n` +
+    `City: ${inquiryCityLabel}\n` +
+    `Preferred dates: ${inquiryForm.preferredDates || inquiryDates || "--"}\n` +
+    `Guests: ${inquiryForm.guests || sectionGuests || "--"}\n\n` +
+    `${inquiryForm.message || `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.`}`;
   const inquiryEmailHref = `mailto:reservations@oneluxstay.com?subject=${encodeURIComponent(
     inquirySubject
   )}&body=${encodeURIComponent(inquiryBody)}`;
   const inquiryWhatsAppHref = buildWhatsAppHref(PRIMARY_US_WHATSAPP_CONTACT.digits, inquiryBody);
+  const handleInquiryFormChange = (field) => (event) => {
+    const value = event?.target?.value ?? "";
+    setInquiryForm((prev) => ({ ...prev, [field]: value }));
+    if (inquiryFormError) setInquiryFormError("");
+    if (inquiryFormSubmitted) setInquiryFormSubmitted(false);
+  };
+  const handleInquirySubmit = (event) => {
+    event.preventDefault();
+    const requiredFields = [
+      inquiryForm.fullName.trim(),
+      inquiryForm.email.trim(),
+      inquiryForm.phone.trim(),
+      inquiryForm.preferredDates.trim(),
+      inquiryForm.guests.trim(),
+      inquiryForm.message.trim(),
+    ];
+    if (requiredFields.some((value) => !value)) {
+      setInquiryFormError("Please complete all inquiry fields before sending.");
+      return;
+    }
+    setInquiryFormError("");
+    setInquiryFormSubmitted(true);
+    if (typeof window !== "undefined") {
+      window.location.href = inquiryEmailHref;
+    }
+  };
   const logoHomeProps = {
     role: "button",
     tabIndex: 0,
@@ -5958,6 +6092,21 @@ const applyCheckoutPromoCode = () => {
           activeListing?.prices?.basePrice?.currency ||
           activeListing?.currency ||
               priceCurrency;
+        const displayedMarketingRate = getMonthlyEstimate({
+          city: REDONDO_CITY_NAME,
+          accommodationTotal: firstNumber(
+            breakdown?.accommodation,
+            selectedPlan?.breakdown?.accommodation,
+            quote?.breakdown?.accommodation
+          ),
+          totalNights: firstNumber(
+            selectedPlan?.nights,
+            quote?.nights,
+            breakdown?.nights,
+            sectionStayNights
+          ),
+          fallbackNightlyRate: dailyRate,
+        });
             const totalPrice =
               breakdown?.total ??
               breakdown?.subtotal ??
@@ -6102,9 +6251,13 @@ const applyCheckoutPromoCode = () => {
             </div>
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
-                <div className="la-unit-modal__bp-price">
-                  <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
-                  <small>per night {"\u00b7"} taxes at checkout</small>
+                <div className="la-unit-modal__bp-price la-unit-modal__bp-price--monthly">
+                  <div className="la-unit-modal__bp-price-main">
+                    <strong>{formatCurrency(displayedMarketingRate, dailyRateCurrency)}</strong>
+                  </div>
+                  <small>
+                    {REDONDO_PRICING_PERIOD_LABEL} {"\u00b7"} taxes at checkout {"\u00b7"} Estimated monthly stay pricing
+                  </small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
                 <DateRangePicker
@@ -6170,13 +6323,25 @@ const applyCheckoutPromoCode = () => {
                 <div className="la-unit-modal__bp-divider" />
                 <div className="la-unit-modal__card-head">
                   <strong>Availability</strong>
-                  <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                    {availabilityStatus}
+                  <span
+                    className={`la-unit-modal__status is-${(
+                      isShortStayInquiryMode ? "inquire" : availabilityStatus
+                    )
+                      .toLowerCase()
+                      .replace(/\s+/g, "-")}`}
+                  >
+                    {isShortStayInquiryMode ? "Inquire" : availabilityStatus}
                   </span>
                 </div>
                 <div className="la-unit-modal__availability-details">
-                  {isStayTooShort ? (
-                    <p>{stayTooShortMessage}</p>
+                  {isShortStayInquiryMode ? (
+                    <>
+                      <p>{shortStayInquiryMessage}</p>
+                      <p className="la-unit-modal__inquiry-note">
+                        Inquiry request only - pricing and confirmation will be shared by our team.
+                      </p>
+                      <p className="la-unit-modal__inquiry-note">{SHORT_STAY_APPROVAL_HINT}</p>
+                    </>
                   ) : availability === false ? (
                     <p>Unavailable for the selected dates.</p>
                   ) : breakdown ? (
@@ -6224,7 +6389,7 @@ const applyCheckoutPromoCode = () => {
                     <p>Check availability to view pricing breakdown.</p>
                   )}
                 </div>
-                {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
+                {!isShortStayInquiryMode && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                   <div className="la-unit-modal__rate-plan">
                     <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
                     <select
@@ -6252,16 +6417,23 @@ const applyCheckoutPromoCode = () => {
                     const availability = listingId ? sectionAvailabilityMap[listingId] : null;
                     if (availability === true) {
                       const isReserving = sectionReserveLoadingId === listingId;
+                      if (isShortStayInquiryMode) {
+                        return (
+                          <button
+                            type="button"
+                            className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+                            onClick={() => openInquiry(activeListing)}
+                          >
+                            Send inquiry
+                          </button>
+                        );
+                      }
                       return (
                         <button
                           type="button"
                           className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                          disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
+                          disabled={sectionAvailabilityLoading || isReserving}
                           onClick={() => {
-                            if (isStayTooShort) {
-                              setSectionAvailabilityError(stayTooShortMessage);
-                              return;
-                            }
                             setPendingCheckout({
                               listingId,
                               listingTitle: activeListing.title,
@@ -6310,16 +6482,20 @@ const applyCheckoutPromoCode = () => {
                       <button
                         type="button"
                         className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                        disabled={sectionAvailabilityLoading || isStayTooShort}
+                        disabled={sectionAvailabilityLoading}
                         onClick={() => {
-                          if (isStayTooShort) {
-                            setSectionAvailabilityError(stayTooShortMessage);
+                          if (isShortStayInquiryMode) {
+                            openInquiry(activeListing);
                             return;
                           }
                           fetchAvailabilityListings({ shouldScroll: true });
                         }}
                       >
-                        {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                        {sectionAvailabilityLoading
+                          ? "Checking..."
+                          : isShortStayInquiryMode
+                            ? "Send inquiry"
+                            : "Check availability"}
                       </button>
                     );
                   })()}
@@ -6385,8 +6561,14 @@ const applyCheckoutPromoCode = () => {
                     </div>
                   </div>
                 {sectionValidationNotice && (
-                  <div role="alert" className="la-section-hero__notice">
+                  <div
+                    role="alert"
+                    className={`la-section-hero__notice${isShortStayInquiryMode ? " la-section-hero__notice--inquiry" : ""}`}
+                  >
                     {sectionValidationNotice}
+                    {isShortStayInquiryMode && (
+                      <small>{SHORT_STAY_APPROVAL_HINT}</small>
+                    )}
                   </div>
                 )}
                 <div className="la-unit-modal__section">
@@ -6911,7 +7093,7 @@ const applyCheckoutPromoCode = () => {
 
   const inquiryModal = isInquiryOpen ? (
     <div
-      className="antwerp-modal__overlay"
+      className="antwerp-modal__overlay la-inquiry-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Inquire about a listing"
@@ -6919,7 +7101,7 @@ const applyCheckoutPromoCode = () => {
         if (event.target === event.currentTarget) setIsInquiryOpen(false);
       }}
     >
-      <div className="la-inquiry-modal" role="document">
+      <div className="la-inquiry-modal la-inquiry-modal--shortstay" role="document">
         <div className="la-inquiry-modal__header">
           <div className="la-inquiry-modal__brand">
             <img
@@ -6945,18 +7127,102 @@ const applyCheckoutPromoCode = () => {
           </button>
         </div>
         <div className="la-inquiry-modal__body">
-          <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
-            Email reservations@oneluxstay.com
-          </a>
-          <a
-            className="la-inquiry-modal__action is-whatsapp"
-            href={inquiryWhatsAppHref}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {PRIMARY_US_WHATSAPP_LABEL}
-          </a>
-          <p className="la-inquiry-modal__note">We usually respond within an hour</p>
+          <form className="la-inquiry-modal__step la-inquiry-modal__step--shortstay" onSubmit={handleInquirySubmit}>
+            <label className="la-inquiry-modal__field">
+              <span>Full name</span>
+              <input
+                type="text"
+                value={inquiryForm.fullName}
+                onChange={handleInquiryFormChange("fullName")}
+                autoComplete="name"
+                required
+              />
+            </label>
+            <label className="la-inquiry-modal__field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={inquiryForm.email}
+                onChange={handleInquiryFormChange("email")}
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label className="la-inquiry-modal__field">
+              <span>Phone number</span>
+              <input
+                type="tel"
+                value={inquiryForm.phone}
+                onChange={handleInquiryFormChange("phone")}
+                autoComplete="tel"
+                required
+              />
+            </label>
+            <label className="la-inquiry-modal__field">
+              <span>Preferred dates</span>
+              <input
+                type="text"
+                value={inquiryForm.preferredDates}
+                onChange={handleInquiryFormChange("preferredDates")}
+                placeholder="YYYY-MM-DD to YYYY-MM-DD"
+                required
+              />
+            </label>
+            <label className="la-inquiry-modal__field">
+              <span>Number of guests</span>
+              <input
+                type="text"
+                value={inquiryForm.guests}
+                onChange={handleInquiryFormChange("guests")}
+                required
+              />
+            </label>
+            <label className="la-inquiry-modal__field">
+              <span>Message</span>
+              <textarea
+                value={inquiryForm.message}
+                onChange={handleInquiryFormChange("message")}
+                rows={4}
+                required
+              />
+            </label>
+            <div className="la-inquiry-modal__summary la-inquiry-modal__summary--shortstay">
+              <div>
+                <strong>Property</strong>
+                <span>{inquiryTitle}</span>
+              </div>
+              <div>
+                <strong>City</strong>
+                <span>{inquiryCityLabel}</span>
+              </div>
+              <div>
+                <strong>Inquiry type</strong>
+                <span>Inquiry request only (no payment required)</span>
+              </div>
+            </div>
+            {inquiryFormError && <p className="la-inquiry-modal__note is-error">{inquiryFormError}</p>}
+            {inquiryFormSubmitted && (
+              <p className="la-inquiry-modal__note is-success">
+                Your email draft is ready. We usually respond within an hour.
+              </p>
+            )}
+            <p className="la-inquiry-modal__note">
+              This is an inquiry request only. A reservations specialist will confirm options manually.
+            </p>
+            <div className="la-inquiry-modal__actions la-inquiry-modal__actions--shortstay">
+              <button type="submit" className="la-inquiry-modal__action">
+                Send inquiry
+              </button>
+              <a
+                className="la-inquiry-modal__action is-whatsapp"
+                href={inquiryWhatsAppHref}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {PRIMARY_US_WHATSAPP_LABEL}
+              </a>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -7847,22 +8113,28 @@ const applyCheckoutPromoCode = () => {
                     const quoteRateEntry = listingId ? cardQuoteRates[toLookupKey(listingId)] : null;
                     const displayCurrency = quoteRateEntry?.currency || currency;
                     const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+                    const displayedMarketingRate = getMonthlyEstimate({
+                      city: REDONDO_CITY_NAME,
+                      accommodationTotal: quoteRateEntry?.accommodationTotal,
+                      totalNights: quoteRateEntry?.totalNights,
+                      fallbackNightlyRate: dailyRate,
+                    });
                     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
                     const canShowStayTotal =
                       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
                     const stayTotal = canShowStayTotal ? dailyRate * stayNights : null;
                     const priceMain = canShowStayTotal
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
-                      : typeof dailyRate === "number"
-                        ? `${formatCurrency(dailyRate, displayCurrency)} / night`
+                      : typeof displayedMarketingRate === "number"
+                        ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH}`
                         : "Checking price...";
                     const priceSub = canShowStayTotal
-                      ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
-                      typeof dailyRate === "number" &&
-                      originalPrice > dailyRate;
+                      typeof displayedMarketingRate === "number" &&
+                      originalPrice > displayedMarketingRate;
 
                       return (
                         <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
@@ -8345,21 +8617,31 @@ const applyCheckoutPromoCode = () => {
                     <button
                       type="button"
                       className="la-unit-modal__booking-cta"
-                      disabled={sectionAvailabilityLoading || isStayTooShort}
+                      disabled={sectionAvailabilityLoading}
                       onClick={() => {
-                        if (isStayTooShort) {
-                          setSectionAvailabilityError(stayTooShortMessage);
+                        if (isShortStayInquiryMode) {
+                          openInquiry(activeSection?.listings?.[0] || activeListing);
                           return;
                         }
                         fetchAvailabilityListings({ shouldScroll: true });
                       }}
                     >
-                      {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                      {sectionAvailabilityLoading
+                        ? "Checking..."
+                        : isShortStayInquiryMode
+                          ? "Send inquiry"
+                          : "Check availability"}
                     </button>
                   </div>
                   {sectionValidationNotice && (
-                    <div role="alert" className="la-section-hero__notice">
+                    <div
+                      role="alert"
+                      className={`la-section-hero__notice${isShortStayInquiryMode ? " la-section-hero__notice--inquiry" : ""}`}
+                    >
                       {sectionValidationNotice}
+                      {isShortStayInquiryMode && (
+                        <small>{SHORT_STAY_APPROVAL_HINT}</small>
+                      )}
                     </div>
                   )}
                   <div className="la-unit-modal__section">
@@ -8505,7 +8787,7 @@ const applyCheckoutPromoCode = () => {
                       const rowMinNights = normalizeMinNights(requiredMinNightsForSelection);
                       const rowTooShort =
                         sectionStayNights > 0 && sectionStayNights < rowMinNights;
-                      const rowTooShortMessage = `Minimum stay is ${rowMinNights} nights.`;
+                      const rowInquiryMode = isRedondoInquiryFlow && rowTooShort;
                       const priceValue =
                         typeof total === "number"
                           ? total
@@ -8620,7 +8902,7 @@ const applyCheckoutPromoCode = () => {
                                   </span>
                                 </>
                               )}
-                              {!isUnavailable && (
+                              {!isUnavailable && !rowInquiryMode && (
                                 <>
                                   <button
                                     type="button"
@@ -8693,7 +8975,7 @@ const applyCheckoutPromoCode = () => {
                             </div>
                           </div>
                           <div className="la-booking-table__cell" role="cell">
-                            {!isUnavailable && (
+                            {!isUnavailable && !rowInquiryMode && (
                               <ul className="la-booking-table__choices">
                                 {planOptions.length > 0 ? (
                                   <li>
@@ -8734,16 +9016,20 @@ const applyCheckoutPromoCode = () => {
                                 >
                                   Inquire
                                 </button>
+                              ) : rowInquiryMode ? (
+                                <button
+                                  type="button"
+                                  className="la-booking-table__reserve la-booking-table__inquire"
+                                  onClick={() => openInquiry(listing)}
+                                >
+                                  Send inquiry
+                                </button>
                               ) : (
                                 <button
                                   type="button"
                                   className="la-booking-table__reserve"
-                                  disabled={isLoadingRates || isReserving || rowTooShort}
+                                  disabled={isLoadingRates || isReserving}
                                   onClick={() => {
-                                    if (rowTooShort) {
-                                      setSectionAvailabilityError(rowTooShortMessage);
-                                      return;
-                                    }
                                     if (
                                       !checkoutGuest.firstName ||
                                     !checkoutGuest.lastName ||
@@ -9115,12 +9401,26 @@ const applyCheckoutPromoCode = () => {
                     <div className="la-unit-modal__card la-unit-modal__availability">
                       <div className="la-unit-modal__card-head">
                         <strong>Availability</strong>
-                        <span className={`la-unit-modal__status is-${availabilityStatus.toLowerCase().replace(/\s+/g, "-")}`}>
-                          {availabilityStatus}
+                        <span
+                          className={`la-unit-modal__status is-${(
+                            isShortStayInquiryMode ? "inquire" : availabilityStatus
+                          )
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`}
+                        >
+                          {isShortStayInquiryMode ? "Inquire" : availabilityStatus}
                         </span>
                       </div>
                       <div className="la-unit-modal__availability-details">
-                        {availability === false ? (
+                        {isShortStayInquiryMode ? (
+                          <>
+                            <p>{shortStayInquiryMessage}</p>
+                            <p className="la-unit-modal__inquiry-note">
+                              Inquiry request only - pricing and confirmation will be shared by our team.
+                            </p>
+                            <p className="la-unit-modal__inquiry-note">{SHORT_STAY_APPROVAL_HINT}</p>
+                          </>
+                        ) : availability === false ? (
                           <p>Unavailable for the selected dates.</p>
                         ) : breakdown ? (
                           <>
@@ -9167,7 +9467,7 @@ const applyCheckoutPromoCode = () => {
                           <p>Check availability to view pricing breakdown.</p>
                         )}
                       </div>
-                      {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
+                      {!isShortStayInquiryMode && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                         <div className="la-unit-modal__rate-plan">
                           <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
                           <select
@@ -9195,16 +9495,23 @@ const applyCheckoutPromoCode = () => {
                           const availability = listingId ? sectionAvailabilityMap[listingId] : null;
                           if (availability === true) {
                             const isReserving = sectionReserveLoadingId === listingId;
+                            if (isShortStayInquiryMode) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="la-unit-modal__action-primary"
+                                  onClick={() => openInquiry(activeListing)}
+                                >
+                                  Send inquiry
+                                </button>
+                              );
+                            }
                             return (
                               <button
                                 type="button"
                                 className="la-unit-modal__action-primary"
-                                disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
+                                disabled={sectionAvailabilityLoading || isReserving}
                                 onClick={() => {
-                                  if (isStayTooShort) {
-                                    setSectionAvailabilityError(stayTooShortMessage);
-                                    return;
-                                  }
                                   if (
                                     !checkoutGuest.firstName ||
                                     !checkoutGuest.lastName ||
@@ -9318,16 +9625,20 @@ const applyCheckoutPromoCode = () => {
               </div>
               <button
                 type="button"
-                disabled={sectionAvailabilityLoading || isStayTooShort}
+                disabled={sectionAvailabilityLoading}
                 onClick={() => {
-                  if (isStayTooShort) {
-                    setSectionAvailabilityError(stayTooShortMessage);
+                  if (isShortStayInquiryMode) {
+                    openInquiry(activeSection?.listings?.[0] || activeListing);
                     return;
                   }
                   fetchAvailabilityListings({ shouldScroll: true });
                 }}
               >
-                {sectionAvailabilityLoading ? "Checking..." : "Check availability"}
+                {sectionAvailabilityLoading
+                  ? "Checking..."
+                  : isShortStayInquiryMode
+                    ? "Send inquiry"
+                    : "Check availability"}
               </button>
             </div>
             <div className="la-unit-modal__section">
@@ -9367,7 +9678,7 @@ const applyCheckoutPromoCode = () => {
                 </div>
                 {calendarLoading && (
                   <div className="la-price-calendar__status" role="status" aria-live="polite">
-                    Loading nightly prices...
+                    Loading monthly pricing...
                   </div>
                 )}
                 {calendarError && (
