@@ -124,7 +124,7 @@ export default function Stepper({
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="rb-stepper__back"
+                  className="rb-stepper__btn rb-stepper__back"
                   {...backButtonProps}
                 >
                   {backButtonText}
@@ -133,7 +133,7 @@ export default function Stepper({
               <button
                 type="button"
                 onClick={isLastStep ? handleComplete : handleNext}
-                className="rb-stepper__next"
+                className="rb-stepper__btn rb-stepper__next"
                 {...nextButtonProps}
               >
                 {isLastStep ? finalButtonText : nextButtonText}

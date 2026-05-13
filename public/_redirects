@@ -1,0 +1,10 @@
+/api/availability     /.netlify/functions/api-availability   200
+/api/checkout         /.netlify/functions/api-checkout       200
+/api/webhook          /.netlify/functions/api-webhook        200
+/api/whatsapp         /.netlify/functions/whatsapp-webhook   200
+/api/sms              /.netlify/functions/whatsapp-webhook   200
+/api/voice            /.netlify/functions/voice-webhook      200
+/api/send-message     /.netlify/functions/send-message       200
+/api/whatsapp-status  /.netlify/functions/whatsapp-status    200
+
+/*  /index.html  200

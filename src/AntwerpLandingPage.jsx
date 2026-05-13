@@ -18,6 +18,7 @@ import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPa
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
+import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
 const UNIT_MARKER_ICON =
@@ -1268,7 +1269,10 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
       plan?.cancellationPolicy?.isNonRefundable ??
       plan?.nonRefundable ??
       (/non[- ]?refundable/i.test(labelSource) ? true : false);
-    const label = labelSource || (isNonRefundable ? "Non-refundable rate" : "Standard rate");
+    const label = formatRatePlanName(
+      labelSource || (isNonRefundable ? "Non-refundable rate" : SIGNATURE_STAYS_RATE_LABEL),
+      isNonRefundable ? "Non-refundable rate" : SIGNATURE_STAYS_RATE_LABEL,
+    );
     return { label, isNonRefundable: Boolean(isNonRefundable) };
   };
 
@@ -1448,7 +1452,7 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
     .filter((plan) => !plan.isNonRefundable);
   if (!plans.length) return null;
   const standardPlan =
-    plans.find((plan) => /standard/i.test(plan.label)) ||
+    plans.find((plan) => /signature|standard|refundable/i.test(plan.label)) ||
     plans[0] ||
     null;
   return {
@@ -5770,6 +5774,21 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     isCheckoutCardPhotoValid &&
     checkoutConsentAccepted;
 
+  const checkoutSecurityDepositAmount = Math.max(
+    firstNumber(
+      pendingCheckout?.breakdown?.securityDeposit,
+      pendingCheckout?.baseBreakdown?.securityDeposit,
+      pendingCheckout?.securityDeposit,
+      0,
+    ) || 0,
+    0,
+  );
+  const checkoutBookingTotalAmount = Math.max(
+    (Number(pendingCheckout?.amount) || 0) - checkoutSecurityDepositAmount,
+    0,
+  );
+  const checkoutAmountChargedToday = checkoutBookingTotalAmount + checkoutSecurityDepositAmount;
+
 const applyCheckoutPromoCode = () => {
     const normalizedCode = checkoutPromoCode.trim().toUpperCase();
     if (!normalizedCode) {
@@ -6823,12 +6842,6 @@ const applyCheckoutPromoCode = () => {
                         <span>Taxes</span>
                         <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                       </div>
-                      {Number(breakdown.securityDeposit) > 0 && (
-                        <div>
-                          <span>Security deposit</span>
-                          <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
-                        </div>
-                      )}
                       <div>
                         <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                         <strong>
@@ -6840,7 +6853,7 @@ const applyCheckoutPromoCode = () => {
                       </div>
                       <div className="la-unit-modal__total">
                         <span>Total</span>
-                        <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                        <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
                       </div>
                     </>
                   ) : totalPrice ? (
@@ -7634,7 +7647,7 @@ const applyCheckoutPromoCode = () => {
             if (event.target === event.currentTarget) setIsCheckoutGuestOpen(false);
           }}
         >
-          <div className="la-inquiry-modal" role="document">
+          <div className="la-inquiry-modal la-inquiry-modal--checkout" role="document">
             <div className="la-inquiry-modal__header">
               <div className="la-inquiry-modal__brand">
                 <img
@@ -8008,7 +8021,7 @@ const applyCheckoutPromoCode = () => {
                     <p className="la-inquiry-modal__fineprint">
                       Review your details and continue to payment.
                     </p>
-                    <div className="la-inquiry-modal__summary">
+                    <div className="la-inquiry-modal__summary la-inquiry-modal__summary--checkout">
                       <div>
                         <strong>Name</strong>
                         <span>
@@ -8057,7 +8070,50 @@ const applyCheckoutPromoCode = () => {
                           </span>
                         </div>
                       )}
-                      {pendingCheckout && Number(pendingCheckout.amount) <= 0 && (
+                  {pendingCheckout && checkoutSecurityDepositAmount > 0 && (
+                    <div className="la-inquiry-modal__deposit-card">
+                      <p className="la-inquiry-modal__deposit-kicker">Refundable security deposit</p>
+                      <p className="la-inquiry-modal__deposit-amount">
+                        {formatCurrency(
+                          checkoutSecurityDepositAmount,
+                          resolveCheckoutCurrency(pendingCheckout?.currency),
+                        )}
+                      </p>
+                      <p className="la-inquiry-modal__deposit-copy">
+                        This refundable deposit is temporarily held and will be released after checkout if no damages or policy violations are reported.
+                      </p>
+                      <div className="la-inquiry-modal__deposit-breakdown">
+                        <div>
+                          <span>Accommodation total</span>
+                          <strong>
+                            {formatCurrency(
+                              checkoutBookingTotalAmount,
+                              resolveCheckoutCurrency(pendingCheckout?.currency),
+                            )}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>Refundable deposit</span>
+                          <strong>
+                            {formatCurrency(
+                              checkoutSecurityDepositAmount,
+                              resolveCheckoutCurrency(pendingCheckout?.currency),
+                            )}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>Amount charged today</span>
+                          <strong>
+                            {formatCurrency(
+                              checkoutAmountChargedToday,
+                              resolveCheckoutCurrency(pendingCheckout?.currency),
+                            )}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {pendingCheckout && Number(pendingCheckout.amount) <= 0 && (
                         <p className="la-inquiry-modal__note is-success" role="status" aria-live="polite">
                           No payment is required for this booking. Continue to confirm and we will email your
                           confirmation.
@@ -9301,12 +9357,6 @@ const applyCheckoutPromoCode = () => {
                                             <span>Taxes</span>
                                             <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                                           </div>
-                                          {Number(breakdown.securityDeposit) > 0 && (
-                                            <div>
-                                              <span>Security deposit</span>
-                                              <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
-                                            </div>
-                                          )}
                                           <div>
                                             <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                                             <strong>
@@ -9322,7 +9372,7 @@ const applyCheckoutPromoCode = () => {
                                           </div>
                                           <div className="la-booking-table__total">
                                             <span>Total</span>
-                                            <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                                            <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
                                           </div>
                                         </>
                                       ) : null}
@@ -9793,12 +9843,6 @@ const applyCheckoutPromoCode = () => {
                               <span>Taxes</span>
                               <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                             </div>
-                            {Number(breakdown.securityDeposit) > 0 && (
-                              <div>
-                                <span>Security deposit</span>
-                                <strong>{formatCurrency(breakdown.securityDeposit, priceCurrency)}</strong>
-                              </div>
-                            )}
                             <div>
                               <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                               <strong>
@@ -9810,7 +9854,7 @@ const applyCheckoutPromoCode = () => {
                             </div>
                             <div className="la-unit-modal__total">
                               <span>Total</span>
-                              <strong>{formatCurrency(breakdown.total, priceCurrency)}</strong>
+                              <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
                             </div>
                           </>
                         ) : totalPrice ? (
