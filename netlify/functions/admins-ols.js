@@ -562,10 +562,20 @@ const normalizeGuestEventType = (value = "") => {
   return "";
 };
 
+const normalizeConversationMode = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["ai", "human", "paused", "closed"].includes(normalized)) return normalized;
+  return "ai";
+};
+
 const LESSON_SELECT_BASE =
   "id,title,sentiment_label,trigger_text,response_guidance,example_user_message,example_assistant_style,admin_notes,active,created_at,updated_at";
 const LESSON_SELECT_WITH_ACTOR =
   `${LESSON_SELECT_BASE},created_by_id,created_by_email,created_by_name,updated_by_id,updated_by_email,updated_by_name`;
+const SESSION_SELECT_BASE =
+  "session_id,page_type,city,listing_id,pathname,source_origin,user_agent,first_seen_at,last_seen_at";
+const SESSION_SELECT_WITH_HANDOFF =
+  `${SESSION_SELECT_BASE},conversation_mode,assigned_admin_id,assigned_admin_name,human_taken_over_at`;
 
 const getAdminHeaders = (event = {}) => ({
   ...buildAiCorsHeaders(event),
@@ -611,14 +621,28 @@ const fetchConversationSessionContext = async (tables, sessionId = "") => {
   const normalizedSessionId = sanitizeId(sessionId, 120);
   if (!normalizedSessionId) return null;
 
-  const rows = await supabaseRestRequest(tables.sessions, {
-    query: {
-      select: "session_id,page_type,city,listing_id,pathname,first_seen_at,last_seen_at",
-      session_id: `eq.${normalizedSessionId}`,
-      limit: "1",
-    },
-    timeout: 12_000,
-  });
+  let rows;
+  try {
+    rows = await supabaseRestRequest(tables.sessions, {
+      query: {
+        select:
+          "session_id,page_type,city,listing_id,pathname,conversation_mode,assigned_admin_id,assigned_admin_name,human_taken_over_at,first_seen_at,last_seen_at",
+        session_id: `eq.${normalizedSessionId}`,
+        limit: "1",
+      },
+      timeout: 12_000,
+    });
+  } catch (error) {
+    if (!isMissingConversationModeColumnsError(error)) throw error;
+    rows = await supabaseRestRequest(tables.sessions, {
+      query: {
+        select: "session_id,page_type,city,listing_id,pathname,first_seen_at,last_seen_at",
+        session_id: `eq.${normalizedSessionId}`,
+        limit: "1",
+      },
+      timeout: 12_000,
+    });
+  }
 
   return Array.isArray(rows) ? rows[0] : null;
 };
@@ -718,6 +742,8 @@ const summarizeConversationForAdmin = async (payload = {}, tables = {}, adminUse
     `- city: ${sanitizeString(ctx?.city, 120) || "unknown"}`,
     `- listing_id: ${sanitizeString(ctx?.listing_id, 160) || "unknown"}`,
     `- pathname: ${sanitizeString(ctx?.pathname, 240) || "unknown"}`,
+    `- conversation_mode: ${normalizeConversationMode(ctx?.conversation_mode)}`,
+    `- assigned_admin_name: ${sanitizeString(ctx?.assigned_admin_name, 160) || "none"}`,
     `- first_seen_at: ${sanitizeString(ctx?.first_seen_at, 80) || "unknown"}`,
     `- last_seen_at: ${sanitizeString(ctx?.last_seen_at, 80) || "unknown"}`,
   ].join("\n");
@@ -852,6 +878,10 @@ const sanitizeSessionRow = (row = {}) => ({
   city: sanitizeString(row?.city, 120),
   listingId: sanitizeString(row?.listing_id, 120),
   pathname: sanitizeString(row?.pathname, 240),
+  conversationMode: normalizeConversationMode(row?.conversation_mode),
+  assignedAdminId: sanitizeId(row?.assigned_admin_id, 120),
+  assignedAdminName: sanitizeString(row?.assigned_admin_name, 160),
+  humanTakenOverAt: sanitizeString(row?.human_taken_over_at, 80),
   sourceOrigin: sanitizeString(row?.source_origin, 240),
   userAgent: sanitizeString(row?.user_agent, 220),
   firstSeenAt: sanitizeString(row?.first_seen_at, 80),
@@ -1061,6 +1091,21 @@ const safeLogAdminsOlsActivity = async (input) => {
   } catch {
     // Audit logging should not block admin workflows.
   }
+};
+
+const isMissingConversationModeColumnsError = (error) => {
+  const message = sanitizeString(error?.message || "", 500).toLowerCase();
+  const mentionsHandoffColumn =
+    message.includes("conversation_mode") ||
+    message.includes("assigned_admin_id") ||
+    message.includes("assigned_admin_name") ||
+    message.includes("human_taken_over_at");
+  if (!mentionsHandoffColumn) return false;
+  return (
+    message.includes("does not exist") ||
+    message.includes("schema cache") ||
+    message.includes("could not find")
+  );
 };
 
 const isMissingLessonActorColumnsError = (error) => {
@@ -1471,6 +1516,31 @@ const fetchSentimentLessonsRaw = async (tables) => {
   }
 };
 
+const fetchRecentSessions = async (tables, limit = 18) => {
+  const safeLimit = String(Math.max(1, Math.min(60, Number(limit) || 18)));
+
+  try {
+    return await supabaseRestRequest(tables.sessions, {
+      query: {
+        select: SESSION_SELECT_WITH_HANDOFF,
+        order: "last_seen_at.desc",
+        limit: safeLimit,
+      },
+      timeout: 12_000,
+    });
+  } catch (error) {
+    if (!isMissingConversationModeColumnsError(error)) throw error;
+    return supabaseRestRequest(tables.sessions, {
+      query: {
+        select: SESSION_SELECT_BASE,
+        order: "last_seen_at.desc",
+        limit: safeLimit,
+      },
+      timeout: 12_000,
+    });
+  }
+};
+
 const buildRecentConversationThreads = ({
   conversationMessages = [],
   recentSessions = [],
@@ -1485,6 +1555,10 @@ const buildRecentConversationThreads = ({
         city: session.city || "",
         listingId: session.listingId || "",
         pathname: session.pathname || "",
+        conversationMode: normalizeConversationMode(session.conversationMode),
+        assignedAdminId: session.assignedAdminId || "",
+        assignedAdminName: session.assignedAdminName || "",
+        humanTakenOverAt: session.humanTakenOverAt || "",
         sourceOrigin: session.sourceOrigin || "",
         lastSeenAt: session.lastSeenAt || "",
       },
@@ -1517,6 +1591,10 @@ const buildRecentConversationThreads = ({
           city: latestMessage?.metadata?.city || "",
           listingId: latestMessage?.metadata?.listingId || "",
           pathname: "",
+          conversationMode: "ai",
+          assignedAdminId: "",
+          assignedAdminName: "",
+          humanTakenOverAt: "",
           sourceOrigin: "",
           lastSeenAt: latestMessage?.createdAt || "",
         };
@@ -1543,6 +1621,10 @@ const buildRecentConversationThreads = ({
         pageType: meta.pageType || latestMessage?.metadata?.pageType || "",
         listingId: meta.listingId || latestMessage?.metadata?.listingId || "",
         pathname: meta.pathname || "",
+        conversationMode: normalizeConversationMode(meta.conversationMode),
+        assignedAdminId: sanitizeId(meta.assignedAdminId, 120),
+        assignedAdminName: sanitizeString(meta.assignedAdminName, 160),
+        humanTakenOverAt: sanitizeString(meta.humanTakenOverAt, 80),
         sourceOrigin: meta.sourceOrigin || "",
         senderRegion,
         senderChannel,
@@ -1570,14 +1652,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
     countRows(tables.guestCityClicks, { select: "id" }),
     countRows(tables.sentiment, { select: "id" }),
     countRows(tables.sentiment, { select: "id", query: { active: "eq.true" } }),
-    supabaseRestRequest(tables.sessions, {
-      query: {
-        select: "session_id,page_type,city,listing_id,pathname,source_origin,user_agent,first_seen_at,last_seen_at",
-        order: "last_seen_at.desc",
-        limit: "18",
-      },
-      timeout: 12_000,
-    }),
+    fetchRecentSessions(tables, 18),
     supabaseRestRequest(tables.feedback, {
       query: {
         select: "session_id,message_id,rating,assistant_message,user_message,page_context,updated_at",
@@ -1896,26 +1971,98 @@ const getGuestJourneyEvents = async (payload, tables) => {
   return Array.isArray(rows) ? rows.map(sanitizeGuestJourneyRow) : [];
 };
 
-const upsertAdminReplySession = async ({ tables, sessionId, pageContext = {} }) => {
+const buildConversationModePatch = ({
+  mode = "ai",
+  adminUser = {},
+  keepAssigneeWhenNotAi = true,
+} = {}) => {
+  const normalizedMode = normalizeConversationMode(mode);
+  const adminId = sanitizeId(adminUser?.id, 120);
+  const adminName = sanitizeString(adminUser?.fullName || adminUser?.name || adminUser?.email, 160);
+  const patch = {
+    conversation_mode: normalizedMode,
+  };
+
+  if (normalizedMode === "ai") {
+    patch.assigned_admin_id = null;
+    patch.assigned_admin_name = null;
+    patch.human_taken_over_at = null;
+    return patch;
+  }
+
+  if (normalizedMode === "human") {
+    patch.assigned_admin_id = adminId || null;
+    patch.assigned_admin_name = adminName || null;
+    patch.human_taken_over_at = new Date().toISOString();
+    return patch;
+  }
+
+  if (keepAssigneeWhenNotAi && adminId) patch.assigned_admin_id = adminId;
+  if (keepAssigneeWhenNotAi && adminName) patch.assigned_admin_name = adminName;
+  return patch;
+};
+
+const upsertAdminReplySession = async ({ tables, sessionId, pageContext = {}, adminUser = {}, mode = "human" }) => {
   const nowIso = new Date().toISOString();
-  const sourceOrigin = sanitizeString(pageContext?.sourceOrigin, 160) || null;
+  const sourceOrigin = sanitizeString(pageContext?.sourceOrigin, 160);
+
+  const pageType = sanitizeString(pageContext?.pageType, 80);
+  const city = sanitizeString(pageContext?.city, 120);
+  const listingId = sanitizeString(pageContext?.listingId, 120);
+  const pathname = sanitizeString(pageContext?.pathname, 240);
 
   await supabaseRestRequest(`${tables.sessions}?on_conflict=session_id`, {
     method: "POST",
     body: [
       {
         session_id: sessionId,
-        page_type: sanitizeString(pageContext?.pageType, 80) || null,
-        city: sanitizeString(pageContext?.city, 120) || null,
-        listing_id: sanitizeString(pageContext?.listingId, 120) || null,
-        pathname: sanitizeString(pageContext?.pathname, 240) || null,
-        source_origin: sourceOrigin,
+        ...(pageType ? { page_type: pageType } : {}),
+        ...(city ? { city } : {}),
+        ...(listingId ? { listing_id: listingId } : {}),
+        ...(pathname ? { pathname } : {}),
+        ...(sourceOrigin ? { source_origin: sourceOrigin } : {}),
         last_seen_at: nowIso,
+        ...buildConversationModePatch({ mode, adminUser }),
       },
     ],
     prefer: "resolution=merge-duplicates,return=minimal",
     timeout: 12_000,
   });
+};
+
+const setConversationMode = async (payload, tables, adminUser = {}) => {
+  const sessionId = sanitizeId(payload?.sessionId, 120);
+  const modeInput = sanitizeString(payload?.mode || payload?.conversationMode, 40).toLowerCase();
+  if (modeInput && !["ai", "human", "paused", "closed"].includes(modeInput)) {
+    throw new Error("mode must be one of: ai, human, paused, closed.");
+  }
+  const mode = normalizeConversationMode(modeInput || "ai");
+  const pageContext = {
+    pageType: sanitizeString(payload?.pageContext?.pageType, 80),
+    city: sanitizeString(payload?.pageContext?.city, 120),
+    listingId: sanitizeString(payload?.pageContext?.listingId, 120),
+    pathname: sanitizeString(payload?.pageContext?.pathname, 240),
+    sourceOrigin: sanitizeString(payload?.pageContext?.sourceOrigin, 160),
+  };
+
+  if (!sessionId) throw new Error("sessionId is required.");
+
+  await upsertAdminReplySession({
+    tables,
+    sessionId,
+    pageContext,
+    adminUser,
+    mode,
+  });
+
+  return {
+    sessionId,
+    conversationMode: mode,
+    assignedAdminId:
+      mode === "ai" ? "" : sanitizeId(adminUser?.id, 120),
+    assignedAdminName:
+      mode === "ai" ? "" : sanitizeString(adminUser?.fullName || adminUser?.name || adminUser?.email, 160),
+  };
 };
 
 const createAdminReply = async (payload, tables, adminUser = {}) => {
@@ -1994,6 +2141,8 @@ const createAdminReply = async (payload, tables, adminUser = {}) => {
       ...pageContext,
       sourceOrigin: channel === "web" ? null : `twilio_${channel}_${sourceRegion}`,
     },
+    adminUser,
+    mode: "human",
   });
 
   return sanitizeConversationMessageRow(Array.isArray(rows) ? rows[0] : {});
@@ -2146,6 +2295,41 @@ export async function handler(event) {
         { ok: true, message },
         event,
       );
+    }
+
+    if (action === "take_over" || action === "pause_ai" || action === "resume_ai" || action === "set_conversation_mode") {
+      const explicitMode =
+        action === "take_over"
+          ? "human"
+          : action === "pause_ai"
+            ? "paused"
+            : action === "resume_ai"
+              ? "ai"
+              : normalizeConversationMode(payload?.mode || payload?.conversationMode);
+      const modeResult = await setConversationMode(
+        {
+          ...payload,
+          mode: explicitMode,
+        },
+        tables,
+        adminAccess.user,
+      );
+
+      await safeLogAdminsOlsActivity({
+        event,
+        actor: adminAccess.user,
+        authMode: adminAccess.mode,
+        eventType: "conversation_mode_changed",
+        message: `Set conversation ${modeResult.sessionId} to ${modeResult.conversationMode} mode.`,
+        details: {
+          sessionId: modeResult.sessionId,
+          conversationMode: modeResult.conversationMode,
+          assignedAdminId: modeResult.assignedAdminId || null,
+          assignedAdminName: modeResult.assignedAdminName || null,
+        },
+      });
+
+      return jsonResponse(200, { ok: true, ...modeResult }, event);
     }
 
     if (action === "start_voice_call") {

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { handler as chatHandler } from "./chat.js";
 import { handler as chatLearningHandler } from "./chat-learning.js";
+import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { normalizePhoneNumber, normalizeWhatsAppAddress, resolveSender } from "./_shared/twilioSenderResolver.js";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://oneluxstayprop.netlify.app";
@@ -13,6 +14,7 @@ const DEFAULT_PAGE_CONTEXT = {
   title: "OneLuxStay Messaging Concierge",
 };
 const MAX_HISTORY_MESSAGES = 10;
+const PAUSED_AI_MODES = new Set(["human", "paused", "closed"]);
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
@@ -215,6 +217,83 @@ const buildAssistantReply = ({ reply = "", cards = [], quickReplies = [] } = {})
 const buildWelcomeMessage = () =>
   "Hi, I'm Lucy from OneLuxStay. Send your travel dates and guest count for availability, or send your reservation code and I can check booking status.";
 
+const normalizeConversationMode = (value = "") => {
+  const normalized = sanitizeString(value, 20).toLowerCase();
+  if (normalized === "human") return "human";
+  if (normalized === "paused") return "paused";
+  if (normalized === "closed") return "closed";
+  return "ai";
+};
+
+const getChatSessionsTable = () =>
+  sanitizeId(getEnv("SUPABASE_CHAT_SESSIONS_TABLE") || "chat_sessions", 120) || "chat_sessions";
+
+const fetchConversationControlState = async (sessionId = "") => {
+  if (!sessionId) {
+    return {
+      mode: "ai",
+      assignedAdminId: "",
+      assignedAdminName: "",
+      humanTakenOverAt: "",
+    };
+  }
+
+  try {
+    const rows = await supabaseRestRequest(getChatSessionsTable(), {
+      query: {
+        select:
+          "session_id,conversation_mode,assigned_admin_id,assigned_admin_name,human_taken_over_at",
+        session_id: `eq.${sessionId}`,
+        limit: "1",
+      },
+      timeout: 12_000,
+    });
+    const row = Array.isArray(rows) ? rows[0] : null;
+
+    return {
+      mode: normalizeConversationMode(row?.conversation_mode),
+      assignedAdminId: sanitizeId(row?.assigned_admin_id, 120),
+      assignedAdminName: sanitizeString(row?.assigned_admin_name, 160),
+      humanTakenOverAt: sanitizeString(row?.human_taken_over_at, 80),
+    };
+  } catch (error) {
+    console.warn("Failed to resolve conversation mode; defaulting to AI mode", {
+      sessionId,
+      message: error?.message || String(error),
+    });
+    return {
+      mode: "ai",
+      assignedAdminId: "",
+      assignedAdminName: "",
+      humanTakenOverAt: "",
+    };
+  }
+};
+
+const buildInboundGuestMessage = ({
+  inboundMessageId = "",
+  incomingMessage = "",
+  profileName = "",
+  channel = "whatsapp",
+  resolvedSender = {},
+  senderFrom = "",
+  senderTo = "",
+}) => ({
+  id: inboundMessageId || undefined,
+  role: "user",
+  content: incomingMessage,
+  senderType: "guest",
+  senderName: profileName || (channel === "sms" ? "SMS guest" : "WhatsApp guest"),
+  channel,
+  senderRegion: sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us",
+  senderChannel: channel,
+  senderFrom: senderTo,
+  senderTo: senderFrom,
+  inboundFrom: senderTo,
+  inboundTo: senderFrom,
+  twilio_to_number: senderFrom,
+});
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><Response />');
@@ -277,6 +356,15 @@ export async function handler(event) {
       ? `OneLuxStay ${channel === "sms" ? "SMS" : "WhatsApp"} Concierge (${profileName})`
       : `OneLuxStay ${channel === "sms" ? "SMS" : "WhatsApp"} Concierge`,
   };
+  const inboundGuestMessage = buildInboundGuestMessage({
+    inboundMessageId,
+    incomingMessage,
+    profileName,
+    channel,
+    resolvedSender,
+    senderFrom,
+    senderTo,
+  });
 
   if (!incomingMessage) {
     return buildTwimlMessage(buildWelcomeMessage());
@@ -292,6 +380,51 @@ export async function handler(event) {
   }
 
   try {
+    const conversationControl = await fetchConversationControlState(chatSessionId);
+    if (PAUSED_AI_MODES.has(conversationControl.mode)) {
+      console.info("Inbound message captured with AI paused", {
+        channel,
+        from,
+        to,
+        sessionId: chatSessionId,
+        messageSid,
+        conversationMode: conversationControl.mode,
+        assignedAdminId: conversationControl.assignedAdminId || null,
+        assignedAdminName: conversationControl.assignedAdminName || null,
+      });
+
+      try {
+        await chatLearningHandler(
+          buildInternalAiEvent(
+            event,
+            {
+              action: "turn",
+              chatSessionId,
+              pageContext,
+              responseMode: `handoff_${conversationControl.mode}`,
+              responseModel: "human_handoff",
+              userMessage: inboundGuestMessage,
+            },
+            sourceOrigin,
+          ),
+        );
+      } catch (storeError) {
+        console.warn("Human-handoff inbound persistence failed", {
+          channel,
+          sessionId: chatSessionId,
+          messageSid,
+          message: storeError?.message || String(storeError),
+        });
+      }
+
+      const assignedName = sanitizeString(conversationControl.assignedAdminName, 120);
+      return buildTwimlMessage(
+        assignedName
+          ? `Thanks for your message. ${assignedName} from OneLuxStay is handling this conversation and will reply shortly.`
+          : "Thanks for your message. A OneLuxStay specialist is handling this conversation and will reply shortly.",
+      );
+    }
+
     if (channel === "sms") {
       try {
         const preStoreResponse = await chatLearningHandler(
@@ -303,21 +436,7 @@ export async function handler(event) {
               pageContext,
               responseMode: "live",
               responseModel: "twilio_inbound_pre_store",
-              userMessage: {
-                id: inboundMessageId || undefined,
-                role: "user",
-                content: incomingMessage,
-                senderType: "guest",
-                senderName: profileName || "SMS guest",
-                channel,
-                senderRegion: sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us",
-                senderChannel: channel,
-                senderFrom: senderTo,
-                senderTo: senderFrom,
-                inboundFrom: senderTo,
-                inboundTo: senderFrom,
-                twilio_to_number: senderFrom,
-              },
+              userMessage: inboundGuestMessage,
             },
             sourceOrigin,
           ),
@@ -385,21 +504,7 @@ export async function handler(event) {
         pageContext,
         responseMode: sanitizeString(chatPayload?.mode, 40) || "live",
         responseModel: sanitizeString(chatPayload?.model, 120),
-        userMessage: {
-          id: inboundMessageId || undefined,
-          role: "user",
-          content: incomingMessage,
-          senderType: "guest",
-          senderName: profileName || (channel === "sms" ? "SMS guest" : "WhatsApp guest"),
-          channel,
-          senderRegion: sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us",
-          senderChannel: channel,
-          senderFrom: senderTo,
-          senderTo: senderFrom,
-          inboundFrom: senderTo,
-          inboundTo: senderFrom,
-          twilio_to_number: senderFrom,
-        },
+        userMessage: inboundGuestMessage,
         assistantMessage: {
           role: "assistant",
           content: assistantReply,

@@ -361,6 +361,32 @@ const getConversationMessageBubbleClass = (message = {}) => {
   return getConversationMessageSenderType(message) === "admin" ? "is-admin" : "is-assistant";
 };
 
+const normalizeConversationMode = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["ai", "human", "paused", "closed"].includes(normalized)) return normalized;
+  return "ai";
+};
+
+const getConversationAssigneeLabel = (thread = {}) => {
+  const name = String(thread?.assignedAdminName || "").trim();
+  if (name) return name;
+  return "OneLuxStay team";
+};
+
+const getConversationModeBadge = (thread = {}) => {
+  const mode = normalizeConversationMode(thread?.conversationMode);
+  if (mode === "human") {
+    return { label: `${getConversationAssigneeLabel(thread)} handling`, tone: "active" };
+  }
+  if (mode === "paused") {
+    return { label: "AI paused", tone: "negative" };
+  }
+  if (mode === "closed") {
+    return { label: "Conversation closed", tone: "inactive" };
+  }
+  return { label: "AI Active", tone: "positive" };
+};
+
 const getAssistantTurnSourceLabel = (item = {}) => {
   const metadata = item?.metadata || {};
   const senderType = String(metadata.senderType || "").trim().toLowerCase();
@@ -430,6 +456,10 @@ const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) =>
     pageType: threadMeta.pageType || "",
     listingId: threadMeta.listingId || "",
     pathname: threadMeta.pathname || "",
+    conversationMode: normalizeConversationMode(threadMeta.conversationMode),
+    assignedAdminId: String(threadMeta.assignedAdminId || "").trim(),
+    assignedAdminName: String(threadMeta.assignedAdminName || "").trim(),
+    humanTakenOverAt: String(threadMeta.humanTakenOverAt || "").trim(),
     lastSeenAt: message.createdAt || threadMeta.lastSeenAt || "",
     messageCount: 0,
     messages: [],
@@ -453,6 +483,10 @@ const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) =>
       pageType: thread.pageType || threadMeta.pageType || "",
       listingId: thread.listingId || threadMeta.listingId || "",
       pathname: thread.pathname || threadMeta.pathname || "",
+      conversationMode: normalizeConversationMode(threadMeta.conversationMode || thread.conversationMode),
+      assignedAdminId: String(threadMeta.assignedAdminId || thread.assignedAdminId || "").trim(),
+      assignedAdminName: String(threadMeta.assignedAdminName || thread.assignedAdminName || "").trim(),
+      humanTakenOverAt: String(threadMeta.humanTakenOverAt || thread.humanTakenOverAt || "").trim(),
       lastSeenAt: message.createdAt || thread.lastSeenAt || threadMeta.lastSeenAt || "",
       messageCount: nextMessages.length,
       messages: nextMessages,
@@ -481,6 +515,28 @@ const injectMessageIntoDashboard = (dashboard, threadMeta = {}, message = {}) =>
     recentConversations: mergedThreads
       .sort((left, right) => toTimestamp(right.lastSeenAt) - toTimestamp(left.lastSeenAt))
       .slice(0, 12),
+  };
+};
+
+const updateConversationModeInDashboard = (dashboard, sessionId = "", patch = {}) => {
+  const targetSessionId = String(sessionId || "").trim();
+  if (!dashboard || !targetSessionId) return dashboard;
+  const existingThreads = Array.isArray(dashboard.recentConversations)
+    ? dashboard.recentConversations
+    : [];
+  const nextThreads = existingThreads.map((thread) => {
+    if (String(thread?.sessionId || "").trim() !== targetSessionId) return thread;
+    return {
+      ...thread,
+      conversationMode: normalizeConversationMode(patch?.conversationMode || thread?.conversationMode),
+      assignedAdminId: String(patch?.assignedAdminId || "").trim(),
+      assignedAdminName: String(patch?.assignedAdminName || "").trim(),
+      humanTakenOverAt: String(patch?.humanTakenOverAt || thread?.humanTakenOverAt || "").trim(),
+    };
+  });
+  return {
+    ...dashboard,
+    recentConversations: nextThreads,
   };
 };
 
@@ -517,6 +573,7 @@ function AdminsOlsPage() {
   const [conversationSearchInput, setConversationSearchInput] = useState("");
   const [mobileConversationFilter, setMobileConversationFilter] = useState(MOBILE_CONVERSATION_FILTER_DEFAULT);
   const [sendingReply, setSendingReply] = useState(false);
+  const [conversationModeUpdating, setConversationModeUpdating] = useState(false);
   const [conversationSummary, setConversationSummary] = useState(null);
   const [conversationSummaryLoading, setConversationSummaryLoading] = useState(false);
   const [conversationSummaryError, setConversationSummaryError] = useState("");
@@ -620,6 +677,11 @@ function AdminsOlsPage() {
       ? mobileSelectedConversation
       : null
     : selectedConversation;
+  const activeConversationMode = normalizeConversationMode(activeConversation?.conversationMode);
+  const activeConversationModeBadge = getConversationModeBadge(activeConversation || {});
+  const isActiveConversationAi = activeConversationMode === "ai";
+  const isActiveConversationHuman = activeConversationMode === "human";
+  const isActiveConversationPaused = activeConversationMode === "paused";
   const isMobileThreadOpen = isMobileChatRoute && Boolean(activeConversation?.sessionId);
   const shouldRenderConversationList = !isMobileInboxViewport || !isMobileChatRoute;
   const shouldRenderConversationThread = !isMobileInboxViewport || isMobileChatRoute;
@@ -1203,8 +1265,9 @@ function AdminsOlsPage() {
         sanitizeConversationSummaryError(String(requestError?.message || "Unable to summarize conversation.")),
       );
     } finally {
-      if (controller.signal.aborted) return;
-      setConversationSummaryLoading(false);
+      if (!controller.signal.aborted) {
+        setConversationSummaryLoading(false);
+      }
     }
   };
 
@@ -1545,6 +1608,10 @@ function AdminsOlsPage() {
               listingId: activeConversation.listingId,
               pathname: activeConversation.pathname,
               lastSeenAt: activeConversation.lastSeenAt,
+              conversationMode: "human",
+              assignedAdminId: currentAdmin?.id || "",
+              assignedAdminName: currentAdmin?.fullName || currentAdmin?.email || "",
+              humanTakenOverAt: new Date().toISOString(),
             },
             response.message,
           ),
@@ -1552,12 +1619,71 @@ function AdminsOlsPage() {
       }
 
       setReplyDraft("");
-      setNotice("Reply sent to the conversation.");
+      setNotice("Reply sent. AI is paused while admin takeover is active.");
       await fetchDashboard(session, { silent: true });
     } catch (requestError) {
       setError(String(requestError?.message || "Unable to send reply."));
     } finally {
       setSendingReply(false);
+    }
+  };
+
+  const handleConversationModeChange = async (mode = "ai") => {
+    if (!activeConversation?.sessionId) return;
+    setConversationModeUpdating(true);
+    setError("");
+    setNotice("");
+
+    const normalizedMode = normalizeConversationMode(mode);
+    const action =
+      normalizedMode === "human"
+        ? "take_over"
+        : normalizedMode === "paused"
+          ? "pause_ai"
+          : normalizedMode === "ai"
+            ? "resume_ai"
+            : "set_conversation_mode";
+
+    try {
+      const response = await handleAdminAction({
+        action,
+        sessionId: activeConversation.sessionId,
+        mode: normalizedMode,
+        pageContext: {
+          pageType: activeConversation.pageType,
+          city: activeConversation.city,
+          listingId: activeConversation.listingId,
+          pathname: activeConversation.pathname,
+        },
+      });
+
+      setDashboard((current) =>
+        updateConversationModeInDashboard(current, activeConversation.sessionId, {
+          conversationMode: response?.conversationMode || normalizedMode,
+          assignedAdminId: response?.assignedAdminId || "",
+          assignedAdminName: response?.assignedAdminName || "",
+          humanTakenOverAt:
+            response?.conversationMode === "human" || normalizedMode === "human"
+              ? new Date().toISOString()
+              : "",
+        }),
+      );
+
+      if (normalizedMode === "ai") {
+        setNotice("AI resumed for this conversation.");
+      } else if (normalizedMode === "human") {
+        setNotice("Admin takeover enabled. AI is now paused.");
+      } else if (normalizedMode === "paused") {
+        setNotice("AI paused for this conversation.");
+      } else {
+        setNotice(`Conversation set to ${normalizedMode} mode.`);
+      }
+
+      await fetchDashboard(session, { silent: true });
+    } catch (requestError) {
+      setError(String(requestError?.message || "Unable to update conversation mode."));
+    } finally {
+      setConversationModeUpdating(false);
     }
   };
 
@@ -1927,6 +2053,7 @@ function AdminsOlsPage() {
                       const isActive = thread.sessionId === activeConversation?.sessionId;
                       const needsAttention = conversationNeedsAttention(thread);
                       const unreadBadge = unreadAttentionSignatureSet.has(getConversationAttentionSignature(thread));
+                      const modeBadge = getConversationModeBadge(thread);
                       const conversationContextLabels = dedupeConversationLabels([
                         getConversationChannelLabel(thread),
                         formatPageLabel(thread.pageType),
@@ -1976,6 +2103,7 @@ function AdminsOlsPage() {
                                 )}
                               </div>
                               <div className="admins-ols-messenger-item-mobile-status">
+                                <span className={`admins-ols-badge is-${modeBadge.tone}`}>{modeBadge.label}</span>
                                 {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
                                 {unreadBadge && <span className="admins-ols-messenger-item-unread">1</span>}
                               </div>
@@ -2024,6 +2152,9 @@ function AdminsOlsPage() {
                                   ? activeConversation.city
                                   : "Website"}
                             </p>
+                            <p className="admins-ols-mobile-thread-nav-subtitle">
+                              {activeConversationModeBadge.label}
+                            </p>
                           </div>
                           <div className="admins-ols-mobile-thread-nav-actions">
                             <button
@@ -2035,6 +2166,16 @@ function AdminsOlsPage() {
                               aria-controls="admins-ols-mobile-conversation-info"
                             >
                               Info
+                            </button>
+                            <button
+                              type="button"
+                              className="admins-ols-mobile-head-action"
+                              onClick={() => handleConversationModeChange(isActiveConversationAi ? "human" : "ai")}
+                              disabled={conversationModeUpdating}
+                              aria-label={isActiveConversationAi ? "Take over conversation" : "Resume AI"}
+                              title={isActiveConversationAi ? "Take over conversation" : "Resume AI"}
+                            >
+                              {conversationModeUpdating ? "..." : isActiveConversationAi ? "Take Over" : "Resume"}
                             </button>
                             <button
                               type="button"
@@ -2587,6 +2728,7 @@ function AdminsOlsPage() {
                 const isActive = thread.sessionId === activeConversation?.sessionId;
                 const needsAttention = conversationNeedsAttention(thread);
                 const unreadBadge = unreadAttentionSignatureSet.has(getConversationAttentionSignature(thread));
+                const modeBadge = getConversationModeBadge(thread);
                 const conversationContextLabels = dedupeConversationLabels([
                   getConversationChannelLabel(thread),
                   formatPageLabel(thread.pageType),
@@ -2665,6 +2807,7 @@ function AdminsOlsPage() {
                             {latestMessage?.cardCount > 0 && (
                               <span className="admins-ols-messenger-item-mobile-badge">{latestMessage.cardCount} cards</span>
                             )}
+                            <span className={`admins-ols-badge is-${modeBadge.tone}`}>{modeBadge.label}</span>
                             {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
                           </div>
                         </>
@@ -2686,6 +2829,7 @@ function AdminsOlsPage() {
                           <div className="admins-ols-messenger-item-foot">
                             <span>{thread.messageCount} messages</span>
                             {latestMessage?.cardCount > 0 && <span>{latestMessage.cardCount} cards</span>}
+                            <span className={`admins-ols-badge is-${modeBadge.tone}`}>{modeBadge.label}</span>
                             {needsAttention && <span className="admins-ols-badge is-negative">Needs attention</span>}
                           </div>
                         </>
@@ -2736,6 +2880,9 @@ function AdminsOlsPage() {
                               ? activeConversation.city
                               : "Website"}
                           </p>
+                          <p className="admins-ols-mobile-thread-nav-subtitle">
+                            {activeConversationModeBadge.label}
+                          </p>
                         </div>
                         <div className="admins-ols-mobile-thread-nav-actions">
                           <button
@@ -2747,6 +2894,16 @@ function AdminsOlsPage() {
                             aria-controls="admins-ols-mobile-conversation-info"
                           >
                             Info
+                          </button>
+                          <button
+                            type="button"
+                            className="admins-ols-mobile-head-action"
+                            onClick={() => handleConversationModeChange(isActiveConversationAi ? "human" : "ai")}
+                            disabled={conversationModeUpdating}
+                            aria-label={isActiveConversationAi ? "Take over conversation" : "Resume AI"}
+                            title={isActiveConversationAi ? "Take over conversation" : "Resume AI"}
+                          >
+                            {conversationModeUpdating ? "..." : isActiveConversationAi ? "Take Over" : "Resume"}
                           </button>
                           <button
                             type="button"
@@ -2788,6 +2945,9 @@ function AdminsOlsPage() {
                               <span key={`${activeConversation.sessionId}-${label}`}>{label}</span>
                             ))}
                             <span>{activeConversation.messageCount} messages</span>
+                            <span className={`admins-ols-badge is-${activeConversationModeBadge.tone}`}>
+                              {activeConversationModeBadge.label}
+                            </span>
                             {conversationNeedsAttention(activeConversation) && (
                               <span className="admins-ols-badge is-negative">Needs attention</span>
                             )}
@@ -2795,6 +2955,35 @@ function AdminsOlsPage() {
                         </div>
                         <div className="admins-ols-conversation-head-aside">
                           <small>{formatDateTime(activeConversation.lastSeenAt)}</small>
+                          <div className="admins-ols-conversation-mode-controls">
+                            <button
+                              type="button"
+                              className="admins-ols-conversation-mode-btn"
+                              onClick={() => handleConversationModeChange("human")}
+                              disabled={conversationModeUpdating || isActiveConversationHuman}
+                              title="Assign this conversation to human handling and pause AI replies"
+                            >
+                              {isActiveConversationHuman ? "Human Mode" : "Take Over"}
+                            </button>
+                            <button
+                              type="button"
+                              className="admins-ols-conversation-mode-btn"
+                              onClick={() => handleConversationModeChange("paused")}
+                              disabled={conversationModeUpdating || isActiveConversationPaused}
+                              title="Pause AI auto-replies without assigning takeover ownership"
+                            >
+                              Pause AI
+                            </button>
+                            <button
+                              type="button"
+                              className="admins-ols-conversation-mode-btn is-resume"
+                              onClick={() => handleConversationModeChange("ai")}
+                              disabled={conversationModeUpdating || isActiveConversationAi}
+                              title="Resume AI auto-replies for this conversation"
+                            >
+                              Resume AI
+                            </button>
+                          </div>
                           <button
                             type="button"
                             className="admins-ols-conversation-summary-trigger"

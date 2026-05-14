@@ -1122,6 +1122,55 @@
   gap: 0.42rem;
 }
 
+.admins-ols-conversation-mode-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admins-ols-conversation-mode-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(205, 167, 108, 0.24);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 244, 228, 0.92);
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.68rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+
+.admins-ols-conversation-mode-btn:hover {
+  border-color: rgba(205, 167, 108, 0.4);
+  background: rgba(205, 167, 108, 0.12);
+  transform: translateY(-1px);
+}
+
+.admins-ols-conversation-mode-btn.is-resume {
+  border-color: rgba(120, 168, 255, 0.3);
+  background:
+    radial-gradient(circle at top, rgba(106, 166, 255, 0.2), transparent 62%),
+    rgba(24, 20, 16, 0.6);
+}
+
+.admins-ols-conversation-mode-btn.is-resume:hover {
+  border-color: rgba(160, 210, 255, 0.45);
+  background:
+    radial-gradient(circle at top, rgba(136, 188, 255, 0.26), transparent 62%),
+    rgba(26, 22, 18, 0.68);
+}
+
+.admins-ols-conversation-mode-btn:disabled {
+  opacity: 0.56;
+  cursor: default;
+  transform: none;
+}
+
 .admins-ols-conversation-summary-trigger {
   border-radius: 999px;
   border: 1px solid rgba(120, 168, 255, 0.28);
