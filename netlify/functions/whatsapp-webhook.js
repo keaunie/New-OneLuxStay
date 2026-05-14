@@ -83,6 +83,11 @@ const buildTwimlMessage = (message = "") =>
 
 const getChannelFromAddress = (from = "") => (/^whatsapp:/i.test(String(from || "").trim()) ? "whatsapp" : "sms");
 
+const isSmsRoute = (event = {}) => {
+  const path = sanitizeString(event?.path || event?.rawUrl || "", 500).toLowerCase();
+  return path.includes("/api/sms");
+};
+
 const buildSessionId = (from = "", channel = "whatsapp") => {
   const digits = String(from || "").replace(/[^\d+]/g, "");
   const prefix = channel === "sms" ? "sms" : "whatsapp";
@@ -220,18 +225,32 @@ export async function handler(event) {
   }
 
   const params = parseFormBody(event);
+  const channelFromPayload = getChannelFromAddress(sanitizeString(params.get("From"), 80));
+  const smsRequest = isSmsRoute(event) || channelFromPayload === "sms";
   const authToken = sanitizeString(
-    getEnv("TWILIO_WHATSAPP_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"),
+    smsRequest
+      ? getEnv("TWILIO_SMS_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN")
+      : getEnv("TWILIO_WHATSAPP_AUTH_TOKEN") || getEnv("TWILIO_AUTH_TOKEN"),
     200,
   );
 
-  if (authToken && !isValidTwilioSignature({ event, params, authToken })) {
+  const signatureValid = authToken ? isValidTwilioSignature({ event, params, authToken }) : true;
+  if (smsRequest) {
+    console.info("Inbound SMS signature check", {
+      valid: signatureValid,
+      hasToken: Boolean(authToken),
+      hasSignatureHeader: Boolean(getHeaderValue(event, "x-twilio-signature")),
+    });
+  }
+
+  if (!signatureValid) {
     return buildTwimlMessage("The WhatsApp request could not be verified.");
   }
 
   const incomingMessage = sanitizeString(params.get("Body"), 1600);
   const from = sanitizeString(params.get("From"), 80);
   const to = sanitizeString(params.get("To"), 80);
+  const messageSid = sanitizeString(params.get("MessageSid"), 120);
   const profileName = sanitizeString(params.get("ProfileName"), 160);
   const channel = getChannelFromAddress(from);
   const resolvedSender = resolveSender({
@@ -249,6 +268,7 @@ export async function handler(event) {
       : normalizeWhatsAppAddress(from);
   const sourceOrigin = `twilio_${channel}_${sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us"}`;
   const chatSessionId = buildSessionId(from, channel);
+  const inboundMessageId = messageSid ? sanitizeId(`twilio-in-${messageSid}`, 120) : "";
   const pageContext = {
     ...DEFAULT_PAGE_CONTEXT,
     pageType: channel,
@@ -262,7 +282,62 @@ export async function handler(event) {
     return buildTwimlMessage(buildWelcomeMessage());
   }
 
+  if (channel === "sms") {
+    console.info("Inbound SMS received", {
+      from,
+      to,
+      sessionId: chatSessionId,
+      messageSid,
+    });
+  }
+
   try {
+    if (channel === "sms") {
+      try {
+        const preStoreResponse = await chatLearningHandler(
+          buildInternalAiEvent(
+            event,
+            {
+              action: "turn",
+              chatSessionId,
+              pageContext,
+              responseMode: "live",
+              responseModel: "twilio_inbound_pre_store",
+              userMessage: {
+                id: inboundMessageId || undefined,
+                role: "user",
+                content: incomingMessage,
+                senderType: "guest",
+                senderName: profileName || "SMS guest",
+                channel,
+                senderRegion: sanitizeString(resolvedSender?.region, 20).toLowerCase() || "us",
+                senderChannel: channel,
+                senderFrom: senderTo,
+                senderTo: senderFrom,
+                inboundFrom: senderTo,
+                inboundTo: senderFrom,
+                twilio_to_number: senderFrom,
+              },
+            },
+            sourceOrigin,
+          ),
+        );
+        const preStorePayload = parseJsonBody(preStoreResponse);
+        console.info("Inbound SMS pre-store result", {
+          sessionId: chatSessionId,
+          messageSid,
+          ok: Boolean(preStorePayload?.ok),
+          statusCode: Number(preStoreResponse?.statusCode) || 0,
+        });
+      } catch (preStoreError) {
+        console.warn("Inbound SMS pre-store failed", {
+          sessionId: chatSessionId,
+          messageSid,
+          message: preStoreError?.message || String(preStoreError),
+        });
+      }
+    }
+
     const syncResponse = await chatLearningHandler(
       buildInternalAiEvent(event, {
         action: "sync",
@@ -311,6 +386,7 @@ export async function handler(event) {
         responseMode: sanitizeString(chatPayload?.mode, 40) || "live",
         responseModel: sanitizeString(chatPayload?.model, 120),
         userMessage: {
+          id: inboundMessageId || undefined,
           role: "user",
           content: incomingMessage,
           senderType: "guest",
