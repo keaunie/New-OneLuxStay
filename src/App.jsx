@@ -100,10 +100,14 @@ function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
   const { appLoaded, shouldShowLoader } = useCityRouteLoading();
+  const pathname = String(location.pathname || "").toLowerCase();
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
-  const hideChatConcierge = false;
+  const hideChatConcierge =
+    pathname.startsWith("/admins-ols") ||
+    pathname.startsWith("/executive-ols") ||
+    pathname.startsWith("/private/");
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -123,7 +127,6 @@ function AppRoutes() {
       // ignore
     }
 
-    const pathname = String(location.pathname || "").toLowerCase();
     if (
       !pathname ||
       pathname.startsWith("/admins-ols") ||
@@ -134,7 +137,7 @@ function AppRoutes() {
     }
     if (pathname === "/ai-agent") return;
     trackGuestPageView().catch(() => null);
-  }, [location.hash, location.pathname, location.search, navigate]);
+  }, [location.hash, location.pathname, location.search, navigate, pathname]);
 
   return (
     <>

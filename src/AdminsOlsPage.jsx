@@ -1331,24 +1331,31 @@ function AdminsOlsPage() {
       throw new Error("Admin session not found.");
     }
 
-    const buildRequest = (resolvedSession) =>
-      fetch(`${apiBase}/admins-ols`, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          ...getAdminsOlsAuthHeaders(resolvedSession),
-        },
-        signal,
-        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
-      });
+    const requestWithTimeout = async (resolvedSession) => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort("admins-ols-timeout"), 20_000);
+      try {
+        return await fetch(`${apiBase}/admins-ols`, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            ...getAdminsOlsAuthHeaders(resolvedSession),
+          },
+          signal: signal || controller.signal,
+          ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    };
 
-    let response = await buildRequest(activeSession);
+    let response = await requestWithTimeout(activeSession);
 
     if ((response.status === 401 || response.status === 403) && activeSession?.refreshToken) {
       const refreshedSession = await refreshAdminsOlsSession(apiBase, activeSession).catch(() => null);
       if (refreshedSession?.accessToken) {
         setSession(refreshedSession);
-        response = await buildRequest(refreshedSession);
+        response = await requestWithTimeout(refreshedSession);
       }
     }
 
@@ -1357,6 +1364,9 @@ function AdminsOlsPage() {
       if (response.status === 401 || response.status === 403) {
         clearAdminsOlsSession();
         setSession(null);
+      }
+      if (response.status === 403) {
+        throw new Error(data?.error || "Access denied. Your admin permissions may have changed.");
       }
       throw new Error(data?.error || "Admin request failed.");
     }
