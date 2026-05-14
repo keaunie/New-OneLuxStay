@@ -2293,6 +2293,12 @@ function AdminsOlsPage() {
                     <span>Call Center</span>
                     <span className="admins-ols-side-nav-count">View</span>
                   </Link>
+                  {isSuperAdmin && (
+                    <Link className="admins-ols-profile-action" to="/executive-ols/admin-presence">
+                      <span>Live Admins</span>
+                      <span className="admins-ols-side-nav-count">{recentSessions.length || "Go"}</span>
+                    </Link>
+                  )}
                   <button
                     type="button"
                     className={`admins-ols-profile-action${unreadAttentionCount > 0 ? " is-attention" : ""}`}

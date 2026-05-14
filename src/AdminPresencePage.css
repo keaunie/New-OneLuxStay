@@ -1,0 +1,270 @@
+.admin-presence-page {
+  min-height: 100dvh;
+  padding: clamp(1rem, 2vw, 2rem);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(198, 155, 96, 0.18), transparent 52%),
+    radial-gradient(900px 500px at 100% 0%, rgba(153, 112, 59, 0.15), transparent 50%),
+    #0f1219;
+  color: #eef1f5;
+}
+
+.admin-presence-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(215, 172, 110, 0.24);
+  border-radius: 1rem;
+  background: linear-gradient(165deg, rgba(25, 30, 40, 0.92), rgba(14, 18, 26, 0.9));
+  box-shadow: 0 20px 38px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(10px);
+}
+
+.admin-presence-eyebrow {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #d6b07f;
+}
+
+.admin-presence-superadmin-badge {
+  display: inline-flex;
+  margin: 0.55rem 0 0;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 175, 114, 0.45);
+  background: rgba(86, 62, 29, 0.28);
+  color: #f6ddbd;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.62rem;
+}
+
+.admin-presence-hero h1 {
+  margin: 0.3rem 0;
+  font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+  line-height: 1.1;
+}
+
+.admin-presence-hero p {
+  margin: 0;
+  color: #c2cad8;
+}
+
+.admin-presence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  font-size: 0.84rem;
+  color: #99a5ba;
+}
+
+.admin-presence-hero-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.admin-presence-hero-actions button,
+.admin-presence-hero-actions a {
+  border-radius: 999px;
+  border: 1px solid rgba(208, 169, 111, 0.45);
+  background: rgba(20, 25, 34, 0.85);
+  color: #f5eee2;
+  text-decoration: none;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.admin-presence-hero-actions button:hover,
+.admin-presence-hero-actions a:hover {
+  transform: translateY(-1px);
+  background: rgba(35, 44, 58, 0.9);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.admin-presence-stats {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.admin-presence-stats article {
+  border: 1px solid rgba(167, 179, 205, 0.25);
+  border-radius: 0.9rem;
+  background: rgba(20, 25, 35, 0.84);
+  padding: 0.8rem 0.9rem;
+}
+
+.admin-presence-stats span {
+  display: block;
+  color: #aeb9cc;
+  font-size: 0.8rem;
+}
+
+.admin-presence-stats strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 0.2rem;
+  color: #f8f3ea;
+}
+
+.admin-presence-error {
+  margin-top: 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(212, 88, 88, 0.5);
+  background: rgba(102, 26, 26, 0.3);
+  color: #ffd7d7;
+  padding: 0.75rem 0.85rem;
+}
+
+.admin-presence-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.admin-presence-card {
+  border: 1px solid rgba(157, 173, 203, 0.25);
+  border-radius: 1rem;
+  background: linear-gradient(160deg, rgba(21, 26, 36, 0.88), rgba(13, 17, 26, 0.92));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.25);
+  padding: 0.95rem;
+}
+
+.admin-presence-card-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admin-presence-avatar {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #1d160c;
+  background: linear-gradient(135deg, #f2d6ac, #c38f4d);
+}
+
+.admin-presence-identity h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #fbfcfe;
+}
+
+.admin-presence-identity p {
+  margin: 0.15rem 0 0;
+  color: #a9b5cc;
+  font-size: 0.84rem;
+}
+
+.admin-presence-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  border-radius: 999px;
+  padding: 0.26rem 0.55rem;
+  border: 1px solid transparent;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}
+
+.admin-presence-status.is-online {
+  color: #d7ffd7;
+  border-color: rgba(95, 201, 111, 0.55);
+  background: rgba(35, 106, 46, 0.32);
+}
+
+.admin-presence-status.is-away {
+  color: #ffe8b8;
+  border-color: rgba(234, 171, 79, 0.55);
+  background: rgba(103, 72, 22, 0.32);
+}
+
+.admin-presence-status.is-offline {
+  color: #f1f5fb;
+  border-color: rgba(130, 147, 181, 0.4);
+  background: rgba(48, 58, 79, 0.3);
+}
+
+.admin-presence-details {
+  margin: 0.8rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.85rem;
+}
+
+.admin-presence-details div {
+  min-width: 0;
+}
+
+.admin-presence-details dt {
+  color: #9eadc6;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-presence-details dd {
+  margin: 0.18rem 0 0;
+  color: #f2f6ff;
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.admin-presence-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed rgba(157, 173, 203, 0.35);
+  border-radius: 1rem;
+  padding: 1.2rem;
+  color: #c5d0e5;
+}
+
+.admin-presence-empty h3 {
+  margin: 0;
+  color: #eff3fb;
+}
+
+.admin-presence-empty p {
+  margin: 0.4rem 0 0;
+}
+
+@media (max-width: 1150px) {
+  .admin-presence-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 880px) {
+  .admin-presence-hero {
+    flex-direction: column;
+  }
+
+  .admin-presence-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-presence-page {
+    padding: 0.85rem;
+  }
+
+  .admin-presence-grid {
+    grid-template-columns: 1fr;
+  }
+}

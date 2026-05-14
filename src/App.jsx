@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
 import ScrollToTop from "./components/ScrollToTop";
+import ProtectedSuperAdminRoute from "./components/ProtectedSuperAdminRoute";
 import { trackGuestPageView } from "./utils/guestAnalytics";
 import "./App.css";
 
@@ -33,6 +34,7 @@ const CallsPage = lazy(routePreloaders.belgiumPhone);
 const CityAttractionsPage = lazy(routePreloaders.cityAttractions);
 const SettingConfigOlsPage = lazy(routePreloaders.settingConfigOls);
 const ApaleoTestPage = lazy(routePreloaders.apaleoTest);
+const AdminPresencePage = lazy(routePreloaders.adminPresence);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -222,6 +224,11 @@ function AppRoutes() {
           <Route path="/executive-ols/chat/:conversationId" element={renderLazyRoute(AdminsOlsPage)} />
           <Route path="/executive-ols/audit" element={renderLazyRoute(AdminsOlsAuditPage)} />
           <Route path="/executive-ols/guest-journeys" element={renderLazyRoute(AdminsOlsGuestJourneysPage)} />
+          <Route path="/admin-presence" element={<Navigate to="/executive-ols/admin-presence" replace />} />
+          <Route
+            path="/executive-ols/admin-presence"
+            element={<ProtectedSuperAdminRoute>{renderLazyRoute(AdminPresencePage)}</ProtectedSuperAdminRoute>}
+          />
           <Route path="/executive-ols/whatsapp" element={renderLazyRoute(ExecutiveOlsPage)} />
           <Route path="/executive-ols/calls" element={renderLazyRoute(CallsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}

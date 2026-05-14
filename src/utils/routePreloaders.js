@@ -24,6 +24,7 @@ const preloadBelgiumPhonePage = () => import("../executiveOls/CallsPage");
 const preloadCityAttractionsPage = () => import("../CityAttractionsPage");
 const preloadSettingConfigOlsPage = () => import("../SettingConfigOlsPage");
 const preloadApaleoTestPage = () => import("../pages/ApaleoTestPage");
+const preloadAdminPresencePage = () => import("../AdminPresencePage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -53,6 +54,7 @@ export const routePreloaders = {
   cityAttractions: preloadCityAttractionsPage,
   settingConfigOls: preloadSettingConfigOlsPage,
   apaleoTest: preloadApaleoTestPage,
+  adminPresence: preloadAdminPresencePage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 
@@ -134,6 +136,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/admins-ols/guest-journeys" || normalized === "/executive-ols/guest-journeys") {
     return routePreloaders.adminsOlsGuestJourneys().then(() => undefined);
+  }
+  if (normalized === "/admin-presence" || normalized === "/executive-ols/admin-presence") {
+    return routePreloaders.adminPresence().then(() => undefined);
   }
   if (normalized === "/admins-ols/whatsapp" || normalized === "/executive-ols/whatsapp") {
     return routePreloaders.executiveOls().then(() => undefined);
