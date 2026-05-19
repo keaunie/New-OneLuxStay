@@ -44,15 +44,32 @@ export const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
 
 export const readJsonBody = (event = {}) => JSON.parse(event.body || "{}");
 
-export const getBaseUrl = (event = {}) => {
+export const PUBLIC_WEBSITE_URL = String(process.env.PUBLIC_WEBSITE_URL || "https://oneluxstay.com")
+  .trim()
+  .replace(/\/+$/, "");
+
+const normalizeOrigin = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin.replace(/\/+$/, "");
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+};
+
+// Internal origin for API/function routing.
+// This must be environment-aware so Netlify Dev / Deploy Previews keep working.
+export const getInternalOrigin = (event = {}) => {
   const headers = event.headers || {};
   const origin = headers.origin || headers.Origin || "";
-  if (origin) return String(origin).replace(/\/+$/, "");
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (normalizedOrigin) return normalizedOrigin;
 
   const referer = headers.referer || headers.referrer || headers.Referer || headers.Referrer || "";
   if (referer) {
     try {
-      return new URL(referer).origin.replace(/\/+$/, "");
+      return new URL(String(referer)).origin.replace(/\/+$/, "");
     } catch {
       // ignore
     }
@@ -65,8 +82,20 @@ export const getBaseUrl = (event = {}) => {
   const host = headers["x-forwarded-host"] || headers["X-Forwarded-Host"] || headers.host || headers.Host || "";
   if (host) return `${proto}://${host}`.replace(/\/+$/, "");
 
-  return String(process.env.PUBLIC_SITE_URL || process.env.URL || "https://oneluxstay.com").replace(/\/+$/, "");
+  return normalizeOrigin(
+    process.env.INTERNAL_API_ORIGIN ||
+      process.env.PUBLIC_SITE_URL ||
+      process.env.DEPLOY_PRIME_URL ||
+      process.env.URL ||
+      PUBLIC_WEBSITE_URL,
+  ) || PUBLIC_WEBSITE_URL;
 };
+
+// Backwards-compatible alias used across functions (internal base).
+export const getBaseUrl = (event = {}) => getInternalOrigin(event);
+
+// Public website URL for guest-facing links.
+export const getPublicWebsiteUrl = () => PUBLIC_WEBSITE_URL;
 
 export const sanitizeInternalPath = (value = "") => {
   const trimmed = String(value || "").trim();

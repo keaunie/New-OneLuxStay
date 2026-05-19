@@ -15,10 +15,14 @@ if (!supabaseUrl || !supabaseKey) {
 
 const sourceOrigin = String(
   process.env.SUPABASE_LISTINGS_SOURCE_ORIGIN ||
+    process.env.INTERNAL_API_ORIGIN ||
     process.env.SITEMAP_FUNCTIONS_ORIGIN ||
+    process.env.VITE_INTERNAL_API_BASE ||
     process.env.VITE_NETLIFY_SITE_URL ||
     process.env.VITE_NETLIFY_FUNCTIONS_ORIGIN ||
-    "https://oneluxstayprop.netlify.app",
+    process.env.DEPLOY_PRIME_URL ||
+    process.env.URL ||
+    "http://localhost:8888",
 )
   .trim()
   .replace(/\/+$/, "");

@@ -100,6 +100,23 @@
   color: #8f2525;
 }
 
+.apaleo-badge.info {
+  background: #e8f1ff;
+  border-color: #92b2ee;
+  color: #1f4f93;
+}
+
+.apaleo-badge.neutral {
+  background: rgba(247, 241, 231, 0.9);
+  border-color: rgba(128, 103, 63, 0.22);
+  color: #5f4d34;
+}
+
+.apaleo-badge.apaleo-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+}
+
 .apaleo-meta-list {
   margin: 10px 0 0;
   padding-left: 18px;
@@ -181,6 +198,238 @@
   color: #7a6545;
 }
 
+.apaleo-reservations-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.apaleo-reservations-subtitle {
+  margin: 4px 0 0;
+  color: #6c5a40;
+}
+
+.apaleo-reservations-controls {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.apaleo-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.apaleo-filter-chip {
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(128, 103, 63, 0.18);
+  background: rgba(255, 252, 247, 0.98);
+  color: #6c5a40;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.apaleo-filter-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(128, 103, 63, 0.32);
+}
+
+.apaleo-filter-chip.active {
+  background: rgba(214, 185, 126, 0.25);
+  border-color: rgba(127, 102, 61, 0.36);
+  color: #2f2418;
+}
+
+.apaleo-control-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.apaleo-control {
+  display: grid;
+  gap: 6px;
+}
+
+.apaleo-control-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7d653f;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.apaleo-input,
+.apaleo-select {
+  border-radius: 12px;
+  border: 1px solid rgba(128, 103, 63, 0.18);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f2418;
+  font-size: 14px;
+  outline: none;
+}
+
+.apaleo-input:focus,
+.apaleo-select:focus {
+  border-color: rgba(127, 102, 61, 0.5);
+  box-shadow: 0 0 0 4px rgba(214, 185, 126, 0.18);
+}
+
+.apaleo-reservations-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.apaleo-reservations-table-shell {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(128, 103, 63, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 252, 247, 0.96);
+}
+
+.apaleo-reservations-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.apaleo-reservations-table th,
+.apaleo-reservations-table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(128, 103, 63, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.apaleo-reservations-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(251, 248, 242, 0.98);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7d653f;
+}
+
+.apaleo-reservations-table tbody tr {
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.apaleo-reservations-table tbody tr:hover {
+  background: rgba(214, 185, 126, 0.12);
+}
+
+.apaleo-reservations-table tbody tr.selected {
+  background: rgba(214, 185, 126, 0.2);
+}
+
+.apaleo-reservation-guest {
+  font-weight: 800;
+  color: #2f2418;
+}
+
+.apaleo-reservation-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6c5a40;
+}
+
+.apaleo-reservation-dates {
+  font-weight: 700;
+}
+
+.apaleo-arrow {
+  color: #7d653f;
+  margin: 0 4px;
+}
+
+.apaleo-empty-cell {
+  padding: 14px 12px;
+  color: #7a6545;
+}
+
+.apaleo-reservations-details-card {
+  border: 1px solid rgba(128, 103, 63, 0.14);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(255, 252, 247, 0.96);
+}
+
+.apaleo-reservations-details-card h4 {
+  margin: 0 0 10px;
+}
+
+.apaleo-details-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.apaleo-details-line {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 14px;
+}
+
+.apaleo-details-line span {
+  color: #725c3d;
+}
+
+.apaleo-details-raw {
+  margin-top: 6px;
+}
+
+.apaleo-reservations-cards {
+  display: block;
+}
+
+.apaleo-reservation-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.apaleo-reservation-card.selected {
+  border-color: rgba(127, 102, 61, 0.4);
+  box-shadow: 0 10px 28px rgba(82, 61, 30, 0.12);
+}
+
+.apaleo-card-lines p {
+  margin: 6px 0;
+  color: #2f2418;
+}
+
+.apaleo-status {
+  white-space: nowrap;
+}
+
+.apaleo-debug-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.apaleo-debug-label {
+  margin: 0 0 8px;
+  color: #6c5a40;
+}
+
+.apaleo-json.apaleo-json-compact {
+  max-height: 220px;
+}
+
 @media (min-width: 900px) {
   .apaleo-col-4 {
     grid-column: span 4;
@@ -192,5 +441,25 @@
 
   .apaleo-col-8 {
     grid-column: span 8;
+  }
+
+  .apaleo-control-row {
+    grid-template-columns: 1.4fr 0.9fr;
+    align-items: end;
+  }
+
+  .apaleo-reservations-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .apaleo-reservations-cards {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .apaleo-reservations-table-shell {
+    display: none;
   }
 }

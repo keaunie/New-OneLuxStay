@@ -614,14 +614,194 @@ export const normalizeApaleoUnitGroup = (unitGroup = {}) => {
   };
 };
 
-const readGuestName = (reservation = {}) => {
-  const direct = sanitizeString(reservation?.guestName || reservation?.name, 220);
+const readGuestCandidates = (reservation = {}) => {
+  const candidates = [
+    reservation?.guest,
+    reservation?.guest?.person,
+    reservation?.guest?.profile,
+    reservation?.guest?.contact,
+    reservation?.primaryGuest,
+    reservation?.primaryGuest?.person,
+    reservation?.primaryGuest?.profile,
+    reservation?.primaryGuest?.contact,
+    reservation?.mainGuest,
+    reservation?.booker,
+    reservation?.booker?.person,
+    reservation?.booker?.profile,
+    reservation?.booker?.contact,
+    reservation?.customer,
+    reservation?.contact,
+    reservation?.guestProfile,
+    reservation?.profile,
+    reservation?.guest?.profile,
+    reservation?.primaryGuest?.profile,
+    ...(toArray(reservation?.guests)),
+    ...(toArray(reservation?.guestProfiles)),
+    ...(toArray(reservation?.profiles)),
+    ...(toArray(reservation?.people)),
+    ...(toArray(reservation?.persons)),
+  ];
+
+  const seen = new Set();
+  return candidates.filter((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    if (seen.has(entry)) return false;
+    seen.add(entry);
+    return true;
+  });
+};
+
+const buildFullName = ({ fullName = "", firstName = "", lastName = "" } = {}) => {
+  const direct = sanitizeString(fullName, 220);
   if (direct) return direct;
-  const firstName = sanitizeString(reservation?.guest?.firstName, 120);
-  const lastName = sanitizeString(reservation?.guest?.lastName, 120);
-  const fullName = `${firstName} ${lastName}`.trim();
-  if (fullName) return fullName;
-  return sanitizeString(reservation?.booker?.name || reservation?.company?.name, 220);
+  const first = sanitizeString(firstName, 120);
+  const last = sanitizeString(lastName, 120);
+  const combined = `${first} ${last}`.trim();
+  return combined || "";
+};
+
+const readEmailFromPerson = (person = {}) => {
+  const direct = sanitizeString(
+    person?.email ||
+      person?.emailAddress ||
+      person?.email_address ||
+      person?.contact?.email ||
+      person?.contact?.emailAddress,
+    220,
+  );
+  if (direct) return direct;
+
+  const arrays = [
+    ...toArray(person?.emails),
+    ...toArray(person?.emailAddresses),
+    ...toArray(person?.email_addresses),
+    ...toArray(person?.contactEmails),
+  ];
+
+  for (const entry of arrays) {
+    if (!entry) continue;
+    const value =
+      typeof entry === "string"
+        ? entry
+        : entry?.email || entry?.emailAddress || entry?.address || entry?.value;
+    const normalized = sanitizeString(value, 220);
+    if (normalized) return normalized;
+  }
+
+  return "";
+};
+
+const readPhoneFromPerson = (person = {}) =>
+  normalizePhoneNumber(
+    person?.phone ||
+      person?.phoneNumber ||
+      person?.mobilePhone ||
+      person?.mobilePhoneNumber ||
+      person?.telephone ||
+      person?.telephoneNumber ||
+      person?.contactPhone ||
+      person?.contactPhoneNumber ||
+      person?.contact?.phone ||
+      person?.contact?.phoneNumber ||
+      person?.contact?.telephone ||
+      person?.contact?.telephoneNumber,
+  );
+
+const readAddressFromPerson = (person = {}) => {
+  const addresses = toArray(person?.addresses);
+  const firstAddress = addresses.length && addresses[0] && typeof addresses[0] === "object" ? addresses[0] : null;
+  const address =
+    (person?.address && typeof person.address === "object" ? person.address : null) ||
+    (person?.contact?.address && typeof person.contact.address === "object" ? person.contact.address : null) ||
+    firstAddress ||
+    {};
+  const countryCode = sanitizeString(
+    address?.countryCode || address?.country || address?.country_code || address?.isoCountryCode,
+    10,
+  ).toUpperCase();
+
+  return {
+    line1: sanitizeString(
+      address?.line1 ||
+        address?.addressLine1 ||
+        address?.street ||
+        address?.streetAddress ||
+        address?.address1,
+      240,
+    ),
+    line2: sanitizeString(
+      address?.line2 ||
+        address?.addressLine2 ||
+        address?.street2 ||
+        address?.address2,
+      240,
+    ),
+    postalCode: sanitizeString(address?.postalCode || address?.zip || address?.zipCode, 40),
+    city: sanitizeString(address?.city || address?.locality, 120),
+    region: sanitizeString(address?.state || address?.region || address?.province, 120),
+    countryCode: countryCode || "",
+  };
+};
+
+const readGuestProfile = (reservation = {}) => {
+  const candidates = readGuestCandidates(reservation);
+
+  for (const person of candidates) {
+    const firstName = sanitizeString(
+      person?.firstName ||
+        person?.givenName ||
+        person?.first_name ||
+        person?.name?.firstName ||
+        person?.name?.givenName ||
+        person?.name?.first,
+      120,
+    );
+    const lastName = sanitizeString(
+      person?.lastName ||
+        person?.familyName ||
+        person?.surname ||
+        person?.last_name ||
+        person?.name?.lastName ||
+        person?.name?.familyName ||
+        person?.name?.last,
+      120,
+    );
+    const fullName = buildFullName({
+      fullName: person?.fullName || person?.displayName || person?.name?.fullName || person?.name,
+      firstName,
+      lastName,
+    });
+
+    const email = readEmailFromPerson(person);
+    const phone = readPhoneFromPerson(person);
+    const address = readAddressFromPerson(person);
+    const profileId = sanitizeString(person?.id || person?.profileId || person?.guestId, 160);
+
+    const hasSignal = Boolean(fullName || email || phone || address.line1 || address.city);
+    if (!hasSignal) continue;
+
+    return {
+      firstName,
+      lastName,
+      fullName,
+      email,
+      phone,
+      address,
+      profileId,
+      sourceKeys: Object.keys(person || {}).slice(0, 40),
+    };
+  }
+
+  return {
+    firstName: "",
+    lastName: "",
+    fullName: "",
+    email: "",
+    phone: "",
+    address: { line1: "", line2: "", postalCode: "", city: "", region: "", countryCode: "" },
+    profileId: "",
+    sourceKeys: [],
+  };
 };
 
 const normalizeDate = (value = "") => {
@@ -634,23 +814,132 @@ const normalizeDate = (value = "") => {
 };
 
 export const normalizeApaleoReservation = (reservation = {}) => {
-  const listingId = sanitizeString(
-    reservation?.propertyId || reservation?.unitGroupId || reservation?.listingId || reservation?.unitId,
+  const guestProfile = readGuestProfile(reservation);
+  const guestName =
+    sanitizeString(reservation?.guestName || reservation?.name, 220) ||
+    guestProfile.fullName ||
+    sanitizeString(reservation?.booker?.name, 220) ||
+    `${sanitizeString(reservation?.booker?.firstName || reservation?.booker?.givenName, 120)} ${sanitizeString(
+      reservation?.booker?.lastName || reservation?.booker?.familyName,
+      120,
+    )}`.trim() ||
+    sanitizeString(reservation?.company?.name, 220);
+  const propertyId = sanitizeString(
+    reservation?.propertyId ||
+      reservation?.property?.id ||
+      reservation?.unitGroup?.propertyId ||
+      reservation?.unitGroup?.property?.id,
     120,
   );
+
+  const unitGroupId = sanitizeString(
+    reservation?.unitGroupId ||
+      reservation?.unitGroup?.id ||
+      reservation?.requestedUnitGroupId ||
+      reservation?.requestedUnitGroup?.id,
+    120,
+  );
+
+  const unitGroupName = sanitizeString(
+    reservation?.unitGroup?.name ||
+      reservation?.unitGroup?.description ||
+      reservation?.unitGroup?.title ||
+      reservation?.requestedUnitGroup?.name ||
+      reservation?.requestedUnitGroup?.description,
+    240,
+  );
+
+  const unitId = sanitizeString(
+    reservation?.unitId ||
+      reservation?.unit?.id ||
+      reservation?.assignedUnitId ||
+      reservation?.assignedUnit?.id,
+    120,
+  );
+
+  const unitName = sanitizeString(
+    reservation?.unit?.name || reservation?.unit?.description || reservation?.assignedUnit?.name,
+    240,
+  );
+
+  const confirmationNumber = sanitizeString(
+    reservation?.confirmationNumber ||
+      reservation?.confirmationCode ||
+      reservation?.externalReference ||
+      reservation?.externalId ||
+      reservation?.bookingReference ||
+      reservation?.code,
+    160,
+  );
+
+  const channel = sanitizeString(
+    reservation?.channel ||
+      reservation?.channelCode ||
+      reservation?.source ||
+      reservation?.sourceCode ||
+      reservation?.marketSegment ||
+      reservation?.origin,
+    120,
+  );
+
+  const adults = Number(
+    reservation?.adults ??
+      reservation?.adultCount ??
+      reservation?.adultGuests ??
+      reservation?.guestCounts?.adults ??
+      reservation?.guestCount?.adults,
+  );
+
+  const children = Number(
+    reservation?.children ??
+      reservation?.childCount ??
+      reservation?.childGuests ??
+      reservation?.guestCounts?.children ??
+      reservation?.guestCount?.children,
+  );
+
+  const status = sanitizeString(reservation?.status || reservation?.bookingStatus || "unknown", 80).toLowerCase() || "unknown";
 
   return {
     id: sanitizeString(
       reservation?.id || reservation?.reservationId || reservation?.confirmationNumber || reservation?.confirmationCode,
       120,
     ),
-    guestName: readGuestName(reservation),
+    guestName,
+    guest: guestProfile,
+    guestEmail: guestProfile.email,
+    guestPhone: guestProfile.phone,
+    guestAddress: guestProfile.address,
     checkIn: normalizeDate(reservation?.arrival || reservation?.checkIn || reservation?.checkInDate),
     checkOut: normalizeDate(reservation?.departure || reservation?.checkOut || reservation?.checkOutDate),
-    propertyId: listingId,
-    status: sanitizeString(reservation?.status || reservation?.bookingStatus || "unknown", 80).toLowerCase() || "unknown",
+    propertyId,
+    unitGroupId,
+    unitGroupName,
+    unitId,
+    unitName,
+    adults: Number.isFinite(adults) && adults >= 0 ? adults : null,
+    children: Number.isFinite(children) && children >= 0 ? children : null,
+    confirmationNumber,
+    channel,
+    status,
     provider: "apaleo",
     raw: reservation,
+  };
+};
+
+export const listApaleoReservationsWithDebug = async ({ query = {} } = {}) => {
+  const endpoint = sanitizeString(process.env.APALEO_RESERVATIONS_ENDPOINT || "/booking/v1/reservations", 240);
+  const response = await apaleoRequest(endpoint, { query });
+  const list = toArray(
+    response?.payload?.reservations || response?.payload?.items || response?.payload?.data || response?.payload,
+  );
+  return {
+    results: list.map((item) => normalizeApaleoReservation(item)).filter((item) => item.id),
+    debug: {
+      endpoint,
+      url: response?.url || null,
+      statusCode: response?.statusCode || null,
+    },
   };
 };
 
@@ -715,10 +1004,8 @@ export const listApaleoUnitGroups = async ({ query = {} } = {}) => {
 };
 
 export const listApaleoReservations = async ({ query = {} } = {}) => {
-  const endpoint = sanitizeString(process.env.APALEO_RESERVATIONS_ENDPOINT || "/booking/v1/reservations", 240);
-  const response = await apaleoRequest(endpoint, { query });
-  const list = toArray(response?.payload?.reservations || response?.payload?.items || response?.payload?.data || response?.payload);
-  return list.map((item) => normalizeApaleoReservation(item)).filter((item) => item.id);
+  const payload = await listApaleoReservationsWithDebug({ query });
+  return payload.results;
 };
 
 export const findApaleoReservationByCode = async ({ reservationCode = "" } = {}) => {
@@ -858,5 +1145,12 @@ export const buildApaleoSyncMetadata = ({ source = "apaleo_api", extra = {} } = 
 
 export const normalizeApaleoGuestPhone = (reservation = {}) =>
   normalizePhoneNumber(
-    reservation?.guest?.phone || reservation?.guestPhone || reservation?.phone || reservation?.booker?.phone,
+    reservation?.guest?.phone ||
+      reservation?.guest?.phoneNumber ||
+      reservation?.primaryGuest?.phone ||
+      reservation?.primaryGuest?.phoneNumber ||
+      reservation?.guestPhone ||
+      reservation?.phone ||
+      reservation?.booker?.phone ||
+      reservation?.booker?.phoneNumber,
   );

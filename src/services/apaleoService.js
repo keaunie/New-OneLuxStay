@@ -26,7 +26,9 @@ const request = async (
   const startedAt = performance.now();
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
-    const response = await fetch(`${apiBase}${path}${toQueryString(query)}`, {
+    const requestUrl = `${apiBase}${path}${toQueryString(query)}`;
+
+    const response = await fetch(requestUrl, {
       method,
       headers: {
         Accept: "application/json",
@@ -41,6 +43,8 @@ const request = async (
         ...payload,
         _meta: {
           endpoint: path,
+          url: requestUrl,
+          query,
           durationMs: Math.round(performance.now() - startedAt),
           statusCode: response.status,
           retriesUsed: attempt,

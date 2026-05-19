@@ -9,17 +9,35 @@ const projectRoot = path.resolve(__dirname, "..");
 const appRoutesFile = path.join(projectRoot, "src", "App.jsx");
 const sitemapFile = path.join(projectRoot, "public", "sitemap.xml");
 
-const SITE_URL = String(process.env.SITEMAP_SITE_URL || process.env.VITE_SITE_URL || "https://oneluxstay.com")
-  .trim()
-  .replace(/\/+$/, "");
-const FUNCTIONS_ORIGIN = String(
-  process.env.SITEMAP_FUNCTIONS_ORIGIN ||
-  process.env.VITE_NETLIFY_SITE_URL ||
-  process.env.VITE_NETLIFY_FUNCTIONS_ORIGIN ||
-  "https://oneluxstayprop.netlify.app"
-)
-  .trim()
-  .replace(/\/+$/, "");
+const normalizeOrigin = (value = "") => String(value || "").trim().replace(/\/+$/, "");
+
+const DEFAULT_PUBLIC_SITE_URL = "https://oneluxstay.com";
+
+// Public URLs that appear in the generated sitemap must always point to the production website.
+const SITE_URL = normalizeOrigin(
+  process.env.SITEMAP_SITE_URL ||
+    process.env.PUBLIC_WEBSITE_URL ||
+    process.env.PUBLIC_SITE_URL ||
+    process.env.VITE_PUBLIC_WEBSITE_URL ||
+    process.env.VITE_SITE_URL ||
+    DEFAULT_PUBLIC_SITE_URL,
+);
+
+// Internal listing fetches should be environment-aware. Try explicit overrides first, then deploy URLs,
+// then localhost for local dev, and finally fall back to the stable Netlify origin.
+const FUNCTIONS_ORIGIN_CANDIDATES = [
+  process.env.SITEMAP_FUNCTIONS_ORIGIN,
+  process.env.INTERNAL_API_ORIGIN,
+  process.env.VITE_INTERNAL_API_BASE,
+  process.env.VITE_NETLIFY_SITE_URL,
+  process.env.VITE_NETLIFY_FUNCTIONS_ORIGIN,
+  process.env.DEPLOY_PRIME_URL,
+  process.env.URL,
+  "http://localhost:8888",
+  "https://oneluxstayprop.netlify.app",
+]
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
 const today = new Date();
 const plusDays = (date, days) => {
@@ -140,19 +158,31 @@ const fetchListingsPage = async (skip) => {
     limit: "200",
     skip: String(skip),
   });
-  const endpoint = `${FUNCTIONS_ORIGIN}/.netlify/functions/listings?${params.toString()}`;
-  const response = await fetch(endpoint, {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to fetch listings (${response.status}): ${text.slice(0, 300)}`);
+
+  const uniqueOrigins = [...new Set(FUNCTIONS_ORIGIN_CANDIDATES)];
+  let lastError = null;
+
+  for (const origin of uniqueOrigins) {
+    const endpoint = `${origin}/.netlify/functions/listings?${params.toString()}`;
+    try {
+      const response = await fetch(endpoint, {
+        headers: { Accept: "application/json" },
+      });
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`Failed to fetch listings (${response.status}) from ${origin}: ${text.slice(0, 300)}`);
+      }
+      const payload = text ? JSON.parse(text) : {};
+      return {
+        results: Array.isArray(payload?.results) ? payload.results : [],
+        count: Number.isFinite(Number(payload?.count)) ? Number(payload.count) : null,
+      };
+    } catch (error) {
+      lastError = error;
+    }
   }
-  const payload = await response.json();
-  return {
-    results: Array.isArray(payload?.results) ? payload.results : [],
-    count: Number.isFinite(Number(payload?.count)) ? Number(payload.count) : null,
-  };
+
+  throw lastError || new Error("Failed to fetch listings: no origins available");
 };
 
 const fetchAllListings = async () => {

@@ -3,8 +3,9 @@ import { handler as chatHandler } from "./chat.js";
 import { handler as chatLearningHandler } from "./chat-learning.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { normalizePhoneNumber, normalizeWhatsAppAddress, resolveSender } from "./_shared/twilioSenderResolver.js";
+import { PUBLIC_WEBSITE_URL } from "./_shared/http.js";
 
-const DEFAULT_PUBLIC_SITE_URL = "https://oneluxstayprop.netlify.app";
+const DEFAULT_PUBLIC_SITE_URL = "https://oneluxstay.com";
 const DEFAULT_PAGE_CONTEXT = {
   pathname: "/executive-ols",
   search: "",
@@ -97,10 +98,7 @@ const buildSessionId = (from = "", channel = "whatsapp") => {
 };
 
 const getPublicSiteUrl = () =>
-  sanitizeString(
-    getEnv("PUBLIC_SITE_URL") || getEnv("URL") || getEnv("DEPLOY_PRIME_URL") || DEFAULT_PUBLIC_SITE_URL,
-    240,
-  ).replace(/\/+$/, "");
+  sanitizeString(getEnv("PUBLIC_WEBSITE_URL") || getEnv("PUBLIC_SITE_URL") || PUBLIC_WEBSITE_URL, 240).replace(/\/+$/, "");
 
 const getRequestBaseUrl = (event = {}) => {
   const proto = sanitizeString(

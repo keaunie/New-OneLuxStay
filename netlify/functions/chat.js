@@ -5,6 +5,7 @@ import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentServ
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
 import { calculateNights, roundMoney } from "./_shared/pricingService.js";
+import { PUBLIC_WEBSITE_URL } from "./_shared/http.js";
 
 dotenv.config();
 
@@ -1537,33 +1538,9 @@ const extractAssistantReservationCity = (text = "", supportedCities = []) => {
 };
 
 const resolvePublicSiteBase = (event = {}) => {
-  const configured = sanitizeString(
-    getEnv("PUBLIC_SITE_URL") || process.env.URL || process.env.DEPLOY_URL || "",
-    500,
-  );
-  if (configured) {
-    try {
-      return new URL(configured).origin;
-    } catch {
-      // ignore invalid configured base
-    }
-  }
-
-  const headers = event.headers || {};
-  const originHeader = sanitizeString(headers.origin || headers.Origin || "", 500);
-  if (originHeader) {
-    try {
-      return new URL(originHeader).origin;
-    } catch {
-      // ignore
-    }
-  }
-
-  const proto = headers["x-forwarded-proto"] || headers["X-Forwarded-Proto"] || "https";
-  const host = headers["x-forwarded-host"] || headers["X-Forwarded-Host"] || headers.host || headers.Host || "";
-  if (host) return `${proto}://${host}`;
-
-  return "https://oneluxstay.com";
+  // Guest-facing links should always use the production domain, regardless of
+  // Netlify deploy previews, local dev, or internal function origins.
+  return PUBLIC_WEBSITE_URL;
 };
 
 const buildListingPageUrl = ({

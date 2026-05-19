@@ -48,7 +48,7 @@ const SettingConfigOlsPage = () => {
     env: "development",
     version: "2.4.0-dev",
     apiEndpoint: import.meta.env.VITE_SUPABASE_URL || "https://xjyjupxhvprbwiravysf.supabase.co",
-    netlifySite: "oneluxstayprop.netlify.app",
+    netlifySite: "https://oneluxstay.com",
     lastSync: new Date().toLocaleString(),
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? "Configured" : "Missing",
     whatsApp: import.meta.env.VITE_WHATSAPP_NUMBER || "Not Set",

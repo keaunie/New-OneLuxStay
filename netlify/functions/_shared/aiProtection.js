@@ -66,7 +66,12 @@ const unique = (values = []) => [...new Set(values.filter(Boolean))];
 const getAllowedOrigins = () => {
   const configured = parseAllowedOrigins(getEnv("AI_ALLOWED_ORIGINS"));
   const includeDefaults = parseBoolean(getEnv("AI_INCLUDE_DEFAULT_ALLOWED_ORIGINS"), true);
-  const publicSite = normalizeOrigin(getEnv("PUBLIC_SITE_URL") || getEnv("URL") || getEnv("DEPLOY_URL"));
+  const publicSite = normalizeOrigin(
+    getEnv("PUBLIC_SITE_URL") ||
+      getEnv("DEPLOY_PRIME_URL") ||
+      getEnv("URL") ||
+      getEnv("DEPLOY_URL"),
+  );
 
   return unique([
     ...(includeDefaults ? DEFAULT_ALLOWED_ORIGINS : []),

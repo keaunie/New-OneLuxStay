@@ -389,9 +389,14 @@ const writeConsentPdf = async (token, pdfBytes, metadata = {}) => {
 };
 
 const toProofBaseUrl = (event = {}) => {
+  const PRODUCTION_SITE_ORIGIN = "https://oneluxstay.com";
   const fromEnv =
     process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || "";
-  if (fromEnv) return String(fromEnv).replace(/\/+$/, "");
+  if (fromEnv) {
+    const raw = String(fromEnv).replace(/\/+$/, "");
+    if (/localhost|127\.0\.0\.1/i.test(raw)) return raw;
+    return PRODUCTION_SITE_ORIGIN;
+  }
 
   const headers = event?.headers || {};
   const host =
@@ -400,15 +405,18 @@ const toProofBaseUrl = (event = {}) => {
     headers.host ||
     headers.Host ||
     "";
-  if (!host) return "";
+  if (!host) return PRODUCTION_SITE_ORIGIN;
   const proto =
     headers["x-forwarded-proto"] ||
     headers["X-Forwarded-Proto"] ||
     (String(host).includes("localhost") ? "http" : "https");
-  return `${proto}://${host}`.replace(/\/+$/, "");
+  const origin = `${proto}://${host}`.replace(/\/+$/, "");
+  if (/localhost|127\.0\.0\.1/i.test(origin)) return origin;
+  return PRODUCTION_SITE_ORIGIN;
 };
 
 const resolvePublicSiteBase = (event = {}) => {
+  const PRODUCTION_SITE_ORIGIN = "https://oneluxstay.com";
   const fromEnv =
     process.env.PUBLIC_SITE_URL ||
     process.env.URL ||
@@ -417,7 +425,9 @@ const resolvePublicSiteBase = (event = {}) => {
     "";
   if (fromEnv) {
     try {
-      return new URL(String(fromEnv)).origin;
+      const origin = new URL(String(fromEnv)).origin;
+      if (/localhost|127\.0\.0\.1/i.test(origin)) return origin;
+      return PRODUCTION_SITE_ORIGIN;
     } catch {
       // ignore invalid configured base
     }
@@ -427,7 +437,9 @@ const resolvePublicSiteBase = (event = {}) => {
   const originHeader = String(headers.origin || headers.Origin || "").trim();
   if (originHeader) {
     try {
-      return new URL(originHeader).origin;
+      const origin = new URL(originHeader).origin;
+      if (/localhost|127\.0\.0\.1/i.test(origin)) return origin;
+      return PRODUCTION_SITE_ORIGIN;
     } catch {
       // ignore invalid origin
     }
@@ -439,12 +451,14 @@ const resolvePublicSiteBase = (event = {}) => {
     headers.host ||
     headers.Host ||
     "";
-  if (!host) return "https://oneluxstay.com";
+  if (!host) return PRODUCTION_SITE_ORIGIN;
   const proto =
     headers["x-forwarded-proto"] ||
     headers["X-Forwarded-Proto"] ||
     (String(host).includes("localhost") ? "http" : "https");
-  return `${proto}://${host}`.replace(/\/+$/, "");
+  const origin = `${proto}://${host}`.replace(/\/+$/, "");
+  if (/localhost|127\.0\.0\.1/i.test(origin)) return origin;
+  return PRODUCTION_SITE_ORIGIN;
 };
 
 const toDataUrlBytes = (dataUrl) => {

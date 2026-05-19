@@ -5,7 +5,7 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import apiBase from "./utils/apiBase";
 import { trackGuestListingClick } from "./utils/guestAnalytics";
 import "./App.css";
-const LOGO_URL = "https://oneluxstay.netlify.app/image/ols-logo.png";
+const LOGO_URL = "https://oneluxstay.com/image/ols-logo.png";
 
 const KNOWN_CITIES = [
   "hollywood",

@@ -1743,7 +1743,7 @@
     {
       "name": "netlify.app",
       "origins": [
-        "https://oneluxstay.netlify.app"
+        "https://oneluxstay.com"
       ],
       "isUnrecognized": true
     },

@@ -94,10 +94,19 @@ const getRequestBaseUrl = (event = {}) => {
     return `${proto}://${host}`.replace(/\/+$/, "");
   }
 
-  return sanitizeString(getEnv("PUBLIC_SITE_URL") || getEnv("URL") || "https://oneluxstayprop.netlify.app", 240).replace(
-    /\/+$/,
-    "",
+  const configured = sanitizeString(
+    getEnv("INTERNAL_API_ORIGIN") || getEnv("DEPLOY_PRIME_URL") || getEnv("URL") || getEnv("DEPLOY_URL") || "",
+    240,
   );
+  if (configured) {
+    try {
+      return new URL(configured).origin.replace(/\/+$/, "");
+    } catch {
+      return configured.replace(/\/+$/, "");
+    }
+  }
+
+  return "http://localhost:8888";
 };
 
 const parseBoolean = (value, fallback = false) => {

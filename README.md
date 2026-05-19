@@ -20,8 +20,10 @@ Required environment variables:
 
 - `OPENAI_API_KEY`: your OpenAI API key
 - `OPENAI_CHAT_MODEL`: optional override for the default model (`gpt-5-mini`)
-- `VITE_API_BASE`: optional frontend functions base override
-- `VITE_NETLIFY_SITE_URL`: optional absolute Netlify site URL used when the frontend is hosted away from Netlify
+- `VITE_PUBLIC_WEBSITE_URL`: optional override for guest-facing/public links (defaults to `https://oneluxstay.com`)
+- `VITE_INTERNAL_API_BASE`: optional override for internal `/.netlify/functions` base (leave empty to auto-detect from `window.location`)
+- `PUBLIC_WEBSITE_URL`: optional functions-side override for guest-facing/public links (defaults to `https://oneluxstay.com`)
+- `INTERNAL_API_ORIGIN`: optional functions-side override for internal origin routing (usually leave empty; request headers + Netlify-provided URLs are preferred)
 - `AI_ALLOWED_ORIGINS`: comma-separated allowed origins for AI endpoints
 - `AI_RATE_LIMIT_MAX_REQUESTS`: max AI requests per window (default `20`)
 - `AI_RATE_LIMIT_WINDOW_MS`: AI rate-limit window in ms (default `60000`)

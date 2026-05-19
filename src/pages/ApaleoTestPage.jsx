@@ -3,9 +3,11 @@ import {
   fetchApaleoTokenMeta,
   fetchApaleoAccount,
   fetchApaleoProperties,
+  fetchApaleoReservations,
   fetchApaleoUnitGroups,
   fetchApaleoAvailability,
 } from "../services/apaleoService";
+import ReservationsSection from "../components/apaleo/ReservationsSection";
 import "./ApaleoTestPage.css";
 
 const toDate = (value = "") => {
@@ -42,6 +44,7 @@ function ApaleoTestPage() {
   const [tokenMeta, setTokenMeta] = useState(null);
   const [accountPayload, setAccountPayload] = useState(null);
   const [propertiesPayload, setPropertiesPayload] = useState(null);
+  const [reservationsPayload, setReservationsPayload] = useState(null);
   const [unitGroupsPayload, setUnitGroupsPayload] = useState(null);
   const [availabilityPayload, setAvailabilityPayload] = useState(null);
   const [endpointStatus, setEndpointStatus] = useState([]);
@@ -57,6 +60,8 @@ function ApaleoTestPage() {
       const today = toDate(new Date());
       const fallbackCheckIn = plusDays(today, 7);
       const fallbackCheckOut = plusDays(today, 9);
+      const reservationsCheckIn = plusDays(today, -30);
+      const reservationsCheckOut = plusDays(today, 180);
 
       const timed = async (label, fn) => {
         const startedAt = performance.now();
@@ -101,6 +106,33 @@ function ApaleoTestPage() {
         const properties = await timed("Properties", () => fetchApaleoProperties({ city: "Antwerp", limit: 20 }));
         if (!active) return;
         setPropertiesPayload(properties);
+
+        // Reservations should never block the rest of the debug dashboard.
+        try {
+          const reservations = await timed("Reservations", () =>
+            fetchApaleoReservations({
+              city: "Antwerp",
+              checkIn: reservationsCheckIn,
+              checkOut: reservationsCheckOut,
+              limit: 500,
+            }),
+          );
+          if (!active) return;
+          setReservationsPayload(reservations);
+        } catch (err) {
+          if (!active) return;
+          setReservationsPayload({
+            ok: false,
+            message: "Unable to fetch Apaleo reservations",
+            error: err?.message || String(err),
+            requested: {
+              city: "Antwerp",
+              checkIn: reservationsCheckIn,
+              checkOut: reservationsCheckOut,
+              limit: 500,
+            },
+          });
+        }
 
         const firstPropertyId = firstText(
           properties?.results?.[0]?.id,
@@ -286,16 +318,24 @@ function ApaleoTestPage() {
             </div>
           </article>
 
+          <ReservationsSection
+            reservationsPayload={reservationsPayload}
+            propertiesPayload={propertiesPayload}
+            unitGroupsPayload={unitGroupsPayload}
+            loading={loading}
+          />
+
           <article className="apaleo-card apaleo-col-12">
             <h3>Raw API Debug Preview</h3>
             <details className="apaleo-entry" open>
-              <summary>Token / Account / Properties / Unit Groups / Availability</summary>
+              <summary>Token / Account / Properties / Reservations / Unit Groups / Availability</summary>
               <div className="apaleo-entry-body">
                 <pre className="apaleo-json">
                   {formatJson({
                     tokenMeta,
                     accountPayload,
                     propertiesPayload,
+                    reservationsPayload,
                     unitGroupsPayload,
                     availabilityPayload,
                   })}
