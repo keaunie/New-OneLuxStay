@@ -22,14 +22,10 @@ const formatCurrency = (value, currency = "USD") => {
 const buildCheckoutFinalizeUrls = (sessionId) => {
   const encodedSessionId = encodeURIComponent(String(sessionId || ""));
   const path = `/check-units/checkout-success?session_id=${encodedSessionId}`;
-  const sameOrigin =
-    typeof window !== "undefined" && window.location?.origin
-      ? `${window.location.origin}/.netlify/functions${path}`
-      : "";
-  const relative = `/.netlify/functions${path}`;
   const configured = apiBase ? `${apiBase}${path}` : "";
 
-  return Array.from(new Set([configured, sameOrigin, relative].filter(Boolean)));
+  // Prefer the configured internal functions base (Netlify site domain).
+  return Array.from(new Set([configured].filter(Boolean)));
 };
 
 const formatFinalizeErrorMessage = (message, sessionId) => {

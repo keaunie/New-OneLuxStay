@@ -4,8 +4,14 @@ import { fetchWithTimeout } from "./http.js";
 
 ensureLocalEnv();
 
-const APALEO_IDENTITY_URL = String(process.env.APALEO_IDENTITY_URL || "https://identity.apaleo.com").replace(/\/+$/, "");
-const APALEO_API_BASE = String(process.env.APALEO_API_BASE || "https://api.apaleo.com").replace(/\/+$/, "");
+const normalizeEnvOrigin = (value = "") =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\/+$/, "");
+
+const APALEO_IDENTITY_URL = normalizeEnvOrigin(process.env.APALEO_IDENTITY_URL || "https://identity.apaleo.com");
+const APALEO_API_BASE = normalizeEnvOrigin(process.env.APALEO_API_BASE || "https://api.apaleo.com");
 const TOKEN_STORE_NAME = process.env.APALEO_TOKEN_BLOB_STORE || "apaleo-oauth";
 const ACCESS_TOKEN_KEY = process.env.APALEO_TOKEN_BLOB_ACCESS_KEY || "apaleo-access-token";
 const TOKEN_EXPIRY_KEY = process.env.APALEO_TOKEN_BLOB_EXPIRY_KEY || "apaleo-token-expiry";
@@ -71,7 +77,13 @@ const getApaleoCredentials = () => {
   );
 
   if (!clientId || !clientSecret) {
-    throw new Error("Missing Apaleo credentials (APALEO_CLIENT_ID / APALEO_CLIENT_SECRET)");
+    const missing = [
+      !clientId ? "APALEO_CLIENT_ID" : "",
+      !clientSecret ? "APALEO_CLIENT_SECRET" : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    throw new Error(`Missing Apaleo credentials (${missing})`);
   }
 
   return { clientId, clientSecret, scope };
@@ -96,6 +108,22 @@ const parseResponsePayload = async (response) => {
     return JSON.parse(text);
   } catch {
     return { raw: text };
+  }
+};
+
+const redactTokenLikeValues = (rawText = "") => {
+  const text = String(rawText || "");
+  if (!text) return "";
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object") return text;
+    const clone = { ...parsed };
+    ["access_token", "refresh_token", "id_token"].forEach((key) => {
+      if (typeof clone[key] === "string" && clone[key]) clone[key] = "[REDACTED]";
+    });
+    return JSON.stringify(clone, null, 2);
+  } catch {
+    return text;
   }
 };
 
@@ -131,6 +159,21 @@ const writeBlobText = async (store, key, value) => {
 const requestApaleoToken = async ({ retries = DEFAULT_RETRY_COUNT } = {}) => {
   const { clientId, clientSecret, scope } = getApaleoCredentials();
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const configuredTokenUrl = `${APALEO_IDENTITY_URL}/connect/token`;
+  const tokenUrl = "https://identity.apaleo.com/connect/token";
+
+  console.log("APALEO TOKEN REQUEST START");
+  console.log("CLIENT ID EXISTS:", !!sanitizeString(process.env.APALEO_CLIENT_ID, 16));
+  console.log("CLIENT SECRET EXISTS:", !!sanitizeString(process.env.APALEO_CLIENT_SECRET, 16));
+  console.log("ACCOUNT ID:", sanitizeString(process.env.APALEO_ACCOUNT_ID, 240));
+  console.log("TOKEN URL:", tokenUrl);
+  if (configuredTokenUrl !== tokenUrl) {
+    console.warn("[apaleo] ignoring custom APALEO_IDENTITY_URL for token request", {
+      configuredTokenUrl,
+      expectedTokenUrl: tokenUrl,
+    });
+  }
+
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     ...(scope ? { scope } : {}),
@@ -141,7 +184,7 @@ const requestApaleoToken = async ({ retries = DEFAULT_RETRY_COUNT } = {}) => {
     let payload = {};
     try {
       response = await fetchWithTimeout(
-        `${APALEO_IDENTITY_URL}/connect/token`,
+        tokenUrl,
         {
           method: "POST",
           headers: {
@@ -153,7 +196,21 @@ const requestApaleoToken = async ({ retries = DEFAULT_RETRY_COUNT } = {}) => {
         },
         DEFAULT_TIMEOUT_MS,
       );
-      payload = await parseResponsePayload(response);
+
+      console.log("TOKEN STATUS:", response.status);
+      console.log("TOKEN STATUS TEXT:", response.statusText);
+      const raw = await response.text();
+      console.log("TOKEN RAW RESPONSE:", redactTokenLikeValues(raw));
+
+      if (!raw) {
+        payload = {};
+      } else {
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          payload = { raw };
+        }
+      }
     } catch (error) {
       if (attempt < retries) {
         await sleep(DEFAULT_RETRY_DELAY_MS * (2 ** attempt));

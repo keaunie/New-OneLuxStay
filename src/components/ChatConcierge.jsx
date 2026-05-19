@@ -653,16 +653,9 @@ function ChatConcierge() {
           responseModel,
         });
       } catch (requestError) {
-        const isLocalHost =
-          typeof window !== "undefined" &&
-          /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "");
         const rawMessage = String(requestError?.message || "").trim();
-        const fallbackMessage =
-          isLocalHost && (!rawMessage || rawMessage === "Failed to fetch")
-            ? "Local chat functions are unreachable. Start the site with netlify dev and open the Netlify local URL."
-            : "The concierge is unavailable right now.";
         setMode("live");
-        setError(rawMessage || fallbackMessage);
+        setError(rawMessage || "The concierge is unavailable right now.");
       } finally {
         setIsSending(false);
       }

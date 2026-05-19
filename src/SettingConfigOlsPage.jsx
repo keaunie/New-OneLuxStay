@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./SettingConfigOlsPage.css";
+import apiBase from "./utils/apiBase";
 
 const SettingConfigOlsPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,7 +33,7 @@ const SettingConfigOlsPage = () => {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const response = await fetch("/.netlify/functions/system-health");
+        const response = await fetch(`${apiBase}/system-health`);
         if (response.ok) {
           const data = await response.json();
           setSystemHealth(data);
@@ -87,7 +88,7 @@ const SettingConfigOlsPage = () => {
     
     try {
       // Calling your REAL AI engine (chat.js)
-      const response = await fetch("/.netlify/functions/chat", {
+      const response = await fetch(`${apiBase}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -119,7 +120,7 @@ const SettingConfigOlsPage = () => {
     setSmsResult(null);
     
     try {
-      const response = await fetch("/.netlify/functions/test-twilio", {
+      const response = await fetch(`${apiBase}/test-twilio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -148,7 +149,7 @@ const SettingConfigOlsPage = () => {
     setCallStatus("Initiating real call...");
     
     try {
-      const response = await fetch("/.netlify/functions/test-twilio", {
+      const response = await fetch(`${apiBase}/test-twilio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

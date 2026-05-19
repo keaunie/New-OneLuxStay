@@ -1,6 +1,7 @@
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import apiBase from "./utils/apiBase";
+import { API_BASE } from "./config/domains";
 import {
   clearAdminsOlsSession,
   getAdminsOlsAuthHeaders,
@@ -1812,8 +1813,7 @@ function AdminsOlsPage() {
 
     try {
       const inferredOrigin =
-        String(system?.siteUrl || "").trim() ||
-        (typeof window !== "undefined" ? String(window.location.origin || "").trim() : "");
+        String(system?.siteUrl || "").trim() || API_BASE;
       const redirectTo = inferredOrigin ? `${inferredOrigin.replace(/\/+$/, "")}/executive-ols/accept` : "";
 
       const fullName = String(inviteForm.fullName || "").trim();
@@ -3553,7 +3553,7 @@ function AdminsOlsPage() {
                 sign in on <Link className="admins-ols-inline-link" to="/executive-ols/login">/executive-ols/login</Link>.
               </p>
               <p className="admins-ols-note" style={{ marginTop: 0 }}>
-                Invite redirect target: <strong>{system?.siteUrl || (typeof window !== "undefined" ? window.location.origin : "")}</strong>
+                Invite redirect target: <strong>{system?.siteUrl || API_BASE}</strong>
               </p>
               <form className="admins-ols-form" onSubmit={handleSendInvite}>
                 <label>

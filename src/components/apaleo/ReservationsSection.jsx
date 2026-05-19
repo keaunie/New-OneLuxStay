@@ -327,70 +327,73 @@ export default function ReservationsSection({
         )}
       </div>
 
-      <div className="apaleo-reservations-controls">
-        <div className="apaleo-filter-row">
-          <button
-            type="button"
-            className={`apaleo-filter-chip ${filterKey === "today_arrivals" ? "active" : ""}`}
-            onClick={() => setFilterKey("today_arrivals")}
-          >
-            Today arrivals
-          </button>
-          <button
-            type="button"
-            className={`apaleo-filter-chip ${filterKey === "in_house" ? "active" : ""}`}
-            onClick={() => setFilterKey("in_house")}
-          >
-            In-house
-          </button>
-          <button
-            type="button"
-            className={`apaleo-filter-chip ${filterKey === "upcoming" ? "active" : ""}`}
-            onClick={() => setFilterKey("upcoming")}
-          >
-            Upcoming
-          </button>
-          <button
-            type="button"
-            className={`apaleo-filter-chip ${filterKey === "checked_out" ? "active" : ""}`}
-            onClick={() => setFilterKey("checked_out")}
-          >
-            Checked-out
-          </button>
-          <button
-            type="button"
-            className={`apaleo-filter-chip ${filterKey === "all" ? "active" : ""}`}
-            onClick={() => setFilterKey("all")}
-          >
-            All reservations
-          </button>
-        </div>
-
-        <div className="apaleo-control-row">
-          <label className="apaleo-control">
-            <span className="apaleo-control-label">Search</span>
-            <input
-              className="apaleo-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Guest, confirmation, reservation id..."
-              inputMode="search"
-            />
-          </label>
-
-          <label className="apaleo-control">
-            <span className="apaleo-control-label">Sort</span>
-            <select className="apaleo-select" value={sortDir} onChange={(event) => setSortDir(event.target.value)}>
-              <option value="arrival_asc">Arrival date (oldest first)</option>
-              <option value="arrival_desc">Arrival date (newest first)</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
       <div className="apaleo-reservations-layout">
-        <div className="apaleo-reservations-table-shell">
-          <table className="apaleo-reservations-table">
+        <div className="apaleo-reservations-left">
+          <div className="apaleo-reservations-left-header">
+            <div className="apaleo-reservations-controls">
+              <div className="apaleo-filter-row">
+                <button
+                  type="button"
+                  className={`apaleo-filter-chip ${filterKey === "today_arrivals" ? "active" : ""}`}
+                  onClick={() => setFilterKey("today_arrivals")}
+                >
+                  Today arrivals
+                </button>
+                <button
+                  type="button"
+                  className={`apaleo-filter-chip ${filterKey === "in_house" ? "active" : ""}`}
+                  onClick={() => setFilterKey("in_house")}
+                >
+                  In-house
+                </button>
+                <button
+                  type="button"
+                  className={`apaleo-filter-chip ${filterKey === "upcoming" ? "active" : ""}`}
+                  onClick={() => setFilterKey("upcoming")}
+                >
+                  Upcoming
+                </button>
+                <button
+                  type="button"
+                  className={`apaleo-filter-chip ${filterKey === "checked_out" ? "active" : ""}`}
+                  onClick={() => setFilterKey("checked_out")}
+                >
+                  Checked-out
+                </button>
+                <button
+                  type="button"
+                  className={`apaleo-filter-chip ${filterKey === "all" ? "active" : ""}`}
+                  onClick={() => setFilterKey("all")}
+                >
+                  All reservations
+                </button>
+              </div>
+
+              <div className="apaleo-control-row">
+                <label className="apaleo-control">
+                  <span className="apaleo-control-label">Search</span>
+                  <input
+                    className="apaleo-input"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Guest, confirmation, reservation id..."
+                    inputMode="search"
+                  />
+                </label>
+
+                <label className="apaleo-control">
+                  <span className="apaleo-control-label">Sort</span>
+                  <select className="apaleo-select" value={sortDir} onChange={(event) => setSortDir(event.target.value)}>
+                    <option value="arrival_asc">Arrival date (oldest first)</option>
+                    <option value="arrival_desc">Arrival date (newest first)</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="apaleo-reservations-table-shell">
+            <table className="apaleo-reservations-table">
             <thead>
               <tr>
                 <th>Guest</th>
@@ -430,7 +433,7 @@ export default function ReservationsSection({
                         </div>
                       )}
                       {formatGuestAddress(row.guestAddress) !== "—" && (
-                        <div className="apaleo-reservation-meta">{formatGuestAddress(row.guestAddress)}</div>
+                        <div className="apaleo-reservation-meta apaleo-hide-sm">{formatGuestAddress(row.guestAddress)}</div>
                       )}
                     </td>
                     <td>
@@ -469,6 +472,7 @@ export default function ReservationsSection({
               )}
             </tbody>
           </table>
+        </div>
         </div>
 
         <div className="apaleo-reservations-cards">
@@ -515,67 +519,91 @@ export default function ReservationsSection({
 
         <div className="apaleo-reservations-details">
           <div className="apaleo-reservations-details-card">
-            <h4>Booking details</h4>
+            <div className="apaleo-details-title-row">
+              <h4>Booking details</h4>
+              {selectedReservation && (
+                <span className={`apaleo-badge apaleo-status ${normalizeStatus(selectedReservation.status).cls}`}>
+                  {normalizeStatus(selectedReservation.status).label}
+                </span>
+              )}
+            </div>
             {!selectedReservation && <p className="apaleo-empty">Select a reservation row to preview details.</p>}
             {selectedReservation && (
-              <div className="apaleo-details-grid">
-                <div className="apaleo-details-line">
-                  <span>Guest</span>
-                  <strong>{selectedReservation.guestName}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Email</span>
-                  <strong>{selectedReservation.guestEmail || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Phone</span>
-                  <strong>{selectedReservation.guestPhone || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Address</span>
-                  <strong>{formatGuestAddress(selectedReservation.guestAddress)}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Reservation ID</span>
-                  <strong>{selectedReservation.id}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Arrival</span>
-                  <strong>{selectedReservation.checkIn || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Departure</span>
-                  <strong>{selectedReservation.checkOut || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Guests</span>
-                  <strong>{readGuestsLabel(selectedReservation)}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Unit</span>
-                  <strong>{selectedReservation.unitName || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Status</span>
-                  <strong>{normalizeStatus(selectedReservation.status).label}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Confirmation</span>
-                  <strong>{selectedReservation.confirmationNumber || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Property</span>
-                  <strong>{selectedReservation.propertyTitle || selectedReservation.propertyId || "—"}</strong>
-                </div>
-                <div className="apaleo-details-line">
-                  <span>Channel</span>
-                  <strong>{selectedReservation.channel || "—"}</strong>
-                </div>
+              <div className="apaleo-details-stack">
+                <section className="apaleo-details-section">
+                  <h5>Guest information</h5>
+                  <div className="apaleo-details-grid">
+                    <div className="apaleo-details-line">
+                      <span>Guest</span>
+                      <strong>{selectedReservation.guestName}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Email</span>
+                      <strong>{selectedReservation.guestEmail || "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Phone</span>
+                      <strong>{selectedReservation.guestPhone || "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Address</span>
+                      <strong>{formatGuestAddress(selectedReservation.guestAddress)}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="apaleo-details-section">
+                  <h5>Reservation information</h5>
+                  <div className="apaleo-details-grid">
+                    <div className="apaleo-details-line">
+                      <span>Reservation ID</span>
+                      <strong>{selectedReservation.id}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Arrival</span>
+                      <strong>{selectedReservation.checkIn || "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Departure</span>
+                      <strong>{selectedReservation.checkOut || "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Nights</span>
+                      <strong>{nightsBetween(selectedReservation.checkIn, selectedReservation.checkOut) ?? "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Guests</span>
+                      <strong>{readGuestsLabel(selectedReservation)}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Confirmation</span>
+                      <strong>{selectedReservation.confirmationNumber || "—"}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="apaleo-details-section">
+                  <h5>Property information</h5>
+                  <div className="apaleo-details-grid">
+                    <div className="apaleo-details-line">
+                      <span>Property</span>
+                      <strong>{selectedReservation.propertyTitle || selectedReservation.propertyId || "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Unit</span>
+                      <strong>{selectedReservation.unitName || "—"}</strong>
+                    </div>
+                    <div className="apaleo-details-line">
+                      <span>Channel</span>
+                      <strong>{selectedReservation.channel || "—"}</strong>
+                    </div>
+                  </div>
+                </section>
 
                 <details className="apaleo-entry apaleo-details-raw">
-                  <summary>Guest info preview</summary>
+                  <summary>Show raw payload</summary>
                   <div className="apaleo-entry-body">
-                    <pre className="apaleo-json">{formatJson({
+                    <pre className="apaleo-json apaleo-json-preview">{formatJson({
                       guest: selectedReservation.guestProfile,
                       guestAddress: selectedReservation.guestAddress,
                       rawReservation: selectedReservation.raw,
@@ -586,13 +614,13 @@ export default function ReservationsSection({
                 <details className="apaleo-entry apaleo-details-raw">
                   <summary>Raw reservation inspector (FULL)</summary>
                   <div className="apaleo-entry-body">
-                    <p className="apaleo-empty" style={{ marginBottom: 10 }}>
+                    <p className="apaleo-empty" style={{ marginBottom: 8 }}>
                       Nested keys discovered: {selectedRawKeys.length || 0}
                     </p>
-                    <pre className="apaleo-json">{formatJson(selectedReservation.raw)}</pre>
+                    <pre className="apaleo-json apaleo-json-tall">{formatJson(selectedReservation.raw)}</pre>
                     {selectedRawKeys.length > 0 && (
                       <>
-                        <p className="apaleo-empty" style={{ marginTop: 14, marginBottom: 10 }}>
+                        <p className="apaleo-empty" style={{ marginTop: 10, marginBottom: 8 }}>
                           Key paths (depth-limited)
                         </p>
                         <pre className="apaleo-json apaleo-json-compact">{selectedRawKeys.join("\n")}</pre>
