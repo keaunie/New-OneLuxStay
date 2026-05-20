@@ -4,6 +4,7 @@ import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
+import { HIDDEN_UNIT_IDS } from "./config/hiddenUnits";
 import "./App.css";
 const checkoutBase = apiBase;
 
@@ -188,7 +189,9 @@ const groupListingsByParent = (listings = []) => {
   return groups;
 };
 
-const HIDDEN_LISTING_IDS = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_IDS);
+const HIDDEN_LISTING_IDS = [
+  ...new Set([...parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_IDS), ...HIDDEN_UNIT_IDS]),
+];
 const HIDDEN_LISTING_TITLES = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_TITLES).map((t) =>
   t.toLowerCase(),
 );

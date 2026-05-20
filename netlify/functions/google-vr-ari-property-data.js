@@ -1,5 +1,6 @@
 import { ensureLocalEnv } from "./_shared/loadEnv.js";
 import { fetchListingsFromSupabase } from "./_shared/supabaseListingsService.js";
+import { isHiddenUnit } from "../../src/config/hiddenUnits.js";
 
 ensureLocalEnv();
 
@@ -71,6 +72,19 @@ export async function handler(event = {}) {
           '<?xml version="1.0" encoding="UTF-8"?>',
           "<error>",
           "  <message>Missing hotel_id (Hotel List Feed &lt;id&gt;)</message>",
+          "</error>",
+          "",
+        ].join("\n"),
+      );
+    }
+
+    if (isHiddenUnit(hotelId)) {
+      return xmlResponse(
+        404,
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          "<error>",
+          "  <message>Not found</message>",
           "</error>",
           "",
         ].join("\n"),
@@ -169,4 +183,3 @@ export async function handler(event = {}) {
     );
   }
 }
-

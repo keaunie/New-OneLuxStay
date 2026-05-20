@@ -6,6 +6,7 @@ import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
 import { trackGuestCityClick, trackGuestListingClick, trackGuestJourneyEvent } from "./utils/guestAnalytics";
+import { isHiddenUnit } from "./config/hiddenUnits";
 
 const Silk = lazy(() => import("./components/Silk"));
 const CircularGallery = lazy(() => import("./components/CircularGallery"));
@@ -87,7 +88,7 @@ const parseIdList = (value) =>
 
 const HERO_GALLERY_LISTING_IDS = parseIdList(
   import.meta.env.VITE_LANDING_GALLERY_LISTING_IDS || import.meta.env.VITE_GALLERY_LISTING_IDS
-);
+).filter((id) => !isHiddenUnit(id));
 
 const isChildListing = (listing) => {
   if (!listing) return false;

@@ -1,6 +1,7 @@
 import { guestyRequest, getAvailabilityAndPricing as getGuestyAvailabilityAndPricing } from "./guestyService.js";
 import { fetchListingsFromSupabase } from "./supabaseListingsService.js";
 import { supabaseRestRequest } from "./supabaseClient.js";
+import { isHiddenUnit } from "../../../src/config/hiddenUnits.js";
 import {
   listApaleoProperties,
   listApaleoReservations,
@@ -177,7 +178,7 @@ export const getNormalizedProperties = async ({ provider = "", city = "", query 
 
   const normalized = toArray(supabaseRows?.results)
     .map((listing) => normalizeGuestyProperty(listing))
-    .filter((row) => row.id);
+    .filter((row) => row.id && !isHiddenUnit(row.id));
 
   return {
     provider: PROVIDERS.GUESTY,

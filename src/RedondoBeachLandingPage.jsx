@@ -20,6 +20,8 @@ import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHr
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
+import { isHiddenUnit } from "./config/hiddenUnits";
+import { getSeasonalMonthlyPricingMeta, getSeasonalMonthlyPrice } from "./config/redondoSeasonalPricing";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
@@ -137,6 +139,8 @@ const diffNights = (start, end) => {
 
 const getMonthlyEstimate = ({
   city,
+  unitId,
+  checkInDate,
   accommodationTotal,
   totalNights,
   fallbackNightlyRate,
@@ -146,6 +150,10 @@ const getMonthlyEstimate = ({
     const fallbackRate = Number(fallbackNightlyRate);
     return Number.isFinite(fallbackRate) && fallbackRate > 0 ? fallbackRate : null;
   }
+
+  const seasonalMonthlyPrice = getSeasonalMonthlyPrice(unitId, checkInDate);
+  if (typeof seasonalMonthlyPrice === "number") return seasonalMonthlyPrice;
+
   const total = Number(accommodationTotal);
   const nights = Number(totalNights);
   if (Number.isFinite(total) && total > 0 && Number.isFinite(nights) && nights > 0) {
@@ -3099,7 +3107,23 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         const results = Array.isArray(json.results)
           ? json.results.map((listing) => normalizeListingPricing(listing))
           : [];
-        setListings(results);
+        const ids = results.map((p) => p?.id || p?._id || p?.propertyId || p?.unitId || p?.listingId || p?.unitTypeId);
+        const visibleResults = results.filter((listing) => !isHiddenUnit(
+          listing?.id ||
+          listing?._id ||
+          listing?.propertyId ||
+          listing?.unitId ||
+          listing?.listingId ||
+          listing?.unitTypeId ||
+          listing,
+        ));
+        console.log("[hidden-filter]", ids.filter(Boolean));
+        console.log(
+          "[visible-after-filter]",
+          visibleResults.map((p) => p?.id || p?._id || p?.propertyId || p?.unitId || p?.listingId || p?.unitTypeId).filter(Boolean),
+        );
+        console.log("[hidden-units]", results.length, visibleResults.length);
+        setListings(visibleResults);
       } catch (err) {
         if (!active) return;
         setError(err.message || "Unable to load listings.");
@@ -3276,9 +3300,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [isMapEnabled, mapsApiKey, isListingRoute]);
 
   const redondoBeachListings = useMemo(() => {
-    return listings.filter((listing) => {
-      return isRedondoListing(listing);
-    });
+    return listings
+      .filter((listing) => isRedondoListing(listing))
+      .filter((listing) => !isHiddenUnit(getListingId(listing) || listing));
   }, [listings, isMapEnabled, mapsApiKey]);
 
   const redondoBeachParentListings = useMemo(() => {
@@ -3585,10 +3609,16 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
     const displayedNightlyRate = getNightlyCalendarPrice(dailyRate);
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
+    const seasonalPricingMeta = getSeasonalMonthlyPricingMeta(listingId, sectionCheckIn || new Date());
+    const seasonalDailyRate =
+      seasonalPricingMeta?.monthlyPrice ? seasonalPricingMeta.monthlyPrice / 30 : null;
     const canShowStayTotal =
-      showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
+      showMonthlyTotal &&
+      stayNights > 0 &&
+      (typeof seasonalDailyRate === "number" || typeof dailyRate === "number");
+    const effectiveDailyRate = typeof seasonalDailyRate === "number" ? seasonalDailyRate : dailyRate;
     const priceValue = canShowStayTotal
-      ? dailyRate * stayNights
+      ? effectiveDailyRate * stayNights
       : displayedNightlyRate;
     const priceLabel =
       typeof priceValue === "number"
@@ -5699,12 +5729,21 @@ const applyCheckoutPromoCode = () => {
     normalizeCity(inquiryListing || activeListing || {}) || "Redondo Beach"
   );
   const inquirySubject = `Inquiry: ${inquiryTitle} (${inquiryCityLabel})`;
+  const inquirySeasonalMonthlyPrice = getSeasonalMonthlyPrice(
+    getListingId(inquiryListing || activeListing || {}),
+    sectionCheckIn || new Date(),
+  );
+  const inquirySeasonalPriceLine =
+    typeof inquirySeasonalMonthlyPrice === "number"
+      ? `Estimated monthly price: ${formatCurrency(inquirySeasonalMonthlyPrice, "USD")} per month (Seasonal Monthly Pricing)\n`
+      : "";
   const inquiryBody =
     `Full name: ${inquiryForm.fullName || "--"}\n` +
     `Email: ${inquiryForm.email || "--"}\n` +
     `Phone: ${inquiryForm.phone || "--"}\n` +
     `Property: ${inquiryTitle}\n` +
     `City: ${inquiryCityLabel}\n` +
+    inquirySeasonalPriceLine +
     `Preferred dates: ${inquiryForm.preferredDates || inquiryDates || "--"}\n` +
     `Guests: ${inquiryForm.guests || sectionGuests || "--"}\n\n` +
     `${inquiryForm.message || `Hi OneLuxStay,\n\nI'd like to inquire about ${inquiryTitle}.`}`;
@@ -6092,8 +6131,14 @@ const applyCheckoutPromoCode = () => {
           activeListing?.prices?.basePrice?.currency ||
           activeListing?.currency ||
               priceCurrency;
+        const seasonalPricingMeta = getSeasonalMonthlyPricingMeta(
+          listingId,
+          sectionCheckIn || targetDailyRateDate,
+        );
         const displayedMarketingRate = getMonthlyEstimate({
           city: REDONDO_CITY_NAME,
+          unitId: listingId,
+          checkInDate: sectionCheckIn || targetDailyRateDate,
           accommodationTotal: firstNumber(
             breakdown?.accommodation,
             selectedPlan?.breakdown?.accommodation,
@@ -6249,14 +6294,16 @@ const applyCheckoutPromoCode = () => {
                 House rules
               </button>
             </div>
-            <div className="la-unit-modal__sidebar">
+              <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
                 <div className="la-unit-modal__bp-price la-unit-modal__bp-price--monthly">
                   <div className="la-unit-modal__bp-price-main">
                     <strong>{formatCurrency(displayedMarketingRate, dailyRateCurrency)}</strong>
                   </div>
                   <small>
-                    {REDONDO_PRICING_PERIOD_LABEL} {"\u00b7"} taxes at checkout {"\u00b7"} Estimated monthly stay pricing
+                    {REDONDO_PRICING_PERIOD_LABEL} {"\u00b7"} taxes at checkout {"\u00b7"}{" "}
+                    {seasonalPricingMeta ? "Seasonal Monthly Pricing" : "Estimated monthly stay pricing"}
+                    {seasonalPricingMeta?.badge ? ` \u00b7 ${seasonalPricingMeta.badge}` : ""}
                   </small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
@@ -6336,11 +6383,9 @@ const applyCheckoutPromoCode = () => {
                 <div className="la-unit-modal__availability-details">
                   {isShortStayInquiryMode ? (
                     <>
-                      <p>{shortStayInquiryMessage}</p>
                       <p className="la-unit-modal__inquiry-note">
                         Inquiry request only - pricing and confirmation will be shared by our team.
                       </p>
-                      <p className="la-unit-modal__inquiry-note">{SHORT_STAY_APPROVAL_HINT}</p>
                     </>
                   ) : availability === false ? (
                     <p>Unavailable for the selected dates.</p>
@@ -6566,9 +6611,6 @@ const applyCheckoutPromoCode = () => {
                     className={`la-section-hero__notice${isShortStayInquiryMode ? " la-section-hero__notice--inquiry" : ""}`}
                   >
                     {sectionValidationNotice}
-                    {isShortStayInquiryMode && (
-                      <small>{SHORT_STAY_APPROVAL_HINT}</small>
-                    )}
                   </div>
                 )}
                 <div className="la-unit-modal__section">
@@ -8113,23 +8155,36 @@ const applyCheckoutPromoCode = () => {
                     const quoteRateEntry = listingId ? cardQuoteRates[toLookupKey(listingId)] : null;
                     const displayCurrency = quoteRateEntry?.currency || currency;
                     const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+                    const seasonalPricingMeta = getSeasonalMonthlyPricingMeta(
+                      listingId,
+                      sectionCheckIn || new Date(),
+                    );
+                    const seasonalDailyRate =
+                      seasonalPricingMeta?.monthlyPrice ? seasonalPricingMeta.monthlyPrice / 30 : null;
                     const displayedMarketingRate = getMonthlyEstimate({
                       city: REDONDO_CITY_NAME,
+                      unitId: listingId,
+                      checkInDate: sectionCheckIn || new Date(),
                       accommodationTotal: quoteRateEntry?.accommodationTotal,
                       totalNights: quoteRateEntry?.totalNights,
                       fallbackNightlyRate: dailyRate,
                     });
                     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
                     const canShowStayTotal =
-                      showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
-                    const stayTotal = canShowStayTotal ? dailyRate * stayNights : null;
+                      showMonthlyTotal &&
+                      stayNights > 0 &&
+                      (typeof seasonalDailyRate === "number" || typeof dailyRate === "number");
+                    const effectiveDailyRate = typeof seasonalDailyRate === "number" ? seasonalDailyRate : dailyRate;
+                    const stayTotal = canShowStayTotal ? effectiveDailyRate * stayNights : null;
                     const priceMain = canShowStayTotal
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof displayedMarketingRate === "number"
                         ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH}`
                         : "Checking price...";
                     const priceSub = canShowStayTotal
-                      ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}${
+                          seasonalPricingMeta ? " \u00b7 Seasonal Monthly Pricing" : ""
+                        }`
                       : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
@@ -8639,9 +8694,6 @@ const applyCheckoutPromoCode = () => {
                       className={`la-section-hero__notice${isShortStayInquiryMode ? " la-section-hero__notice--inquiry" : ""}`}
                     >
                       {sectionValidationNotice}
-                      {isShortStayInquiryMode && (
-                        <small>{SHORT_STAY_APPROVAL_HINT}</small>
-                      )}
                     </div>
                   )}
                   <div className="la-unit-modal__section">
@@ -9414,11 +9466,9 @@ const applyCheckoutPromoCode = () => {
                       <div className="la-unit-modal__availability-details">
                         {isShortStayInquiryMode ? (
                           <>
-                            <p>{shortStayInquiryMessage}</p>
                             <p className="la-unit-modal__inquiry-note">
                               Inquiry request only - pricing and confirmation will be shared by our team.
                             </p>
-                            <p className="la-unit-modal__inquiry-note">{SHORT_STAY_APPROVAL_HINT}</p>
                           </>
                         ) : availability === false ? (
                           <p>Unavailable for the selected dates.</p>

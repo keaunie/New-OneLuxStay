@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { filterVisibleUnits } from "../../config/hiddenUnits";
 
 export default function SimilarUnitsSection({
   listings,
@@ -47,7 +48,7 @@ export default function SimilarUnitsSection({
     trackRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
   };
 
-  const items = Array.isArray(listings) ? listings : [];
+  const items = filterVisibleUnits(listings);
   if (!items.length) return null;
 
   return (

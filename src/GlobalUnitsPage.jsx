@@ -4,6 +4,7 @@ import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
 import { trackGuestListingClick } from "./utils/guestAnalytics";
+import { isHiddenUnit } from "./config/hiddenUnits";
 import "./App.css";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 
@@ -679,9 +680,14 @@ function GlobalUnitsPage() {
     return Array.from(uniqueCities);
   }, [listings]);
 
+  const visibleListings = useMemo(
+    () => listings.filter((listing) => !isHiddenUnit(getListingId(listing) || listing)),
+    [listings],
+  );
+
   const cityAndSearchFilteredListings = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return listings.filter((listing) => {
+    return visibleListings.filter((listing) => {
       const city = normalizeCity(listing);
       if (cityFilter !== "All" && city !== cityFilter) return false;
       const listingRoomsRaw = firstNumber(
@@ -705,7 +711,7 @@ function GlobalUnitsPage() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [listings, cityFilter, roomsFilter, search]);
+  }, [visibleListings, cityFilter, roomsFilter, search]);
 
   const buildListingLink = (listing) => {
     const basePath = buildListingPath(listing);

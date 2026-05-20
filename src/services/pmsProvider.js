@@ -1,4 +1,5 @@
 import apiBase from "../utils/apiBase";
+import { filterVisibleUnits } from "../config/hiddenUnits.js";
 import {
   fetchApaleoProperties,
   fetchApaleoReservations,
@@ -107,7 +108,9 @@ export const getProperties = async ({ city = "", provider = "" } = {}) => {
   const payload = await request(`/listings?${qs}`);
   return {
     provider: PMS_PROVIDERS.GUESTY,
-    results: Array.isArray(payload?.results) ? payload.results.map(normalizeGuestyProperty) : [],
+    results: filterVisibleUnits(
+      Array.isArray(payload?.results) ? payload.results.map(normalizeGuestyProperty) : [],
+    ),
   };
 };
 

@@ -1,4 +1,5 @@
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
+import { isHiddenUnit } from "../../src/config/hiddenUnits.js";
 
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
 const OPEN_API_V1_RAW = process.env.GUESTY_BASE_URL || `${OPEN_API_HOST}/v1`;
@@ -251,6 +252,10 @@ export async function handler(event) {
   const listingId = String(payload?.listingId ?? payload?.id ?? "").trim();
   if (!listingId) {
     return jsonResponse(400, { error: "Listing ID is required" }, event);
+  }
+
+  if (isHiddenUnit(listingId)) {
+    return jsonResponse(404, { error: "Listing not found" }, event);
   }
 
   try {

@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
 import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
+import { isHiddenUnit } from "../../src/config/hiddenUnits.js";
 const OPEN_API_HOST = "https://open-api.guesty.com";
 const OPEN_API_V1 = "https://open-api.guesty.com/v1";
 const TOKEN_STORE_NAME = process.env.GUESTY_TOKEN_BLOB_STORE || "guesty-oauth";
@@ -1654,8 +1655,17 @@ const handleAvailabilityBulk = async (event, token, tokenSource) => {
     return jsonResponse(400, { message: "Missing ids, startDate, or endDate" });
   }
 
+  const visibleIds = String(ids)
+    .split(",")
+    .map((id) => String(id || "").trim())
+    .filter((id) => id && !isHiddenUnit(id));
+
+  if (!visibleIds.length) {
+    return jsonResponse(200, { results: [], tokenSource });
+  }
+
   const qs = new URLSearchParams({
-    listingIds: ids,
+    listingIds: visibleIds.join(","),
     startDate,
     endDate,
     includeAllotment: "true",
@@ -1705,10 +1715,11 @@ const handleAvailabilityBulk = async (event, token, tokenSource) => {
         : []
     );
     const available = dateList.every((date) => isDayAvailable(dayMap.get(date)));
+    if (isHiddenUnit(listingId)) return null;
     return { id: listingId, available };
   });
 
-  return jsonResponse(200, { results, tokenSource });
+  return jsonResponse(200, { results: results.filter(Boolean), tokenSource });
 };
 
 const handleAvailabilityQuery = async (event, token, tokenSource) => {
@@ -1718,6 +1729,15 @@ const handleAvailabilityQuery = async (event, token, tokenSource) => {
     return jsonResponse(400, { message: "Missing ids, checkIn, or checkOut" });
   }
 
+  const visibleIds = String(ids)
+    .split(",")
+    .map((id) => String(id || "").trim())
+    .filter((id) => id && !isHiddenUnit(id));
+
+  if (!visibleIds.length) {
+    return jsonResponse(200, { results: [], tokenSource });
+  }
+
   const available = {
     checkIn,
     checkOut,
@@ -1725,7 +1745,7 @@ const handleAvailabilityQuery = async (event, token, tokenSource) => {
   };
 
   const qs = new URLSearchParams({
-    ids,
+    ids: visibleIds.join(","),
     available: JSON.stringify(available),
   });
 
@@ -1757,7 +1777,7 @@ const handleAvailabilityQuery = async (event, token, tokenSource) => {
       }))
     : [];
 
-  return jsonResponse(200, { results, tokenSource });
+  return jsonResponse(200, { results: results.filter((row) => !isHiddenUnit(row?.id)), tokenSource });
 };
 
 const handleCalendarMulti = async (event, token, tokenSource) => {
@@ -1774,8 +1794,17 @@ const handleCalendarMulti = async (event, token, tokenSource) => {
     return jsonResponse(400, { message: "Missing listingIds, startDate, or endDate" });
   }
 
+  const visibleListingIds = String(listingIds)
+    .split(",")
+    .map((id) => String(id || "").trim())
+    .filter((id) => id && !isHiddenUnit(id));
+
+  if (!visibleListingIds.length) {
+    return jsonResponse(200, { calendars: {}, tokenSource });
+  }
+
   const qs = new URLSearchParams({
-    listingIds,
+    listingIds: visibleListingIds.join(","),
     startDate,
     endDate,
     includeAllotment,
@@ -1846,6 +1875,10 @@ const handleCalendarPrices = async (event, token, tokenSource, listingId) => {
   } = event.queryStringParameters || {};
   if (!listingId || !startDate) {
     return jsonResponse(400, { message: "Missing listingId or startDate" });
+  }
+
+  if (isHiddenUnit(listingId)) {
+    return jsonResponse(404, { message: "Not Found" });
   }
 
   const start = new Date(startDate);
@@ -2411,6 +2444,7 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   const quotes = requests
     .map((req) => {
       const listingId = req?.listingId;
+      if (isHiddenUnit(listingId)) return null;
       if (!listingId || !req?.checkInDateLocalized || !req?.checkOutDateLocalized) return null;
       const guests = Number(req?.guestsCount) || 1;
       return {
@@ -2455,6 +2489,7 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   const resultsArray = Array.isArray(payload?.results) ? payload.results : [];
   const results = resultsArray.reduce((acc, item) => {
     const key = item?.unitTypeId || item?.listingId || item?._id;
+    if (isHiddenUnit(key)) return acc;
     if (key) {
       const req = (Array.isArray(requests) ? requests : []).find(
         (r) => String(r?.listingId || "") === String(key),
@@ -2650,6 +2685,10 @@ const handleFreeCheckout = async (event) => {
 
   if (!listingId || !checkIn || !checkOut) {
     return jsonResponse(400, { message: "Missing listingId or dates" });
+  }
+
+  if (isHiddenUnit(listingId)) {
+    return jsonResponse(404, { message: "Listing not found" });
   }
 
   if (!guest?.email) {
@@ -2926,6 +2965,10 @@ const handleCheckout = async (event) => {
 
   if (!listingId || !checkIn || !checkOut) {
     return jsonResponse(400, { message: "Missing listingId or dates" });
+  }
+
+  if (isHiddenUnit(listingId)) {
+    return jsonResponse(404, { message: "Listing not found" });
   }
 
   if (!guest?.email) {
