@@ -37,6 +37,9 @@ const ApaleoTestPage = lazy(routePreloaders.apaleoTest);
 const AdminPresencePage = lazy(routePreloaders.adminPresence);
 const AdminReservationsPage = lazy(routePreloaders.adminReservations);
 const GuestReservationPage  = lazy(routePreloaders.guestReservation);
+const BlogPage              = lazy(routePreloaders.blog);
+const BlogArticlePage       = lazy(routePreloaders.blogArticle);
+const AdminBlogPage         = lazy(routePreloaders.adminBlog);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -110,7 +113,8 @@ function AppRoutes() {
     pathname.startsWith("/admins-ols") ||
     pathname.startsWith("/executive-ols") ||
     pathname.startsWith("/admin-reservations") ||
-    pathname.startsWith("/private/");
+    pathname.startsWith("/private/") ||
+    pathname.startsWith("/blog");
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
       <Component />
@@ -243,6 +247,9 @@ function AppRoutes() {
           <Route path="/apaleo-test" element={renderLazyRoute(ApaleoTestPage)} />
           <Route path="/admin-reservations" element={renderLazyRoute(AdminReservationsPage)} />
           <Route path="/reserve" element={renderLazyRoute(GuestReservationPage)} />
+          <Route path="/blog" element={renderLazyRoute(BlogPage)} />
+          <Route path="/blog/:slug" element={renderLazyRoute(BlogArticlePage)} />
+          <Route path="/executive-ols/blog" element={renderLazyRoute(AdminBlogPage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}

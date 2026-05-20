@@ -20,6 +20,7 @@ const FOOTER_EXPLORE_LINKS = [
   { label: "About", to: "/" },
   { label: "Locations", to: "/global" },
   { label: "Apartments", to: "/listings" },
+  { label: "Blog", to: "/blog" },
   { label: "Contact", href: CONTACT_EMAIL_HREF },
 ];
 

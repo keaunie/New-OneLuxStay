@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createRequire } from "module";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -253,12 +254,30 @@ const buildRouteSet = (baseRoutes, listings) => {
   return [...routes];
 };
 
+const BLOG_POST_SLUGS = [
+  "luxury-stays-dubai-2026-guide",
+  "antwerp-travel-guide-2026",
+  "miami-beachfront-vacation-guide",
+  "redondo-beach-vacation-guide",
+  "business-travel-antwerp-guide",
+];
+
 const buildXml = (urls, lastmod) => {
-  const sorted = [...new Set(urls)].sort((a, b) => a.localeCompare(b));
+  const blogPostUrls = BLOG_POST_SLUGS.map((slug) => `${SITE_URL}/blog/${slug}`);
+  const allUrls = [...new Set([...urls, ...blogPostUrls])];
+  const sorted = allUrls.sort((a, b) => a.localeCompare(b));
   const entries = sorted
     .map((url) => {
-      const priority = url === `${SITE_URL}/` ? "1.0" : url.includes("/listing/") ? "0.8" : "0.7";
-      const changefreq = url.includes("/listing/") ? "weekly" : "monthly";
+      const isBlogPost = url.includes("/blog/") && url.split("/blog/")[1]?.length > 0;
+      const isBlogIndex = url.endsWith("/blog");
+      const priority = url === `${SITE_URL}/` ? "1.0"
+        : url.includes("/listing/") ? "0.8"
+        : isBlogPost ? "0.8"
+        : isBlogIndex ? "0.8"
+        : "0.7";
+      const changefreq = url.includes("/listing/") ? "weekly"
+        : isBlogPost ? "monthly"
+        : "monthly";
       return `  <url>
     <loc>${xmlEscape(url)}</loc>
     <lastmod>${lastmod}</lastmod>

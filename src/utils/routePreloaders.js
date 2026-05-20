@@ -27,6 +27,9 @@ const preloadApaleoTestPage = () => import("../pages/ApaleoTestPage");
 const preloadAdminPresencePage = () => import("../AdminPresencePage");
 const preloadAdminReservationsPage = () => import("../pages/AdminReservationsPage");
 const preloadGuestReservationPage  = () => import("../pages/GuestReservationPage");
+const preloadBlogPage = () => import("../pages/BlogPage");
+const preloadBlogArticlePage = () => import("../pages/BlogArticlePage");
+const preloadAdminBlogPage = () => import("../pages/AdminBlogPage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -59,6 +62,9 @@ export const routePreloaders = {
   adminPresence: preloadAdminPresencePage,
   adminReservations: preloadAdminReservationsPage,
   guestReservation:  preloadGuestReservationPage,
+  blog: preloadBlogPage,
+  blogArticle: preloadBlogArticlePage,
+  adminBlog: preloadAdminBlogPage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 

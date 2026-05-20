@@ -16,7 +16,8 @@
       "Bash(copy \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\ols-logo.webp\" \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\public\\\\ols-logo.webp\")",
       "Bash(findstr /i \"APALEO_SCOPE\")",
       "Bash(Get-Content .env)",
-      "Bash(Select-String \"APALEO_SCOPE\")"
+      "Bash(Select-String \"APALEO_SCOPE\")",
+      "WebFetch(domain:api.apaleo.com)"
     ]
   }
 }
