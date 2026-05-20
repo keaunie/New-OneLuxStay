@@ -1,4 +1,10 @@
-const FALLBACK_IMG = "/images/property-fallback.jpg";
+// Inline data URI — never 404s, never triggers a recursive onError loop.
+const FALLBACK_IMG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400'%3E" +
+  "%3Crect width='100%25' height='100%25' fill='%23f0ede8'/%3E" +
+  "%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' " +
+  "fill='%23c5a06c' font-size='16' font-family='sans-serif'%3E%F0%9F%8F%A0%3C/text%3E" +
+  "%3C/svg%3E";
 
 const fmt = (amount, currency = "EUR") => {
   try {
@@ -43,7 +49,10 @@ export default function ReservationCard({ property, onSelect }) {
           alt={property.propertyTitle || property.title}
           className="grp-card-img"
           loading="lazy"
-          onError={(e) => { e.currentTarget.src = FALLBACK_IMG; }}
+          onError={(e) => {
+            e.currentTarget.onerror = null; // prevent recursion if fallback also fails
+            e.currentTarget.src = FALLBACK_IMG;
+          }}
         />
         {city && <span className="grp-card-city-badge">{city}</span>}
         <span className="grp-card-apaleo-badge">Powered by Apaleo</span>

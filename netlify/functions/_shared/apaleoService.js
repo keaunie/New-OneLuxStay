@@ -179,6 +179,8 @@ const requestApaleoToken = async ({ retries = DEFAULT_RETRY_COUNT } = {}) => {
     ...(scope ? { scope } : {}),
   });
 
+  console.log('[apaleo] token request body (scope only):', body.toString());
+
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     let response;
     let payload = {};

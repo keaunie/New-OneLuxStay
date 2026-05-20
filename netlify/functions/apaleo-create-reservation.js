@@ -4,7 +4,7 @@
  * Creates a real Apaleo booking via POST /booking/v1/bookings, then persists
  * the result into Supabase reservation_requests.
  *
- * Required Apaleo scope: reservations.write  (add to APALEO_SCOPE env var)
+ * Required Apaleo scope: distribution:reservations.manage  (must be in APALEO_SCOPE env var)
  * Required Supabase columns (run migration below if missing):
  *   ALTER TABLE reservation_requests
  *     ADD COLUMN IF NOT EXISTS apaleo_booking_id     text,
@@ -208,11 +208,11 @@ export const handler = async (event) => {
       body:       err.payload    || null,
     });
 
-    // 403 — OAuth scope missing reservations.write
+    // 403 — OAuth scope missing distribution:reservations.manage
     if (Number(err.statusCode) === 403) {
       return jsonResponse(503, {
         ok:    false,
-        error: "Apaleo reservation creation is not authorised. Add reservations.write to APALEO_SCOPE and re-deploy.",
+        error: "Apaleo reservation creation is not authorised. Ensure APALEO_SCOPE includes distribution:reservations.manage and re-deploy.",
         code:  "APALEO_SCOPE_INSUFFICIENT",
         apaleoError: err.payload || null,
         payload:     bookingPayload,

@@ -80,14 +80,26 @@ export default function GuestReservationPage() {
 
     try {
       // Fetch Apaleo properties and unit groups in parallel — no Guesty, no Supabase listings
+      const fetchOrThrow = async (url) => {
+        try {
+          return await fetch(url, { credentials: "omit", signal });
+        } catch (err) {
+          if (err?.name === "AbortError") throw err;
+          throw new Error(
+            `Could not reach the server (${url.split("/").pop()}). ` +
+            "Make sure 'netlify dev' is running locally, or check the Netlify deploy logs.",
+          );
+        }
+      };
+
       const [propRes, ugRes] = await Promise.all([
-        fetch("/.netlify/functions/apaleo-properties", { credentials: "omit", signal }),
-        fetch("/.netlify/functions/apaleo-unit-groups", { credentials: "omit", signal }),
+        fetchOrThrow("/.netlify/functions/apaleo-properties"),
+        fetchOrThrow("/.netlify/functions/apaleo-unit-groups"),
       ]);
 
       if (!propRes.ok) {
         const body = await propRes.json().catch(() => ({}));
-        throw new Error(body?.message || body?.error || `Apaleo properties failed (${propRes.status})`);
+        throw new Error(body?.message || body?.error || `Property service error (${propRes.status})`);
       }
 
       const [propData, ugData] = await Promise.all([
