@@ -35,6 +35,8 @@ const CityAttractionsPage = lazy(routePreloaders.cityAttractions);
 const SettingConfigOlsPage = lazy(routePreloaders.settingConfigOls);
 const ApaleoTestPage = lazy(routePreloaders.apaleoTest);
 const AdminPresencePage = lazy(routePreloaders.adminPresence);
+const AdminReservationsPage = lazy(routePreloaders.adminReservations);
+const GuestReservationPage  = lazy(routePreloaders.guestReservation);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -107,6 +109,7 @@ function AppRoutes() {
   const hideChatConcierge =
     pathname.startsWith("/admins-ols") ||
     pathname.startsWith("/executive-ols") ||
+    pathname.startsWith("/admin-reservations") ||
     pathname.startsWith("/private/");
   const renderLazyRoute = (Component) => (
     <Suspense fallback={null}>
@@ -238,6 +241,8 @@ function AppRoutes() {
           <Route path="/private/roadmap/:accessKey" element={renderLazyRoute(RoadmapPrivatePage)} />
           <Route path="/dev-ols/config" element={renderLazyRoute(SettingConfigOlsPage)} />
           <Route path="/apaleo-test" element={renderLazyRoute(ApaleoTestPage)} />
+          <Route path="/admin-reservations" element={renderLazyRoute(AdminReservationsPage)} />
+          <Route path="/reserve" element={renderLazyRoute(GuestReservationPage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}

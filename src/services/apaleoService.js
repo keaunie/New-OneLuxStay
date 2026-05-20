@@ -30,6 +30,7 @@ const request = async (
 
     const response = await fetch(requestUrl, {
       method,
+      credentials: "omit",
       headers: {
         Accept: "application/json",
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
@@ -138,3 +139,9 @@ export const fetchApaleoUnitGroups = async ({ city = "Antwerp", propertyId = "",
       ...(limit ? { limit } : {}),
     },
   });
+
+export const fetchApaleoFinancials = async (reservationId) => {
+  const rid = String(reservationId || "").trim();
+  if (!rid) throw new Error("reservationId is required");
+  return request("/apaleo-financials", { query: { reservationId: rid } });
+};

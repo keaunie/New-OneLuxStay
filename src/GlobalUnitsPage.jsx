@@ -4,9 +4,8 @@ import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
 import { trackGuestListingClick } from "./utils/guestAnalytics";
-import { ASSET_BASE_URL } from "./utils/urlConstants";
 import "./App.css";
-const LOGO_URL = `${ASSET_BASE_URL}/image/ols-logo.png`;
+const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 
 const KNOWN_CITIES = [
   "hollywood",
@@ -823,6 +822,7 @@ function GlobalUnitsPage() {
               alt="One Lux Stay"
               className="landing-logo-image global-hero__logo"
               loading="eager"
+              onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
             />
           </Link>
           <h1 className="global-hero__title landing-display">View All Our Units Worldwide</h1>

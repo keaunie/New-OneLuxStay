@@ -11,7 +11,9 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\" -Recurse -Filter \"*Range*\" -ErrorAction SilentlyContinue)",
       "Bash(Select-Object -First 20)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\src\\\\components\" -File -Recurse | Where-Object {$_.Name -match \"Date|date|Calendar|calendar|picker|Picker\"})",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(dir \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\public\")",
+      "Bash(copy \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\ols-logo.webp\" \"c:\\\\Users\\\\Kyo\\\\Desktop\\\\New-OneLuxStay\\\\public\\\\ols-logo.webp\")"
     ]
   }
 }

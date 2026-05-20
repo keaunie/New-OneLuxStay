@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { fetchApaleoFinancials } from "../../services/apaleoService";
+import ReservationFinancialsTabs from "./ReservationFinancialsTabs";
 
 const sanitize = (value = "", maxLength = 240) =>
   String(value ?? "")
@@ -33,39 +35,6 @@ const formatJson = (value) => {
   }
 };
 
-const listNestedKeys = (value, { maxDepth = 6, maxKeys = 450 } = {}) => {
-  const results = [];
-  const visited = new Set();
-
-  const walk = (node, path = "", depth = 0) => {
-    if (results.length >= maxKeys) return;
-    if (!node || typeof node !== "object") return;
-    if (visited.has(node)) return;
-    visited.add(node);
-
-    if (Array.isArray(node)) {
-      const limit = Math.min(node.length, 20);
-      for (let idx = 0; idx < limit; idx += 1) {
-        const child = node[idx];
-        const nextPath = `${path}[${idx}]`;
-        if (child && typeof child === "object" && depth < maxDepth) walk(child, nextPath, depth + 1);
-      }
-      return;
-    }
-
-    const keys = Object.keys(node);
-    keys.forEach((key) => {
-      if (results.length >= maxKeys) return;
-      const nextPath = path ? `${path}.${key}` : key;
-      results.push(nextPath);
-      const child = node[key];
-      if (child && typeof child === "object" && depth < maxDepth) walk(child, nextPath, depth + 1);
-    });
-  };
-
-  walk(value, "", 0);
-  return results;
-};
 
 const nightsBetween = (arrival = "", departure = "") => {
   const start = toIsoDate(arrival);
@@ -195,6 +164,10 @@ export default function ReservationsSection({
   const [sortDir, setSortDir] = useState("arrival_asc");
   const [selectedId, setSelectedId] = useState("");
 
+  const [financials, setFinancials] = useState(null);
+  const [financialsLoading, setFinancialsLoading] = useState(false);
+  const [financialsError, setFinancialsError] = useState("");
+
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
 
   const propertyTitleById = useMemo(() => {
@@ -298,16 +271,29 @@ export default function ReservationsSection({
     return filteredRows.find((row) => row.id === selectedId) || null;
   }, [filteredRows, selectedId]);
 
-  const selectedRawKeys = useMemo(() => {
-    if (!selectedReservation?.raw) return [];
-    return listNestedKeys(selectedReservation.raw, { maxDepth: 7, maxKeys: 600 });
-  }, [selectedReservation]);
-
   useEffect(() => {
     if (!selectedReservation?.raw) return;
     // Temporary inspector: makes sandbox payload structure obvious in DevTools.
     console.log("FULL RESERVATION", selectedReservation.raw);
   }, [selectedReservation?.id, selectedReservation?.raw]);
+
+  // Fetch financial data whenever the selected reservation changes.
+  useEffect(() => {
+    if (!selectedId) {
+      setFinancials(null);
+      setFinancialsError("");
+      return;
+    }
+    let active = true;
+    setFinancials(null);
+    setFinancialsError("");
+    setFinancialsLoading(true);
+    fetchApaleoFinancials(selectedId)
+      .then((data) => { if (active) setFinancials(data); })
+      .catch((err) => { if (active) setFinancialsError(err?.message || String(err)); })
+      .finally(() => { if (active) setFinancialsLoading(false); });
+    return () => { active = false; };
+  }, [selectedId]);
 
   const countLabel = `${filteredRows.length}${normalizedRows.length !== filteredRows.length ? ` / ${normalizedRows.length}` : ""}`;
 
@@ -519,116 +505,17 @@ export default function ReservationsSection({
 
         <div className="apaleo-reservations-details">
           <div className="apaleo-reservations-details-card">
-            <div className="apaleo-details-title-row">
-              <h4>Booking details</h4>
-              {selectedReservation && (
-                <span className={`apaleo-badge apaleo-status ${normalizeStatus(selectedReservation.status).cls}`}>
-                  {normalizeStatus(selectedReservation.status).label}
-                </span>
-              )}
-            </div>
-            {!selectedReservation && <p className="apaleo-empty">Select a reservation row to preview details.</p>}
+            {!selectedReservation && (
+              <p className="apaleo-empty">Select a reservation row to preview details.</p>
+            )}
             {selectedReservation && (
-              <div className="apaleo-details-stack">
-                <section className="apaleo-details-section">
-                  <h5>Guest information</h5>
-                  <div className="apaleo-details-grid">
-                    <div className="apaleo-details-line">
-                      <span>Guest</span>
-                      <strong>{selectedReservation.guestName}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Email</span>
-                      <strong>{selectedReservation.guestEmail || "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Phone</span>
-                      <strong>{selectedReservation.guestPhone || "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Address</span>
-                      <strong>{formatGuestAddress(selectedReservation.guestAddress)}</strong>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="apaleo-details-section">
-                  <h5>Reservation information</h5>
-                  <div className="apaleo-details-grid">
-                    <div className="apaleo-details-line">
-                      <span>Reservation ID</span>
-                      <strong>{selectedReservation.id}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Arrival</span>
-                      <strong>{selectedReservation.checkIn || "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Departure</span>
-                      <strong>{selectedReservation.checkOut || "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Nights</span>
-                      <strong>{nightsBetween(selectedReservation.checkIn, selectedReservation.checkOut) ?? "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Guests</span>
-                      <strong>{readGuestsLabel(selectedReservation)}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Confirmation</span>
-                      <strong>{selectedReservation.confirmationNumber || "—"}</strong>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="apaleo-details-section">
-                  <h5>Property information</h5>
-                  <div className="apaleo-details-grid">
-                    <div className="apaleo-details-line">
-                      <span>Property</span>
-                      <strong>{selectedReservation.propertyTitle || selectedReservation.propertyId || "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Unit</span>
-                      <strong>{selectedReservation.unitName || "—"}</strong>
-                    </div>
-                    <div className="apaleo-details-line">
-                      <span>Channel</span>
-                      <strong>{selectedReservation.channel || "—"}</strong>
-                    </div>
-                  </div>
-                </section>
-
-                <details className="apaleo-entry apaleo-details-raw">
-                  <summary>Show raw payload</summary>
-                  <div className="apaleo-entry-body">
-                    <pre className="apaleo-json apaleo-json-preview">{formatJson({
-                      guest: selectedReservation.guestProfile,
-                      guestAddress: selectedReservation.guestAddress,
-                      rawReservation: selectedReservation.raw,
-                    })}</pre>
-                  </div>
-                </details>
-
-                <details className="apaleo-entry apaleo-details-raw">
-                  <summary>Raw reservation inspector (FULL)</summary>
-                  <div className="apaleo-entry-body">
-                    <p className="apaleo-empty" style={{ marginBottom: 8 }}>
-                      Nested keys discovered: {selectedRawKeys.length || 0}
-                    </p>
-                    <pre className="apaleo-json apaleo-json-tall">{formatJson(selectedReservation.raw)}</pre>
-                    {selectedRawKeys.length > 0 && (
-                      <>
-                        <p className="apaleo-empty" style={{ marginTop: 10, marginBottom: 8 }}>
-                          Key paths (depth-limited)
-                        </p>
-                        <pre className="apaleo-json apaleo-json-compact">{selectedRawKeys.join("\n")}</pre>
-                      </>
-                    )}
-                  </div>
-                </details>
-              </div>
+              <ReservationFinancialsTabs
+                key={selectedReservation.id}
+                reservation={selectedReservation}
+                financials={financials}
+                financialsLoading={financialsLoading}
+                financialsError={financialsError}
+              />
             )}
           </div>
         </div>

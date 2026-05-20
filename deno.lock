@@ -16,6 +16,7 @@
         "npm:@fontsource/work-sans@^5.2.8",
         "npm:@netlify/blobs@^10.5.0",
         "npm:@react-three/fiber@^9.5.0",
+        "npm:@supabase/supabase-js@^2.105.4",
         "npm:@types/react-dom@^19.2.3",
         "npm:@types/react@^19.2.5",
         "npm:@vitejs/plugin-react@^5.1.1",

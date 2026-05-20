@@ -25,6 +25,8 @@ const preloadCityAttractionsPage = () => import("../CityAttractionsPage");
 const preloadSettingConfigOlsPage = () => import("../SettingConfigOlsPage");
 const preloadApaleoTestPage = () => import("../pages/ApaleoTestPage");
 const preloadAdminPresencePage = () => import("../AdminPresencePage");
+const preloadAdminReservationsPage = () => import("../pages/AdminReservationsPage");
+const preloadGuestReservationPage  = () => import("../pages/GuestReservationPage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -55,6 +57,8 @@ export const routePreloaders = {
   settingConfigOls: preloadSettingConfigOlsPage,
   apaleoTest: preloadApaleoTestPage,
   adminPresence: preloadAdminPresencePage,
+  adminReservations: preloadAdminReservationsPage,
+  guestReservation:  preloadGuestReservationPage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 

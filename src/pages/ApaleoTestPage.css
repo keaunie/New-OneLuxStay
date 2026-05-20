@@ -383,6 +383,8 @@
   border-radius: 14px;
   padding: 12px;
   background: rgba(255, 252, 247, 0.96);
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .apaleo-reservations-details-card h4 {
@@ -485,6 +487,231 @@
 
 .apaleo-json.apaleo-json-tall {
   max-height: 300px;
+}
+
+/* ─── Financial panel ────────────────────────────────────────────────────── */
+
+.apaleo-fin-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.apaleo-fin-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(128, 103, 63, 0.14);
+  margin-bottom: 0;
+}
+
+/* ─── Tab bar ────────────────────────────────────────────────────────────── */
+
+.apaleo-detail-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid rgba(128, 103, 63, 0.14);
+  margin-bottom: 10px;
+  scrollbar-width: none;
+}
+
+.apaleo-detail-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.apaleo-detail-tab {
+  flex: 0 0 auto;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #7d653f;
+  white-space: nowrap;
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.apaleo-detail-tab:hover {
+  background: rgba(214, 185, 126, 0.14);
+  border-color: rgba(127, 102, 61, 0.2);
+}
+
+.apaleo-detail-tab.active {
+  background: rgba(214, 185, 126, 0.28);
+  border-color: rgba(127, 102, 61, 0.38);
+  color: #2f2418;
+}
+
+.apaleo-detail-tab-content {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ─── Shared financial section + grid ────────────────────────────────────── */
+
+.apaleo-fin-section {
+  display: grid;
+  gap: 4px;
+}
+
+.apaleo-fin-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.apaleo-fin-grid--sm {
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.apaleo-fin-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.apaleo-fin-row-label {
+  color: #725c3d;
+  flex-shrink: 0;
+}
+
+.apaleo-fin-row-value {
+  font-weight: 700;
+  color: #2f2418;
+  word-break: break-word;
+}
+
+/* ─── Status / empty messages ────────────────────────────────────────────── */
+
+.apaleo-fin-status {
+  margin: 12px 0 0;
+  color: #7a6545;
+  font-size: 13px;
+}
+
+.apaleo-fin-status--err {
+  color: #8f2525;
+}
+
+.apaleo-fin-empty {
+  margin: 12px 0 0;
+  color: #7a6545;
+  font-size: 13px;
+}
+
+/* ─── Payment / authorization / folio cards ──────────────────────────────── */
+
+.apaleo-fin-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.apaleo-payment-card {
+  border: 1px solid rgba(128, 103, 63, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 12px;
+}
+
+.apaleo-payment-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.apaleo-payment-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.apaleo-payment-card-brand {
+  font-size: 13px;
+  font-weight: 800;
+  color: #2f2418;
+  letter-spacing: 0.02em;
+}
+
+.apaleo-payment-card-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #3d3020;
+  margin-bottom: 10px;
+}
+
+.apaleo-fin-big-amount {
+  font-size: 16px;
+  font-weight: 800;
+  color: #2f2418;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Charges / Payments tables ──────────────────────────────────────────── */
+
+.apaleo-fin-table-shell {
+  overflow-x: auto;
+  border: 1px solid rgba(128, 103, 63, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 252, 247, 0.96);
+}
+
+.apaleo-fin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 360px;
+}
+
+.apaleo-fin-table th,
+.apaleo-fin-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(128, 103, 63, 0.10);
+  text-align: left;
+  vertical-align: top;
+}
+
+.apaleo-fin-table thead th {
+  background: rgba(251, 248, 242, 0.98);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7d653f;
+  font-weight: 700;
+}
+
+.apaleo-fin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.apaleo-fin-amount-cell {
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #2f2418;
+}
+
+.apaleo-fin-meta-cell {
+  font-size: 12px;
+  color: #7a6545;
+}
+
+.apaleo-fin-meta {
+  font-size: 11px;
+  color: #8a7053;
+  margin-top: 2px;
 }
 
 @media (min-width: 900px) {
