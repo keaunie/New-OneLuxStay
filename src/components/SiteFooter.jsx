@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { trackGuestCityClick } from "../utils/guestAnalytics";
+import { trackCtaClick, trackPhoneCallClick, trackWhatsAppClick } from "../lib/analytics";
 import {
   CONTACT_EMAIL,
   CONTACT_EMAIL_HREF,
@@ -188,6 +189,7 @@ function SiteFooter() {
   const location = useLocation();
   const currentYear = new Date().getFullYear();
   const footerContactItems = getFooterContactItems(location.pathname);
+  const sourcePage = `${location.pathname || "/"}${location.search || ""}`;
 
   return (
     <footer className="policy-footer">
@@ -198,12 +200,34 @@ function SiteFooter() {
               <h2>Ready to book?</h2>
               <p>Explore availability across our global collection.</p>
             </div>
-            <Link to="/global" className="policy-footer-cta-button policy-footer-cta-button--desktop">
+            <Link
+              to="/global"
+              className="policy-footer-cta-button policy-footer-cta-button--desktop"
+              data-analytics-explicit="true"
+              onClick={() =>
+                trackCtaClick({
+                  ctaText: "check availability",
+                  location: "site_footer_desktop",
+                  sourcePage,
+                })
+              }
+            >
               Check Availability
             </Link>
           </div>
           <div className="policy-footer-mobile-book">
-            <Link to="/global" className="policy-footer-cta-button policy-footer-cta-button--mobile">
+            <Link
+              to="/global"
+              className="policy-footer-cta-button policy-footer-cta-button--mobile"
+              data-analytics-explicit="true"
+              onClick={() =>
+                trackCtaClick({
+                  ctaText: "book now",
+                  location: "site_footer_mobile",
+                  sourcePage,
+                })
+              }
+            >
               Book Now
             </Link>
           </div>
@@ -264,7 +288,31 @@ function SiteFooter() {
                 <a
                   key={item.label}
                   href={item.href}
+                  data-analytics-explicit="true"
                   {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  onClick={() => {
+                    if (item.icon === "whatsapp") {
+                      trackWhatsAppClick({
+                        city: isAntwerpPath(location.pathname) ? "Antwerp" : "",
+                        sourcePage,
+                        buttonType: "footer_whatsapp",
+                        location: "site_footer",
+                      });
+                    }
+                    if (item.icon === "phone") {
+                      trackPhoneCallClick({
+                        phone: item.href.replace(/^tel:/i, ""),
+                        sourcePage,
+                        city: isAntwerpPath(location.pathname) ? "Antwerp" : "",
+                        location: "site_footer",
+                      });
+                    }
+                    trackCtaClick({
+                      ctaText: item.label,
+                      location: "site_footer",
+                      sourcePage,
+                    });
+                  }}
                   className={`policy-footer-contact-item${
                     item.icon === "mail" || item.label === "EU" ? " policy-footer-contact-item--wide" : ""
                   }`}

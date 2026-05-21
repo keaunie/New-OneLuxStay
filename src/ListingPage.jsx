@@ -5,6 +5,22 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import apiBase from "./utils/apiBase";
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
 import { HIDDEN_UNIT_IDS } from "./config/hiddenUnits";
+import {
+  trackAvailabilityOpened,
+  trackAvailabilitySearch,
+  trackBookingRedirect,
+  trackBookingStart,
+  trackCalendarAbandoned,
+  trackCtaClick,
+  trackCityView,
+  trackGalleryOpened,
+  trackGalleryImageViewed,
+  trackGuestCountChanged,
+  trackInquiryStart,
+  trackInquirySubmit,
+  trackListingView,
+  trackWhatsAppClick,
+} from "./lib/analytics";
 import "./App.css";
 const checkoutBase = apiBase;
 
@@ -207,6 +223,7 @@ const formatDisplayDate = (value) => {
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const hasOpenedRef = useRef(false);
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
   const dialogId = useId();
@@ -238,6 +255,20 @@ const DateRangePicker = ({ value, onChange }) => {
       document.removeEventListener("keydown", handleEsc);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      hasOpenedRef.current = true;
+      return;
+    }
+    if (!hasOpenedRef.current) return;
+    if (startDate && !endDate) {
+      trackCalendarAbandoned({
+        source_page: window.location.pathname + window.location.search,
+        source_location: "listing_date_picker",
+      });
+    }
+  }, [open, startDate, endDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -579,6 +610,17 @@ function ListingPage() {
   }, [isInquiryOpen]);
 
   useEffect(() => {
+    if (!isModalOpen || !modalListing) return;
+    trackGalleryOpened({
+      listing_id: String(getListingId(modalListing)),
+      listing_name: modalListing?.title || "",
+      city: normalizeCity(modalListing),
+      image_count: getListingImageUrls(modalListing).length,
+      source_page: window.location.pathname + window.location.search,
+    });
+  }, [isModalOpen, modalListing]);
+
+  useEffect(() => {
     const load = async () => {
       try {
         const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
@@ -699,6 +741,13 @@ function ListingPage() {
 
   const handleSearchChange = (key, value) => {
     setSearch((prev) => ({ ...prev, [key]: value }));
+    if (key === "adults" || key === "children") {
+      trackGuestCountChanged({
+        field: key,
+        value: String(value),
+        source_page: window.location.pathname + window.location.search,
+      });
+    }
   };
 
   const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
@@ -717,6 +766,16 @@ function ListingPage() {
       setAvailabilityNotice("Select check-in and check-out dates first.");
       return;
     }
+    trackAvailabilitySearch({
+      listing_id: String(getListingId(listing)),
+      listing_name: listing?.title || "",
+      city: normalizeCity(listing),
+      check_in: search.checkIn,
+      check_out: search.checkOut,
+      adults: Number(search.adults) || 1,
+      children: Number(search.children) || 0,
+      source_page: window.location.pathname + window.location.search,
+    });
     setAvailabilityNotice("");
     const requestKey = `${listing.id}:${search.checkIn}:${search.checkOut}:${search.adults}:${search.children}`;
     const existing = availability[listing.id];
@@ -909,6 +968,26 @@ function ListingPage() {
     setModalHero(getPrimaryListingImage(listing));
     setIsModalOpen(true);
     setActiveListingId(listing.id);
+    trackListingView({
+      listingId: String(getListingId(listing)),
+      listingName: listing?.title || "",
+      city: normalizeCity(listing),
+      pageUrl: window.location.pathname + window.location.search,
+    });
+    trackAvailabilityOpened({
+      listing_id: String(getListingId(listing)),
+      listing_name: listing?.title || "",
+      city: normalizeCity(listing),
+      source_page: window.location.pathname + window.location.search,
+      source_location: "listing_card",
+    });
+    trackCtaClick({
+      ctaText: "check price & availability",
+      location: "listing_card",
+      sourcePage: window.location.pathname + window.location.search,
+      city: normalizeCity(listing),
+      listing: String(getListingId(listing)),
+    });
     checkAvailability(listing);
   };
 
@@ -954,6 +1033,17 @@ function ListingPage() {
     const guestsTotal =
       (Number.isFinite(Number(search.adults)) ? Number(search.adults) : 1) +
       (Number.isFinite(Number(search.children)) ? Number(search.children) : 0);
+    trackBookingStart({
+      listing_id: String(activeListingId),
+      listing_name: selectedListing?.title || "",
+      city: normalizeCity(selectedListing || {}),
+      check_in: search.checkIn,
+      check_out: search.checkOut,
+      guests: guestsTotal,
+      amount,
+      currency,
+      source_page: window.location.pathname + window.location.search,
+    });
 
     setBookingState({ status: "loading", message: "" });
 
@@ -981,6 +1071,17 @@ function ListingPage() {
       }
 
       if (json.url) {
+        trackBookingRedirect({
+          listing_id: String(activeListingId),
+          listing_name: selectedListing?.title || "",
+          city: normalizeCity(selectedListing || {}),
+          check_in: search.checkIn,
+          check_out: search.checkOut,
+          guests: guestsTotal,
+          amount,
+          currency,
+          source_page: window.location.pathname + window.location.search,
+        });
         window.location.href = json.url;
         return;
       }
@@ -1076,7 +1177,16 @@ function ListingPage() {
                 return (
                   <button
                     key={city}
-                    onClick={() => setCityFilter(city)}
+                    onClick={() => {
+                      setCityFilter(city);
+                      if (city !== "All") {
+                        trackCityView({
+                          cityName: city,
+                          sourcePage: window.location.pathname + window.location.search,
+                          destinationCity: city,
+                        });
+                      }
+                    }}
                     className={`listing-filter-btn group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition ${active
                       ? "border-amber-400 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/20"
                       : "border-white/10 bg-white/5 text-slate-200 hover:border-amber-300/50 hover:text-white"
@@ -1222,6 +1332,7 @@ function ListingPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
+                      data-analytics-explicit="true"
                       onClick={() => handleOpenModal(listing)}
                       aria-label={`Check price and availability for ${listing.title}`}
                       className="listing-btn rounded-lg px-3 py-2 text-sm font-semibold border transition"
@@ -1231,8 +1342,16 @@ function ListingPage() {
                     {canBook && (
                       <button
                         type="button"
+                        data-analytics-explicit="true"
                         onClick={() => {
                           setActiveListingId(listing.id);
+                          trackCtaClick({
+                            ctaText: "book this stay",
+                            location: "listing_card",
+                            sourcePage: window.location.pathname + window.location.search,
+                            city: normalizeCity(listing),
+                            listing: String(getListingId(listing)),
+                          });
                           handleBook();
                         }}
                         aria-label={`Book ${listing.title}`}
@@ -1247,6 +1366,13 @@ function ListingPage() {
                         onClick={() => {
                           setInquiryListing(listing);
                           setIsInquiryOpen(true);
+                          trackInquiryStart({
+                            listing_id: String(getListingId(listing)),
+                            listing_name: listing?.title || "",
+                            city: normalizeCity(listing),
+                            source_page: window.location.pathname + window.location.search,
+                            source_location: "listing_card",
+                          });
                         }}
                         aria-label={`Inquire about ${listing.title}`}
                         className="listing-btn-primary rounded-lg px-3 py-2 text-sm font-semibold shadow-lg transition"
@@ -1298,7 +1424,16 @@ function ListingPage() {
                         {modalImages.map((src, index) => (
                           <button
                             key={`${src}-${index}`}
-                            onClick={() => setModalHero(src)}
+                            onClick={() => {
+                              setModalHero(src);
+                              trackGalleryImageViewed({
+                                listing_id: String(getListingId(modalListing)),
+                                listing_name: modalListing?.title || "",
+                                city: normalizeCity(modalListing),
+                                image_index: index + 1,
+                                source_page: window.location.pathname + window.location.search,
+                              });
+                            }}
                             className="listing-thumb-btn h-20 w-28 flex-shrink-0 overflow-hidden rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-400"
                           >
                             <img
@@ -1400,6 +1535,13 @@ function ListingPage() {
                         onClick={() => {
                           setInquiryListing(modalListing);
                           setIsInquiryOpen(true);
+                          trackInquiryStart({
+                            listing_id: String(getListingId(modalListing)),
+                            listing_name: modalListing?.title || "",
+                            city: normalizeCity(modalListing),
+                            source_page: window.location.pathname + window.location.search,
+                            source_location: "listing_modal",
+                          });
                         }}
                       >
                         Inquire about this unit
@@ -1496,14 +1638,43 @@ function ListingPage() {
               </button>
             </div>
             <div className="la-inquiry-modal__body">
-              <a className="la-inquiry-modal__action" href={inquiryEmailHref}>
+              <a
+                className="la-inquiry-modal__action"
+                href={inquiryEmailHref}
+                onClick={() =>
+                  trackInquirySubmit({
+                    listing_id: String(getListingId(inquiryListing)),
+                    listing_name: inquiryTitle,
+                    city: normalizeCity(inquiryListing || {}),
+                    source_page: window.location.pathname + window.location.search,
+                    submit_type: "email",
+                  })
+                }
+              >
                 Email reservations@oneluxstay.com
               </a>
-              <a
-                className="la-inquiry-modal__action is-whatsapp"
-                href={inquiryWhatsAppHref}
-                target="_blank"
+                      <a
+                        className="la-inquiry-modal__action is-whatsapp"
+                        data-analytics-explicit="true"
+                        href={inquiryWhatsAppHref}
+                        target="_blank"
                 rel="noreferrer"
+                onClick={() => {
+                  trackInquirySubmit({
+                    listing_id: String(getListingId(inquiryListing)),
+                    listing_name: inquiryTitle,
+                    city: normalizeCity(inquiryListing || {}),
+                    source_page: window.location.pathname + window.location.search,
+                    submit_type: "whatsapp",
+                  });
+                  trackWhatsAppClick({
+                    listing: String(getListingId(inquiryListing)),
+                    city: normalizeCity(inquiryListing || {}),
+                    sourcePage: window.location.pathname + window.location.search,
+                    buttonType: "inquiry_whatsapp",
+                    location: "listing_inquiry_modal",
+                  });
+                }}
               >
                 {inquiryWhatsAppLabel}
               </a>
@@ -1517,19 +1688,5 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

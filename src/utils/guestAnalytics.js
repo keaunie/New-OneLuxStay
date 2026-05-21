@@ -1,4 +1,11 @@
 import apiBase from "./apiBase";
+import {
+  trackAvailabilitySearch,
+  trackCityView,
+  trackEventSafe,
+  trackListingView,
+} from "../lib/analytics";
+import { ANALYTICS_EVENTS } from "../lib/analyticsEvents";
 
 const SESSION_KEY = "ols-guest-analytics-session";
 const PAGE_VIEW_DEDUPE_KEY = "ols-guest-analytics-pageview";
@@ -190,14 +197,80 @@ export const trackGuestJourneyEvent = async ({
   const normalizedEventType = sanitizeString(eventType, 80).toLowerCase();
   if (!normalizedEventType) return;
 
+  const normalizedCity = sanitizeString(city || pageContext?.city, 120);
+  const normalizedListingId = sanitizeString(listingId || pageContext?.listingId, 120);
+  const normalizedDestinationPath = sanitizeString(destinationPath, 240);
+  const normalizedListingTitle = sanitizeString(listingTitle, 220);
+  const normalizedSourceSection = sanitizeString(sourceSection, 120);
+  const normalizedSourceLabel = sanitizeString(sourceLabel, 160);
+
+  if (normalizedEventType === "city_click") {
+    trackCityView({
+      cityName: normalizedCity,
+      sourcePage: normalizedDestinationPath || (typeof window !== "undefined" ? window.location.pathname : ""),
+      destinationCity: normalizedCity,
+    });
+    trackEventSafe({
+      eventName: ANALYTICS_EVENTS.CITY_CLICK,
+      params: {
+        city: normalizedCity,
+        destination_path: normalizedDestinationPath,
+        source_section: normalizedSourceSection,
+        source_label: normalizedSourceLabel,
+      },
+      dedupeKey: `${normalizedCity}:${normalizedDestinationPath}:${normalizedSourceSection}:${normalizedSourceLabel}`,
+    });
+  }
+
+  if (normalizedEventType === "listing_click") {
+    trackListingView({
+      listingId: normalizedListingId,
+      listingName: normalizedListingTitle,
+      city: normalizedCity,
+      pageUrl: normalizedDestinationPath,
+    });
+    trackEventSafe({
+      eventName: ANALYTICS_EVENTS.LISTING_CLICK,
+      params: {
+        listing_id: normalizedListingId,
+        listing_name: normalizedListingTitle,
+        city: normalizedCity,
+        destination_path: normalizedDestinationPath,
+        source_section: normalizedSourceSection,
+        source_label: normalizedSourceLabel,
+      },
+      dedupeKey: `${normalizedListingId}:${normalizedDestinationPath}:${normalizedSourceSection}:${normalizedSourceLabel}`,
+    });
+  }
+
+  if (normalizedEventType === "search_submit") {
+    trackAvailabilitySearch({
+      city: normalizedCity,
+      destination_path: normalizedDestinationPath,
+      source_section: normalizedSourceSection,
+      source_label: normalizedSourceLabel,
+    });
+  }
+
+  if (normalizedEventType === "page_view") {
+    if (normalizedListingId) {
+      trackListingView({
+        listingId: normalizedListingId,
+        listingName: normalizedListingTitle,
+        city: normalizedCity,
+        pageUrl: normalizedDestinationPath,
+      });
+    }
+  }
+
   await postGuestAnalytics({
     eventType: normalizedEventType,
-    city: sanitizeString(city || pageContext?.city, 120),
-    listingId: sanitizeString(listingId || pageContext?.listingId, 120),
-    listingTitle: sanitizeString(listingTitle, 220),
-    destinationPath: sanitizeString(destinationPath, 240),
-    sourceSection: sanitizeString(sourceSection, 120),
-    sourceLabel: sanitizeString(sourceLabel, 160),
+    city: normalizedCity,
+    listingId: normalizedListingId,
+    listingTitle: normalizedListingTitle,
+    destinationPath: normalizedDestinationPath,
+    sourceSection: normalizedSourceSection,
+    sourceLabel: normalizedSourceLabel,
     pageContext,
   });
 };

@@ -5,6 +5,14 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import apiBase from "./utils/apiBase";
 import { trackGuestListingClick } from "./utils/guestAnalytics";
 import { isHiddenUnit } from "./config/hiddenUnits";
+import {
+  trackAvailabilityOpened,
+  trackAvailabilitySearch,
+  trackCalendarAbandoned,
+  trackCityView,
+  trackGalleryImageViewed,
+  trackGuestCountChanged,
+} from "./lib/analytics";
 import "./App.css";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 
@@ -211,6 +219,7 @@ const getListingIdentityIds = (listing) =>
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const hasOpenedRef = useRef(false);
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
   const dialogId = useId();
@@ -242,6 +251,20 @@ const DateRangePicker = ({ value, onChange }) => {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open) {
+      hasOpenedRef.current = true;
+      return;
+    }
+    if (!hasOpenedRef.current) return;
+    if (startDate && !endDate) {
+      trackCalendarAbandoned({
+        source_page: window.location.pathname + window.location.search,
+        source_location: "global_units_date_picker",
+      });
+    }
+  }, [open, startDate, endDate]);
+
   const buildMonth = (baseDate) => {
     const year = baseDate.getFullYear();
     const month = baseDate.getMonth();
@@ -272,6 +295,10 @@ const DateRangePicker = ({ value, onChange }) => {
 
   const openPicker = () => {
     syncViewToBaseMonth();
+    trackAvailabilityOpened({
+      source_page: window.location.pathname + window.location.search,
+      source_location: "global_units_date_picker",
+    });
     setOpen(true);
   };
 
@@ -292,6 +319,14 @@ const DateRangePicker = ({ value, onChange }) => {
       checkIn: nextStart ? toIsoDate(nextStart) : "",
       checkOut: nextEnd ? toIsoDate(nextEnd) : "",
     });
+    if (nextStart && nextEnd) {
+      trackAvailabilitySearch({
+        check_in: toIsoDate(nextStart),
+        check_out: toIsoDate(nextEnd),
+        source_page: window.location.pathname + window.location.search,
+        source_location: "global_units_date_picker",
+      });
+    }
     if (nextStart && nextEnd) setOpen(false);
   };
 
@@ -604,6 +639,12 @@ function GlobalUnitsPage() {
       setAvailableListingIds(null);
       return;
     }
+    trackAvailabilitySearch({
+      check_in: stayDates.checkIn,
+      check_out: stayDates.checkOut,
+      source_page: window.location.pathname + window.location.search,
+      source_location: "global_units_availability_query",
+    });
     const listingIds = [...new Set(listings.map(getListingId).filter(Boolean).map(String))];
     if (!listingIds.length) {
       setAvailabilityLoading(false);
@@ -764,6 +805,12 @@ function GlobalUnitsPage() {
         const rawIndex = prev[listingId] ?? 0;
         const current = ((rawIndex % totalImages) + totalImages) % totalImages;
         const next = (current + step + totalImages) % totalImages;
+        trackGalleryImageViewed({
+          listing_id: String(listingId || ""),
+          image_index: next + 1,
+          source_page: window.location.pathname + window.location.search,
+          source_location: "global_units_card_gallery",
+        });
         return { ...prev, [listingId]: next };
       });
       requestAnimationFrame(() => {
@@ -856,7 +903,17 @@ function GlobalUnitsPage() {
               City
               <select
                 value={cityFilter}
-                onChange={(event) => setCityFilter(event.target.value)}
+                onChange={(event) => {
+                  const nextCity = event.target.value;
+                  setCityFilter(nextCity);
+                  if (nextCity && nextCity !== "All") {
+                    trackCityView({
+                      cityName: nextCity,
+                      sourcePage: window.location.pathname + window.location.search,
+                      destinationCity: nextCity,
+                    });
+                  }
+                }}
                 className="rounded-lg border border-[rgba(201,181,156,0.6)] bg-white px-3 py-2 text-[var(--ink)] outline-none focus:border-[var(--landing-amber)]"
               >
                 {cityOptions.map((city) => (
@@ -870,7 +927,16 @@ function GlobalUnitsPage() {
               Rooms
               <select
                 value={roomsFilter}
-                onChange={(event) => setRoomsFilter(Number(event.target.value) || 1)}
+                onChange={(event) => {
+                  const next = Number(event.target.value) || 1;
+                  setRoomsFilter(next);
+                  trackGuestCountChanged({
+                    field: "rooms",
+                    value: String(next),
+                    source_page: window.location.pathname + window.location.search,
+                    source_location: "global_units_filter",
+                  });
+                }}
                 className="rounded-lg border border-[rgba(201,181,156,0.6)] bg-white px-3 py-2 text-[var(--ink)] outline-none focus:border-[var(--landing-amber)]"
               >
                 <option value={1}>Any</option>
