@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
 import ScrollToTop from "./components/ScrollToTop";
+import AnalyticsTracker from "./components/AnalyticsTracker";
 import ProtectedSuperAdminRoute from "./components/ProtectedSuperAdminRoute";
 import { trackGuestPageView } from "./utils/guestAnalytics";
 import "./App.css";
@@ -153,6 +154,7 @@ function AppRoutes() {
           <LoadingScreen active={!appLoaded} />
         </Suspense>
       )}
+      <AnalyticsTracker />
       <ScrollToTop />
       <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
         <Routes>

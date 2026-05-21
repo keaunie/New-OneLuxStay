@@ -24,6 +24,9 @@ const MOBILE_CONVERSATION_BREAKPOINT = 768;
 const TABLET_CONVERSATION_BREAKPOINT = 1024;
 const MOBILE_CONVERSATION_FILTER_DEFAULT = "all";
 
+// Set to true to restore the Call Center sidebar link when the feature is ready
+const SHOW_CALL_CENTER = false;
+
 const DEFAULT_FORM = {
   title: "",
   sentimentLabel: "negative",
@@ -573,6 +576,9 @@ function AdminsOlsPage() {
   const [replyDraft, setReplyDraft] = useState("");
   const [conversationSearchInput, setConversationSearchInput] = useState("");
   const [mobileConversationFilter, setMobileConversationFilter] = useState(MOBILE_CONVERSATION_FILTER_DEFAULT);
+  const [desktopConversationFilter, setDesktopConversationFilter] = useState("all");
+  const [desktopConversationSearch, setDesktopConversationSearch] = useState("");
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [sendingReply, setSendingReply] = useState(false);
   const [conversationModeUpdating, setConversationModeUpdating] = useState(false);
   const [conversationSummary, setConversationSummary] = useState(null);
@@ -610,6 +616,7 @@ function AdminsOlsPage() {
   );
   const [attentionSeenSignatures, setAttentionSeenSignatures] = useState([]);
   const threadScrollRef = useRef(null);
+  const detailsDropdownRef = useRef(null);
   const hasLoggedDashboardOpenRef = useRef(false);
   const conversationSummaryAbortRef = useRef(null);
   const sidebarPhaseTimeoutRef = useRef(null);
@@ -683,6 +690,9 @@ function AdminsOlsPage() {
   const isActiveConversationAi = activeConversationMode === "ai";
   const isActiveConversationHuman = activeConversationMode === "human";
   const isActiveConversationPaused = activeConversationMode === "paused";
+  const lastGuestMessagePreview = activeConversation?.messages?.length
+    ? [...activeConversation.messages].reverse().find((m) => m.role === "user")?.content || ""
+    : "";
   const isMobileThreadOpen = isMobileChatRoute && Boolean(activeConversation?.sessionId);
   const shouldRenderConversationList = !isMobileInboxViewport || !isMobileChatRoute;
   const shouldRenderConversationThread = !isMobileInboxViewport || isMobileChatRoute;
@@ -734,6 +744,39 @@ function AdminsOlsPage() {
     }),
     [attentionThreads.length, recentConversations, unreadAttentionSignatureSet],
   );
+
+  const normalizedDesktopSearch = String(desktopConversationSearch || "").trim().toLowerCase();
+  const desktopFilteredConversations = useMemo(() => {
+    const matchesQuery = (thread) => {
+      if (!normalizedDesktopSearch) return true;
+      const haystack = [
+        getConversationTitle(thread),
+        getConversationPreview(thread),
+        getConversationChannelLabel(thread),
+        thread?.city,
+        thread?.listingId,
+        thread?.sessionId,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(normalizedDesktopSearch);
+    };
+    return recentConversations.filter((thread) => {
+      const matchesFilter =
+        desktopConversationFilter === "all" ||
+        (desktopConversationFilter === "ai" && normalizeConversationMode(thread.conversationMode) === "ai") ||
+        (desktopConversationFilter === "human" && normalizeConversationMode(thread.conversationMode) === "human") ||
+        (desktopConversationFilter === "paused" && normalizeConversationMode(thread.conversationMode) === "paused") ||
+        (desktopConversationFilter === "attention" && conversationNeedsAttention(thread));
+      return matchesFilter && matchesQuery(thread);
+    });
+  }, [desktopConversationFilter, normalizedDesktopSearch, recentConversations]);
+
+  const desktopFilterCounts = useMemo(() => ({
+    all: recentConversations.length,
+    ai: recentConversations.filter((t) => normalizeConversationMode(t.conversationMode) === "ai").length,
+    human: recentConversations.filter((t) => normalizeConversationMode(t.conversationMode) === "human").length,
+    paused: recentConversations.filter((t) => normalizeConversationMode(t.conversationMode) === "paused").length,
+    attention: attentionThreads.length,
+  }), [attentionThreads.length, recentConversations]);
 
   const conversationSummarySeenStorageKey = useMemo(() => {
     const identity = String(currentAdmin?.email || currentAdmin?.id || "shared").trim().toLowerCase();
@@ -996,6 +1039,21 @@ function AdminsOlsPage() {
   useEffect(() => {
     setReplyDraft("");
   }, [activeConversation?.sessionId]);
+
+  useEffect(() => {
+    setIsDetailsOpen(false);
+  }, [activeConversation?.sessionId]);
+
+  useEffect(() => {
+    if (!isDetailsOpen) return;
+    const handleOutsideClick = (event) => {
+      if (detailsDropdownRef.current && !detailsDropdownRef.current.contains(event.target)) {
+        setIsDetailsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isDetailsOpen]);
 
   useEffect(() => {
     setAccountForm((current) => ({
@@ -2440,10 +2498,12 @@ function AdminsOlsPage() {
                       <span className="admins-ols-side-nav-count">{recentGuestJourneyEvents.length || "Go"}</span>
                     </Link>
                   )}
-                  <Link className="admins-ols-profile-action" to="/executive-ols/calls">
-                    <span>Call Center</span>
-                    <span className="admins-ols-side-nav-count">View</span>
-                  </Link>
+                  {SHOW_CALL_CENTER && (
+                    <Link className="admins-ols-profile-action" to="/executive-ols/calls">
+                      <span>Call Center</span>
+                      <span className="admins-ols-side-nav-count">View</span>
+                    </Link>
+                  )}
                   {isSuperAdmin && (
                     <Link className="admins-ols-profile-action" to="/executive-ols/admin-presence">
                       <span>Live Admins</span>
@@ -2733,7 +2793,56 @@ function AdminsOlsPage() {
                 role="list"
                 aria-label="Recent conversation sessions"
               >
-              {recentConversations.map((thread) => {
+              {!isMobileInboxViewport && (
+                <div className="admins-ols-desktop-sidebar-controls">
+                  <div className="admins-ols-desktop-sidebar-search-wrap">
+                    <svg className="admins-ols-desktop-search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.6"/>
+                      <path d="M12.5 12.5L17 17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                    </svg>
+                    <input
+                      type="search"
+                      className="admins-ols-desktop-search-input"
+                      value={desktopConversationSearch}
+                      onChange={(e) => setDesktopConversationSearch(e.target.value)}
+                      placeholder="Search conversations…"
+                      autoComplete="off"
+                    />
+                    {desktopConversationSearch && (
+                      <button
+                        type="button"
+                        className="admins-ols-desktop-search-clear"
+                        onClick={() => setDesktopConversationSearch("")}
+                        aria-label="Clear search"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <div className="admins-ols-desktop-filter-row" role="tablist" aria-label="Filter conversations">
+                    {[
+                      { id: "all", label: "All", count: desktopFilterCounts.all },
+                      { id: "ai", label: "AI", count: desktopFilterCounts.ai },
+                      { id: "human", label: "Human", count: desktopFilterCounts.human },
+                      { id: "paused", label: "Paused", count: desktopFilterCounts.paused },
+                      { id: "attention", label: "Attn", count: desktopFilterCounts.attention },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={desktopConversationFilter === f.id}
+                        className={`admins-ols-desktop-filter-btn${desktopConversationFilter === f.id ? " is-active" : ""}${f.id === "attention" && f.count > 0 ? " is-attention" : ""}`}
+                        onClick={() => setDesktopConversationFilter(f.id)}
+                      >
+                        {f.label}
+                        {f.count > 0 && <span className="admins-ols-desktop-filter-count">{f.count}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {desktopFilteredConversations.map((thread) => {
                 const latestMessage = thread.messages?.[thread.messages.length - 1] || null;
                 const isActive = thread.sessionId === activeConversation?.sessionId;
                 const needsAttention = conversationNeedsAttention(thread);
@@ -2848,8 +2957,12 @@ function AdminsOlsPage() {
                   </button>
                 );
               })}
-                {!recentConversations.length && (
-                  <p className="admins-ols-empty">No conversation threads found yet.</p>
+                {!desktopFilteredConversations.length && (
+                  <p className="admins-ols-empty">
+                    {desktopConversationSearch || desktopConversationFilter !== "all"
+                      ? "No conversations match this filter."
+                      : "No conversation threads found yet."}
+                  </p>
                 )}
               </div>
             )}
@@ -2862,7 +2975,7 @@ function AdminsOlsPage() {
               >
               {activeConversation ? (
                 <>
-                  {conversationNeedsAttention(activeConversation) && (
+                  {conversationNeedsAttention(activeConversation) && isMobileInboxViewport && (
                     <div className="admins-ols-conversation-alert">
                       <span className="admins-ols-badge is-negative">Needs attention</span>
                       <p>The concierge paused this thread because it started repeating or could not answer clearly.</p>
@@ -2933,38 +3046,97 @@ function AdminsOlsPage() {
                       </div>
                     ) : (
                       <>
+                        {/* ── Desktop Thread Header (Clean) ── */}
                         <div className="admins-ols-conversation-head-main">
-                          <p className="admins-ols-conversation-kicker">
-                            {formatPageLabel(activeConversation.pageType)}
-                          </p>
-                          <h3 className="admins-ols-conversation-title">
-                            {getConversationTitle(activeConversation)}
-                          </h3>
-                          <div className="admins-ols-conversation-meta">
-                            {dedupeConversationLabels([
-                              isWhatsAppConversation(activeConversation)
-                                ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
-                                : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
-                                  ? activeConversation.city
-                                  : "Website",
-                              getConversationChannelLabel(activeConversation),
-                              activeConversation.listingId
-                                ? `Listing ${shortenId(activeConversation.listingId)}`
-                                : "",
-                            ]).map((label) => (
-                              <span key={`${activeConversation.sessionId}-${label}`}>{label}</span>
-                            ))}
-                            <span>{activeConversation.messageCount} messages</span>
-                            <span className={`admins-ols-badge is-${activeConversationModeBadge.tone}`}>
-                              {activeConversationModeBadge.label}
-                            </span>
+                          <div className="admins-ols-thread-identity">
+                            <h3 className="admins-ols-conversation-title">
+                              {getConversationTitle(activeConversation)}
+                            </h3>
                             {conversationNeedsAttention(activeConversation) && (
                               <span className="admins-ols-badge is-negative">Needs attention</span>
                             )}
+                            <span className={`admins-ols-badge is-${activeConversationModeBadge.tone} admins-ols-mode-badge`}>
+                              {activeConversationModeBadge.label}
+                            </span>
                           </div>
+                          {lastGuestMessagePreview && (
+                            <p className="admins-ols-conversation-preview">
+                              {lastGuestMessagePreview}
+                            </p>
+                          )}
                         </div>
+
                         <div className="admins-ols-conversation-head-aside">
-                          <small>{formatDateTime(activeConversation.lastSeenAt)}</small>
+                          <small className="admins-ols-conversation-timestamp">
+                            {formatDateTime(activeConversation.lastSeenAt)}
+                          </small>
+
+                          {/* Details dropdown */}
+                          <div className="admins-ols-details-dropdown" ref={detailsDropdownRef}>
+                            <button
+                              type="button"
+                              className={`admins-ols-details-trigger${isDetailsOpen ? " is-open" : ""}`}
+                              onClick={() => setIsDetailsOpen((v) => !v)}
+                              aria-expanded={isDetailsOpen}
+                              aria-haspopup="true"
+                            >
+                              Details
+                              <span className="admins-ols-details-chevron" aria-hidden="true">
+                                {isDetailsOpen ? "▲" : "▼"}
+                              </span>
+                            </button>
+                            {isDetailsOpen && (
+                              <div className="admins-ols-details-panel" role="dialog" aria-label="Conversation details">
+                                <div className="admins-ols-details-section">
+                                  <p className="admins-ols-details-label">Source</p>
+                                  <div className="admins-ols-details-pills">
+                                    {dedupeConversationLabels([
+                                      formatPageLabel(activeConversation.pageType),
+                                      getConversationChannelLabel(activeConversation),
+                                      isWhatsAppConversation(activeConversation)
+                                        ? getWhatsAppPhoneLabel(activeConversation) || "WhatsApp guest"
+                                        : activeConversation.city && activeConversation.city.toLowerCase() !== "unknown city"
+                                          ? activeConversation.city
+                                          : "Website",
+                                      activeConversation.listingId
+                                        ? `Listing ${shortenId(activeConversation.listingId)}`
+                                        : "",
+                                    ]).map((label) => (
+                                      <span key={`details-${activeConversation.sessionId}-${label}`} className="admins-ols-details-pill">
+                                        {label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="admins-ols-details-section">
+                                  <p className="admins-ols-details-label">AI Status</p>
+                                  <span className={`admins-ols-badge is-${activeConversationModeBadge.tone}`}>
+                                    {activeConversationModeBadge.label}
+                                  </span>
+                                </div>
+                                <div className="admins-ols-details-section">
+                                  <p className="admins-ols-details-label">Messages</p>
+                                  <span className="admins-ols-details-value">{activeConversation.messageCount} messages</span>
+                                </div>
+                                {activeConversation.assignedAdminName && (
+                                  <div className="admins-ols-details-section">
+                                    <p className="admins-ols-details-label">Assigned to</p>
+                                    <span className="admins-ols-details-value">{activeConversation.assignedAdminName}</span>
+                                  </div>
+                                )}
+                                {activeConversation.pathname && (
+                                  <div className="admins-ols-details-section">
+                                    <p className="admins-ols-details-label">Page</p>
+                                    <span className="admins-ols-details-value admins-ols-details-path">
+                                      {truncate(activeConversation.pathname, 80)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Compact action controls */}
                           <div className="admins-ols-conversation-mode-controls">
                             <button
                               type="button"
@@ -2993,26 +3165,22 @@ function AdminsOlsPage() {
                             >
                               Resume AI
                             </button>
+                            <button
+                              type="button"
+                              className="admins-ols-conversation-summary-trigger"
+                              onClick={() => handleOpenConversationSummaryModal({ forceRefresh: false })}
+                              disabled={conversationSummaryLoading}
+                              title="Generate a quick admin summary for this thread"
+                            >
+                              {conversationSummaryLoading
+                                ? "…"
+                                : cachedSelectedConversationSummary?.text ||
+                                    (conversationSummary?.sessionId === activeConversation.sessionId &&
+                                      String(conversationSummary?.text || "").trim())
+                                  ? "Summary"
+                                  : "Summary"}
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            className="admins-ols-conversation-summary-trigger"
-                            onClick={() =>
-                              handleOpenConversationSummaryModal({
-                                forceRefresh: false,
-                              })
-                            }
-                            disabled={conversationSummaryLoading}
-                            title="Generate a quick admin summary for this thread"
-                          >
-                            {conversationSummaryLoading
-                              ? "Summarizing..."
-                              : cachedSelectedConversationSummary?.text ||
-                                  (conversationSummary?.sessionId === activeConversation.sessionId &&
-                                    String(conversationSummary?.text || "").trim())
-                                ? "View Summary"
-                                : "Generate Summary"}
-                          </button>
                         </div>
                       </>
                     )}
@@ -3038,11 +3206,6 @@ function AdminsOlsPage() {
                         <p>{truncate(activeConversation.pathname, 96)}</p>
                       )}
                     </div>
-                  )}
-                  {(!isMobileInboxViewport || !isMobileThreadOpen) && activeConversation.pathname && (
-                    <p className="admins-ols-conversation-path">
-                      {truncate(activeConversation.pathname, 120)}
-                    </p>
                   )}
                   <div className="admins-ols-thread" ref={threadScrollRef}>
                     {activeConversation.messages.map((message) => (
