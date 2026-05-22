@@ -7229,6 +7229,13 @@ body {
   color: #1f2f46;
 }
 
+.ols-map-popup__price-note {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(47, 33, 22, 0.65);
+}
+
 .ols-map-popup__meta {
   font-size: 0.85rem;
   color: rgba(47, 33, 22, 0.75);
@@ -11410,6 +11417,67 @@ body {
 .la-listing-page .la-unit-modal__booking-cta:hover {
   transform: translateY(-1px);
   box-shadow: 0 20px 34px rgba(59, 49, 39, 0.26);
+}
+
+.la-longstay-inquiry-card {
+  display: grid;
+  gap: 12px;
+}
+
+.la-longstay-inquiry-card__badge {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #2f261e;
+}
+
+.la-longstay-inquiry-card__copy {
+  margin: 0;
+  color: rgba(63, 52, 42, 0.9);
+}
+
+.la-longstay-inquiry-card__list {
+  margin: 0;
+  padding-left: 18px;
+  color: #3f342a;
+  display: grid;
+  gap: 4px;
+}
+
+.la-longstay-inquiry-card__actions {
+  display: grid;
+  gap: 10px;
+}
+
+.la-longstay-inquiry-card__actions .la-unit-modal__booking-cta,
+.la-longstay-inquiry-card__actions .la-unit-modal__contact-cta,
+.la-longstay-inquiry-card__actions a.la-unit-modal__booking-cta {
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+}
+
+.la-longstay-inquiry-card__actions a.la-unit-modal__booking-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.la-longstay-inquiry-card__contact {
+  display: grid;
+  gap: 4px;
+  color: #3f342a;
+}
+
+.la-longstay-inquiry-card__contact p {
+  margin: 0;
+}
+
+.la-longstay-inquiry-card__contact a {
+  color: #3f342a;
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .la-unit-modal__section {

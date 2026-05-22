@@ -20,8 +20,6 @@ import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHr
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
-import { isHiddenUnit } from "./config/hiddenUnits";
-import { getSeasonalMonthlyPricingMeta, getSeasonalMonthlyPrice } from "./config/redondoSeasonalPricing";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
@@ -86,11 +84,9 @@ const computeTaxes = (amount, _options = {}) => {
 };
 
 const STRIPE_ADMIN_FEE_RATE = 0.03;
-const REDONDO_CITY_NAME = "Redondo Beach";
-const REDONDO_MONTHLY_DISPLAY_NIGHTS = 30;
-const REDONDO_PRICING_PERIOD_WORD = "month";
-const REDONDO_PRICING_PERIOD_LABEL = `per ${REDONDO_PRICING_PERIOD_WORD}`;
-const REDONDO_PRICING_PERIOD_SLASH = ` / ${REDONDO_PRICING_PERIOD_WORD}`;
+const REDONDO_INQUIRY_MIN_NIGHTS = 31;
+const REDONDO_MONTHLY_PRICE_RANGE = "$4,500 – $6,500 / month";
+const REDONDO_MONTHLY_PRICE_NOTE = "Seasonal Monthly Pricing";
 const SHORT_STAY_APPROVAL_HINT =
   "Shorter stays may be approved depending on season and availability.";
 const buildShortStayInquiryMessage = (minNights) =>
@@ -135,38 +131,6 @@ const diffNights = (start, end) => {
   const ms = endDate - startDate;
   if (!Number.isFinite(ms) || ms <= 0) return 0;
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
-};
-
-const getMonthlyEstimate = ({
-  city,
-  unitId,
-  checkInDate,
-  accommodationTotal,
-  totalNights,
-  fallbackNightlyRate,
-}) => {
-  const cityKey = String(city || "").trim().toLowerCase();
-  if (cityKey !== REDONDO_CITY_NAME.toLowerCase()) {
-    const fallbackRate = Number(fallbackNightlyRate);
-    return Number.isFinite(fallbackRate) && fallbackRate > 0 ? fallbackRate : null;
-  }
-
-  const seasonalMonthlyPrice = getSeasonalMonthlyPrice(unitId, checkInDate);
-  if (typeof seasonalMonthlyPrice === "number") return seasonalMonthlyPrice;
-
-  const total = Number(accommodationTotal);
-  const nights = Number(totalNights);
-  if (Number.isFinite(total) && total > 0 && Number.isFinite(nights) && nights > 0) {
-    const effectiveNightly = total / nights;
-    if (Number.isFinite(effectiveNightly) && effectiveNightly > 0) {
-      return roundCurrency(effectiveNightly * REDONDO_MONTHLY_DISPLAY_NIGHTS);
-    }
-  }
-  const fallbackRate = Number(fallbackNightlyRate);
-  if (Number.isFinite(fallbackRate) && fallbackRate > 0) {
-    return roundCurrency(fallbackRate * REDONDO_MONTHLY_DISPLAY_NIGHTS);
-  }
-  return null;
 };
 
 const getNightlyCalendarPrice = (nightlyRate) => {
@@ -661,7 +625,7 @@ const buildLowestPriceCalendarByDate = (daysByListing = {}) => {
   return dayMap;
 };
 
-const getListingId = (listing) => listing?.id || listing?._id || null;
+const getListingId = (listing) => listing?.id || listing?._id || listing?.unitTypeId || null;
 
 const getListingLookupKeys = (listing) =>
   [...new Set(
@@ -1576,6 +1540,22 @@ const EXCLUDED_CITIES = [
   "antwerp",
   "antwerpen",
 ];
+const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([
+  "6948d9855a49ec0013d81ab5",
+]);
+const isAllowedRedondoListing = (listing) =>
+  [
+    listing?.id,
+    listing?._id,
+    listing?.unitTypeId,
+    listing?.parentId,
+    listing?.parentListingId,
+    listing?.listingId,
+    listing?.unitId,
+    listing?.propertyId,
+  ]
+    .map((value) => String(value || "").trim())
+    .some((value) => value && REDONDO_ONLY_VISIBLE_UNIT_IDS.has(value));
 const CHECKOUT_PROMO_CODES = {
   WELCOME5: { rate: 0.05, label: "Welcome offer" },
   LUXE10: { rate: 0.1, label: "Member offer" },
@@ -2280,6 +2260,7 @@ const getListingText = (listing) => {
 };
 
 const isRedondoListing = (listing) => {
+  if (isAllowedRedondoListing(listing)) return true;
   const cityText = [listing.city, listing.address?.city, listing.location]
     .filter(Boolean)
     .join(" ")
@@ -2433,6 +2414,7 @@ export default function RedondoBeachLandingPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const isListingRoute = Boolean(routeListingId);  // listing-route-scroll-lock
+  const isLongStayInquiryOnly = true;
   useEffect(() => {
     if (!isListingRoute) return;
     const previousOverflow = document.body.style.overflow;
@@ -2449,7 +2431,6 @@ export default function RedondoBeachLandingPage() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [cardImageIndexes, setCardImageIndexes] = useState({});
   const [minBedrooms, setMinBedrooms] = useState(1);
-  const [showMonthlyTotal, setShowMonthlyTotal] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const viewportShellRef = useRef(null);
   const stickySearchShellRef = useRef(null);
@@ -2557,16 +2538,6 @@ export default function RedondoBeachLandingPage() {
     });
   }, [sectionCheckIn, sectionCheckOut, sectionGuests]);
 
-  const hasStayDates = diffNights(sectionCheckIn, sectionCheckOut) > 0;
-
-  useEffect(() => {
-    if (hasStayDates) {
-      setShowMonthlyTotal(true);
-    } else {
-      setShowMonthlyTotal(false);
-    }
-  }, [hasStayDates]);
-
   const applySearchQuery = (value, { scrollToListings = true } = {}) => {
     const trimmed = value.trim();
     setSearchQuery(trimmed);
@@ -2639,7 +2610,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [expandedQuoteRows, setExpandedQuoteRows] = useState({});
   const [showAllAmenities, setShowAllAmenities] = useState(false);
   const [buildingPrices, setBuildingPrices] = useState({});
-  const [cardQuoteRates, setCardQuoteRates] = useState({});
   const [calendarPrices, setCalendarPrices] = useState(null);
   const [calendarAvailability, setCalendarAvailability] = useState({});
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -3100,30 +3070,18 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     let active = true;
     const load = async () => {
       try {
-        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
+        const onlyIds = [...REDONDO_ONLY_VISIBLE_UNIT_IDS].filter(Boolean);
+        const query = new URLSearchParams();
+        if (onlyIds.length) query.set("onlyIds", onlyIds.join(","));
+        const listingsUrl = `${apiBase}/listings${query.toString() ? `?${query.toString()}` : ""}`;
+        const res = await fetch(listingsUrl, { cache: "no-store" });
         if (!res.ok) throw new Error(`Listings failed: ${res.status}`);
         const json = await res.json();
         if (!active) return;
         const results = Array.isArray(json.results)
           ? json.results.map((listing) => normalizeListingPricing(listing))
           : [];
-        const ids = results.map((p) => p?.id || p?._id || p?.propertyId || p?.unitId || p?.listingId || p?.unitTypeId);
-        const visibleResults = results.filter((listing) => !isHiddenUnit(
-          listing?.id ||
-          listing?._id ||
-          listing?.propertyId ||
-          listing?.unitId ||
-          listing?.listingId ||
-          listing?.unitTypeId ||
-          listing,
-        ));
-        console.log("[hidden-filter]", ids.filter(Boolean));
-        console.log(
-          "[visible-after-filter]",
-          visibleResults.map((p) => p?.id || p?._id || p?.propertyId || p?.unitId || p?.listingId || p?.unitTypeId).filter(Boolean),
-        );
-        console.log("[hidden-units]", results.length, visibleResults.length);
-        setListings(visibleResults);
+        setListings(results);
       } catch (err) {
         if (!active) return;
         setError(err.message || "Unable to load listings.");
@@ -3194,13 +3152,29 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   useEffect(() => {
     if (!listings.length) return;
-    const targetId = "66e1e3875a1f6300d736f28e";
-    const match = listings.find((listing) => (listing.id || listing._id) === targetId);
-    if (match) {
-      console.log("[Redondo debug] listing match", match);
-    } else {
-      console.log("[Redondo debug] listing not found for id", targetId);
-    }
+    const hasTarget = listings.some((listing) => isAllowedRedondoListing(listing));
+    if (hasTarget) return;
+    const redondoCandidates = listings
+      .filter((listing) => {
+        const text = [listing?.city, listing?.address?.city, listing?.location, listing?.title]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return /\bredondo\b/.test(text);
+      })
+      .map((listing) => ({
+        id: listing?.id || null,
+        _id: listing?._id || null,
+        unitTypeId: listing?.unitTypeId || null,
+        parentId: listing?.parentId || null,
+        parentListingId: listing?.parentListingId || null,
+        title: listing?.title || "",
+        city: listing?.city || listing?.address?.city || listing?.location || "",
+      }));
+    console.warn(
+      "[Redondo lock] Target listing id 6948d9855a49ec0013d81ab5 not found in current listings payload.",
+      { redondoCandidatesCount: redondoCandidates.length, redondoCandidates }
+    );
   }, [listings]);
 
   useEffect(() => {
@@ -3300,9 +3274,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [isMapEnabled, mapsApiKey, isListingRoute]);
 
   const redondoBeachListings = useMemo(() => {
-    return listings
-      .filter((listing) => isRedondoListing(listing))
-      .filter((listing) => !isHiddenUnit(getListingId(listing) || listing));
+    return listings.filter((listing) => {
+      return isAllowedRedondoListing(listing);
+    });
   }, [listings, isMapEnabled, mapsApiKey]);
 
   const redondoBeachParentListings = useMemo(() => {
@@ -3312,178 +3286,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       .map((group) => group.parent || group.children?.[0])
       .filter(Boolean);
   }, [redondoBeachListings]);
-
-  useEffect(() => {
-    let active = true;
-    const loadCardQuoteRates = async () => {
-      const parentListings = Array.isArray(redondoBeachParentListings) ? redondoBeachParentListings : [];
-      if (!parentListings.length) {
-        if (active) setCardQuoteRates({});
-        return;
-      }
-
-      const parsedCheckIn = parseDateValue(sectionCheckIn);
-      const parsedCheckOut = parseDateValue(sectionCheckOut);
-      let quoteCheckIn = "";
-      let quoteCheckOut = "";
-      if (parsedCheckIn && parsedCheckOut && parsedCheckOut > parsedCheckIn) {
-        quoteCheckIn = toISODate(parsedCheckIn);
-        quoteCheckOut = toISODate(parsedCheckOut);
-      } else if (parsedCheckIn) {
-        const nextOut = new Date(parsedCheckIn);
-        nextOut.setDate(nextOut.getDate() + 1);
-        quoteCheckIn = toISODate(parsedCheckIn);
-        quoteCheckOut = toISODate(nextOut);
-      } else if (parsedCheckOut) {
-        const prevIn = new Date(parsedCheckOut);
-        prevIn.setDate(prevIn.getDate() - 1);
-        quoteCheckIn = toISODate(prevIn);
-        quoteCheckOut = toISODate(parsedCheckOut);
-      } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        quoteCheckIn = toISODate(today);
-        quoteCheckOut = toISODate(tomorrow);
-      }
-
-      const nights = diffNights(quoteCheckIn, quoteCheckOut);
-      if (!nights) {
-        if (active) setCardQuoteRates({});
-        return;
-      }
-
-      const requests = parentListings
-        .map((listing) => {
-          const displayListingId = getListingId(listing);
-          if (!displayListingId) return null;
-          const quoteListingId = toLookupKey(
-            isChildListing(listing) ? listing?.unitTypeId : displayListingId
-          );
-          if (!quoteListingId) return null;
-          return {
-            listing,
-            displayListingId: toLookupKey(displayListingId),
-            quoteListingId,
-            request: {
-              listingId: quoteListingId,
-              checkInDateLocalized: quoteCheckIn,
-              checkOutDateLocalized: quoteCheckOut,
-              guestsCount: Number(sectionGuests) || 1,
-            },
-          };
-        })
-        .filter(Boolean);
-
-      if (!requests.length) {
-        if (active) setCardQuoteRates({});
-        return;
-      }
-
-      try {
-        const dedupedRequests = [];
-        const seenRequestIds = new Set();
-        requests.forEach((entry) => {
-          const key = entry?.quoteListingId;
-          if (!key || seenRequestIds.has(key)) return;
-          seenRequestIds.add(key);
-          dedupedRequests.push(entry.request);
-        });
-        if (!dedupedRequests.length) {
-          if (active) setCardQuoteRates({});
-          return;
-        }
-
-        const BATCH_SIZE = 35;
-        const results = {};
-        for (let index = 0; index < dedupedRequests.length; index += BATCH_SIZE) {
-          const batch = dedupedRequests.slice(index, index + BATCH_SIZE);
-          const res = await fetch(`${apiBase}/check-units/reservations/quotes-bulk`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ requests: batch }),
-          });
-          if (!res.ok) continue;
-          const data = await res.json();
-          Object.assign(results, data?.results || {});
-        }
-
-        if (!active) return;
-        const nextRates = {};
-        requests.forEach((entry) => {
-          const { listing, displayListingId, quoteListingId } = entry;
-          if (!displayListingId) return;
-          const quoteData = results?.[quoteListingId] || results?.[displayListingId];
-          const pricing = getQuotePricing(
-            quoteData,
-            listing,
-            nights,
-            Number(sectionGuests) || 1
-          );
-          const selectedPlan =
-            pricing?.plans?.find((plan) => plan.id === pricing?.defaultPlanId) ||
-            pricing?.plans?.[0] ||
-            null;
-          const quotePlansRaw = Array.isArray(quoteData?.rates?.ratePlans)
-            ? quoteData.rates.ratePlans
-            : quoteData?.rates?.ratePlans
-              ? [quoteData.rates.ratePlans]
-              : [];
-          const selectedQuotePlan =
-            quotePlansRaw.find((plan, idx) => {
-              const ratePlanMeta = plan?.ratePlan || {};
-              const planId = ratePlanMeta?._id || plan?._id || `plan-${idx}`;
-              return String(planId) === String(selectedPlan?.id || "");
-            }) || quotePlansRaw[0] || null;
-          const dayPrices = Array.isArray(selectedQuotePlan?.days) ? selectedQuotePlan.days : [];
-          const dayDailyRate = toNumber(
-            dayPrices[0]?.manualPrice ?? dayPrices[0]?.price ?? dayPrices[0]?.basePrice
-          );
-          const cleaningFee = firstNumber(
-            selectedPlan?.breakdown?.cleaning,
-            listing?.cleaningFee,
-            listing?.prices?.cleaning,
-            listing?.prices?.cleaningFee
-          );
-          const dayPlusCleaning =
-            Number.isFinite(dayDailyRate) && Number.isFinite(toNumber(cleaningFee))
-              ? dayDailyRate + toNumber(cleaningFee)
-              : null;
-          const nightly = firstNumber(dayPlusCleaning, selectedPlan?.nightly);
-          if (Number.isFinite(toNumber(nightly))) {
-            const accommodationTotal = firstNumber(
-              selectedPlan?.breakdown?.accommodation,
-              selectedPlan?.pricing?.breakdown?.accommodation
-            );
-            const totalNights = firstNumber(selectedPlan?.nights, nights);
-            nextRates[displayListingId] = {
-              nightly,
-              accommodationTotal,
-              totalNights,
-              currency:
-                dayPrices[0]?.currency ||
-                selectedPlan?.currency ||
-                listing?.currency ||
-                listing?.prices?.nightly?.currency ||
-                listing?.prices?.basePrice?.currency ||
-                "USD",
-            };
-          }
-        });
-        setCardQuoteRates(nextRates);
-      } catch {
-        if (active) setCardQuoteRates({});
-      }
-    };
-
-    loadCardQuoteRates().catch(() => {
-      if (active) setCardQuoteRates({});
-    });
-    return () => {
-      active = false;
-    };
-  }, [redondoBeachParentListings, sectionCheckIn, sectionCheckOut, sectionGuests]);
 
   const filteredListings = useMemo(() => {
     const query = sanitizeText(appliedSearch).toLowerCase();
@@ -3522,14 +3324,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       return tokens.some((token) => haystack.includes(token));
     });
   }, [redondoBeachListings, minBedrooms, appliedSearch, sectionGuests]);
-
-  const filteredParentListings = useMemo(() => {
-    if (!filteredListings.length) return [];
-    const parentGroups = groupListingsByParent(filteredListings);
-    return Object.values(parentGroups)
-      .map((group) => group.parent || group.children?.[0])
-      .filter(Boolean);
-  }, [filteredListings]);
 
   const citySuggestions = useMemo(() => {
     const items = [];
@@ -3571,59 +3365,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       imageIndex = Math.abs(hash) % images.length;
     }
     const image = escapeHtml(images[imageIndex] || FALLBACK_IMAGE);
-    const basePrice = firstNumber(
-      listing?.basePrice,
-      listing?.prices?.basePrice,
-      listing?.prices?.basePricePerNight,
-      listing?.prices?.nightly,
-      listing?.prices?.nightly?.amount,
-      listing?.prices?.basePrice?.amount
-    );
-    const nightlyPrice = getListingNightlyPrice(listing);
-    const currency =
-      listing?.currency ||
-      listing?.prices?.currency ||
-      listing?.prices?.nightly?.currency ||
-      listing?.prices?.basePrice?.currency ||
-      "USD";
     const listingId = getListingId(listing);
-    const listingGroupKey = getListingGroupKey(listing);
-    const parentListingId = listingGroupKey
-      ? getListingId(
-          (Array.isArray(redondoBeachParentListings) ? redondoBeachParentListings : []).find(
-            (entry) => getListingGroupKey(entry) === listingGroupKey
-          )
-        )
-      : null;
-    const quoteLookupKeys = [
-      listingId,
-      listing?.unitTypeId,
-      parentListingId,
-      getParentListingId(listing),
-    ]
-      .map(toLookupKey)
-      .filter(Boolean);
-    const quoteRateEntry =
-      quoteLookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
-    const displayCurrency = quoteRateEntry?.currency || currency;
-    const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
-    const displayedNightlyRate = getNightlyCalendarPrice(dailyRate);
-    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-    const seasonalPricingMeta = getSeasonalMonthlyPricingMeta(listingId, sectionCheckIn || new Date());
-    const seasonalDailyRate =
-      seasonalPricingMeta?.monthlyPrice ? seasonalPricingMeta.monthlyPrice / 30 : null;
-    const canShowStayTotal =
-      showMonthlyTotal &&
-      stayNights > 0 &&
-      (typeof seasonalDailyRate === "number" || typeof dailyRate === "number");
-    const effectiveDailyRate = typeof seasonalDailyRate === "number" ? seasonalDailyRate : dailyRate;
-    const priceValue = canShowStayTotal
-      ? effectiveDailyRate * stayNights
-      : displayedNightlyRate;
-    const priceLabel =
-      typeof priceValue === "number"
-        ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
-        : "Checking price...";
+    const priceLabel = REDONDO_MONTHLY_PRICE_RANGE;
     const bedrooms = firstNumber(
       listing?.bedrooms,
       listing?.beds,
@@ -3719,6 +3462,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           </div>
           <div class="ols-map-popup__body">
             <div class="ols-map-popup__price">${escapeHtml(priceLabel)}</div>
+            <div class="ols-map-popup__price-note">${escapeHtml(REDONDO_MONTHLY_PRICE_NOTE)}</div>
             ${meta ? `<div class="ols-map-popup__meta">${escapeHtml(meta)}</div>` : ""}
             <div class="ols-map-popup__address">
               ${idLine ? `${idLine} &#183; ` : ""}${address}
@@ -3727,7 +3471,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         </a>
       </div>
     `;
-  }, [cardQuoteRates, redondoBeachParentListings, sectionCheckIn, sectionCheckOut, showMonthlyTotal]);
+  }, []);
 
   const navigatePopupUnit = useCallback(
     (popupKey = "", direction = "next") => {
@@ -4589,6 +4333,62 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setInquiryFormError("");
     setInquiryFormSubmitted(false);
     setIsInquiryOpen(true);
+  };
+
+  const renderLongStayInquiryCard = (listing, { asPanel = false } = {}) => {
+    const targetListing = listing || activeListing || activeSection?.listings?.[0] || null;
+    const whatsappHref = buildWhatsAppLink(targetListing?.title, sectionCheckIn, sectionCheckOut);
+    const cardClassName = asPanel
+      ? "la-unit-modal__card la-unit-modal__booking-panel la-longstay-inquiry-card"
+      : "la-unit-modal__booking la-longstay-inquiry-card";
+
+    return (
+      <div className={cardClassName} aria-label="Long-term inquiry contact card">
+        <p className="la-longstay-inquiry-card__badge">Minimum of {REDONDO_INQUIRY_MIN_NIGHTS} Nights only</p>
+        <p className="la-longstay-inquiry-card__copy">
+          This executive residence is available exclusively for long-term stays.
+        </p>
+        <p className="la-longstay-inquiry-card__copy">
+          <strong>{REDONDO_MONTHLY_PRICE_RANGE}</strong>
+        </p>
+        <p className="la-longstay-inquiry-card__copy">{REDONDO_MONTHLY_PRICE_NOTE}</p>
+        <p className="la-longstay-inquiry-card__copy">Please contact our team for:</p>
+        <ul className="la-longstay-inquiry-card__list">
+          <li>availability</li>
+          <li>monthly pricing</li>
+          <li>furnished stay options</li>
+          <li>custom lease arrangements</li>
+        </ul>
+        <div className="la-longstay-inquiry-card__actions">
+          <button
+            type="button"
+            className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+            onClick={() => openInquiry(targetListing)}
+          >
+            Send Inquiry
+          </button>
+          <a
+            href={whatsappHref}
+            className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
+            target="_blank"
+            rel="noreferrer"
+          >
+            WhatsApp
+          </a>
+          <a href="tel:+12138663589" className="la-unit-modal__booking-cta la-unit-modal__bp-cta">
+            Call Us
+          </a>
+        </div>
+        <div className="la-longstay-inquiry-card__contact">
+          <p>
+            <strong>Phone:</strong> <a href="tel:+12138663589">+1 213 866 3589</a>
+          </p>
+          <p>
+            <strong>Email:</strong> <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+          </p>
+        </div>
+      </div>
+    );
   };
 
   const fetchHouseRules = async (unitTypeId) => {
@@ -5729,14 +5529,7 @@ const applyCheckoutPromoCode = () => {
     normalizeCity(inquiryListing || activeListing || {}) || "Redondo Beach"
   );
   const inquirySubject = `Inquiry: ${inquiryTitle} (${inquiryCityLabel})`;
-  const inquirySeasonalMonthlyPrice = getSeasonalMonthlyPrice(
-    getListingId(inquiryListing || activeListing || {}),
-    sectionCheckIn || new Date(),
-  );
-  const inquirySeasonalPriceLine =
-    typeof inquirySeasonalMonthlyPrice === "number"
-      ? `Estimated monthly price: ${formatCurrency(inquirySeasonalMonthlyPrice, "USD")} per month (Seasonal Monthly Pricing)\n`
-      : "";
+  const inquirySeasonalPriceLine = `Monthly rate range: ${REDONDO_MONTHLY_PRICE_RANGE} (${REDONDO_MONTHLY_PRICE_NOTE})\n`;
   const inquiryBody =
     `Full name: ${inquiryForm.fullName || "--"}\n` +
     `Email: ${inquiryForm.email || "--"}\n` +
@@ -6105,53 +5898,6 @@ const applyCheckoutPromoCode = () => {
           selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null
         );
         const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
-        const targetDailyRateDate = sectionCheckIn || toISODate(new Date());
-        const dailyRateDay =
-          calendarDayMap.get(targetDailyRateDate) ||
-          sectionCalendarDayMap.get(targetDailyRateDate) ||
-          null;
-        const dailyRate = firstNumber(
-          dailyRateDay?.price,
-          selectedPlan?.nightly,
-          selectedPlan?.pricing?.nightly,
-          selectedPlan?.basePricePerNight,
-          quote?.pricing?.nightly,
-          quote?.nightly,
-              activeListing?.prices?.basePricePerNight,
-              activeListing?.prices?.nightly,
-              activeListing?.prices?.basePrice?.amount,
-              activeListing?.prices?.nightly?.amount,
-              activeListing?.basePrice
-            );
-        const dailyRateCurrency =
-          dailyRateDay?.currency ||
-          selectedPlan?.currency ||
-          quote?.currency ||
-          activeListing?.prices?.nightly?.currency ||
-          activeListing?.prices?.basePrice?.currency ||
-          activeListing?.currency ||
-              priceCurrency;
-        const seasonalPricingMeta = getSeasonalMonthlyPricingMeta(
-          listingId,
-          sectionCheckIn || targetDailyRateDate,
-        );
-        const displayedMarketingRate = getMonthlyEstimate({
-          city: REDONDO_CITY_NAME,
-          unitId: listingId,
-          checkInDate: sectionCheckIn || targetDailyRateDate,
-          accommodationTotal: firstNumber(
-            breakdown?.accommodation,
-            selectedPlan?.breakdown?.accommodation,
-            quote?.breakdown?.accommodation
-          ),
-          totalNights: firstNumber(
-            selectedPlan?.nights,
-            quote?.nights,
-            breakdown?.nights,
-            sectionStayNights
-          ),
-          fallbackNightlyRate: dailyRate,
-        });
             const totalPrice =
               breakdown?.total ??
               breakdown?.subtotal ??
@@ -6295,271 +6041,7 @@ const applyCheckoutPromoCode = () => {
               </button>
             </div>
               <div className="la-unit-modal__sidebar">
-              <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
-                <div className="la-unit-modal__bp-price la-unit-modal__bp-price--monthly">
-                  <div className="la-unit-modal__bp-price-main">
-                    <strong>{formatCurrency(displayedMarketingRate, dailyRateCurrency)}</strong>
-                  </div>
-                  <small>
-                    {REDONDO_PRICING_PERIOD_LABEL} {"\u00b7"} taxes at checkout {"\u00b7"}{" "}
-                    {seasonalPricingMeta ? "Seasonal Monthly Pricing" : "Estimated monthly stay pricing"}
-                    {seasonalPricingMeta?.badge ? ` \u00b7 ${seasonalPricingMeta.badge}` : ""}
-                  </small>
-                </div>
-                <div className="la-unit-modal__bp-divider" />
-                <DateRangePicker
-                  value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
-                  dayPrices={calendarDayMap}
-                  dayAvailability={calendarAvailabilityMap}
-                  onValidationChange={handleSectionDateValidation}
-                  onChange={({ checkIn, checkOut }) => {
-                    setSectionCheckIn(checkIn);
-                    setSectionCheckOut(checkOut);
-                  }}
-                  onMonthChange={(nextMonth) => {
-                    const listingId = getCalendarListingId(activeListing, redondoBeachListings);
-                    if (!listingId) return;
-                    const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
-                    setCalendarStartDate(monthStart);
-                    setCalendarMonthIndex(0);
-                    const loadMonth = (targetMonth) => {
-                      fetchCalendarMonth(
-                        listingId,
-                        targetMonth,
-                        calendarCacheRef,
-                        calendarDaysRef,
-                        calendarInflightRef,
-                        setCalendarLoading,
-                        setCalendarError,
-                        setCalendarPrices
-                      );
-                    };
-                    loadMonth(monthStart);
-                    if (isDesktopCalendarViewport()) {
-                      const nextVisibleMonth = addMonths(monthStart, 1);
-                      nextVisibleMonth.setDate(1);
-                      nextVisibleMonth.setHours(0, 0, 0, 0);
-                      loadMonth(nextVisibleMonth);
-                    }
-                  }}
-                  onOpenChange={handleListingCalendarOpen}
-                  isLoading={calendarLoading}
-                  fallbackPrice={activeListing.basePrice}
-                  fallbackCurrency={activeListing.currency}
-                  fallbackMinNights={listingMinNightsFallback}
-                />
-                {cityDateNightCount > 0 && (
-                  <div className="la-unit-modal__bp-nights">
-                    {cityDateNightCount} night{cityDateNightCount !== 1 ? "s" : ""}
-                  </div>
-                )}
-                <div className="la-unit-modal__bp-guests">
-                  <label htmlFor="la-section-guests">Guests</label>
-                  <select
-                    id="la-section-guests"
-                    value={sectionGuests}
-                    onChange={(event) => setSectionGuests(event.target.value)}
-                  >
-                    {sectionGuestOptions.map((guestOption) => (
-                      <option key={guestOption} value={guestOption}>
-                        {guestOption}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="la-unit-modal__bp-divider" />
-                <div className="la-unit-modal__card-head">
-                  <strong>Availability</strong>
-                  <span
-                    className={`la-unit-modal__status is-${(
-                      isShortStayInquiryMode ? "inquire" : availabilityStatus
-                    )
-                      .toLowerCase()
-                      .replace(/\s+/g, "-")}`}
-                  >
-                    {isShortStayInquiryMode ? "Inquire" : availabilityStatus}
-                  </span>
-                </div>
-                <div className="la-unit-modal__availability-details">
-                  {isShortStayInquiryMode ? (
-                    <>
-                      <p className="la-unit-modal__inquiry-note">
-                        Inquiry request only - pricing and confirmation will be shared by our team.
-                      </p>
-                    </>
-                  ) : availability === false ? (
-                    <p>Unavailable for the selected dates.</p>
-                  ) : breakdown ? (
-                    <>
-                      <div>
-                        <span>Accommodation</span>
-                        <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                      </div>
-                      {breakdown.discountAmount > 0 && (
-                        <div>
-                          <span>
-                            Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                          </span>
-                          <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                        </div>
-                      )}
-                      <div>
-                        <span>Cleaning</span>
-                        <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                      </div>
-                      <div>
-                        <span>Taxes</span>
-                        <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                      </div>
-                      <div>
-                        <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                        <strong>
-                          {formatCurrency(
-                            Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
-                            priceCurrency,
-                          )}
-                        </strong>
-                      </div>
-                      <div className="la-unit-modal__total">
-                        <span>Total</span>
-                        <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
-                      </div>
-                    </>
-                  ) : totalPrice ? (
-                    <div className="la-unit-modal__total">
-                      <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                      <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
-                    </div>
-                  ) : (
-                    <p>Check availability to view pricing breakdown.</p>
-                  )}
-                </div>
-                {!isShortStayInquiryMode && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
-                  <div className="la-unit-modal__rate-plan">
-                    <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
-                    <select
-                      id={`la-listing-rate-plan-${listingId || "active"}`}
-                      value={selectedPlanId}
-                      disabled={sectionAvailabilityLoading}
-                      onChange={(event) =>
-                        setSelectedRatePlans((prev) => ({
-                          ...prev,
-                          [listingId]: event.target.value,
-                        }))
-                      }
-                      className="la-booking-table__rate-select"
-                    >
-                      {planOptions.map((planOption) => (
-                        <option key={planOption.id} value={planOption.id}>
-                          {planOption.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="la-unit-modal__actions">
-                  {(() => {
-                    const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                    if (availability === true) {
-                      const isReserving = sectionReserveLoadingId === listingId;
-                      if (isShortStayInquiryMode) {
-                        return (
-                          <button
-                            type="button"
-                            className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                            onClick={() => openInquiry(activeListing)}
-                          >
-                            Send inquiry
-                          </button>
-                        );
-                      }
-                      return (
-                        <button
-                          type="button"
-                          className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                          disabled={sectionAvailabilityLoading || isReserving}
-                          onClick={() => {
-                            setPendingCheckout({
-                              listingId,
-                              listingTitle: activeListing.title,
-                              amount: typeof totalPrice === "number" ? totalPrice : null,
-                              currency: resolveCheckoutCurrency(priceCurrency),
-                              breakdown: breakdown || null,
-                              baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                              baseBreakdown: breakdown || null,
-                              promoCode: "",
-                              promoDiscountRate: 0,
-                              promoDiscountAmount: 0,
-                            });
-                            setCheckoutStep(1);
-                            setCheckoutConsentAccepted(false);
-                            setCheckoutConsentSignerName("");
-                            setCheckoutConsentSignatureDataUrl("");
-                            setCheckoutIdentityDocs({
-                              idFront: null,
-                              idBack: null,
-                              idSelfie: null,
-                            });
-                            setCheckoutIdentityError("");
-                            setCheckoutCardPhoto(null);
-                            setCheckoutCardHolderSelfie(null);
-                            setCheckoutCardPhotoError("");
-                            setCheckoutGuestError("");
-                            setIsCheckoutGuestOpen(true);
-                          }}
-                        >
-                          {isReserving ? "Redirecting..." : "Reserve"}
-                        </button>
-                      );
-                    }
-                    if (availability === false) {
-                      return (
-                        <button
-                          type="button"
-                          className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                          onClick={() => openInquiry(activeListing)}
-                        >
-                          Inquire
-                        </button>
-                      );
-                    }
-                    return (
-                      <button
-                        type="button"
-                        className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                        disabled={sectionAvailabilityLoading}
-                        onClick={() => {
-                          if (isShortStayInquiryMode) {
-                            openInquiry(activeListing);
-                            return;
-                          }
-                          fetchAvailabilityListings({ shouldScroll: true });
-                        }}
-                      >
-                        {sectionAvailabilityLoading
-                          ? "Checking..."
-                          : isShortStayInquiryMode
-                            ? "Send inquiry"
-                            : "Check availability"}
-                      </button>
-                    );
-                  })()}
-                </div>
-                <div className="la-unit-modal__bp-divider" />
-                <div className="la-unit-modal__bp-contact">
-                  <strong>OneLuxStay Redondo Beach</strong>
-                  <a href="tel:+12138663589">+1 213 866 3589</a>
-                  <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
-                  <a
-                    href={buildWhatsAppLink(activeListing?.title, sectionCheckIn, sectionCheckOut)}
-                    className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    WhatsApp
-                  </a>
-                </div>
-              </div>
+              <div id="la-rooms">{renderLongStayInquiryCard(activeListing, { asPanel: true })}</div>
               <div className="la-unit-modal__card" id="la-guest-reviews">
                       {(() => {
                         const listingReviews = getListingReviews(activeListing);
@@ -6605,7 +6087,7 @@ const applyCheckoutPromoCode = () => {
                       })()}
                     </div>
                   </div>
-                {sectionValidationNotice && (
+                {!isLongStayInquiryOnly && sectionValidationNotice && (
                   <div
                     role="alert"
                     className={`la-section-hero__notice${isShortStayInquiryMode ? " la-section-hero__notice--inquiry" : ""}`}
@@ -7970,14 +7452,13 @@ const applyCheckoutPromoCode = () => {
               setSectionCheckOut("");
               setSectionGuests("2");
               setMinBedrooms(1);
-              setShowMonthlyTotal(false);
             }}
           >
             Clear filters
           </button>
         </div>
         <p className="city-search-summary" aria-live="polite">
-          Showing {filteredParentListings.length} of {redondoBeachParentListings.length} units.
+          Showing {filteredListings.length} of {redondoBeachListings.length} units.
         </p>
       </section>
 
@@ -8084,22 +7565,22 @@ const applyCheckoutPromoCode = () => {
                 </div>
               )}
 
-              {!loading && !error && redondoBeachParentListings.length === 0 && (
+              {!loading && !error && redondoBeachListings.length === 0 && (
                 <div className="antwerp-empty">
                   No Redondo Beach listings are available in the current response.
                 </div>
               )}
 
-              {!loading && !error && redondoBeachParentListings.length > 0 && filteredParentListings.length === 0 && (
+              {!loading && !error && redondoBeachListings.length > 0 && filteredListings.length === 0 && (
                 <div className="antwerp-empty">
                   No units match your filters.
                 </div>
               )}
 
               {!loading &&
-                !error && filteredParentListings.length > 0 && (
+                !error && filteredListings.length > 0 && (
                   <div className="la-unit-listing-grid">
-                    {filteredParentListings.map((listing) => {
+                    {filteredListings.map((listing) => {
                       const listingId = getListingId(listing);
                       const listingPath = listingId ? buildListingPath(listingId) : "/redondo-beach";
                       const listingKey = listingId || listingPath;
@@ -8127,69 +7608,12 @@ const applyCheckoutPromoCode = () => {
                               );
                             })();
                       const imageUrl = cardImageSources[safeCardImageIndex] || FALLBACK_IMAGE;
-                      const basePrice = firstNumber(
-                        listing?.basePrice,
-                        listing?.prices?.basePrice,
-                        listing?.prices?.basePricePerNight,
-                        listing?.prices?.nightly,
-                        listing?.prices?.nightly?.amount,
-                        listing?.prices?.basePrice?.amount
-                      );
-                      const originalPrice = firstNumber(
-                        listing?.prices?.originalBasePrice,
-                        listing?.prices?.monthly?.original,
-                        listing?.pricing?.originalPrice,
-                        listing?.originalPrice
-                      );
-                      const currency =
-                        listing?.currency ||
-                        listing?.prices?.currency ||
-                        listing?.prices?.nightly?.currency ||
-                        listing?.prices?.basePrice?.currency ||
-                        "USD";
                       const bedrooms = firstNumber(listing?.bedrooms, listing?.beds);
                       const bathrooms = firstNumber(listing?.bathrooms);
                       const accommodates = firstNumber(listing?.accommodates);
                       const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
-                    const nightlyPrice = getListingNightlyPrice(listing);
-                    const quoteRateEntry = listingId ? cardQuoteRates[toLookupKey(listingId)] : null;
-                    const displayCurrency = quoteRateEntry?.currency || currency;
-                    const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
-                    const seasonalPricingMeta = getSeasonalMonthlyPricingMeta(
-                      listingId,
-                      sectionCheckIn || new Date(),
-                    );
-                    const seasonalDailyRate =
-                      seasonalPricingMeta?.monthlyPrice ? seasonalPricingMeta.monthlyPrice / 30 : null;
-                    const displayedMarketingRate = getMonthlyEstimate({
-                      city: REDONDO_CITY_NAME,
-                      unitId: listingId,
-                      checkInDate: sectionCheckIn || new Date(),
-                      accommodationTotal: quoteRateEntry?.accommodationTotal,
-                      totalNights: quoteRateEntry?.totalNights,
-                      fallbackNightlyRate: dailyRate,
-                    });
-                    const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
-                    const canShowStayTotal =
-                      showMonthlyTotal &&
-                      stayNights > 0 &&
-                      (typeof seasonalDailyRate === "number" || typeof dailyRate === "number");
-                    const effectiveDailyRate = typeof seasonalDailyRate === "number" ? seasonalDailyRate : dailyRate;
-                    const stayTotal = canShowStayTotal ? effectiveDailyRate * stayNights : null;
-                    const priceMain = canShowStayTotal
-                      ? `${formatCurrency(stayTotal, displayCurrency)} total`
-                      : typeof displayedMarketingRate === "number"
-                        ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH}`
-                        : "Checking price...";
-                    const priceSub = canShowStayTotal
-                      ? `${formatCurrency(displayedMarketingRate, displayCurrency)}${REDONDO_PRICING_PERIOD_SLASH} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}${
-                          seasonalPricingMeta ? " \u00b7 Seasonal Monthly Pricing" : ""
-                        }`
-                      : "";
-                    const hasStrikePrice =
-                      typeof originalPrice === "number" &&
-                      typeof displayedMarketingRate === "number" &&
-                      originalPrice > displayedMarketingRate;
+                      const priceMain = REDONDO_MONTHLY_PRICE_RANGE;
+                      const priceSub = REDONDO_MONTHLY_PRICE_NOTE;
 
                       return (
                         <Link key={listingId || listingPath} to={listingPath} className="la-unit-listing-card">
@@ -8265,11 +7689,6 @@ const applyCheckoutPromoCode = () => {
                               {sanitizeText(listing?.title || "One Lux Stay Redondo Beach")}
                             </h3>
                             <p className="la-unit-listing-card__price">
-                              {hasStrikePrice ? (
-                                <span className="la-unit-listing-card__price-strike">
-                                  {formatCurrency(originalPrice, currency)}
-                                </span>
-                              ) : null}
                               <span className="la-unit-listing-card__price-main">
                                 {priceMain}
                               </span>
@@ -8519,7 +7938,7 @@ const applyCheckoutPromoCode = () => {
                   </div>
                   <aside className="la-section-hero__aside">
                     <div className="la-section-hero__contact" aria-label="Reservation contact">
-                      <p>For Reservation Contact</p>
+                      <p>For Long-Term Stay Inquiries</p>
                       <strong>OneLuxStay Redondo Beach</strong>
                       <a href="tel:+12138663589">+1 213 866 3589</a>
                       <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
@@ -8633,6 +8052,21 @@ const applyCheckoutPromoCode = () => {
               const minNightsFallback = activeSection?.listings?.length
                 ? sectionMinNightsFallback
                 : listingMinNightsFallback;
+              if (isLongStayInquiryOnly) {
+                return (
+                  <>
+                    {renderLongStayInquiryCard(activeSection?.listings?.[0] || activeListing)}
+                    <div className="la-unit-modal__section">
+                      <h4>About this executive residence</h4>
+                      <p>
+                        A calm base with quick access to the neighborhood&apos;s best corners. Expect bright spaces,
+                        effortless arrivals, and a stay that keeps everything close: landmarks, transit, and the
+                        city&apos;s rhythm.
+                      </p>
+                    </div>
+                  </>
+                );
+              }
               return (
                 <>
                   <div className="la-unit-modal__booking" aria-label="Availability check">
@@ -8688,7 +8122,7 @@ const applyCheckoutPromoCode = () => {
                           : "Check availability"}
                     </button>
                   </div>
-                  {sectionValidationNotice && (
+                  {!isLongStayInquiryOnly && sectionValidationNotice && (
                     <div
                       role="alert"
                       className={`la-section-hero__notice${isShortStayInquiryMode ? " la-section-hero__notice--inquiry" : ""}`}
@@ -8706,6 +8140,7 @@ const applyCheckoutPromoCode = () => {
                 </>
               );
             })()}
+            {!isLongStayInquiryOnly && (
             <div
               ref={availabilityTableRef}
               className={`la-booking-table${sectionAvailabilityLoading ? " is-loading" : ""}`}
@@ -9145,6 +8580,7 @@ const applyCheckoutPromoCode = () => {
                 </>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
@@ -9175,7 +8611,7 @@ const applyCheckoutPromoCode = () => {
                 Back to listings
               </button>
               <div className="la-unit-modal__contact" aria-label="Reservation contact">
-                <p>For Reservation Contact</p>
+                <p>For Long-Term Stay Inquiries</p>
                 <strong>OneLuxStay Redondo Beach</strong>
                 <a href="tel:+12138663589">+1 213 866 3589</a>
                 <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
@@ -9450,192 +8886,13 @@ const applyCheckoutPromoCode = () => {
                         <span className="la-unit-modal__map-cta">View larger map</span>
                       </button>
                     </div>
-                    <div className="la-unit-modal__card la-unit-modal__availability">
-                      <div className="la-unit-modal__card-head">
-                        <strong>Availability</strong>
-                        <span
-                          className={`la-unit-modal__status is-${(
-                            isShortStayInquiryMode ? "inquire" : availabilityStatus
-                          )
-                            .toLowerCase()
-                            .replace(/\s+/g, "-")}`}
-                        >
-                          {isShortStayInquiryMode ? "Inquire" : availabilityStatus}
-                        </span>
-                      </div>
-                      <div className="la-unit-modal__availability-details">
-                        {isShortStayInquiryMode ? (
-                          <>
-                            <p className="la-unit-modal__inquiry-note">
-                              Inquiry request only - pricing and confirmation will be shared by our team.
-                            </p>
-                          </>
-                        ) : availability === false ? (
-                          <p>Unavailable for the selected dates.</p>
-                        ) : breakdown ? (
-                          <>
-                            <div>
-                              <span>Accommodation</span>
-                              <strong>{formatCurrency(breakdown.accommodation, priceCurrency)}</strong>
-                            </div>
-                            {breakdown.discountAmount > 0 && (
-                              <div>
-                                <span>
-                                  Direct booking discount ({Math.round(breakdown.discountRate * 100)}%)
-                                </span>
-                                <strong>-{formatCurrency(breakdown.discountAmount, priceCurrency)}</strong>
-                              </div>
-                            )}
-                            <div>
-                              <span>Cleaning</span>
-                              <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
-                            </div>
-                            <div>
-                              <span>Taxes</span>
-                              <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                            </div>
-                            <div>
-                              <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                              <strong>
-                                {formatCurrency(
-                                  Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
-                                  priceCurrency,
-                                )}
-                              </strong>
-                            </div>
-                            <div className="la-unit-modal__total">
-                              <span>Total</span>
-                              <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
-                            </div>
-                          </>
-                        ) : totalPrice ? (
-                          <div className="la-unit-modal__total">
-                            <span>Total {quote?.nights ? `for ${quote.nights} nights` : ""}</span>
-                            <strong>{formatCurrency(totalPrice, priceCurrency)}</strong>
-                          </div>
-                        ) : (
-                          <p>Check availability to view pricing breakdown.</p>
-                        )}
-                      </div>
-                      {!isShortStayInquiryMode && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
-                        <div className="la-unit-modal__rate-plan">
-                          <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
-                          <select
-                            id={`la-listing-rate-plan-${listingId || "active"}`}
-                            value={selectedPlanId}
-                            disabled={sectionAvailabilityLoading}
-                            onChange={(event) =>
-                              setSelectedRatePlans((prev) => ({
-                                ...prev,
-                                [listingId]: event.target.value,
-                              }))
-                            }
-                            className="la-booking-table__rate-select"
-                          >
-                            {planOptions.map((planOption) => (
-                              <option key={planOption.id} value={planOption.id}>
-                                {planOption.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      <div className="la-unit-modal__actions">
-                        {(() => {
-                          const availability = listingId ? sectionAvailabilityMap[listingId] : null;
-                          if (availability === true) {
-                            const isReserving = sectionReserveLoadingId === listingId;
-                            if (isShortStayInquiryMode) {
-                              return (
-                                <button
-                                  type="button"
-                                  className="la-unit-modal__action-primary"
-                                  onClick={() => openInquiry(activeListing)}
-                                >
-                                  Send inquiry
-                                </button>
-                              );
-                            }
-                            return (
-                              <button
-                                type="button"
-                                className="la-unit-modal__action-primary"
-                                disabled={sectionAvailabilityLoading || isReserving}
-                                onClick={() => {
-                                  if (
-                                    !checkoutGuest.firstName ||
-                                    !checkoutGuest.lastName ||
-                                    !checkoutGuest.email ||
-                                    !checkoutGuest.phone ||
-                                    !isCheckoutVerificationValid ||
-                                    !checkoutConsentAccepted ||
-                                    !checkoutConsentSignerName.trim() ||
-                                    !checkoutConsentSignatureDataUrl
-                                  ) {
-                                    setPendingCheckout({
-                                      listingId,
-                                      listingTitle: activeListing.title,
-                                      amount: typeof totalPrice === "number" ? totalPrice : null,
-                                      currency: resolveCheckoutCurrency(priceCurrency),
-                                      breakdown: breakdown || null,
-                                      baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                                      baseBreakdown: breakdown || null,
-                                      promoCode: "",
-                                      promoDiscountRate: 0,
-                                      promoDiscountAmount: 0,
-                                    });
-                                    setCheckoutStep(1);
-                                    setCheckoutConsentAccepted(false);
-                                    setCheckoutConsentSignerName("");
-                                    setCheckoutConsentSignatureDataUrl("");
-                                    setCheckoutIdentityDocs({
-                                      idFront: null,
-                                      idBack: null,
-                                      idSelfie: null,
-                                    });
-                                    setCheckoutIdentityError("");
-                                    setCheckoutCardPhoto(null);
-                                    setCheckoutCardHolderSelfie(null);
-                                    setCheckoutCardPhotoError("");
-                                    setCheckoutGuestError("");
-                                    setIsCheckoutGuestOpen(true);
-                                    return;
-                                  }
-                                  handleSectionCheckout({
-                                    listingId,
-                                    listingTitle: activeListing.title,
-                                    amount: typeof totalPrice === "number" ? totalPrice : null,
-                                      currency: resolveCheckoutCurrency(priceCurrency),
-                                    breakdown: breakdown || null,
-                                    guest: checkoutGuest,
-                                    consentSignerName: checkoutConsentSignerName.trim(),
-                                    consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
-                                  });
-                                }}
-                              >
-                                {isReserving ? "Redirecting..." : "Reserve"}
-                              </button>
-                            );
-                          }
-                          if (availability === false) {
-                            return (
-                              <button
-                                type="button"
-                                className="la-unit-modal__action-primary"
-                                onClick={() => openInquiry(activeListing)}
-                              >
-                                Inquire
-                              </button>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </div>
+                    {renderLongStayInquiryCard(activeListing, { asPanel: true })}
                   </div>
                 </div>
               );
             })()}
+            {!isLongStayInquiryOnly && (
+            <>
             <div className="la-unit-modal__booking" aria-label="Availability check">
               <DateRangePicker
                 value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
@@ -9791,6 +9048,8 @@ const applyCheckoutPromoCode = () => {
                 </div>
               </div>
             </div>
+            </>
+            )}
             <div className="la-unit-modal__section">
               <h4>About this property</h4>
               <p>{activeAboutText || "Comfortable, calm, and ready the moment you arrive."}</p>
@@ -9850,9 +9109,9 @@ const applyCheckoutPromoCode = () => {
                   })()}
                 </div>
                 <div className="la-unit-modal__room-actions">
-                  <Link to="/listings" className="antwerp-card__link">
-                    Book now
-                  </Link>
+                  <button type="button" className="antwerp-card__link" onClick={() => openInquiry(activeListing)}>
+                    Send Inquiry
+                  </button>
                 </div>
               </div>
             </div>

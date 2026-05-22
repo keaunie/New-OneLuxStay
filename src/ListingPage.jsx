@@ -108,6 +108,8 @@ const KNOWN_CITIES = [
   "miami",
   "miami beach",
 ];
+const REDONDO_MONTHLY_RANGE_LABEL = "$4,500 – $6,500 / month";
+const REDONDO_MONTHLY_RANGE_NOTE = "Seasonal Monthly Pricing";
 
 const cityFromSlug = (slug) => {
   if (!slug) return "";
@@ -178,7 +180,7 @@ const parseHiddenList = (value = "") =>
     .map((v) => v.trim())
     .filter(Boolean);
 
-const getListingId = (listing) => listing?.id || listing?._id || "";
+const getListingId = (listing) => listing?.id || listing?._id || listing?.unitTypeId || "";
 
 const isChildListing = (listing) => {
   const type = typeof listing?.type === "string" ? listing.type.toUpperCase() : "";
@@ -208,6 +210,22 @@ const groupListingsByParent = (listings = []) => {
 const HIDDEN_LISTING_IDS = [
   ...new Set([...parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_IDS), ...HIDDEN_UNIT_IDS]),
 ];
+const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([
+  "6948d9855a49ec0013d81ab5",
+]);
+const isAllowedRedondoListing = (listing) =>
+  [
+    listing?.id,
+    listing?._id,
+    listing?.unitTypeId,
+    listing?.parentId,
+    listing?.parentListingId,
+    listing?.listingId,
+    listing?.unitId,
+    listing?.propertyId,
+  ]
+    .map((value) => String(value || "").trim())
+    .some((value) => value && REDONDO_ONLY_VISIBLE_UNIT_IDS.has(value));
 const HIDDEN_LISTING_TITLES = parseHiddenList(import.meta.env.VITE_HIDDEN_LISTING_TITLES).map((t) =>
   t.toLowerCase(),
 );
@@ -628,9 +646,12 @@ function ListingPage() {
         const json = await res.json();
         const sanitizedListings = (json.results || []).filter((listing) => {
           const id = listing.id || listing._id;
+          const normalizedId = String(id || "");
           const title = typeof listing.title === "string" ? listing.title.toLowerCase() : "";
+          const isRedondoListing = normalizeCity(listing).toLowerCase() === "redondo beach";
+          if (isRedondoListing) return isAllowedRedondoListing(listing) || REDONDO_ONLY_VISIBLE_UNIT_IDS.has(normalizedId);
           if (id && HIDDEN_LISTING_IDS.includes(id)) return false;
-          if (title && HIDDEN_LISTING_TITLES.some((hidden) => title.includes(hidden))) return false;
+          if (!isRedondoListing && title && HIDDEN_LISTING_TITLES.some((hidden) => title.includes(hidden))) return false;
           return true;
         });
 
@@ -1227,6 +1248,7 @@ function ListingPage() {
               const status = availability[listing.id] || {};
               const displayTotal = status.total;
               const displayNightly = status.nightly ?? listing.basePrice;
+              const isRedondoListing = normalizeCity(listing).toLowerCase() === "redondo beach";
               const canBook = status.status === "ready" && status.available !== false;
               const showInquiry = status.status === "ready" && status.available === false;
               const cardImage = getPrimaryListingImage(listing);
@@ -1269,8 +1291,15 @@ function ListingPage() {
                       </p>
                       <h3 className="listing-card__title text-lg font-semibold text-white leading-tight">{listing.title}</h3>
                       <p className="listing-card__meta text-sm text-slate-300">
-                        From {formatCurrency(listing.basePrice, listing.currency)} / night  -  Cleaning: {formatCurrency(listing.cleaningFee, listing.currency)}
+                        {isRedondoListing
+                          ? REDONDO_MONTHLY_RANGE_LABEL
+                          : `From ${formatCurrency(listing.basePrice, listing.currency)} / night  -  Cleaning: ${formatCurrency(listing.cleaningFee, listing.currency)}`}
                       </p>
+                      {isRedondoListing ? (
+                        <p className="listing-card__meta text-xs uppercase tracking-wide text-slate-400">
+                          {REDONDO_MONTHLY_RANGE_NOTE}
+                        </p>
+                      ) : null}
                       {bedLines.length > 0 && (
                         <div className="listing-card__bed-details">
                           {bedLines.map((line, idx) => (
@@ -1688,5 +1717,3 @@ function ListingPage() {
 }
 
 export default ListingPage;
-
-

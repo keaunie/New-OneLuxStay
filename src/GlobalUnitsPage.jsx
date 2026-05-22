@@ -26,6 +26,15 @@ const KNOWN_CITIES = [
   "miami",
   "miami beach",
 ];
+const REDONDO_MONTHLY_RANGE_LABEL = "$4,500 – $6,500 / month";
+const REDONDO_MONTHLY_RANGE_NOTE = "Seasonal Monthly Pricing";
+const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([
+  "6948d9855a49ec0013d81ab5",
+]);
+const isAllowedRedondoListing = (listing) =>
+  getListingIdentityIds(listing)
+    .map((value) => String(value || "").trim())
+    .some((value) => value && REDONDO_ONLY_VISIBLE_UNIT_IDS.has(value));
 
 const extractImageUrl = (value) => {
   if (!value) return "";
@@ -131,6 +140,8 @@ const normalizeCity = (listing) => {
   return "";
 };
 
+const isRedondoCityListing = (listing) => normalizeCity(listing).toLowerCase() === "redondo beach";
+
 const citySlugFromName = (value) => {
   if (!value) return "";
   const lower = value.toLowerCase();
@@ -213,7 +224,16 @@ const formatDateForDisplay = (value) => {
 };
 
 const getListingIdentityIds = (listing) =>
-  [listing?.id, listing?._id, listing?.unitTypeId]
+  [
+    listing?.id,
+    listing?._id,
+    listing?.unitTypeId,
+    listing?.parentId,
+    listing?.parentListingId,
+    listing?.listingId,
+    listing?.unitId,
+    listing?.propertyId,
+  ]
     .filter(Boolean)
     .map((value) => String(value));
 
@@ -722,7 +742,11 @@ function GlobalUnitsPage() {
   }, [listings]);
 
   const visibleListings = useMemo(
-    () => listings.filter((listing) => !isHiddenUnit(getListingId(listing) || listing)),
+    () =>
+      listings.filter((listing) => {
+        if (isRedondoCityListing(listing)) return isAllowedRedondoListing(listing);
+        return !isHiddenUnit(listing);
+      }),
     [listings],
   );
 
@@ -1002,11 +1026,14 @@ function GlobalUnitsPage() {
               const nightly = formatCurrency(nightlyValue, nightlyCurrency);
               const carouselId = `global-unit-carousel-${toDomId(listingId)}`;
               const listingTitle = listing?.title || listing?.nickname || "One Lux Stay unit";
-              const nightlyLabel = todayPriceEntry
-                ? `Today's price ${nightly} / night`
-                : todayPricesLoading && fallbackPrice === null
-                  ? "Loading today's price..."
-                  : `${nightly} / night`;
+              const isRedondoListing = isRedondoCityListing(listing);
+              const nightlyLabel = isRedondoListing
+                ? REDONDO_MONTHLY_RANGE_LABEL
+                : todayPriceEntry
+                  ? `Today's price ${nightly} / night`
+                  : todayPricesLoading && fallbackPrice === null
+                    ? "Loading today's price..."
+                    : `${nightly} / night`;
 
               return (
                 <article
@@ -1108,7 +1135,14 @@ function GlobalUnitsPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[var(--ink)]">{nightlyLabel}</p>
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--ink)]">{nightlyLabel}</p>
+                        {isRedondoListing ? (
+                          <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+                            {REDONDO_MONTHLY_RANGE_NOTE}
+                          </p>
+                        ) : null}
+                      </div>
                       <Link
                         to={link}
                         onClick={(event) => {

@@ -602,6 +602,29 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
                 });
         }
 
+        const missingAfterSupabase = onlyIds.filter((id) => !onlyIdMap.has(String(id)));
+        if (missingAfterSupabase.length) {
+            try {
+                const { token } = await getGuestyToken();
+                const guestyResults = await fetchListingsByIds(missingAfterSupabase, token);
+                guestyResults
+                    .map((listing) => normalizeListing(listing))
+                    .filter((listing) => isActiveAndPmsActive(listing))
+                    .filter((listing) => !isHiddenListing(listing, hiddenIds, hiddenTitleTerms))
+                    .filter(Boolean)
+                    .forEach((listing) => {
+                        const id = String(getListingId(listing) || "");
+                        if (!id || !onlyIdsSet.has(id) || onlyIdMap.has(id)) return;
+                        onlyIdMap.set(id, listing);
+                    });
+            } catch (error) {
+                console.warn("Supabase onlyIds fallback to Guesty failed", {
+                    error: error?.message || String(error),
+                    missingOnlyIds: missingAfterSupabase,
+                });
+            }
+        }
+
         let orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
         orderedResults = await enrichListingsWithSecurityDeposits(orderedResults);
         return {

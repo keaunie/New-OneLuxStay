@@ -1,19 +1,45 @@
 // Temporarily hidden public units (Redondo Beach)
 export const HIDDEN_UNIT_IDS = [
-  "6948d9855a49ec0013d81ab5",
-  "6948d9865a49ec0013d8200d",
-  "695420a06aa393001cbecefb",
-  "696a34b2e629d00015871427",
-  "696a34b2e629d00015871726",
-  "69e125f82a2e7400157046ae",
-  "696a35884770cc0013af50d4",
-  "68c6f3c58247f20013bae867",
-  "68e663f5961b570012530251",
-  "68c6f3c58247f20013bae91e",
-  "68e6d143a5e35f00237b6930",
-  "68e6d144a5e35f00237b6b9a",
-  "68e6d144a5e35f00237b6bc3"
+  // "6948d9855a49ec0013d81ab5",
+  // "6948d9865a49ec0013d8200d",
+  // "695420a06aa393001cbecefb",
+  // "696a34b2e629d00015871427",
+  // "696a34b2e629d00015871726",
+  // "69e125f82a2e7400157046ae",
+  // "696a35884770cc0013af50d4",
+  // "68c6f3c58247f20013bae867",
+  // "68e663f5961b570012530251",
+  // "68c6f3c58247f20013bae91e",
+  // "68e6d143a5e35f00237b6930",
+  // "68e6d144a5e35f00237b6b9a",
+  // "68e6d144a5e35f00237b6bc3"
 ];
+
+const REDONDO_MATCH = /\bredondo\b/i;
+const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([
+  // "6948d9855a49ec0013d81ab5",
+]);
+const hasAllowedRedondoId = (unit) =>
+  [
+    unit?.id,
+    unit?._id,
+    unit?.unitTypeId,
+    unit?.parentId,
+    unit?.parentListingId,
+    unit?.propertyId,
+    unit?.unitId,
+    unit?.listingId,
+    unit?.unitGroupId,
+  ]
+    .map((value) => String(value || "").trim())
+    .some((value) => value && REDONDO_ONLY_VISIBLE_UNIT_IDS.has(value));
+
+const isRedondoUnitObject = (unit) => {
+  if (!unit || typeof unit !== "object") return false;
+  const city = [unit?.city, unit?.address?.city, unit?.location].filter(Boolean).join(" ");
+  const title = typeof unit?.title === "string" ? unit.title : "";
+  return REDONDO_MATCH.test(`${city} ${title}`.trim());
+};
 
 export const isHiddenUnit = (unit) => {
   const id =
@@ -24,8 +50,13 @@ export const isHiddenUnit = (unit) => {
     unit?.listingId ||
     unit?.unitGroupId ||
     unit;
+  const normalizedId = String(id || "").trim();
 
-  return HIDDEN_UNIT_IDS.includes(String(id || "").trim());
+  if (REDONDO_ONLY_VISIBLE_UNIT_IDS.has(normalizedId)) return false;
+  if (hasAllowedRedondoId(unit)) return false;
+  if (isRedondoUnitObject(unit)) return true;
+
+  return HIDDEN_UNIT_IDS.includes(normalizedId);
 };
 
 export const filterVisibleUnits = (units = []) =>
