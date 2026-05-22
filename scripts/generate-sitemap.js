@@ -66,8 +66,8 @@ const CITY_CONFIG = {
     areaSlugs: ["brickell", "wynwood", "designdistrict", "miami"],
   },
   redondo: {
-    roots: ["/redondo-beach", "/redondo"],
-    areaSlugs: ["pier", "rivieravillage", "southbay", "redondo"],
+    roots: ["/redondo-beach"],
+    areaSlugs: [],
   },
   dubai: {
     roots: ["/dubai"],
@@ -104,6 +104,14 @@ const isPublicSitemapRoute = (routePath = "") => {
   if (normalized === "/admins-ols/audit") return false;
   if (normalized === "/admins-ols/guest-journeys") return false;
   if (normalized.startsWith("/private/")) return false;
+  if (normalized === "/redondo-beach-legacy") return false;
+  if (normalized.startsWith("/redondo-beach-legacy/")) return false;
+  if (normalized === "/redondo") return false;
+  if (normalized.startsWith("/redondo/")) return false;
+  if (normalized.startsWith("/redondo-beach/listing/")) return false;
+  if (normalized === "/redondo-beach/listing/:listingid") return false;
+  if (normalized === "/redondo-beach/:areaslug") return false;
+  if (normalized === "/redondo-beach/:areaslug/:bookingbundle") return false;
   return true;
 };
 
@@ -239,7 +247,7 @@ const buildRouteSet = (baseRoutes, listings) => {
     if (cityKey === "antwerp") config = CITY_CONFIG.antwerp;
     if (cityKey === "los-angeles") config = CITY_CONFIG.losAngeles;
     if (cityKey === "miami") config = CITY_CONFIG.miami;
-    if (cityKey === "redondo") config = CITY_CONFIG.redondo;
+    if (cityKey === "redondo") return;
     if (cityKey === "dubai") config = CITY_CONFIG.dubai;
     if (!config) return;
 

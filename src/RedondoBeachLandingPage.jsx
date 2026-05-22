@@ -85,8 +85,16 @@ const computeTaxes = (amount, _options = {}) => {
 
 const STRIPE_ADMIN_FEE_RATE = 0.03;
 const REDONDO_INQUIRY_MIN_NIGHTS = 31;
-const REDONDO_MONTHLY_PRICE_RANGE = "$4,500 – $6,500 / month";
+const REDONDO_MONTHLY_PRICE_RANGE = "$4,500 – $6,500 per month";
 const REDONDO_MONTHLY_PRICE_NOTE = "Seasonal Monthly Pricing";
+const getSeasonalMonthlyRate = () => {
+  const m = new Date().getMonth(); // 0 = Jan
+  if (m >= 5 && m <= 7) return "$6,500";  // Jun–Aug
+  if (m >= 8 && m <= 10) return "$5,500"; // Sep–Nov
+  if (m === 11 || m <= 1) return "$4,500"; // Dec–Feb
+  return "$5,500"; // Mar–May
+};
+const REDONDO_SEASONAL_RATE = getSeasonalMonthlyRate();
 const SHORT_STAY_APPROVAL_HINT =
   "Shorter stays may be approved depending on season and availability.";
 const buildShortStayInquiryMessage = (minNights) =>
@@ -1540,10 +1548,9 @@ const EXCLUDED_CITIES = [
   "antwerp",
   "antwerpen",
 ];
-const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([
-  "6948d9855a49ec0013d81ab5",
-]);
-const isAllowedRedondoListing = (listing) =>
+const REDONDO_PRIMARY_LISTING_ID = "6948d9855a49ec0013d81ab5";
+const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([REDONDO_PRIMARY_LISTING_ID]);
+const hasRedondoListingId = (listing, allowedIds = REDONDO_ONLY_VISIBLE_UNIT_IDS) =>
   [
     listing?.id,
     listing?._id,
@@ -1555,7 +1562,7 @@ const isAllowedRedondoListing = (listing) =>
     listing?.propertyId,
   ]
     .map((value) => String(value || "").trim())
-    .some((value) => value && REDONDO_ONLY_VISIBLE_UNIT_IDS.has(value));
+    .some((value) => value && allowedIds.has(value));
 const CHECKOUT_PROMO_CODES = {
   WELCOME5: { rate: 0.05, label: "Welcome offer" },
   LUXE10: { rate: 0.1, label: "Member offer" },
@@ -2260,7 +2267,7 @@ const getListingText = (listing) => {
 };
 
 const isRedondoListing = (listing) => {
-  if (isAllowedRedondoListing(listing)) return true;
+  if (hasRedondoListingId(listing)) return true;
   const cityText = [listing.city, listing.address?.city, listing.location]
     .filter(Boolean)
     .join(" ")
@@ -2402,7 +2409,10 @@ const formatFullDescription = (listing) => {
   return fallback.length ? `Details: ${fallback.join(" | ")}` : "No description available.";
 };
 
-export default function RedondoBeachLandingPage() {
+export default function RedondoBeachLandingPage({
+  experience = "legacy",
+  singleListingId = REDONDO_PRIMARY_LISTING_ID,
+} = {}) {
   const {
     listingId: routeListingId,
     checkIn: routeCheckInParam,
@@ -2413,7 +2423,29 @@ export default function RedondoBeachLandingPage() {
   } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const isListingRoute = Boolean(routeListingId);  // listing-route-scroll-lock
+  const isPrimarySingleListingExperience = experience === "primary";
+  const normalizedSingleListingId = String(singleListingId || "").trim();
+  const allowedRedondoIds = useMemo(
+    () =>
+      new Set(
+        (isPrimarySingleListingExperience ? [normalizedSingleListingId] : []).filter(Boolean)
+      ),
+    [isPrimarySingleListingExperience, normalizedSingleListingId]
+  );
+  const isAllowedRedondoListing = useCallback(
+    (listing) => hasRedondoListingId(listing, allowedRedondoIds),
+    [allowedRedondoIds]
+  );
+  const resolvedRouteListingId =
+    routeListingId || (isPrimarySingleListingExperience ? normalizedSingleListingId : "");
+  const isListingRoute = Boolean(resolvedRouteListingId);  // listing-route-scroll-lock
+  const resolvedRedondoBasePath = useMemo(() => {
+    if (isPrimarySingleListingExperience) return "/redondo-beach";
+    const lowerPath = String(location.pathname || "").toLowerCase();
+    if (lowerPath.startsWith("/redondo-beach-legacy")) return "/redondo-beach-legacy";
+    if (lowerPath === "/redondo" || lowerPath.startsWith("/redondo/")) return "/redondo";
+    return "/redondo-beach-legacy";
+  }, [isPrimarySingleListingExperience, location.pathname]);
   const isLongStayInquiryOnly = true;
   useEffect(() => {
     if (!isListingRoute) return;
@@ -2927,7 +2959,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setMasonryGalleryImages(cleanImages);
     setMasonryGalleryIndex(Math.max(0, Math.min(mappedIndex, cleanImages.length - 1)));
     setIsMasonryGalleryOpen(true);
-  }, []);
+  }, [resolvedRedondoBasePath]);
 
   const closeMasonryGallery = useCallback(() => {
     setIsMasonryGalleryOpen(false);
@@ -3070,7 +3102,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     let active = true;
     const load = async () => {
       try {
-        const onlyIds = [...REDONDO_ONLY_VISIBLE_UNIT_IDS].filter(Boolean);
+        const onlyIds = [...allowedRedondoIds].filter(Boolean);
         const query = new URLSearchParams();
         if (onlyIds.length) query.set("onlyIds", onlyIds.join(","));
         const listingsUrl = `${apiBase}/listings${query.toString() ? `?${query.toString()}` : ""}`;
@@ -3093,10 +3125,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, []);
+  }, [allowedRedondoIds]);
 
   useEffect(() => {
-    if (!routeListingId) {
+    if (!resolvedRouteListingId) {
       setActiveListing(null);
       setActiveImageIndex(0);
       return;
@@ -3107,7 +3139,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
     const match = listings.find(
       (listing) =>
-        String(listing.id || listing._id || listing.unitTypeId || "") === String(routeListingId)
+        String(listing.id || listing._id || listing.unitTypeId || "") === String(resolvedRouteListingId)
     );
 	    if (!match) {
 	      setActiveListing(null);
@@ -3115,7 +3147,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 	    }
 	    setActiveListing(match);
 	    setActiveImageIndex(0);
-	  }, [routeListingId, listings]);
+	  }, [resolvedRouteListingId, listings]);
 	
 	  useEffect(() => {
 	    if (!isListingRoute) return;
@@ -3125,10 +3157,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 	      return;
 	    }
 	    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-	  }, [isListingRoute, routeListingId]);
+	  }, [isListingRoute, resolvedRouteListingId]);
 
 	  useEffect(() => {
-	    if (!routeListingId) return;
+	    if (!resolvedRouteListingId) return;
 	    setListingTab("overview");
 	    setIsReviewExpanded(false);
 	    setShowAllAmenities(false);
@@ -3137,7 +3169,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 	    setIsListingMapOpen(false);
 	    setListingMapTarget(null);
 	    setIsListingCalendarOpen(false);
-	  }, [routeListingId]);
+	  }, [resolvedRouteListingId]);
 
   useEffect(() => {
     if (!isListingRoute) return;
@@ -3151,6 +3183,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, []);
 
   useEffect(() => {
+    if (!isPrimarySingleListingExperience) return;
     if (!listings.length) return;
     const hasTarget = listings.some((listing) => isAllowedRedondoListing(listing));
     if (hasTarget) return;
@@ -3172,10 +3205,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         city: listing?.city || listing?.address?.city || listing?.location || "",
       }));
     console.warn(
-      "[Redondo lock] Target listing id 6948d9855a49ec0013d81ab5 not found in current listings payload.",
+      `[Redondo lock] Target listing id ${normalizedSingleListingId || "(missing)"} not found in current listings payload.`,
       { redondoCandidatesCount: redondoCandidates.length, redondoCandidates }
     );
-  }, [listings]);
+  }, [isPrimarySingleListingExperience, isAllowedRedondoListing, listings, normalizedSingleListingId]);
 
   useEffect(() => {
     if (isListingRoute) return;
@@ -3275,9 +3308,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   const redondoBeachListings = useMemo(() => {
     return listings.filter((listing) => {
-      return isAllowedRedondoListing(listing);
+      if (isPrimarySingleListingExperience) return isAllowedRedondoListing(listing);
+      return isRedondoListing(listing);
     });
-  }, [listings, isMapEnabled, mapsApiKey]);
+  }, [isAllowedRedondoListing, isPrimarySingleListingExperience, listings, isMapEnabled, mapsApiKey]);
 
   const redondoBeachParentListings = useMemo(() => {
     if (!redondoBeachListings.length) return [];
@@ -3386,8 +3420,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const address = escapeHtml(formatAddress(listing));
     const idLine = listingId ? `#${escapeHtml(listingId)}` : "";
     const listingPath = listingId
-      ? `/redondo-beach/listing/${encodeURIComponent(listingId)}`
-      : "/redondo-beach";
+      ? `${resolvedRedondoBasePath}/listing/${encodeURIComponent(listingId)}`
+      : resolvedRedondoBasePath;
     const safePopupKey = escapeHtml(String(popupKey || ""));
     const unitNav =
       totalUnits > 1
@@ -4338,47 +4372,101 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const renderLongStayInquiryCard = (listing, { asPanel = false } = {}) => {
     const targetListing = listing || activeListing || activeSection?.listings?.[0] || null;
     const whatsappHref = buildWhatsAppLink(targetListing?.title, sectionCheckIn, sectionCheckOut);
+    const isPrimaryLuxuryCard = isPrimarySingleListingExperience;
     const cardClassName = asPanel
       ? "la-unit-modal__card la-unit-modal__booking-panel la-longstay-inquiry-card"
       : "la-unit-modal__booking la-longstay-inquiry-card";
+    const cardClassWithMode = `${cardClassName}${isPrimaryLuxuryCard ? " la-longstay-inquiry-card--primary" : ""}`;
+
+    if (!isPrimaryLuxuryCard) {
+      return (
+        <div className={cardClassWithMode} aria-label="Long-term inquiry contact card">
+          <p className="la-longstay-inquiry-card__badge">Minimum of {REDONDO_INQUIRY_MIN_NIGHTS} Nights only</p>
+          <p className="la-longstay-inquiry-card__copy">
+            This executive residence is available exclusively for long-term stays.
+          </p>
+          <p className="la-longstay-inquiry-card__copy">
+            <strong>{REDONDO_MONTHLY_PRICE_RANGE}</strong>
+          </p>
+          <p className="la-longstay-inquiry-card__copy">{REDONDO_MONTHLY_PRICE_NOTE}</p>
+          <p className="la-longstay-inquiry-card__copy">Please contact our team for:</p>
+          <ul className="la-longstay-inquiry-card__list">
+            <li>availability</li>
+            <li>monthly pricing</li>
+            <li>furnished stay options</li>
+            <li>custom lease arrangements</li>
+          </ul>
+          <div className="la-longstay-inquiry-card__actions">
+            <button
+              type="button"
+              className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+              onClick={() => openInquiry(targetListing)}
+            >
+              Send Inquiry
+            </button>
+            <a
+              href={whatsappHref}
+              className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
+              target="_blank"
+              rel="noreferrer"
+            >
+              WhatsApp
+            </a>
+            <a href="tel:+12138663589" className="la-unit-modal__booking-cta la-unit-modal__bp-cta">
+              Call Us
+            </a>
+          </div>
+          <div className="la-longstay-inquiry-card__contact">
+            <p>
+              <strong>Phone:</strong> <a href="tel:+12138663589">+1 213 866 3589</a>
+            </p>
+            <p>
+              <strong>Email:</strong> <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
+            </p>
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div className={cardClassName} aria-label="Long-term inquiry contact card">
+      <div className={cardClassWithMode} aria-label="Long-term inquiry contact card">
         <p className="la-longstay-inquiry-card__badge">Minimum of {REDONDO_INQUIRY_MIN_NIGHTS} Nights only</p>
+        <p className="la-longstay-inquiry-card__subtitle">Seasonal monthly pricing</p>
+        <p className="la-longstay-inquiry-card__price">
+          <span className="la-longstay-inquiry-card__price-range">{REDONDO_SEASONAL_RATE}</span>
+          <span className="la-longstay-inquiry-card__price-unit">per month</span>
+        </p>
+        <p className="la-longstay-inquiry-card__copy">{REDONDO_MONTHLY_PRICE_NOTE}</p>
         <p className="la-longstay-inquiry-card__copy">
           This executive residence is available exclusively for long-term stays.
         </p>
-        <p className="la-longstay-inquiry-card__copy">
-          <strong>{REDONDO_MONTHLY_PRICE_RANGE}</strong>
-        </p>
-        <p className="la-longstay-inquiry-card__copy">{REDONDO_MONTHLY_PRICE_NOTE}</p>
-        <p className="la-longstay-inquiry-card__copy">Please contact our team for:</p>
-        <ul className="la-longstay-inquiry-card__list">
-          <li>availability</li>
-          <li>monthly pricing</li>
-          <li>furnished stay options</li>
-          <li>custom lease arrangements</li>
-        </ul>
-        <div className="la-longstay-inquiry-card__actions">
-          <button
-            type="button"
-            className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-            onClick={() => openInquiry(targetListing)}
-          >
-            Send Inquiry
-          </button>
-          <a
-            href={whatsappHref}
-            className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
-            target="_blank"
-            rel="noreferrer"
-          >
-            WhatsApp
-          </a>
-          <a href="tel:+12138663589" className="la-unit-modal__booking-cta la-unit-modal__bp-cta">
-            Call Us
-          </a>
-        </div>
+        <p className="la-longstay-inquiry-card__copy">Please contact our team for availability, furnished options, and custom lease arrangements.</p>
+        <details className="la-longstay-inquiry-card__menu">
+          <summary className="la-longstay-inquiry-card__menu-trigger">
+            <span>Inquire</span>
+            <span className="la-longstay-inquiry-card__menu-chevron" aria-hidden="true">▼</span>
+          </summary>
+          <div className="la-longstay-inquiry-card__actions">
+            <button
+              type="button"
+              className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
+              onClick={() => openInquiry(targetListing)}
+            >
+              Send Inquiry
+            </button>
+            <a
+              href={whatsappHref}
+              className="la-unit-modal__contact-cta la-unit-modal__contact-cta--whatsapp"
+              target="_blank"
+              rel="noreferrer"
+            >
+              WhatsApp
+            </a>
+            <a href="tel:+12138663589" className="la-unit-modal__booking-cta la-unit-modal__bp-cta">
+              Call Us
+            </a>
+          </div>
+        </details>
         <div className="la-longstay-inquiry-card__contact">
           <p>
             <strong>Phone:</strong> <a href="tel:+12138663589">+1 213 866 3589</a>
@@ -5445,8 +5533,7 @@ const applyCheckoutPromoCode = () => {
   if (sectionGuests) cityDateParams.set("guests", sectionGuests);
   const editDatesHref = `/${cityDateParams.toString() ? `?${cityDateParams.toString()}` : ""}`;
   const buildSectionRoute = (sectionKey) => {
-    const lowerPath = location.pathname.toLowerCase();
-    const basePath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
+    const basePath = resolvedRedondoBasePath;
     const areaSlug = SECTION_SLUG_BY_KEY[sectionKey] || "pier";
     const params = new URLSearchParams(location.search);
     const checkIn = sectionCheckIn || params.get("checkIn") || "";
@@ -5465,16 +5552,14 @@ const applyCheckoutPromoCode = () => {
     setSectionCheckOut("");
     setSectionGuests("2");
     writePersistedBooking(null);
-    const lowerPath = location.pathname.toLowerCase();
-    const basePath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
+    const basePath = resolvedRedondoBasePath;
     navigate(basePath, {
       replace: true,
       state: { skipCityLoader: true },
     });
   };
   const buildListingPath = (listingId) => {
-    const lowerPath = location.pathname.toLowerCase();
-    const cityPath = lowerPath.startsWith("/redondo-beach") ? "/redondo-beach" : "/redondo";
+    const cityPath = resolvedRedondoBasePath;
     if (!listingId) return cityPath;
     const params = new URLSearchParams();
     if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
@@ -5789,9 +5874,10 @@ const applyCheckoutPromoCode = () => {
   const isListingAvailable = activeListingId
     ? sectionAvailabilityMap[activeListingId] === true
     : false;
+  const ListingHeadingTag = isPrimarySingleListingExperience ? "h1" : "h3";
 
   const listingDetail = activeListing ? (
-    <div className="la-listing-shell">
+    <div className={`la-listing-shell${isPrimarySingleListingExperience ? " la-listing-shell--redondo-primary" : ""}`}>
       <div className="la-listing-shell__content">
         <div className="la-unit-modal la-listing-page">
           <section className="la-listing-hero la-listing-hero--mobile-top-logo">
@@ -5803,9 +5889,7 @@ const applyCheckoutPromoCode = () => {
                 onClick={() => {
                   setActiveListing(null);
                   setActiveImageIndex(0);
-                  if (isListingRoute) {
-                    navigate("/redondo-beach");
-                  }
+                  if (isListingRoute) navigate(resolvedRedondoBasePath);
                 }}
               >
                 <span aria-hidden="true">‹</span>
@@ -5817,7 +5901,9 @@ const applyCheckoutPromoCode = () => {
             <div className="la-listing-hero__intro">
               <div>
                 <p className="la-listing-hero__kicker">Redondo Beach private stay</p>
-                <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Redondo Beach")}</h3>
+                <ListingHeadingTag>
+                  {activeListing?.title || formatListingLocationLabel(activeListing, "Redondo Beach")}
+                </ListingHeadingTag>
                 <div className="la-unit-modal__chips">
                   <span>Exceptional location</span>
                   <span>Fast arrival</span>
@@ -7582,7 +7668,7 @@ const applyCheckoutPromoCode = () => {
                   <div className="la-unit-listing-grid">
                     {filteredListings.map((listing) => {
                       const listingId = getListingId(listing);
-                      const listingPath = listingId ? buildListingPath(listingId) : "/redondo-beach";
+                      const listingPath = listingId ? buildListingPath(listingId) : resolvedRedondoBasePath;
                       const listingKey = listingId || listingPath;
                       const listingImages = getListingImageUrls(listing);
                       const cardImageSources = listingImages.length
@@ -8231,7 +8317,7 @@ const applyCheckoutPromoCode = () => {
                     return listingsToRender.map((listing, index) => {
                       const listingId = listing.id || listing._id;
                       const listingPathId = listing.id || listing._id || listing.unitTypeId || listingId;
-                      const listingPath = listingPathId ? buildListingPath(listingPathId) : "/redondo-beach";
+                      const listingPath = listingPathId ? buildListingPath(listingPathId) : resolvedRedondoBasePath;
                       const image = getListingImageUrls(listing)[0] || FALLBACK_IMAGE;
                       const listingCurrency = listing.currency || "USD";
                       const fullDescription = formatFullDescription(listing);
@@ -8603,9 +8689,7 @@ const applyCheckoutPromoCode = () => {
                 onClick={() => {
                   setActiveListing(null);
                   setActiveImageIndex(0);
-                  if (isListingRoute) {
-                    navigate("/redondo-beach");
-                  }
+                  if (isListingRoute) navigate(resolvedRedondoBasePath);
                 }}
               >
                 Back to listings
@@ -8627,7 +8711,9 @@ const applyCheckoutPromoCode = () => {
             </div>
             <div className="la-unit-modal__intro">
               <div>
-                <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Redondo Beach")}</h3>
+                <ListingHeadingTag>
+                  {activeListing?.title || formatListingLocationLabel(activeListing, "Redondo Beach")}
+                </ListingHeadingTag>
                 <div className="la-unit-modal__chips">
                   <span>Exceptional location</span>
                   <span>Fast arrival</span>
