@@ -9868,6 +9868,15 @@ body {
   box-shadow: 0 0 0 3px rgba(198, 106, 89, 0.18);
 }
 
+.la-inquiry-modal__occupancy-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  color: rgba(59, 49, 39, 0.5);
+  font-style: italic;
+}
+
 .la-inquiry-modal__note {
   margin: 4px 0 0;
   font-size: 0.85rem;
@@ -18801,7 +18810,7 @@ a[href="#redondo-city-tour"],
   gap: 4px;
 }
 
-.la-inquiry-overlay .la-inquiry-modal--shortstay .la-inquiry-modal__field span {
+.la-inquiry-overlay .la-inquiry-modal--shortstay .la-inquiry-modal__field span:not(.la-inquiry-modal__occupancy-hint) {
   font-size: 0.76rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;

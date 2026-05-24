@@ -2472,7 +2472,7 @@ export default function RedondoBeachLandingPage({
   const [activeSectionKey, setActiveSectionKey] = useState(null);
   const [sectionCheckIn, setSectionCheckIn] = useState("");
   const [sectionCheckOut, setSectionCheckOut] = useState("");
-  const [sectionGuests, setSectionGuests] = useState("2");
+  const [sectionGuests, setSectionGuests] = useState("4");
   const [sectionAvailability, setSectionAvailability] = useState([]);
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
@@ -2488,7 +2488,7 @@ export default function RedondoBeachLandingPage({
     email: "",
     phone: "",
     preferredDates: "",
-    guests: "2",
+    guests: "4",
     message: "",
   });
   const [inquiryFormError, setInquiryFormError] = useState("");
@@ -2545,7 +2545,7 @@ export default function RedondoBeachLandingPage({
     const persisted = readPersistedBooking();
     const nextCheckIn = paramCheckIn || routeCheckIn || persisted?.checkIn || "";
     const nextCheckOut = paramCheckOut || routeCheckOut || persisted?.checkOut || "";
-    const nextGuests = paramGuests || routeGuests || persisted?.guests || "2";
+    const nextGuests = paramGuests || routeGuests || persisted?.guests || "4";
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
@@ -2556,9 +2556,9 @@ export default function RedondoBeachLandingPage({
   }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
 
   useEffect(() => {
-    const normalizedGuests = sectionGuests || "2";
+    const normalizedGuests = sectionGuests || "4";
     const hasDateFilters = Boolean(sectionCheckIn || sectionCheckOut);
-    const hasNonDefaultGuests = normalizedGuests !== "2";
+    const hasNonDefaultGuests = normalizedGuests !== "4";
     if (!hasDateFilters && !hasNonDefaultGuests) {
       writePersistedBooking(null);
       return;
@@ -4358,11 +4358,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       email: "",
       phone: "",
       preferredDates: nextDates,
-      guests: sectionGuests || "2",
+      guests: sectionGuests || "4",
       message:
         `Hi OneLuxStay,\n\nI would like to inquire about ${nextTitle} in ${nextCity}.` +
         (nextDates ? `\nPreferred dates: ${nextDates}.` : "") +
-        `\nGuests: ${sectionGuests || "2"}.\n\nThank you!`,
+        `\nGuests: ${sectionGuests || "4"}.\n\nThank you!`,
     });
     setInquiryFormError("");
     setInquiryFormSubmitted(false);
@@ -5002,7 +5002,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
     if (!routeCheckIn || !routeCheckOut || !routeGuests) return;
     if (sectionCheckIn !== routeCheckIn || sectionCheckOut !== routeCheckOut) return;
-    if ((sectionGuests || "2") !== routeGuests) return;
+    if ((sectionGuests || "4") !== routeGuests) return;
 
     const listingIds = activeSection.listings.map((listing) => getListingId(listing)).filter(Boolean);
     const listingId = getPrimaryListingId(activeSection.listings);
@@ -5550,7 +5550,7 @@ const applyCheckoutPromoCode = () => {
     setActiveSectionKey(null);
     setSectionCheckIn("");
     setSectionCheckOut("");
-    setSectionGuests("2");
+    setSectionGuests("4");
     writePersistedBooking(null);
     const basePath = resolvedRedondoBasePath;
     navigate(basePath, {
@@ -5630,7 +5630,11 @@ const applyCheckoutPromoCode = () => {
   )}&body=${encodeURIComponent(inquiryBody)}`;
   const inquiryWhatsAppHref = buildWhatsAppHref(PRIMARY_US_WHATSAPP_CONTACT.digits, inquiryBody);
   const handleInquiryFormChange = (field) => (event) => {
-    const value = event?.target?.value ?? "";
+    let value = event?.target?.value ?? "";
+    if (field === "guests") {
+      const num = parseInt(value, 10);
+      if (!Number.isNaN(num) && num > 4) value = "4";
+    }
     setInquiryForm((prev) => ({ ...prev, [field]: value }));
     if (inquiryFormError) setInquiryFormError("");
     if (inquiryFormSubmitted) setInquiryFormSubmitted(false);
@@ -6781,11 +6785,22 @@ const applyCheckoutPromoCode = () => {
             <label className="la-inquiry-modal__field">
               <span>Number of guests</span>
               <input
-                type="text"
+                type="number"
+                min="1"
+                max="4"
                 value={inquiryForm.guests}
                 onChange={handleInquiryFormChange("guests")}
+                onBlur={(e) => {
+                  const num = parseInt(e.target.value, 10);
+                  if (!Number.isNaN(num) && num > 4) {
+                    setInquiryForm((prev) => ({ ...prev, guests: "4" }));
+                  } else if (!Number.isNaN(num) && num < 1) {
+                    setInquiryForm((prev) => ({ ...prev, guests: "1" }));
+                  }
+                }}
                 required
               />
+              <span className="la-inquiry-modal__occupancy-hint">Ideal for 1–4 guests · Maximum occupancy: 4</span>
             </label>
             <label className="la-inquiry-modal__field">
               <span>Message</span>
@@ -7536,7 +7551,7 @@ const applyCheckoutPromoCode = () => {
               setAppliedSearch("");
               setSectionCheckIn("");
               setSectionCheckOut("");
-              setSectionGuests("2");
+              setSectionGuests("4");
               setMinBedrooms(1);
             }}
           >

@@ -1,10 +1,34 @@
-RewriteEngine On
-RewriteBase /
+# ── Force correct MIME types for Vite ESM output ─────────────────────────────
+<FilesMatch "\.js$">
+  ForceType application/javascript
+</FilesMatch>
+<FilesMatch "\.mjs$">
+  ForceType application/javascript
+</FilesMatch>
+<FilesMatch "\.css$">
+  ForceType text/css
+</FilesMatch>
 
-# Allow existing files/directories
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs)$">
+    Header set Content-Type "application/javascript; charset=utf-8"
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
+</IfModule>
 
-# React SPA fallback
-RewriteRule ^ index.html [L]
+# ── SPA routing ───────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Serve real files and directories directly
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Never rewrite asset paths
+  RewriteRule ^assets/ - [L]
+
+  # React SPA fallback
+  RewriteRule ^ /index.html [L]
+</IfModule>
