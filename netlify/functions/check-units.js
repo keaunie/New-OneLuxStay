@@ -2977,6 +2977,8 @@ const handleCheckout = async (event) => {
 
   const guestsCount = Math.max(1, Math.round(Number(guests) || 1));
   const requestedVoucherCode = normalizeString(voucherCode || promoCode).toUpperCase();
+  const defaultVoucherCode = normalizeString(process.env.CHECKOUT_DEFAULT_VOUCHER_CODE).toUpperCase();
+  const effectiveVoucherCode = requestedVoucherCode || defaultVoucherCode;
 
   let quoteResult;
   try {
