@@ -7229,6 +7229,13 @@ body {
   color: #1f2f46;
 }
 
+.ols-map-popup__price-note {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(47, 33, 22, 0.65);
+}
+
 .ols-map-popup__meta {
   font-size: 0.85rem;
   color: rgba(47, 33, 22, 0.75);
@@ -9861,6 +9868,15 @@ body {
   box-shadow: 0 0 0 3px rgba(198, 106, 89, 0.18);
 }
 
+.la-inquiry-modal__occupancy-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  color: rgba(59, 49, 39, 0.5);
+  font-style: italic;
+}
+
 .la-inquiry-modal__note {
   margin: 4px 0 0;
   font-size: 0.85rem;
@@ -11410,6 +11426,67 @@ body {
 .la-listing-page .la-unit-modal__booking-cta:hover {
   transform: translateY(-1px);
   box-shadow: 0 20px 34px rgba(59, 49, 39, 0.26);
+}
+
+.la-longstay-inquiry-card {
+  display: grid;
+  gap: 12px;
+}
+
+.la-longstay-inquiry-card__badge {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #2f261e;
+}
+
+.la-longstay-inquiry-card__copy {
+  margin: 0;
+  color: rgba(63, 52, 42, 0.9);
+}
+
+.la-longstay-inquiry-card__list {
+  margin: 0;
+  padding-left: 18px;
+  color: #3f342a;
+  display: grid;
+  gap: 4px;
+}
+
+.la-longstay-inquiry-card__actions {
+  display: grid;
+  gap: 10px;
+}
+
+.la-longstay-inquiry-card__actions .la-unit-modal__booking-cta,
+.la-longstay-inquiry-card__actions .la-unit-modal__contact-cta,
+.la-longstay-inquiry-card__actions a.la-unit-modal__booking-cta {
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+}
+
+.la-longstay-inquiry-card__actions a.la-unit-modal__booking-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.la-longstay-inquiry-card__contact {
+  display: grid;
+  gap: 4px;
+  color: #3f342a;
+}
+
+.la-longstay-inquiry-card__contact p {
+  margin: 0;
+}
+
+.la-longstay-inquiry-card__contact a {
+  color: #3f342a;
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .la-unit-modal__section {
@@ -18733,7 +18810,7 @@ a[href="#redondo-city-tour"],
   gap: 4px;
 }
 
-.la-inquiry-overlay .la-inquiry-modal--shortstay .la-inquiry-modal__field span {
+.la-inquiry-overlay .la-inquiry-modal--shortstay .la-inquiry-modal__field span:not(.la-inquiry-modal__occupancy-hint) {
   font-size: 0.76rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -18858,5 +18935,203 @@ a[href="#redondo-city-tour"],
   .la-inquiry-overlay .la-inquiry-modal--shortstay .la-inquiry-modal__actions--shortstay .la-inquiry-modal__action {
     width: 100%;
     min-height: 48px;
+  }
+}
+
+/* Redondo primary luxury listing polish (scoped to /redondo-beach single-listing experience) */
+.la-listing-shell--redondo-primary .la-listing-hero__intro h1,
+.la-listing-shell--redondo-primary .la-listing-hero__intro h3 {
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  max-width: 20ch;
+  text-wrap: balance;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card {
+  gap: 10px;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__badge {
+  font-size: clamp(0.92rem, 1.05vw, 1.06rem);
+  font-weight: 700;
+  color: #2d2218;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__subtitle {
+  margin: 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(96, 73, 50, 0.8);
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__price {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__price-range {
+  font-size: clamp(1.55rem, 2.2vw, 2.1rem);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  color: #2b2016;
+  white-space: nowrap;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__price-unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(90, 69, 46, 0.75);
+  line-height: 1.4;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__copy {
+  line-height: 1.48;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu {
+  margin: 2px 0 0;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Closed state: standalone button appearance */
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu:not([open]) {
+  box-shadow: 0 6px 18px rgba(45, 58, 45, 0.22);
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu:not([open]):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(45, 58, 45, 0.3);
+}
+
+/* Open state: unified panel */
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu[open] {
+  border: 1px solid rgba(157, 126, 94, 0.32);
+  background: rgba(248, 243, 235, 0.98);
+  box-shadow: 0 8px 24px rgba(45, 33, 22, 0.1);
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu-trigger {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 15px 20px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f6f0e8;
+  background: #2d3a2d;
+  transition: background 0.18s ease;
+  user-select: none;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu:not([open]) .la-longstay-inquiry-card__menu-trigger:hover {
+  background: #3a4a3a;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu-chevron {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  opacity: 0.9;
+  color: #c9b59c;
+  transition: transform 0.2s ease;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu[open] .la-longstay-inquiry-card__menu-chevron {
+  transform: rotate(180deg);
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions {
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px 16px;
+  gap: 10px;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions .la-unit-modal__booking-cta,
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions .la-unit-modal__contact-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  border-radius: 11px;
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions .la-unit-modal__booking-cta:hover,
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions .la-unit-modal__contact-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 24px rgba(45, 33, 22, 0.15);
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions .la-unit-modal__contact-cta--whatsapp {
+  border-color: #25d366;
+  background: #25d366;
+  color: #ffffff;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions .la-unit-modal__contact-cta--whatsapp:hover {
+  border-color: #1ebe5b;
+  background: #1ebe5b;
+}
+
+.la-listing-shell--redondo-primary .la-longstay-inquiry-card__contact {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(162, 133, 103, 0.25);
+}
+
+@media (max-width: 1040px) {
+  .la-listing-shell--redondo-primary .la-listing-hero__intro h1,
+  .la-listing-shell--redondo-primary .la-listing-hero__intro h3 {
+    font-size: clamp(1.75rem, 5vw, 2.75rem);
+    line-height: 1.12;
+  }
+}
+
+@media (max-width: 700px) {
+  .la-listing-shell--redondo-primary .la-listing-hero__intro h1,
+  .la-listing-shell--redondo-primary .la-listing-hero__intro h3 {
+    max-width: 100%;
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+    line-height: 1.16;
+  }
+
+  .la-listing-shell--redondo-primary .la-longstay-inquiry-card__price-range {
+    font-size: clamp(1.35rem, 5.8vw, 1.75rem);
+    white-space: nowrap;
+  }
+
+  .la-listing-shell--redondo-primary .la-longstay-inquiry-card__actions {
+    padding: 10px 12px 14px;
+    gap: 8px;
+  }
+
+  .la-listing-shell--redondo-primary .la-longstay-inquiry-card__menu-trigger {
+    padding: 14px 16px;
   }
 }

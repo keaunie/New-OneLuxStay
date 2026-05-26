@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useLocation } from "react-router-dom";
 import apiBase from "../utils/apiBase";
 import { PRIMARY_US_WHATSAPP_CONTACT } from "../utils/contactConfig";
+import { trackCtaClick, trackWhatsAppClick } from "../lib/analytics";
 
 const STORAGE_KEY = "ols-chat-concierge-v1";
 const SESSION_ID_KEY = "ols-chat-concierge-session-v1";
@@ -719,9 +720,28 @@ function ChatConcierge() {
               <a
                 className="chat-concierge__whatsapp"
                 href={whatsappHref}
+                data-analytics-explicit="true"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Continue this chat on WhatsApp"
+                onClick={() => {
+                  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+                  const sourcePage = `${pageContext.pathname || "/"}${location.search || ""}`;
+                  trackWhatsAppClick({
+                    listing: pageContext.listingId || "",
+                    city: pageContext.city || "",
+                    sourcePage,
+                    buttonType: "chat_concierge_whatsapp",
+                    location: isMobile ? "mobile" : "desktop",
+                  });
+                  trackCtaClick({
+                    ctaText: "whatsapp",
+                    location: "chat_concierge_header",
+                    sourcePage,
+                    city: pageContext.city || "",
+                    listing: pageContext.listingId || "",
+                  });
+                }}
               >
                 WhatsApp
               </a>

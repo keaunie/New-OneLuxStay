@@ -7,6 +7,15 @@ import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
 import { trackGuestCityClick, trackGuestListingClick, trackGuestJourneyEvent } from "./utils/guestAnalytics";
 import { isHiddenUnit } from "./config/hiddenUnits";
+import {
+  trackAvailabilityOpened,
+  trackAvailabilitySearch,
+  trackBookingStart,
+  trackCalendarAbandoned,
+  trackCityView,
+  trackCtaClick,
+  trackGuestCountChanged,
+} from "./lib/analytics";
 
 const Silk = lazy(() => import("./components/Silk"));
 const CircularGallery = lazy(() => import("./components/CircularGallery"));
@@ -408,6 +417,7 @@ const offers = [
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const hasOpenedRef = useRef(false);
   const setOpenState = (nextOpen) => {
     setOpen(nextOpen);
   };
@@ -455,6 +465,20 @@ const DateRangePicker = ({ value, onChange }) => {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open) {
+      hasOpenedRef.current = true;
+      return;
+    }
+    if (!hasOpenedRef.current) return;
+    if (startDate && !endDate) {
+      trackCalendarAbandoned({
+        source_page: window.location.pathname + window.location.search,
+        source_location: "landing_date_picker",
+      });
+    }
+  }, [open, startDate, endDate]);
+
   const buildMonth = (baseDate) => {
     const year = baseDate.getFullYear();
     const month = baseDate.getMonth();
@@ -482,6 +506,10 @@ const DateRangePicker = ({ value, onChange }) => {
   };
   const openPicker = () => {
     syncViewToBaseMonth();
+    trackAvailabilityOpened({
+      source_page: window.location.pathname + window.location.search,
+      source_location: "landing_date_picker",
+    });
     setOpenState(true);
   };
 
@@ -502,6 +530,14 @@ const DateRangePicker = ({ value, onChange }) => {
       checkIn: nextStart ? toISODate(nextStart) : "",
       checkOut: nextEnd ? toISODate(nextEnd) : "",
     });
+    if (nextStart && nextEnd) {
+      trackAvailabilitySearch({
+        check_in: toISODate(nextStart),
+        check_out: toISODate(nextEnd),
+        source_page: window.location.pathname + window.location.search,
+        source_location: "landing_date_picker",
+      });
+    }
     if (nextStart && nextEnd) setOpenState(false);
   };
 
@@ -838,6 +874,11 @@ function LandingPage() {
     if (route) {
       setCityNotice("");
       prefetchCityRoute(route);
+      trackCityView({
+        cityName: city,
+        sourcePage: window.location.pathname + window.location.search,
+        destinationCity: city,
+      });
       trackGuestCityClick({
         city,
         destinationPath: route,
@@ -1317,6 +1358,31 @@ function LandingPage() {
       return "/global";
     })();
     const hash = targetRoute === "/listings" ? "#listings" : "";
+    trackAvailabilitySearch({
+      city: cityParam,
+      check_in: checkIn,
+      check_out: checkOut,
+      guests: Number(guests) || 1,
+      rooms: Number(rooms) || 1,
+      source_page: window.location.pathname + window.location.search,
+      destination_path: `${targetRoute}${query ? `?${query}` : ""}${hash}`,
+      source_location: "landing_booking_form",
+    });
+    trackBookingStart({
+      city: cityParam,
+      check_in: checkIn,
+      check_out: checkOut,
+      guests: Number(guests) || 1,
+      rooms: Number(rooms) || 1,
+      source_page: window.location.pathname + window.location.search,
+      destination_path: `${targetRoute}${query ? `?${query}` : ""}${hash}`,
+    });
+    trackCtaClick({
+      ctaText: "book",
+      location: "landing_booking_form",
+      sourcePage: window.location.pathname + window.location.search,
+      city: cityParam,
+    });
     trackGuestJourneyEvent({
       eventType: "search_submit",
       city: cityParam,
@@ -1434,7 +1500,20 @@ function LandingPage() {
             </div>
             <div className="landing-form-field">
               <label htmlFor="landing-guests-desktop">Guests</label>
-              <select id="landing-guests-desktop" value={guests} onChange={(e) => setGuests(Number(e.target.value) || 1)}>
+              <select
+                id="landing-guests-desktop"
+                value={guests}
+                onChange={(e) => {
+                  const next = Number(e.target.value) || 1;
+                  setGuests(next);
+                  trackGuestCountChanged({
+                    field: "guests",
+                    value: String(next),
+                    source_page: window.location.pathname + window.location.search,
+                    source_location: "landing_desktop_form",
+                  });
+                }}
+              >
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((g) => (
                   <option key={g} value={g}>{g}</option>
                 ))}
@@ -1552,7 +1631,18 @@ function LandingPage() {
                     type="button"
                     className="ols-booking-stepper-btn"
                     aria-label="Decrease guests"
-                    onClick={() => setGuests((prev) => Math.max(1, prev - 1))}
+                    onClick={() =>
+                      setGuests((prev) => {
+                        const next = Math.max(1, prev - 1);
+                        trackGuestCountChanged({
+                          field: "guests",
+                          value: String(next),
+                          source_page: window.location.pathname + window.location.search,
+                          source_location: "landing_mobile_stepper",
+                        });
+                        return next;
+                      })
+                    }
                   >
                     -
                   </button>
@@ -1561,7 +1651,18 @@ function LandingPage() {
                     type="button"
                     className="ols-booking-stepper-btn"
                     aria-label="Increase guests"
-                    onClick={() => setGuests((prev) => Math.min(8, prev + 1))}
+                    onClick={() =>
+                      setGuests((prev) => {
+                        const next = Math.min(8, prev + 1);
+                        trackGuestCountChanged({
+                          field: "guests",
+                          value: String(next),
+                          source_page: window.location.pathname + window.location.search,
+                          source_location: "landing_mobile_stepper",
+                        });
+                        return next;
+                      })
+                    }
                   >
                     +
                   </button>
@@ -1574,7 +1675,18 @@ function LandingPage() {
                     type="button"
                     className="ols-booking-stepper-btn"
                     aria-label="Decrease rooms"
-                    onClick={() => setRooms((prev) => Math.max(1, prev - 1))}
+                    onClick={() =>
+                      setRooms((prev) => {
+                        const next = Math.max(1, prev - 1);
+                        trackGuestCountChanged({
+                          field: "rooms",
+                          value: String(next),
+                          source_page: window.location.pathname + window.location.search,
+                          source_location: "landing_mobile_stepper",
+                        });
+                        return next;
+                      })
+                    }
                   >
                     -
                   </button>
@@ -1583,7 +1695,18 @@ function LandingPage() {
                     type="button"
                     className="ols-booking-stepper-btn"
                     aria-label="Increase rooms"
-                    onClick={() => setRooms((prev) => Math.min(5, prev + 1))}
+                    onClick={() =>
+                      setRooms((prev) => {
+                        const next = Math.min(5, prev + 1);
+                        trackGuestCountChanged({
+                          field: "rooms",
+                          value: String(next),
+                          source_page: window.location.pathname + window.location.search,
+                          source_location: "landing_mobile_stepper",
+                        });
+                        return next;
+                      })
+                    }
                   >
                     +
                   </button>

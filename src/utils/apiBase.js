@@ -6,8 +6,14 @@ const normalizeOrigin = (value = "") =>
     .trim()
     .replace(/\/+$/, "");
 
-export const apiBase = API_BASE
-  ? `${normalizeOrigin(API_BASE)}${FUNCTIONS_PATH}`
-  : FUNCTIONS_PATH;
+const stripIndexSuffix = (value = "") => String(value || "").replace(/\/index$/, "");
+
+const normalizedBase = stripIndexSuffix(normalizeOrigin(API_BASE));
+
+export const apiBase = (() => {
+  if (!normalizedBase) return FUNCTIONS_PATH;
+  if (normalizedBase.includes(FUNCTIONS_PATH)) return normalizedBase;
+  return `${normalizedBase}${FUNCTIONS_PATH}`;
+})();
 
 export default apiBase;

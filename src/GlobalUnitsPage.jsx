@@ -5,6 +5,14 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import apiBase from "./utils/apiBase";
 import { trackGuestListingClick } from "./utils/guestAnalytics";
 import { isHiddenUnit } from "./config/hiddenUnits";
+import {
+  trackAvailabilityOpened,
+  trackAvailabilitySearch,
+  trackCalendarAbandoned,
+  trackCityView,
+  trackGalleryImageViewed,
+  trackGuestCountChanged,
+} from "./lib/analytics";
 import "./App.css";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 
@@ -18,6 +26,15 @@ const KNOWN_CITIES = [
   "miami",
   "miami beach",
 ];
+const REDONDO_MONTHLY_RANGE_LABEL = "$4,500 – $6,500 / month";
+const REDONDO_MONTHLY_RANGE_NOTE = "Seasonal Monthly Pricing";
+const REDONDO_ONLY_VISIBLE_UNIT_IDS = new Set([
+  "6948d9855a49ec0013d81ab5",
+]);
+const isAllowedRedondoListing = (listing) =>
+  getListingIdentityIds(listing)
+    .map((value) => String(value || "").trim())
+    .some((value) => value && REDONDO_ONLY_VISIBLE_UNIT_IDS.has(value));
 
 const extractImageUrl = (value) => {
   if (!value) return "";
@@ -123,6 +140,8 @@ const normalizeCity = (listing) => {
   return "";
 };
 
+const isRedondoCityListing = (listing) => normalizeCity(listing).toLowerCase() === "redondo beach";
+
 const citySlugFromName = (value) => {
   if (!value) return "";
   const lower = value.toLowerCase();
@@ -205,12 +224,22 @@ const formatDateForDisplay = (value) => {
 };
 
 const getListingIdentityIds = (listing) =>
-  [listing?.id, listing?._id, listing?.unitTypeId]
+  [
+    listing?.id,
+    listing?._id,
+    listing?.unitTypeId,
+    listing?.parentId,
+    listing?.parentListingId,
+    listing?.listingId,
+    listing?.unitId,
+    listing?.propertyId,
+  ]
     .filter(Boolean)
     .map((value) => String(value));
 
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
+  const hasOpenedRef = useRef(false);
   const checkInLabelId = useId();
   const checkOutLabelId = useId();
   const dialogId = useId();
@@ -242,6 +271,20 @@ const DateRangePicker = ({ value, onChange }) => {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open) {
+      hasOpenedRef.current = true;
+      return;
+    }
+    if (!hasOpenedRef.current) return;
+    if (startDate && !endDate) {
+      trackCalendarAbandoned({
+        source_page: window.location.pathname + window.location.search,
+        source_location: "global_units_date_picker",
+      });
+    }
+  }, [open, startDate, endDate]);
+
   const buildMonth = (baseDate) => {
     const year = baseDate.getFullYear();
     const month = baseDate.getMonth();
@@ -272,6 +315,10 @@ const DateRangePicker = ({ value, onChange }) => {
 
   const openPicker = () => {
     syncViewToBaseMonth();
+    trackAvailabilityOpened({
+      source_page: window.location.pathname + window.location.search,
+      source_location: "global_units_date_picker",
+    });
     setOpen(true);
   };
 
@@ -292,6 +339,14 @@ const DateRangePicker = ({ value, onChange }) => {
       checkIn: nextStart ? toIsoDate(nextStart) : "",
       checkOut: nextEnd ? toIsoDate(nextEnd) : "",
     });
+    if (nextStart && nextEnd) {
+      trackAvailabilitySearch({
+        check_in: toIsoDate(nextStart),
+        check_out: toIsoDate(nextEnd),
+        source_page: window.location.pathname + window.location.search,
+        source_location: "global_units_date_picker",
+      });
+    }
     if (nextStart && nextEnd) setOpen(false);
   };
 
@@ -604,6 +659,12 @@ function GlobalUnitsPage() {
       setAvailableListingIds(null);
       return;
     }
+    trackAvailabilitySearch({
+      check_in: stayDates.checkIn,
+      check_out: stayDates.checkOut,
+      source_page: window.location.pathname + window.location.search,
+      source_location: "global_units_availability_query",
+    });
     const listingIds = [...new Set(listings.map(getListingId).filter(Boolean).map(String))];
     if (!listingIds.length) {
       setAvailabilityLoading(false);
@@ -681,7 +742,11 @@ function GlobalUnitsPage() {
   }, [listings]);
 
   const visibleListings = useMemo(
-    () => listings.filter((listing) => !isHiddenUnit(getListingId(listing) || listing)),
+    () =>
+      listings.filter((listing) => {
+        if (isRedondoCityListing(listing)) return isAllowedRedondoListing(listing);
+        return !isHiddenUnit(listing);
+      }),
     [listings],
   );
 
@@ -764,6 +829,12 @@ function GlobalUnitsPage() {
         const rawIndex = prev[listingId] ?? 0;
         const current = ((rawIndex % totalImages) + totalImages) % totalImages;
         const next = (current + step + totalImages) % totalImages;
+        trackGalleryImageViewed({
+          listing_id: String(listingId || ""),
+          image_index: next + 1,
+          source_page: window.location.pathname + window.location.search,
+          source_location: "global_units_card_gallery",
+        });
         return { ...prev, [listingId]: next };
       });
       requestAnimationFrame(() => {
@@ -856,7 +927,17 @@ function GlobalUnitsPage() {
               City
               <select
                 value={cityFilter}
-                onChange={(event) => setCityFilter(event.target.value)}
+                onChange={(event) => {
+                  const nextCity = event.target.value;
+                  setCityFilter(nextCity);
+                  if (nextCity && nextCity !== "All") {
+                    trackCityView({
+                      cityName: nextCity,
+                      sourcePage: window.location.pathname + window.location.search,
+                      destinationCity: nextCity,
+                    });
+                  }
+                }}
                 className="rounded-lg border border-[rgba(201,181,156,0.6)] bg-white px-3 py-2 text-[var(--ink)] outline-none focus:border-[var(--landing-amber)]"
               >
                 {cityOptions.map((city) => (
@@ -870,7 +951,16 @@ function GlobalUnitsPage() {
               Rooms
               <select
                 value={roomsFilter}
-                onChange={(event) => setRoomsFilter(Number(event.target.value) || 1)}
+                onChange={(event) => {
+                  const next = Number(event.target.value) || 1;
+                  setRoomsFilter(next);
+                  trackGuestCountChanged({
+                    field: "rooms",
+                    value: String(next),
+                    source_page: window.location.pathname + window.location.search,
+                    source_location: "global_units_filter",
+                  });
+                }}
                 className="rounded-lg border border-[rgba(201,181,156,0.6)] bg-white px-3 py-2 text-[var(--ink)] outline-none focus:border-[var(--landing-amber)]"
               >
                 <option value={1}>Any</option>
@@ -936,11 +1026,14 @@ function GlobalUnitsPage() {
               const nightly = formatCurrency(nightlyValue, nightlyCurrency);
               const carouselId = `global-unit-carousel-${toDomId(listingId)}`;
               const listingTitle = listing?.title || listing?.nickname || "One Lux Stay unit";
-              const nightlyLabel = todayPriceEntry
-                ? `Today's price ${nightly} / night`
-                : todayPricesLoading && fallbackPrice === null
-                  ? "Loading today's price..."
-                  : `${nightly} / night`;
+              const isRedondoListing = isRedondoCityListing(listing);
+              const nightlyLabel = isRedondoListing
+                ? REDONDO_MONTHLY_RANGE_LABEL
+                : todayPriceEntry
+                  ? `Today's price ${nightly} / night`
+                  : todayPricesLoading && fallbackPrice === null
+                    ? "Loading today's price..."
+                    : `${nightly} / night`;
 
               return (
                 <article
@@ -1042,7 +1135,14 @@ function GlobalUnitsPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[var(--ink)]">{nightlyLabel}</p>
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--ink)]">{nightlyLabel}</p>
+                        {isRedondoListing ? (
+                          <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+                            {REDONDO_MONTHLY_RANGE_NOTE}
+                          </p>
+                        ) : null}
+                      </div>
                       <Link
                         to={link}
                         onClick={(event) => {

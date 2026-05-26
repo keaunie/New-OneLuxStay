@@ -1,7 +1,8 @@
 const preloadLandingPage = () => import("../LandingPage");
 const preloadAntwerpLandingPage = () => import("../AntwerpLandingPage");
 const preloadLosAngelesLandingPage = () => import("../LosAngelesLandingPage");
-const preloadRedondoBeachLandingPage = () => import("../RedondoBeachLandingPage");
+const preloadRedondoBeachPrimaryPage = () => import("../RedondoBeachPrimaryPage");
+const preloadRedondoBeachLegacyProtectedPage = () => import("../RedondoBeachLegacyProtectedPage");
 const preloadDubaiLandingPage = () => import("../DubaiLandingPage");
 const preloadMiamiBeachLandingPage = () => import("../MiamiBeachLandingPage");
 const preloadListingPage = () => import("../ListingPage");
@@ -36,7 +37,8 @@ export const routePreloaders = {
   landing: preloadLandingPage,
   antwerp: preloadAntwerpLandingPage,
   losAngeles: preloadLosAngelesLandingPage,
-  redondoBeach: preloadRedondoBeachLandingPage,
+  redondoBeach: preloadRedondoBeachPrimaryPage,
+  redondoBeachLegacy: preloadRedondoBeachLegacyProtectedPage,
   dubai: preloadDubaiLandingPage,
   miami: preloadMiamiBeachLandingPage,
   listing: preloadListingPage,
@@ -92,8 +94,19 @@ export const prefetchCityRoute = (value = "") => {
   if (normalized === "/miami" || normalized === "/miami-beach" || normalized.startsWith("/miami/") || normalized.startsWith("/miami-beach/")) {
     return Promise.all([routePreloaders.miami(), routePreloaders.listing()]).then(() => undefined);
   }
-  if (normalized === "/redondo-beach" || normalized.startsWith("/redondo-beach/")) {
+  if (normalized === "/redondo-beach") {
     return Promise.all([routePreloaders.redondoBeach(), routePreloaders.listing()]).then(() => undefined);
+  }
+  if (
+    normalized.startsWith("/redondo-beach-legacy/") ||
+    normalized === "/redondo-beach-legacy" ||
+    normalized === "/redondo" ||
+    normalized.startsWith("/redondo/")
+  ) {
+    return Promise.all([routePreloaders.redondoBeachLegacy(), routePreloaders.listing()]).then(() => undefined);
+  }
+  if (normalized.startsWith("/redondo-beach/")) {
+    return Promise.all([routePreloaders.redondoBeachLegacy(), routePreloaders.listing()]).then(() => undefined);
   }
   if (normalized === "/dubai" || normalized.startsWith("/dubai/")) {
     return Promise.all([routePreloaders.dubai(), routePreloaders.listing()]).then(() => undefined);
