@@ -5893,7 +5893,18 @@ const applyCheckoutPromoCode = () => {
                 onClick={() => {
                   setActiveListing(null);
                   setActiveImageIndex(0);
-                  if (isListingRoute) navigate(resolvedRedondoBasePath);
+                  if (isListingRoute) {
+                    if (isPrimarySingleListingExperience && !routeListingId) {
+                      // /redondo-beach base: navigate back in history rather than to self
+                      if (window.history.length > 1) {
+                        navigate(-1);
+                      } else {
+                        navigate("/");
+                      }
+                    } else {
+                      navigate(resolvedRedondoBasePath, { state: { skipCityLoader: true } });
+                    }
+                  }
                 }}
               >
                 <span aria-hidden="true">‹</span>
