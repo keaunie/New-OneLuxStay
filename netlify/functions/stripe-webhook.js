@@ -389,7 +389,7 @@ const writeConsentPdf = async (token, pdfBytes, metadata = {}) => {
 };
 
 const toProofBaseUrl = (event = {}) => {
-  const PRODUCTION_SITE_ORIGIN = "https://oneluxstay.com";
+  const PRODUCTION_SITE_ORIGIN = "https://oneluxstayprop.netlify.app";
   const fromEnv =
     process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_PRIME_URL || "";
   if (fromEnv) {
