@@ -1,109 +1,11 @@
 [
   {
-    "name": "M M",
-    "rating": 3,
-    "source": "Google",
-    "date": "5 months ago",
-    "quote": "The room was nice. The rooftop was nice aside from people partying up there, which wasn't my thing. However, it was really hard to get the key to the room even after following the instructions. We had to wait with other guests who had the same issue. Check-in required sending ID photos multiple times. Some windows don't lock and there was a stripped wire in a closet. You will have to pay for public parking. The area had used needles on the street nearby.",
-    "details": [
-      "Local Guide · 45 reviews · 33 photos",
-      "Rooms: 4",
-      "Service: 2",
-      "Location: 3"
-    ]
-  },
-  {
-    "name": "Ruben Becher",
+    "name": "Anonymous",
     "rating": 5,
-    "source": "Google",
-    "date": "6 months ago",
-    "quote": "Comfortable clean apartment with shared pool and jacuzzi on the rooftop. Gym as well on the rooftop. Much better stay than a hotel. Full equipped kitchen, washing machine and a dryer. My second time here and I recommend.",
-    "details": [
-      "Local Guide · 372 reviews · 1,242 photos",
-      "Trip type: Vacation",
-      "Travel group: Solo",
-      "Rooms: 5",
-      "Service: 5",
-      "Location: 5",
-      "Rooms: Full equipped kitchen",
-      "Food & drinks: Coffee maker at the apartment. Great restaurants around",
-      "Hotel highlights: Great value"
-    ]
-  },
-  {
-    "name": "twistedmetalworks1",
-    "rating": 5,
-    "source": "Google",
-    "date": "5 months ago",
-    "quote": "Simple n fast, check in before, get there and grab the key in lock box. Rooms were spacious, less than 2 miles from dodgers stadium and Chinatown. Will book again.",
-    "details": [
-      "Trip type: Vacation",
-      "Travel group: Friends",
-      "Rooms: 5",
-      "Service: 5",
-      "Location: 5",
-      "Hotel highlights: Quiet, Great value"
-    ]
-  },
-  {
-    "name": "Chad Siwik",
-    "rating": 5,
-    "source": "Google",
-    "date": "9 months ago",
-    "quote": "I had the BEST customer service experience ever with Maria. She solved my issue quickly, understood how everything worked regarding a complicated problem, and made sure I was happy. This type of care is very rare these days.",
-    "details": [
-      "Trip type: Business",
-      "Travel group: Solo",
-      "Service: 5",
-      "Location: 5"
-    ],
-    "response": "Thank you Chad!! We look forward to hosting you next time!!"
-  },
-  {
-    "name": "E3121IVmatheusf",
-    "rating": 5,
-    "source": "Tripadvisor",
-    "date": "2 years ago",
-    "quote": "I recently stayed in a fantastic accommodation in downtown LA, and it exceeded all expectations. The location was ideal with easy access to popular attractions and nightlife.",
-    "details": [
-      "Read more on Tripadvisor"
-    ]
-  },
-  {
-    "name": "Luigi Patruno",
-    "rating": 5,
-    "source": "Google",
-    "date": "3 years ago",
-    "quote": "We spent Halloween weekend at the One Lux HWH Downtown LA and had an incredible time. The rooftop is beautiful, with a great pool and hot tub. Rooms were very clean and comfortable.",
-    "details": [
-      "16 reviews",
-      "Trip type: Vacation",
-      "Travel group: Friends",
-      "Rooms: 5",
-      "Service: 5",
-      "Location: 5"
-    ]
-  },
-  {
-    "name": "Ava Safai",
-    "rating": 4,
     "source": "Google",
     "date": "a year ago",
-    "quote": "Our room was booked through Expedia; it was large and the service over SMS was very helpful. Staff at the building were nice. Everything inside was safe and the gym was great.",
+    "quote": "",
     "details": [
-      "Local Guide · 62 reviews · 1 photo",
-      "Rooms: 4",
-      "Location: 3"
-    ]
-  },
-  {
-    "name": "ogi tattoo",
-    "rating": 5,
-    "source": "Google",
-    "date": "2 years ago",
-    "quote": "Great location and well worth it. The rooftop is fantastic. The 24-hour fitness center kept me fit and the spa removed my fatigue. Thanks to Matheus for helping whenever there was a problem.",
-    "details": [
-      "2 reviews · 3 photos",
       "Trip type: Vacation",
       "Travel group: Couple",
       "Rooms: 5",
@@ -119,7 +21,7 @@
     "rating": 5,
     "source": "Google",
     "date": "3 years ago",
-    "quote": "The building is absolutely fantastic as it’s a fascinating historical building. The apartment is great and matches the photos. The facilities and communication were great.",
+    "quote": "The building is absolutely fantastic as it's a fascinating historical building. The apartment is great and matches the photos. The facilities and communication were great.",
     "details": [
       "Local Guide · 14 reviews · 8 photos"
     ],
@@ -155,7 +57,7 @@
     "rating": 5,
     "source": "Google",
     "date": "3 years ago",
-    "quote": "We’d stay here again, absolutely. The apartment is good looking and comfortable, and the historic building full of modern gorgeous rooftop amenities is extraordinary.",
+    "quote": "We'd stay here again, absolutely. The apartment is good looking and comfortable, and the historic building full of modern gorgeous rooftop amenities is extraordinary.",
     "details": [
       "5 reviews"
     ],
@@ -224,7 +126,7 @@
     "rating": 5,
     "source": "Google",
     "date": "Edited 3 years ago",
-    "quote": "Customer service and hospitality driven, OneLux HWH offers a charming and classy stay, very clean and sanitary at a price that you shouldn’t pass up.",
+    "quote": "Customer service and hospitality driven, OneLux HWH offers a charming and classy stay, very clean and sanitary at a price that you shouldn't pass up.",
     "details": [
       "1 review",
       "Trip type: Business",
@@ -358,7 +260,7 @@
       "Rooms: The rooms were nice and big",
       "Nearby activities: Food trucks",
       "Safety: Security and key fobs was nice",
-      "Walkability: Close to things since it’s downtown",
+      "Walkability: Close to things since it's downtown",
       "Food & drinks: Good they had food for cinco de mayo",
       "Noteworthy details: Pool is nice",
       "Hotel highlights: Elevated, Great view, Romantic, Quiet"
@@ -369,7 +271,7 @@
     "rating": 5,
     "source": "Google",
     "date": "Edited 2 years ago",
-    "quote": "The best place to stay! I can’t complain about anything.",
+    "quote": "The best place to stay! I can't complain about anything.",
     "details": [
       "5 reviews",
       "Trip type: Vacation",

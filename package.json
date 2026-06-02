@@ -4,7 +4,7 @@
 	"version": "0.0.0",
 	"type": "module",
 	"scripts": {
-		"dev": "npx netlify dev --command \"npm run dev:client\" --target-port 5174",
+		"dev": "vite",
 		"dev:client": "vite --port 5174",
 		"dev:netlify": "npx netlify dev --command \"npm run dev:client\" --target-port 5174",
 		"start": "npm run preview -- --host --port 4173",

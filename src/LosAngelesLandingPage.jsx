@@ -1634,6 +1634,9 @@ const getListingAddressQuery = (listing) => {
   return formatted ? formatted.trim() : "";
 };
 
+const PARKING_AMENITY_RE = /parking|free\s+parking/i;
+const PAID_PARKING_LABEL = "Paid parking off premises";
+
 const AMENITY_GROUPS = [
   { key: "kitchen", label: "Kitchen", match: /(kitchen|oven|stove|microwave|dishwasher|fridge|refrigerator|freezer|toaster|coffee|kettle|cookware|dishes|silverware|dining)/i },
   { key: "bathroom", label: "Bathroom", match: /(bathroom|shower|bathtub|toilet|towels|shampoo|conditioner|soap|hot water|hair dryer)/i },
@@ -1649,7 +1652,7 @@ const AMENITY_GROUPS = [
 ];
 
 const groupAmenities = (items) => {
-  const clean = items.filter((item) => typeof item === "string" && item.trim());
+  const clean = [...new Set(items.filter((item) => typeof item === "string" && item.trim()))];
   const groups = new Map(AMENITY_GROUPS.map((group) => [group.key, { ...group, items: [] }]));
   const misc = { key: "misc", label: "More amenities", items: [] };
   clean.forEach((amenity) => {
@@ -2195,7 +2198,6 @@ const GOOGLE_REVIEW_LINKS = {
 };
 const HOLLYWOOD_FACILITIES = [
   "Outdoor swimming pool",
-  "Free parking",
   "Free Wi-Fi",
   "Family rooms",
   "Non-smoking rooms",
@@ -2282,6 +2284,12 @@ const getBuildingKey = (listing) => {
     if (group.match.test(text)) return group.key;
   }
   return "other";
+};
+
+const isNoParkingProperty = (listing) => {
+  if (getBuildingKey(listing) === "la-hollywood") return true;
+  const title = String(listing?.title || listing?.name || "").toLowerCase();
+  return title.includes("ardence");
 };
 
 const resolveGroupTitle = (listing) => {
@@ -2842,7 +2850,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const amenityListRaw = Array.isArray(activeListing.amenities)
       ? activeListing.amenities
       : [];
-    return [...new Set(amenityListRaw.filter((item) => typeof item === "string"))];
+    const unique = [...new Set(amenityListRaw.filter((item) => typeof item === "string"))];
+    if (isNoParkingProperty(activeListing)) {
+      const withoutParking = unique.filter((item) => !PARKING_AMENITY_RE.test(item));
+      return [...withoutParking, PAID_PARKING_LABEL];
+    }
+    return unique;
   }, [activeListing]);
   const activeAmenityGroups = useMemo(
     () => groupAmenities(activeAmenityList),
@@ -6772,8 +6785,8 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
         <div className="la-unit-modal__facilities">
-          {activeListing?.amenities?.length ? (() => {
-            const allGroups = groupAmenities(activeListing.amenities);
+          {activeAmenityList.length ? (() => {
+            const allGroups = groupAmenities(activeAmenityList);
             const totalItems = allGroups.reduce((sum, g) => sum + g.items.length, 0);
             const previewItems = allGroups
               .filter((g) => g.items.length > 0)

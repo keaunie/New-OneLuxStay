@@ -10,7 +10,9 @@ node_bundler = "esbuild"
 NODE_VERSION = "18"
 
 [dev]
+command = "npm run dev:client"
 targetPort = 5174
+framework = "#custom"
 
 [[headers]]
 for = "/*"

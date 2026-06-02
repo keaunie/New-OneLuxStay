@@ -736,7 +736,11 @@ const buildConsentPdf = async ({
   drawDetailGrid(detailItems);
 
   drawSection("Consent Statement");
-  drawConsentText(consentText || "-");
+  const DEFAULT_CONSENT_STATEMENT =
+    "I authorize OneLuxStay to process this reservation and acknowledge the rental terms and policies associated with this stay.";
+  const consentStatement =
+    (typeof consentText === "string" ? consentText.trim() : "") || DEFAULT_CONSENT_STATEMENT;
+  drawConsentText(consentStatement);
 
   drawSection("Guest Authorization");
   await drawSignature();
