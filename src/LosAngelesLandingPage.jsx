@@ -28,6 +28,20 @@ const UNIT_MARKER_ICON =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
 const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";
 const PROPERTY_COORDS = { lat: 34.0575, lng: -118.2776 };
+
+// Per-section anchor coords used as fallback when a listing has no stored coordinates.
+// Values match the known physical location of each building group.
+const SECTION_FALLBACK_COORDS = {
+  "la-hollywood": { lat: 34.0967, lng: -118.3119 }, // Hollywood View LA Suites – De Longpre Ave
+  "la-hwh":       { lat: 34.0900, lng: -118.3617 }, // West Hollywood
+};
+
+// Returns the best-available fallback for a listing that has no stored lat/lng.
+const getListingFallbackCoords = (listing) => {
+  if (!listing) return PROPERTY_COORDS;
+  const key = getBuildingKey(listing);
+  return SECTION_FALLBACK_COORDS[key] || PROPERTY_COORDS;
+};
 const LANDMARKS = [
   "Hollywood Sign",
   "Griffith Observatory",
@@ -2109,6 +2123,38 @@ const getListingCoords = (listing) => {
   return null;
 };
 
+// Logs a warning whenever a listing has no valid stored coordinates so missing
+// data is surfaced during development rather than silently using the wrong fallback.
+const warnMissingCoords = (listing, context = "") => {
+  const id = listing?.id || listing?._id || listing?.unitTypeId || "unknown";
+  const title = listing?.title || "";
+  const address = listing?.address?.full || listing?.address?.street || "";
+  const lat = listing?.latitude ?? listing?.lat ?? listing?.address?.latitude ?? listing?.address?.lat;
+  const lng = listing?.longitude ?? listing?.lng ?? listing?.address?.longitude ?? listing?.address?.lng;
+  const hasInvalidStored =
+    (lat !== undefined && lat !== null && (isNaN(Number(lat)) || Number(lat) === 0)) ||
+    (lng !== undefined && lng !== null && (isNaN(Number(lng)) || Number(lng) === 0));
+  if (!lat || !lng) {
+    console.warn("[MapCoords] No coordinates stored for listing", {
+      id,
+      title,
+      address,
+      latitude: lat,
+      longitude: lng,
+      context,
+    });
+  } else if (hasInvalidStored) {
+    console.warn("[MapCoords] Invalid coordinate values for listing", {
+      id,
+      title,
+      address,
+      latitude: lat,
+      longitude: lng,
+      context,
+    });
+  }
+};
+
 const escapeHtml = (value) =>
   String(value)
     .replace(/&/g, "&amp;")
@@ -2802,7 +2848,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const inlineListingMapRef = useInlineListingMap({
     activeListing,
     mapsApiKey,
-    defaultCoords: PROPERTY_COORDS,
+    defaultCoords: activeListing ? getListingFallbackCoords(activeListing) : PROPERTY_COORDS,
     getListingCoords,
     getListingAddressQuery,
     loadMaps: loadGoogleMaps,
@@ -6038,7 +6084,7 @@ const applyCheckoutPromoCode = () => {
     loadGoogleMaps(mapsApiKey)
       .then((maps) => {
         const initialCenter =
-          listingMapTarget?.coords || getListingCoords(activeListing) || PROPERTY_COORDS;
+          listingMapTarget?.coords || getListingCoords(activeListing) || getListingFallbackCoords(activeListing);
         const map = new maps.Map(listingMapRef.current, {
           center: initialCenter,
           zoom: 15,
@@ -6094,7 +6140,7 @@ const applyCheckoutPromoCode = () => {
     }
     loadGoogleMaps(mapsApiKey)
       .then((maps) => {
-        const initialCenter = sectionMapTarget.coords || PROPERTY_COORDS;
+        const initialCenter = sectionMapTarget.coords || getListingFallbackCoords(activeListing);
         const map = new maps.Map(sectionMapRef.current, {
           center: initialCenter,
           zoom: 15,
@@ -6215,8 +6261,9 @@ const applyCheckoutPromoCode = () => {
           typeof src === "string" && /(floor|plan|layout)/i.test(src)
         );
         const coords = getListingCoords(activeListing);
+        if (!coords) warnMissingCoords(activeListing, "listing-detail-map");
         const addressQuery = getListingAddressQuery(activeListing);
-        const mapCoords = coords || PROPERTY_COORDS;
+        const mapCoords = coords || getListingFallbackCoords(activeListing);
         const mapUrl = buildStaticMapUrl(mapCoords, "400x280", 14);
         const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
         const amenityListRaw = Array.isArray(activeListing.amenities)
@@ -8471,9 +8518,10 @@ const applyCheckoutPromoCode = () => {
                 Object.values(sectionParentGroups).map((group) => group.parent || group.children?.[0]).find(Boolean) ||
                 activeSection.listings[0];
               const coords = sectionParent ? getListingCoords(sectionParent) : null;
+              if (sectionParent && !coords) warnMissingCoords(sectionParent, "section-hero-map");
               const addressQuery = sectionParent ? formatAddress(sectionParent) : "";
               const sectionLabel = sectionParent ? resolveGroupTitle(sectionParent) : "OneLuxStay";
-              const mapCoords = coords || PROPERTY_COORDS;
+              const mapCoords = coords || (sectionParent ? getListingFallbackCoords(sectionParent) : PROPERTY_COORDS);
               const mapUrl = buildStaticMapUrl(mapCoords, "520x320", 13);
               const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 14);
               return (
@@ -9243,8 +9291,9 @@ const applyCheckoutPromoCode = () => {
                 typeof src === "string" && /(floor|plan|layout)/i.test(src)
               );
               const coords = getListingCoords(activeListing);
+              if (!coords) warnMissingCoords(activeListing, "listing-modal-map");
               const addressQuery = getListingAddressQuery(activeListing);
-              const mapCoords = coords || PROPERTY_COORDS;
+              const mapCoords = coords || getListingFallbackCoords(activeListing);
               const mapUrl = buildStaticMapUrl(mapCoords, "480x280", 14);
               const mapEmbedUrl = buildEmbedMapUrl(mapCoords, 15);
               const amenityListRaw = Array.isArray(activeListing.amenities)

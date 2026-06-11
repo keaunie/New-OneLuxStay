@@ -16,6 +16,7 @@ const RedondoBeachPrimaryPage = lazy(routePreloaders.redondoBeach);
 const RedondoBeachLegacyPage = lazy(routePreloaders.redondoBeachLegacy);
 const DubaiLandingPage = lazy(routePreloaders.dubai);
 const MiamiBeachLandingPage = lazy(routePreloaders.miami);
+const HollywoodLandingPage = lazy(() => import("./HollywoodLandingPage"));
 const ListingPage = lazy(routePreloaders.listing);
 const GlobalUnitsPage = lazy(routePreloaders.global);
 const PrivacyPolicy = lazy(routePreloaders.privacy);
@@ -178,6 +179,7 @@ function AppRoutes() {
           />
           <Route path="/antwerpen/listing/:listingId" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp/listing/:listingId" element={renderLazyRoute(AntwerpLandingPage)} />
+          <Route path="/hollywood" element={renderLazyRoute(HollywoodLandingPage)} />
           <Route path="/los-angeles" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/losangeles" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/los-angeles/:areaSlug/:bookingBundle" element={renderLazyRoute(LosAngelesLandingPage)} />

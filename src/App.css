@@ -19135,3 +19135,110 @@ a[href="#redondo-city-tour"],
     padding: 14px 16px;
   }
 }
+
+/* ── Hollywood Landing Page ──────────────────────────────────────────────────── */
+
+.la-hollywood-group-header {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  min-height: 260px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.la-hollywood-group-header__bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+}
+
+.la-hollywood-group-header__bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 10, 5, 0.18) 0%,
+    rgba(15, 10, 5, 0.72) 100%
+  );
+}
+
+.la-hollywood-group-header__inner {
+  position: relative;
+  z-index: 1;
+  padding: 28px 28px 24px;
+  color: #fff;
+}
+
+.la-hollywood-group-header__inner .antwerp-kicker {
+  color: rgba(255, 235, 195, 0.9);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+
+.la-hollywood-group-header__title {
+  font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 8px;
+  color: #fff;
+}
+
+.la-hollywood-group-header__tagline {
+  font-size: 0.92rem;
+  font-style: italic;
+  opacity: 0.88;
+  margin: 0 0 10px;
+}
+
+.la-hollywood-group-header__copy {
+  font-size: 0.84rem;
+  opacity: 0.82;
+  margin: 0 0 14px;
+  max-width: 52ch;
+  line-height: 1.5;
+}
+
+.la-hollywood-group-header__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Filter summary bar inside the cards column */
+.la-units-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid rgba(201, 181, 156, 0.35);
+  margin-bottom: 16px;
+}
+
+.la-units-filter-bar__summary {
+  flex: 1 1 auto;
+  font-size: 0.85rem;
+  color: rgba(47, 33, 22, 0.7);
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .la-hollywood-group-header {
+    border-radius: 12px;
+    min-height: 200px;
+  }
+
+  .la-hollywood-group-header__inner {
+    padding: 20px 18px 18px;
+  }
+
+  .la-hollywood-group-header__copy {
+    display: none;
+  }
+}

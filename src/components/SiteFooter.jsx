@@ -30,6 +30,7 @@ const FOOTER_CITY_LINKS = [
   { label: "Antwerp Attractions", to: "/antwerp/attractions", city: "Antwerp" },
   { label: "Dubai", to: "/dubai", city: "Dubai" },
   { label: "Dubai Attractions", to: "/dubai/attractions", city: "Dubai" },
+  { label: "Hollywood", to: "/hollywood", city: "Hollywood" },
   { label: "Los Angeles", to: "/los-angeles", city: "Los Angeles" },
   { label: "LA Attractions", to: "/los-angeles/attractions", city: "Los Angeles" },
   { label: "Miami", to: "/miami", city: "Miami" },

@@ -35,17 +35,19 @@ const KNOWN_CITIES = [
 const CITY_DISPLAY_LABELS = {
   Antwerp: "Antwerp, Belgium",
   Dubai: "Dubai, UAE",
+  Hollywood: "Hollywood, CA",
   "Los Angeles": "Los Angeles, CA",
   "Redondo Beach": "Redondo Beach, CA",
   Miami: "Miami, FL",
 };
 
-const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Redondo Beach", "Miami"];
+const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach", "Miami"];
 
 const citySlugFromName = (value) => {
   if (!value) return "";
   const lower = value.toLowerCase();
-  if (lower.includes("los angeles") || lower.includes("hollywood")) return "los-angeles";
+  if (lower.includes("los angeles")) return "los-angeles";
+  if (lower.includes("hollywood")) return "hollywood";
   if (lower.includes("antwerp") || lower.includes("antwerpen")) return "antwerp";
   if (lower.includes("miami")) return "miami";
   if (lower.includes("redondo beach")) return "redondo-beach";
@@ -857,6 +859,7 @@ function LandingPage() {
 
   const cityRoutes = {
     Antwerp: "/antwerp",
+    Hollywood: "/hollywood",
     "Los Angeles": "/losangeles",
     Miami: "/miami",
     "Redondo Beach": "/redondo-beach",
@@ -1350,6 +1353,7 @@ function LandingPage() {
     if (rooms) params.set("rooms", String(rooms));
     const query = params.toString();
     const targetRoute = (() => {
+      if (cityParam === "Hollywood") return "/hollywood";
       if (cityParam === "Los Angeles") return "/losangeles";
       if (cityParam === "Antwerp") return "/antwerp";
       if (cityParam === "Miami" || cityParam === "Miami Beach") return "/miami";
@@ -1446,7 +1450,7 @@ function LandingPage() {
             Experience Timeless Elevated Living
           </h1>
           <p className="landing-hero-lead">
-            Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Belgium; Dubai, UAE; Los
+            Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Belgium; Dubai, UAE; Hollywood, CA; Los
             Angeles, CA; Miami, FL; and Redondo Beach, CA.
           </p>
 
@@ -1482,7 +1486,7 @@ function LandingPage() {
                   prefetchCityByName(next);
                 }}
               >
-                {["All", "Redondo Beach", "Los Angeles", "Dubai", "Antwerp", "Miami"].map((c) => (
+                {["All", "Hollywood", "Los Angeles", "Redondo Beach", "Dubai", "Antwerp", "Miami"].map((c) => (
                   <option key={c} value={c}>
                     {c === "All" ? "All destinations" : formatCityLabel(c)}
                   </option>
@@ -1596,8 +1600,9 @@ function LandingPage() {
                   }}
                 >
                   <option value="All">{mobileDestinationLabel}</option>
-                  <option value="Redondo Beach">{formatCityLabel("Redondo Beach")}</option>
+                  <option value="Hollywood">{formatCityLabel("Hollywood")}</option>
                   <option value="Los Angeles">{formatCityLabel("Los Angeles")}</option>
+                  <option value="Redondo Beach">{formatCityLabel("Redondo Beach")}</option>
                   <option value="Dubai">{formatCityLabel("Dubai")}</option>
                   <option value="Antwerp">{formatCityLabel("Antwerp")}</option>
                   <option value="Miami">{formatCityLabel("Miami")}</option>
