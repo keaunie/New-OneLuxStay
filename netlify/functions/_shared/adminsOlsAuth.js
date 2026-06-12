@@ -1,4 +1,10 @@
 import { fetchWithTimeout, getHeaderValue } from "./http.js";
+import {
+  getNormalizedUserRole,
+  isAdminRole,
+  isSuperAdminRole,
+  logRoleDebug,
+} from "../../../shared/adminRoles.js";
 
 const ADMINS_OLS_ROLE = "admins_ols";
 const ADMINS_OLS_SUPERADMIN_ROLE = "admins_ols_superadmin";
@@ -74,36 +80,40 @@ const getSharedKeyUser = () => ({
   isSuperAdmin: true,
 });
 
-const summarizeUser = (user = {}) => ({
-  id: sanitizeString(user?.id, 120),
-  email: normalizeEmail(user?.email),
-  fullName: sanitizeString(
-    user?.fullName || user?.user_metadata?.full_name || user?.user_metadata?.fullName || user?.email || "",
-    160,
-  ),
-  role: sanitizeString(user?.role || user?.app_metadata?.role || "", 80),
-  isSuperAdmin: userIsSuperAdmin(user),
-});
+const summarizeUser = (user = {}) => {
+  const normalizedRole = getNormalizedUserRole(user);
+
+  return {
+    id: sanitizeString(user?.id, 120),
+    email: normalizeEmail(user?.email),
+    fullName: sanitizeString(
+      user?.fullName || user?.user_metadata?.full_name || user?.user_metadata?.fullName || user?.email || "",
+      160,
+    ),
+    role: sanitizeString(normalizedRole, 80),
+    isSuperAdmin: userIsSuperAdmin(user),
+  };
+};
 
 const userIsSuperAdmin = (user = {}) => {
   const email = normalizeEmail(user?.email);
   const appMetadata = user?.app_metadata || {};
   const superAdminEmails = parseAllowedSuperAdminEmails();
-  const appRole = sanitizeString(appMetadata?.role, 80);
+  const trustedRole = getNormalizedUserRole(user, { includeUserMetadata: false });
 
   if (appMetadata?.superadmin === true) return true;
   if (appMetadata?.admins_ols_superadmin === true) return true;
-  if ([ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(appRole)) return true;
+  if (isSuperAdminRole(trustedRole)) return true;
   if (superAdminEmails.size) return Boolean(email && superAdminEmails.has(email));
 
   // Security: do not trust user_metadata for superadmin checks by default, because users can edit it.
   // If you previously relied on user_metadata role flags, set ADMINS_OLS_TRUST_USER_METADATA_SUPERADMIN=true.
   if (parseBoolean(getEnv("ADMINS_OLS_TRUST_USER_METADATA_SUPERADMIN"), false)) {
     const userMetadata = user?.user_metadata || {};
-    const userRole = sanitizeString(userMetadata?.role, 80);
+    const userRole = sanitizeString(getNormalizedUserRole({ role: userMetadata?.role }), 80);
     if (userMetadata?.superadmin === true) return true;
     if (userMetadata?.admins_ols_superadmin === true) return true;
-    if ([ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(userRole)) return true;
+    if (isSuperAdminRole(userRole)) return true;
   }
 
   return false;
@@ -114,13 +124,13 @@ const userHasAdminRole = (user = {}) => {
   const appMetadata = user?.app_metadata || {};
   const userMetadata = user?.user_metadata || {};
   const allowedEmails = parseAllowedAdminEmails();
-  const appRole = sanitizeString(appMetadata?.role, 80);
-  const userRole = sanitizeString(userMetadata?.role, 80);
+  const trustedRole = getNormalizedUserRole(user, { includeUserMetadata: false });
+  const userRole = sanitizeString(getNormalizedUserRole({ role: userMetadata?.role }), 80);
 
   if (appMetadata?.admins_ols === true) return true;
   if (userMetadata?.admins_ols === true) return true;
-  if ([ADMINS_OLS_ROLE, ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(appRole)) return true;
-  if ([ADMINS_OLS_ROLE, ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(userRole)) return true;
+  if (isAdminRole(trustedRole)) return true;
+  if (isAdminRole(userRole)) return true;
   if (allowedEmails.size) return Boolean(email && allowedEmails.has(email));
 
   // If no allowlist is configured, trust authenticated users from this Supabase project.
@@ -638,5 +648,9 @@ export const formatAdminsOlsSession = (session = {}) => ({
     Number.isFinite(Number(session?.expires_in)) && Number(session.expires_in) > 0
       ? new Date(Date.now() + Number(session.expires_in) * 1000).toISOString()
       : "",
-  user: summarizeUser(session?.user || {}),
+  user: (() => {
+    const appUser = summarizeUser(session?.user || {});
+    logRoleDebug(session?.user || {}, appUser);
+    return appUser;
+  })(),
 });

@@ -6,6 +6,7 @@ import {
   loadAdminsOlsSession,
   refreshAdminsOlsSession,
 } from "../../utils/adminsOlsAuth";
+import { getNormalizedUserRole, logRoleDebug, userHasSuperAdminRole } from "../../../shared/adminRoles.js";
 
 const STORAGE_KEY = "ols-executive-ols-session";
 
@@ -73,18 +74,26 @@ const normalizeSession = (value = {}) => {
 
   if (!accessToken) return null;
 
+  const role = sanitizeString(getNormalizedUserRole(value?.user || {}), 80);
+  const appUser = {
+    id: sanitizeString(value?.user?.id, 120),
+    email: sanitizeString(value?.user?.email, 200),
+    fullName: sanitizeString(value?.user?.fullName, 160),
+    role,
+    isSuperAdmin: userHasSuperAdminRole({
+      ...(value?.user || {}),
+      role,
+    }),
+  };
+
+  logRoleDebug(value?.user || {}, appUser);
+
   return {
     accessToken,
     refreshToken,
     expiresIn: Number.isFinite(Number(value?.expiresIn)) ? Number(value.expiresIn) : 0,
     expiresAt,
-    user: {
-      id: sanitizeString(value?.user?.id, 120),
-      email: sanitizeString(value?.user?.email, 200),
-      fullName: sanitizeString(value?.user?.fullName, 160),
-      role: sanitizeString(value?.user?.role, 80),
-      isSuperAdmin: value?.user?.isSuperAdmin === true,
-    },
+    user: appUser,
   };
 };
 

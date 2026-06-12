@@ -10,6 +10,7 @@ import {
   refreshAdminsOlsSession,
   saveAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
+import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminsOlsPage.css";
 
 const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
@@ -633,7 +634,7 @@ function AdminsOlsPage() {
   const rollups = dashboard?.rollups || {};
   const currentAdmin = dashboard?.currentAdmin || session?.user || {};
   const isSharedKeySession = Boolean(session?.sharedKey && !session?.accessToken);
-  const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
+  const isSuperAdmin = userHasSuperAdminRole(currentAdmin);
   const recentSessions = Array.isArray(dashboard?.recentSessions) ? dashboard.recentSessions : [];
   const recentFeedback = Array.isArray(dashboard?.recentFeedback) ? dashboard.recentFeedback : [];
   const recentAssistantMessages = Array.isArray(dashboard?.recentAssistantMessages)

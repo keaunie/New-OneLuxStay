@@ -17,7 +17,8 @@
       "Bash(findstr /i \"APALEO_SCOPE\")",
       "Bash(Get-Content .env)",
       "Bash(Select-String \"APALEO_SCOPE\")",
-      "WebFetch(domain:api.apaleo.com)"
+      "WebFetch(domain:api.apaleo.com)",
+      "Bash(graphify query *)"
     ]
   }
 }

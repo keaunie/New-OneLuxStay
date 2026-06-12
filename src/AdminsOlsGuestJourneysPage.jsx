@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import apiBase from "./utils/apiBase";
 import {
@@ -8,6 +8,7 @@ import {
   loadAdminsOlsSession,
   refreshAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
+import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminsOlsPage.css";
 
 const formatDateTime = (value = "") => {
@@ -482,7 +483,7 @@ function AdminsOlsGuestJourneysPage() {
     return <Navigate to="/executive-ols/login" replace />;
   }
 
-  if (currentAdmin?.isSuperAdmin !== true) {
+  if (!userHasSuperAdminRole(currentAdmin)) {
     return (
       <div className="admins-ols-page">
         <div className="admins-ols-shell">

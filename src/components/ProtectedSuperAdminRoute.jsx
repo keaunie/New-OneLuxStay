@@ -6,8 +6,9 @@ import {
 } from "../utils/adminsOlsAuth";
 import { useEffect, useState } from "react";
 import apiBase from "../utils/apiBase";
+import { userHasSuperAdminRole } from "../../shared/adminRoles.js";
 
-const isSuperAdminSession = (session = null) => Boolean(session?.user?.isSuperAdmin === true);
+const isSuperAdminSession = (session = null) => userHasSuperAdminRole(session?.user || {});
 
 function ProtectedSuperAdminRoute({ children }) {
   const location = useLocation();
@@ -59,4 +60,3 @@ function ProtectedSuperAdminRoute({ children }) {
 }
 
 export default ProtectedSuperAdminRoute;
-

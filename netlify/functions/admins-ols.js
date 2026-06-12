@@ -23,6 +23,7 @@ import {
   verifyAdminsOlsAccess,
   verifyAdminsOlsPassword,
 } from "./_shared/adminsOlsAuth.js";
+import { userHasSuperAdminRole } from "../../shared/adminRoles.js";
 
 dotenv.config();
 
@@ -1333,7 +1334,7 @@ const fixInviteLink = (actionLink = "", redirectTo = "") => {
 };
 
 const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
-  if (!adminUser?.isSuperAdmin) {
+  if (!userHasSuperAdminRole(adminUser)) {
     const error = new Error("Superadmin access required.");
     error.statusCode = 403;
     throw error;
@@ -1652,6 +1653,7 @@ const buildRecentConversationThreads = ({
 };
 
 const getDashboardData = async (tables, adminUser = {}) => {
+  const isSuperAdmin = userHasSuperAdminRole(adminUser);
   const dashboardQueries = [
     countRows(tables.sessions, { select: "session_id" }),
     countRows(tables.messages, { select: "id" }),
@@ -1696,7 +1698,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
       },
       timeout: 12_000,
     }),
-    adminUser?.isSuperAdmin
+    isSuperAdmin
       ? supabaseRestRequest(tables.activity, {
           query: {
             select: "id,event_type,actor_id,actor_email,actor_name,auth_mode,message,details,created_at",
@@ -1738,7 +1740,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
   const rawGuestJourneyEvents = Array.isArray(recentGuestCityClicksRaw)
     ? recentGuestCityClicksRaw.map(sanitizeGuestJourneyRow)
     : [];
-  const recentGuestJourneyEvents = adminUser?.isSuperAdmin ? rawGuestJourneyEvents : [];
+  const recentGuestJourneyEvents = isSuperAdmin ? rawGuestJourneyEvents : [];
   const recentConversations = buildRecentConversationThreads({
     conversationMessages: recentConversationMessages,
     recentSessions,
@@ -1775,13 +1777,13 @@ const getDashboardData = async (tables, adminUser = {}) => {
     rollups: {
       topCities: sortAndCountValues(recentSessions, (row) => row.city || "Unknown"),
       topPageTypes: sortAndCountValues(recentSessions, (row) => row.pageType || "Unknown"),
-      topGuestCities: adminUser?.isSuperAdmin
+      topGuestCities: isSuperAdmin
         ? sortAndCountValues(recentGuestJourneyEvents, (row) => row.city || "Unknown")
         : [],
-      topGuestPages: adminUser?.isSuperAdmin
+      topGuestPages: isSuperAdmin
         ? sortAndCountValues(recentGuestJourneyEvents, (row) => row.pathname || row.destinationPath || "Unknown")
         : [],
-      topGuestEventTypes: adminUser?.isSuperAdmin
+      topGuestEventTypes: isSuperAdmin
         ? sortAndCountValues(recentGuestJourneyEvents, (row) => row.eventType || "Unknown")
         : [],
       lessonsBySentiment: sortAndCountValues(sentimentLessons, (row) => row.sentimentLabel || "Unknown"),
@@ -1791,7 +1793,7 @@ const getDashboardData = async (tables, adminUser = {}) => {
     recentAssistantMessages,
     recentConversations,
     recentGuestJourneyEvents,
-    ...(adminUser?.isSuperAdmin ? { recentAdminActivity } : {}),
+    ...(isSuperAdmin ? { recentAdminActivity } : {}),
     sentimentLessons,
   };
 };
@@ -1896,7 +1898,7 @@ const deleteLesson = async (payload, tables) => {
 };
 
 const getAdminActivity = async (payload, tables, adminUser = {}) => {
-  if (!adminUser?.isSuperAdmin) {
+  if (!userHasSuperAdminRole(adminUser)) {
     const error = new Error("Superadmin access required.");
     error.statusCode = 403;
     throw error;
@@ -1921,7 +1923,7 @@ const getAdminActivity = async (payload, tables, adminUser = {}) => {
 };
 
 const getLessonEntries = async (payload, tables, adminUser = {}) => {
-  if (!adminUser?.isSuperAdmin) {
+  if (!userHasSuperAdminRole(adminUser)) {
     const error = new Error("Superadmin access required.");
     error.statusCode = 403;
     throw error;
@@ -2421,7 +2423,7 @@ export async function handler(event) {
     }
 
     if (action === "get_guest_journey_events") {
-      if (!adminAccess?.user?.isSuperAdmin) {
+      if (!userHasSuperAdminRole(adminAccess?.user || {})) {
         const error = new Error("Superadmin access required.");
         error.statusCode = 403;
         throw error;

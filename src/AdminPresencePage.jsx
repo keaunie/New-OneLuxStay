@@ -7,6 +7,7 @@ import {
   refreshAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
 import apiBase from "./utils/apiBase";
+import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminPresencePage.css";
 
 const formatDateTime = (value = "") => {
@@ -135,7 +136,7 @@ function AdminPresencePage() {
     currentPath,
   });
 
-  const isSuperAdmin = session?.user?.isSuperAdmin === true;
+  const isSuperAdmin = userHasSuperAdminRole(session?.user || {});
 
   if (!authChecking && !session?.accessToken && !session?.sharedKey) {
     return <Navigate to="/executive-ols/login?next=%2Fexecutive-ols%2Fadmin-presence" replace />;

@@ -5,6 +5,7 @@ import {
   getSupabasePresenceRestConfig,
   hasSupabasePresenceConfig,
 } from "../utils/supabasePresenceClient";
+import { getNormalizedUserRole } from "../../shared/adminRoles.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const ACTIVITY_PUSH_DEBOUNCE_MS = 3_500;
@@ -78,7 +79,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   const email = sanitizeString(session?.user?.email, 200).toLowerCase();
   const accessToken = sanitizeString(session?.accessToken, 4000);
   const fullName = sanitizeString(session?.user?.fullName, 160);
-  const role = sanitizeString(session?.user?.role, 80) || "admin";
+  const role = sanitizeString(getNormalizedUserRole(session?.user || {}), 80) || "admin";
   const normalizedPath = sanitizeString(currentPath || "/", 240) || "/";
   const sessionId = useMemo(() => (adminId ? generateSessionId(adminId) : ""), [adminId]);
 

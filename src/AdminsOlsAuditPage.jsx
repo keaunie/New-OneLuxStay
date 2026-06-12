@@ -8,6 +8,7 @@ import {
   loadAdminsOlsSession,
   refreshAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
+import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminsOlsPage.css";
 
 const AUDIT_ACTIVITY_DEDUPE_KEY = "admins-ols-audit-log-opened";
@@ -183,7 +184,7 @@ function AdminsOlsAuditPage() {
   const [tabContentPhase, setTabContentPhase] = useState("idle");
   const tabTransitionTimeoutRef = useRef(null);
 
-  const isSuperAdmin = currentAdmin?.isSuperAdmin === true;
+  const isSuperAdmin = userHasSuperAdminRole(currentAdmin);
   const signInChartData = useMemo(() => {
     const grouped = new Map();
 
@@ -329,7 +330,7 @@ function AdminsOlsAuditPage() {
       if (refreshed?.accessToken || refreshed?.sharedKey) {
         setSession(refreshed);
         setCurrentAdmin(refreshed?.user || {});
-        setAccessState(refreshed?.user?.isSuperAdmin || refreshed?.sharedKey ? "authorized" : "checking");
+        setAccessState(userHasSuperAdminRole(refreshed?.user || {}) || refreshed?.sharedKey ? "authorized" : "checking");
         return;
       }
 
