@@ -14,7 +14,7 @@ const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";
 
-const HOLLYWOOD_COORDS = { lat: 34.0928, lng: -118.3287 };
+const HOLLYWOOD_COORDS = { lat: 34.0967, lng: -118.3119 }; // 5620 De Longpre Ave
 const BUILDING_KEY = "la-hollywood";
 const GROUP_TITLE = "One Lux Stay Hollywood View LA Suites";
 const BOOKING_STORAGE_KEY = "hollywoodBookingFilters";
