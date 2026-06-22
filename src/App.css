@@ -6692,6 +6692,7 @@ body {
 .la-units-layout.la-units-layout--split {
   grid-template-columns: minmax(400px, 46%) minmax(0, 54%);
   grid-template-rows: 1fr;
+  align-items: stretch;
   gap: 0;
   height: 100%;
   min-height: 0;
@@ -6741,6 +6742,10 @@ body {
 
 .la-units-aside--map {
   padding-top: 6px;
+}
+
+.hollywood-units-section .la-unit-listing-grid {
+  align-content: start;
 }
 
 .la-unit-listing-toolbar {
@@ -6991,6 +6996,12 @@ body {
   background: #eee7dd;
 }
 
+.hollywood-units-section .la-units-aside--map {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
 .la-mobile-map-header,
 .la-mobile-map-actions {
   display: none;
@@ -7010,6 +7021,11 @@ body {
   border-radius: 0 !important;
   border: 0 !important;
   background: #e6dfd5;
+}
+
+.hollywood-units-section .la-units-map--panel {
+  flex: 1 1 auto;
+  align-self: stretch;
 }
 
 .ols-map-popup-shell .leaflet-popup-content-wrapper {
@@ -7293,6 +7309,20 @@ body {
     padding: 0 0 20px;
   }
 
+  .hollywood-units-section .la-units-main.la-units-main--cards {
+    order: 1;
+    padding-bottom: 0;
+  }
+
+  .hollywood-units-section .la-units-aside--map {
+    order: 2;
+    display: flex;
+    position: relative;
+    inset: auto;
+    min-height: clamp(300px, 46vh, 560px);
+    border-bottom: 0;
+  }
+
   .la-units-aside--map.is-mobile-open {
     display: block;
     position: fixed;
@@ -7457,6 +7487,11 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+.hollywood-units-section .la-units-map--placeholder {
+  min-height: 100% !important;
+  height: 100% !important;
 }
 
 .la-units-map--placeholder::after {

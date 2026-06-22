@@ -5,7 +5,6 @@ import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { buildStaticMapUrl, buildEmbedMapUrl } from "./utils/leafletMapsAdapter";
-import reviewsHollywood from "./data/reviews-hollywood.json";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -31,18 +30,6 @@ const HOLLYWOOD_TRANSIT = [
   "Metro B Line (Red)",
   "Hollywood/Highland",
   "Hollywood/Vine",
-];
-
-const HOLLYWOOD_FACILITIES = [
-  "Outdoor swimming pool",
-  "Free Wi-Fi",
-  "Family rooms",
-  "Non-smoking rooms",
-  "Fitness center",
-  "Terrace",
-  "Laundry",
-  "BBQ facilities",
-  "Tea/Coffee maker in all rooms",
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -546,7 +533,6 @@ export default function HollywoodLandingPage() {
   const [cardImageIndexes, setCardImageIndexes] = useState({});
   const [showNightlyTotal, setShowNightlyTotal] = useState(false);
 
-  const [isMobileMapOpen, setIsMobileMapOpen] = useState(false);
   const [isMapEnabled, setIsMapEnabled] = useState(false);
 
   // Read URL params + persisted booking on mount
@@ -681,10 +667,11 @@ export default function HollywoodLandingPage() {
   // - .antwerp-main: flex column, overflow:hidden
   // - ONE .antwerp-section--split fills remaining height
   // - .la-units-main--cards is the ONLY scroll container (overflow-y:auto)
-  // → ALL content (hero, cards, facilities, reviews, footer) goes inside la-units-main--cards
+  // → Listing content stays inside the left column; footer renders after the split layout.
 
   return (
-    <div className="city-viewport-shell city-viewport-shell--dubai">
+    <>
+      <div className="city-viewport-shell city-viewport-shell--dubai">
 
       {/* ── Sticky header ── */}
       <section
@@ -809,7 +796,7 @@ export default function HollywoodLandingPage() {
       ── */}
       <main className="antwerp-main">
         <section
-          className="antwerp-section antwerp-section--split dubai-units-section"
+          className="antwerp-section antwerp-section--split dubai-units-section hollywood-units-section"
           id="hollywood-units"
           aria-label="Hollywood units"
         >
@@ -917,7 +904,7 @@ export default function HollywoodLandingPage() {
 
               {/* Listing cards */}
               {!loading && !error && filteredListings.length > 0 && (
-                <div className="la-units-grid">
+                <div className="la-unit-listing-grid">
                   {filteredListings.map((listing) => {
                     const listingId = getListingId(listing);
                     if (!listingId) return null;
@@ -1104,109 +1091,14 @@ export default function HollywoodLandingPage() {
                 </div>
               )}
 
-              {/* ── Facilities ── */}
-              <div
-                className="la-hollywood-facilities"
-                aria-label="Hollywood unit facilities"
-                style={{ padding: "28px 0 8px" }}
-              >
-                <p className="antwerp-kicker">Amenities</p>
-                <h2 style={{ marginTop: 4, marginBottom: 16 }}>
-                  Hollywood unit facilities
-                </h2>
-                <ul
-                  className="la-section-modal__facilities"
-                  role="list"
-                  style={{
-                    paddingLeft: 0,
-                    listStyle: "none",
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                    gap: "8px 20px",
-                  }}
-                >
-                  {HOLLYWOOD_FACILITIES.map((f) => (
-                    <li key={f} className="la-section-modal__facility-item">
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* ── Reviews ── */}
-              {reviewsHollywood?.length > 0 && (
-                <div
-                  className="la-hollywood-reviews"
-                  aria-label="Hollywood guest reviews"
-                  style={{ padding: "28px 0 8px" }}
-                >
-                  <p className="antwerp-kicker">Guest reviews</p>
-                  <h2 style={{ marginTop: 4, marginBottom: 12 }}>
-                    What guests say about Hollywood
-                  </h2>
-                  <a
-                    href="https://www.google.com/maps/place/One+Lux+Stay+Hollywood+View+LA+Suites/@34.096727,-118.3144848,908m/data=!3m1!1e3!4m11!3m10!1s0x80c2bf1c3a41cc15:0xbc828ded239ae8a3!5m2!4m1!1i2!8m2!3d34.0967226!4d-118.3119099!9m1!1b1!16s%2Fg%2F11l6btbhs4?entry=ttu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="antwerp-ghost"
-                    style={{ marginBottom: "1.25rem", display: "inline-block" }}
-                  >
-                    View all Google reviews
-                  </a>
-                  <div className="la-review-ticker">
-                    {reviewsHollywood.slice(0, 6).map((review, idx) => (
-                      <article key={idx} className="la-review-ticker__item">
-                        <p className="la-review-ticker__quote">
-                          &ldquo;{review.quote}&rdquo;
-                        </p>
-                        <p className="la-review-ticker__author">
-                          {review.name || "Verified guest"}
-                        </p>
-                        {review.rating && (
-                          <p
-                            className="la-review-ticker__rating"
-                            aria-label={`${review.rating} stars`}
-                          >
-                            {"★".repeat(
-                              Math.min(5, Math.round(Number(review.rating))),
-                            )}
-                          </p>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Parking notice ── */}
-              <p
-                className="antwerp-muted"
-                style={{ fontSize: "0.85rem", padding: "16px 0 24px" }}
-              >
-                <strong>Parking note:</strong> There is no on-site parking at
-                Hollywood View LA Suites. Street parking is available nearby.
-              </p>
-
-              {/* Footer at bottom of scrollable column */}
-              <SiteFooter />
             </div>
             {/* end la-units-main--cards */}
 
             {/* ── RIGHT: map aside ── */}
             <aside
-              className={`la-units-aside la-units-aside--map${isMobileMapOpen ? " is-mobile-open" : ""}`}
+              className="la-units-aside la-units-aside--map"
               aria-label="Map of Hollywood units"
             >
-              <div className="la-mobile-map-header">
-                <strong>Hollywood map</strong>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMapOpen(false)}
-                  aria-label="Close map"
-                >
-                  &times;
-                </button>
-              </div>
 
               {isMapEnabled ? (
                 <iframe
@@ -1215,31 +1107,14 @@ export default function HollywoodLandingPage() {
                   title="Hollywood area map"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  style={{
-                    border: 0,
-                    width: "100%",
-                    height: "100%",
-                    minHeight: 340,
-                  }}
+                  style={{ border: 0 }}
                 />
               ) : (
                 <div
                   className="la-units-map la-units-map--panel la-units-map--placeholder"
                   style={{
-                    backgroundImage: mapStaticUrl
-                      ? `url(${mapStaticUrl})`
-                      : "none",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
+                    "--map-placeholder-image": mapStaticUrl ? `url(${mapStaticUrl})` : "none",
                     cursor: "pointer",
-                    minHeight: 340,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 10,
-                    padding: 20,
-                    textAlign: "center",
                   }}
                   onClick={() => setIsMapEnabled(true)}
                   role="button"
@@ -1250,28 +1125,21 @@ export default function HollywoodLandingPage() {
                       setIsMapEnabled(true);
                   }}
                 >
-                  <p
-                    className="antwerp-muted"
-                    style={{
-                      margin: 0,
-                      background: "rgba(247,242,233,0.9)",
-                      padding: "8px 14px",
-                      borderRadius: 8,
-                      fontSize: "0.82rem",
-                    }}
-                  >
-                    Map loads on demand to keep the page fast.
-                  </p>
-                  <button
-                    type="button"
-                    className="antwerp-ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsMapEnabled(true);
-                    }}
-                  >
-                    Load map
-                  </button>
+                  <div className="la-units-map__placeholder-content">
+                    <p className="antwerp-muted" style={{ margin: 0 }}>
+                      Map loads on demand to keep the page fast.
+                    </p>
+                    <button
+                      type="button"
+                      className="antwerp-card__ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsMapEnabled(true);
+                      }}
+                    >
+                      Load map
+                    </button>
+                  </div>
                 </div>
               )}
             </aside>
@@ -1282,17 +1150,8 @@ export default function HollywoodLandingPage() {
         {/* end antwerp-section */}
       </main>
 
-      {/* Mobile show-map button — outside antwerp-main so it's always visible */}
-      <div className="la-mobile-map-bar">
-        <button
-          type="button"
-          className="la-mobile-map-trigger"
-          onClick={() => setIsMobileMapOpen(true)}
-        >
-          Show map
-        </button>
       </div>
-
-    </div>
+      <SiteFooter />
+    </>
   );
 }
