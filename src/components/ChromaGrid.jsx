@@ -19,7 +19,7 @@ const DEFAULT_ITEMS = [
     subtitle: "Skyline penthouses",
     href: "/losangeles",
     image:
-      "https://assets.guesty.com/image/upload/v1729697715/production/666b3af27fc6d5653142b0af/t9xacjoibl7vpywhi6jf.jpg",
+      "https://assets.guesty.com/image/upload/v1730119087/production/666b3af27fc6d5653142b0af/npeczkhmy9wff4lzuyvr.jpg",
   },
   {
     title: "Hollywood",

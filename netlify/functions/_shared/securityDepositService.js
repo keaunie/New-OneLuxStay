@@ -140,14 +140,27 @@ const getSecurityDepositRules = async () => {
     useAnonKey = false;
   }
 
-  const rows = await supabaseRestRequest(SUPABASE_SECURITY_DEPOSITS_TABLE, {
-    query: {
-      select: "*",
-      limit: 1000,
-      order: "created_at.desc",
-    },
-    useAnonKey,
-  });
+  let rows;
+  try {
+    rows = await supabaseRestRequest(SUPABASE_SECURITY_DEPOSITS_TABLE, {
+      query: {
+        select: "*",
+        limit: 1000,
+        order: "created_at.desc",
+      },
+      useAnonKey,
+    });
+  } catch (error) {
+    const message = String(error?.message || "").toLowerCase();
+    if (message.includes("schema cache") || message.includes("does not exist")) {
+      globalThis.__olsSecurityDepositRulesCache = {
+        rules: [],
+        expiresAt: now + SECURITY_DEPOSIT_CACHE_TTL_MS,
+      };
+      return [];
+    }
+    throw error;
+  }
 
   const rules = (Array.isArray(rows) ? rows : [])
     .map((row) => parseRule(row))
