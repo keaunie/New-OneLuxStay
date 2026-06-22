@@ -633,13 +633,13 @@ export default function HollywoodLandingPage() {
   }, [listings, appliedSearch, minBedrooms]);
 
   const buildListingPath = (listingId) => {
-    if (!listingId) return "/los-angeles";
+    if (!listingId) return "/hollywood";
     const params = new URLSearchParams();
     if (checkIn) params.set("checkIn", checkIn);
     if (checkOut) params.set("checkOut", checkOut);
     if (guests && guests !== "2") params.set("guests", guests);
     const query = params.toString();
-    return `/los-angeles/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
+    return `/hollywood/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
 
   const handleSearchSubmit = () => setAppliedSearch(searchQuery.trim());

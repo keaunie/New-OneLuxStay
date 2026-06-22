@@ -639,7 +639,10 @@ const isCheckInOutTimeQuestion = (text = "") => {
   if (!mentionsCheckInOut) return false;
   const mentionsTimeIntent =
     /\b(what time|time|when)\b/i.test(source) ||
-    /\b(check[- ]?in time|check[- ]?out time)\b/i.test(source);
+    /\b(check[- ]?in time|check[- ]?out time)\b/i.test(source) ||
+    /\b(early|late|earlier|later|before|after)\b/i.test(source) ||
+    /\b(how (do|can) i|how to|can i|is it possible|possible to)\b/i.test(source) ||
+    /\b(policy|policies|rule|rules|process)\b/i.test(source);
   return mentionsTimeIntent;
 };
 
@@ -4484,7 +4487,7 @@ export async function handler(event) {
       }
     }
 
-    if (detectedIntent === CHAT_INTENTS.checkin_checkout_time && !dateRange && !monthRange) {
+    if (detectedIntent === CHAT_INTENTS.checkin_checkout_time) {
       const codeForTimeContext = reservationCode || conversationReservationCode || assistantReservationCode;
       let cityForTimeReply = normalizedPromptCity || assistantReservationCity;
 

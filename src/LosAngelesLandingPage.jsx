@@ -2310,6 +2310,7 @@ const getListingCityRoute = (listing) => {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+  if (/hollywood/.test(text)) return "/hollywood";
   if (/redondo\s+beach/.test(text)) return "/redondo-beach";
   if (/miami/.test(text)) return "/miami";
   if (/antwerp|antwerpen|belgium/.test(text)) return "/antwerp";

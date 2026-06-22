@@ -180,6 +180,7 @@ function AppRoutes() {
           <Route path="/antwerpen/listing/:listingId" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp/listing/:listingId" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/hollywood" element={renderLazyRoute(HollywoodLandingPage)} />
+          <Route path="/hollywood/listing/:listingId" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/los-angeles" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/losangeles" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/los-angeles/:areaSlug/:bookingBundle" element={renderLazyRoute(LosAngelesLandingPage)} />
