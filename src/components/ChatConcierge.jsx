@@ -60,9 +60,10 @@ const removeBrowserStorage = (key) => {
 };
 
 const DEFAULT_SUGGESTIONS = [
-  "Can you help me choose a property?",
-  "Check availability for 2026-04-15 to 2026-04-20 for 2 guests",
-  "Check my booking status (I have my reservation code)",
+  "Help me find the perfect stay",
+  "What makes One Lux Stay different?",
+  "Check availability for my dates",
+  "Check my booking status",
 ];
 
 const sanitizeId = (value = "", maxLength = 120) =>
@@ -212,17 +213,19 @@ const getPageContext = (location) => {
 const getSuggestions = (pageContext) => {
   if (pageContext.pageType === "listing") {
     return [
-      "Tell me about this property",
-      "Is this unit available for my dates?",
-      "Check my booking status with reservation code",
+      "Is this property available for my dates?",
+      "Tell me what makes this property special",
+      "How do I book this unit?",
+      "What's included in the stay?",
     ];
   }
 
   if (pageContext.pageType === "city" && pageContext.city) {
     return [
-      `Show me the best options in ${pageContext.city}`,
-      `What kind of stays do you have in ${pageContext.city}?`,
-      "What is the booking process like?",
+      `Show me what's available in ${pageContext.city}`,
+      `What's the best unit for a couple in ${pageContext.city}?`,
+      `What's ${pageContext.city} like for a short stay?`,
+      "How do I book?",
     ];
   }
 
@@ -390,6 +393,8 @@ function ChatConcierge() {
       return {};
     }
   });
+  const [showNudge, setShowNudge] = useState(false);
+  const nudgeDismissedRef = useRef(false);
   const scrollRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const autoRunKeyRef = useRef("");
@@ -404,6 +409,20 @@ function ChatConcierge() {
     if (typeof window === "undefined") return;
     writeBrowserStorage(STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
+
+  // Proactive nudge: show a teaser bubble on high-intent pages after 20s if chat hasn't been opened
+  useEffect(() => {
+    if (isOpen || nudgeDismissedRef.current) return;
+    if (messages.length > 0) return;
+    const isHighIntent = pageContext.pageType === "listing" || pageContext.pageType === "city";
+    if (!isHighIntent) return;
+    const timer = setTimeout(() => {
+      if (!isOpen && !nudgeDismissedRef.current) {
+        setShowNudge(true);
+      }
+    }, 20000);
+    return () => clearTimeout(timer);
+  }, [isOpen, messages.length, pageContext.pageType]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -713,7 +732,7 @@ function ChatConcierge() {
               <p className="chat-concierge__eyebrow">One Lux Stay</p>
               <h2 className="chat-concierge__title">Lucy</h2>
               <p className="chat-concierge__subtitle">
-                Ask about stays, booking status, availability by dates, or what page you are on now.
+                Your personal concierge — availability, booking, local tips, and more.
               </p>
             </div>
             <div className="chat-concierge__header-actions">
@@ -777,10 +796,17 @@ function ChatConcierge() {
           <div className="chat-concierge__messages" ref={scrollRef} onScroll={handleMessagesScroll}>
             {messages.length === 0 && (
               <div className="chat-concierge__welcome">
-                <p className="chat-concierge__welcome-title">How can I help today?</p>
+                <p className="chat-concierge__welcome-title">
+                  {pageContext.pageType === "listing"
+                    ? "Let me help you secure this stay"
+                    : pageContext.pageType === "city" && pageContext.city
+                      ? `Find your perfect stay in ${pageContext.city}`
+                      : "Find your perfect luxury stay"}
+                </p>
                 <p className="chat-concierge__welcome-copy">
-                  I can check booking status by reservation code, find available units for your
-                  dates, and link you to the right unit page.
+                  {pageContext.pageType === "listing"
+                    ? "I can check availability for your dates, answer questions about this property, and walk you through booking in minutes."
+                    : "I can check availability, compare properties, answer questions, and guide you through booking — all in a few messages."}
                 </p>
               </div>
             )}
@@ -908,7 +934,9 @@ function ChatConcierge() {
 
             {isSending && (
               <div className="chat-concierge__message chat-concierge__message--assistant is-loading">
-                <p>Thinking through that now...</p>
+                <p className="chat-concierge__typing">
+                  <span></span><span></span><span></span>
+                </p>
               </div>
             )}
           </div>
@@ -961,15 +989,52 @@ function ChatConcierge() {
         </section>
       )}
 
+      {showNudge && !isOpen && (
+        <div className="chat-concierge__nudge" role="status">
+          <button
+            type="button"
+            className="chat-concierge__nudge-dismiss"
+            aria-label="Dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              nudgeDismissedRef.current = true;
+              setShowNudge(false);
+            }}
+          >
+            ×
+          </button>
+          <p className="chat-concierge__nudge-text">
+            {pageContext.pageType === "listing"
+              ? "Want to know if this property is available for your dates?"
+              : `Looking for the perfect stay in ${pageContext.city || "this city"}? I can help.`}
+          </p>
+          <button
+            type="button"
+            className="chat-concierge__nudge-cta"
+            onClick={() => {
+              nudgeDismissedRef.current = true;
+              setShowNudge(false);
+              setIsOpen(true);
+            }}
+          >
+            Chat with Lucy →
+          </button>
+        </div>
+      )}
+
       <button
         type="button"
         className="chat-concierge__toggle"
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={() => {
+          nudgeDismissedRef.current = true;
+          setShowNudge(false);
+          setIsOpen((current) => !current);
+        }}
         aria-expanded={isOpen}
         aria-controls="chat-concierge-panel"
       >
         <span className="chat-concierge__toggle-badge">L</span>
-        <span className="chat-concierge__toggle-copy">{isOpen ? "Close Lucy" : "Ask Lucy"}</span>
+        <span className="chat-concierge__toggle-copy">{isOpen ? "Close" : "Ask Lucy"}</span>
       </button>
     </div>
   );
