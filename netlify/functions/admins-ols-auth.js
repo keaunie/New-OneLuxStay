@@ -137,6 +137,9 @@ export async function handler(event) {
       const session = await acceptAdminsOlsInvite({
         accessToken: payload?.accessToken,
         refreshToken: payload?.refreshToken,
+        inviteToken: payload?.inviteToken,
+        inviteTokenHash: payload?.inviteTokenHash,
+        inviteType: payload?.inviteType,
         fullName: payload?.fullName,
         password: payload?.password,
       });

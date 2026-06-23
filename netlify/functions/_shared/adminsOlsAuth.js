@@ -560,21 +560,42 @@ export const generateAdminsOlsInviteLink = async ({
 export const acceptAdminsOlsInvite = async ({
   accessToken = "",
   refreshToken = "",
+  inviteToken = "",
+  inviteTokenHash = "",
+  inviteType = "invite",
   fullName = "",
   password = "",
 } = {}) => {
-  const normalizedAccessToken = sanitizeString(accessToken, 4000);
-  const normalizedRefreshToken = sanitizeString(refreshToken, 4000);
+  let normalizedAccessToken = sanitizeString(accessToken, 4000);
+  let normalizedRefreshToken = sanitizeString(refreshToken, 4000);
+  const normalizedInviteToken = sanitizeString(inviteToken, 4000);
+  const normalizedInviteTokenHash = sanitizeString(inviteTokenHash, 4000);
+  const normalizedInviteType = sanitizeString(inviteType || "invite", 80).toLowerCase() || "invite";
   const normalizedFullName = sanitizeString(fullName, 160);
   const normalizedPassword = String(password || "");
 
-  if (!normalizedAccessToken) throw new Error("Invite access token is required.");
+  if (!normalizedAccessToken && !normalizedInviteToken && !normalizedInviteTokenHash) {
+    throw new Error("Invite access token is required.");
+  }
   if (!normalizedFullName) throw new Error("Full name is required.");
   if (normalizedFullName.split(/\s+/).filter(Boolean).length < 2) {
     throw new Error("Please enter your first and last name.");
   }
   if (!normalizedPassword || normalizedPassword.length < 8) {
     throw new Error("Password must be at least 8 characters.");
+  }
+
+  if (!normalizedAccessToken) {
+    const verifiedInvite = await callSupabaseAuth("verify", {
+      method: "POST",
+      body: {
+        type: normalizedInviteType,
+        ...(normalizedInviteTokenHash ? { token_hash: normalizedInviteTokenHash } : { token: normalizedInviteToken }),
+      },
+    });
+    normalizedAccessToken = sanitizeString(verifiedInvite?.access_token, 4000);
+    normalizedRefreshToken = sanitizeString(verifiedInvite?.refresh_token, 4000);
+    if (!normalizedAccessToken) throw new Error("Unable to verify invite token.");
   }
 
   const user = await callSupabaseAuth("user", {

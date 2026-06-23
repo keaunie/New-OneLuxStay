@@ -1321,6 +1321,15 @@ const fixInviteLink = (actionLink = "", redirectTo = "") => {
   if (target) {
     try {
       const parsed = new URL(raw);
+      const inviteToken = sanitizeString(parsed.searchParams.get("token") || parsed.searchParams.get("token_hash") || "", 4000);
+      const inviteType = sanitizeString(parsed.searchParams.get("type") || "invite", 80);
+      if (inviteToken && inviteType.toLowerCase() === "invite") {
+        const direct = new URL(target);
+        direct.searchParams.set(parsed.searchParams.has("token_hash") ? "token_hash" : "token", inviteToken);
+        direct.searchParams.set("type", inviteType);
+        return direct.toString();
+      }
+
       if (parsed.searchParams.has("redirect_to") || parsed.searchParams.has("redirectTo")) {
         parsed.searchParams.set("redirect_to", target);
         parsed.searchParams.delete("redirectTo");

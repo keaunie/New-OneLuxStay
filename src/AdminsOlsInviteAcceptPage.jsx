@@ -26,6 +26,8 @@ function AdminsOlsInviteAcceptPage() {
 
   const accessToken = sanitizeString(hashParams.get("access_token") || queryParams.get("access_token") || "", 4000);
   const refreshToken = sanitizeString(hashParams.get("refresh_token") || queryParams.get("refresh_token") || "", 4000);
+  const inviteToken = sanitizeString(hashParams.get("token") || queryParams.get("token") || "", 4000);
+  const inviteTokenHash = sanitizeString(hashParams.get("token_hash") || queryParams.get("token_hash") || "", 4000);
   const inviteType = sanitizeString(hashParams.get("type") || queryParams.get("type") || "", 80).toLowerCase();
   const inviteError = sanitizeString(hashParams.get("error") || queryParams.get("error") || "", 120);
   const inviteErrorCode = sanitizeString(hashParams.get("error_code") || queryParams.get("error_code") || "", 120);
@@ -81,7 +83,7 @@ function AdminsOlsInviteAcceptPage() {
     setNotice("");
 
     try {
-      if (!accessToken) {
+      if (!accessToken && !inviteToken && !inviteTokenHash) {
         throw new Error("Missing invite token. Please open the invite email link again.");
       }
       if (inviteType && inviteType !== "invite") {
@@ -110,6 +112,9 @@ function AdminsOlsInviteAcceptPage() {
           action: "accept_invite",
           accessToken,
           refreshToken,
+          inviteToken,
+          inviteTokenHash,
+          inviteType,
           fullName,
           password,
         }),
@@ -130,7 +135,7 @@ function AdminsOlsInviteAcceptPage() {
     }
   };
 
-  const hasTokens = Boolean(accessToken);
+  const hasTokens = Boolean(accessToken || inviteToken || inviteTokenHash);
   const hasInviteError = Boolean(inviteError || inviteErrorCode || inviteErrorDescription);
 
   return (
