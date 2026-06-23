@@ -1318,6 +1318,19 @@ const fixInviteLink = (actionLink = "", redirectTo = "") => {
   const target = sanitizeString(redirectTo, 4000);
   if (!raw) return "";
 
+  if (target) {
+    try {
+      const parsed = new URL(raw);
+      if (parsed.searchParams.has("redirect_to") || parsed.searchParams.has("redirectTo")) {
+        parsed.searchParams.set("redirect_to", target);
+        parsed.searchParams.delete("redirectTo");
+        return parsed.toString();
+      }
+    } catch {
+      // Continue with hash-based fallback handling below.
+    }
+  }
+
   // If the link already points to the accept page, keep it.
   if (target && raw.toLowerCase().startsWith(target.toLowerCase())) return raw;
 

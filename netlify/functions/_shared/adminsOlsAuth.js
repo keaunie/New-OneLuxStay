@@ -489,16 +489,24 @@ export const generateAdminsOlsInviteLink = async ({
     {
       type: "invite",
       email: normalizedEmail,
-      data,
-      redirectTo: normalizedRedirectTo,
-    },
-    {
-      type: "invite",
-      email: normalizedEmail,
       options: {
         data,
         redirectTo: normalizedRedirectTo,
       },
+    },
+    {
+      type: "invite",
+      email: normalizedEmail,
+      data,
+      options: {
+        redirectTo: normalizedRedirectTo,
+      },
+    },
+    {
+      type: "invite",
+      email: normalizedEmail,
+      data,
+      redirectTo: normalizedRedirectTo,
     },
     {
       type: "invite",
