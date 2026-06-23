@@ -1,7 +1,6 @@
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import apiBase from "./utils/apiBase";
-import { API_BASE } from "./config/domains";
 import {
   clearAdminsOlsSession,
   getAdminsOlsAuthHeaders,
@@ -24,6 +23,7 @@ const CONVERSATION_SUMMARY_CACHE_PREFIX = "admins-ols-conversation-summary-cache
 const MOBILE_CONVERSATION_BREAKPOINT = 768;
 const TABLET_CONVERSATION_BREAKPOINT = 1024;
 const MOBILE_CONVERSATION_FILTER_DEFAULT = "all";
+const ADMIN_INVITE_ORIGIN = "https://oneluxstayprop.netlify.app";
 
 // Set to true to restore the Call Center sidebar link when the feature is ready
 const SHOW_CALL_CENTER = false;
@@ -1871,8 +1871,7 @@ function AdminsOlsPage() {
     setLastInviteLink("");
 
     try {
-      const inferredOrigin =
-        String(system?.siteUrl || "").trim() || API_BASE;
+      const inferredOrigin = ADMIN_INVITE_ORIGIN;
       const redirectTo = inferredOrigin ? `${inferredOrigin.replace(/\/+$/, "")}/executive-ols/accept` : "";
 
       const fullName = String(inviteForm.fullName || "").trim();
@@ -3717,7 +3716,7 @@ function AdminsOlsPage() {
                 sign in on <Link className="admins-ols-inline-link" to="/executive-ols/login">/executive-ols/login</Link>.
               </p>
               <p className="admins-ols-note" style={{ marginTop: 0 }}>
-                Invite redirect target: <strong>{system?.siteUrl || API_BASE}</strong>
+                Invite redirect target: <strong>{ADMIN_INVITE_ORIGIN}</strong>
               </p>
               <form className="admins-ols-form" onSubmit={handleSendInvite}>
                 <label>

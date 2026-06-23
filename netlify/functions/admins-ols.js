@@ -1219,7 +1219,7 @@ const resolveInviteRedirectUrl = (payload = {}, event = {}) => {
     sanitizeString(process.env.PUBLIC_SITE_URL || process.env.URL || process.env.DEPLOY_URL || "", 240) ||
     sanitizeString(event?.headers?.origin || "", 240);
 
-  const candidate = provided || (fallback ? `${fallback.replace(/\/+$/, "")}/admins-ols/accept` : "");
+  const candidate = provided || (fallback ? `${fallback.replace(/\/+$/, "")}/executive-ols/accept` : "");
   if (!candidate) throw new Error("Unable to resolve invite redirect URL.");
 
   try {
@@ -1415,7 +1415,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
   }
 
   try {
-    // Prefer generate_link for invites so we can send a direct /admins-ols/accept#access_token=... URL.
+    // Prefer generate_link for invites so we can send a direct /executive-ols/accept#access_token=... URL.
     // This avoids the GoTrue /verify OTP redirect link that can show otp_expired (often due to email link scanners).
     const invitedByName = sanitizeString(adminUser?.fullName || adminUser?.name || "", 160);
     const siteOrigin = (() => {
