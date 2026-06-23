@@ -28,7 +28,6 @@
 		"supabase:embed:ai-docs": "node scripts/supabase-embed-ai-sections.mjs"
 	},
 	"dependencies": {
-		"@api/open-api-docs": "file:.api/apis/open-api-docs",
 		"@fontsource/cormorant-garamond": "^5.2.11",
 		"@fontsource/work-sans": "^5.2.8",
 		"@netlify/blobs": "^10.5.0",
@@ -69,7 +68,15 @@
 		"tailwindcss": "^3.4.13",
 		"vite": "^7.2.4"
 	},
+	"overrides": {
+		"@opentelemetry/core": "^2.8.0",
+		"@opentelemetry/resources": "^2.8.0",
+		"@opentelemetry/sdk-trace-base": "^2.8.0",
+		"@opentelemetry/sdk-trace-node": "^2.8.0",
+		"@opentelemetry/context-async-hooks": "^2.8.0",
+		"esbuild": "^0.28.1"
+	},
 	"allowScripts": {
-		"esbuild@0.27.1": true
+		"esbuild@0.28.1": true
 	}
 }

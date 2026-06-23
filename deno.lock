@@ -48,7 +48,15 @@
         "npm:three@0.182",
         "npm:twilio@^6.0.2",
         "npm:vite@^7.2.4"
-      ]
+      ],
+      "overrides": {
+        "@opentelemetry/core": "^2.8.0",
+        "@opentelemetry/resources": "^2.8.0",
+        "@opentelemetry/sdk-trace-base": "^2.8.0",
+        "@opentelemetry/sdk-trace-node": "^2.8.0",
+        "@opentelemetry/context-async-hooks": "^2.8.0",
+        "esbuild": "^0.28.1"
+      }
     }
   }
 }
