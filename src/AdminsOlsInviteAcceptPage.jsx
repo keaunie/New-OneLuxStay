@@ -126,8 +126,8 @@ function AdminsOlsInviteAcceptPage() {
       }
 
       saveAdminsOlsSession(payload.session);
-      setNotice("Invite accepted. Redirecting to the admin panel...");
-      navigate("/executive-ols", { replace: true });
+      setNotice("Password set. Redirecting to login...");
+      navigate("/executive-ols/login", { replace: true });
     } catch (requestError) {
       setError(String(requestError?.message || "Unable to accept invite."));
     } finally {

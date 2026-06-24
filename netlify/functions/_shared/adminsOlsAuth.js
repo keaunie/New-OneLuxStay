@@ -545,9 +545,21 @@ export const generateAdminsOlsInviteLink = async ({
         throw new Error("Supabase did not return an action_link for this invite.");
       }
 
+      // hashed_token lets the accept page call POST /verify with token_hash (no email required).
+      // The plain `token` OTP format requires an email field, which we don't want in the URL.
+      const hashedToken = sanitizeString(
+        payload?.hashed_token ||
+          payload?.hashedToken ||
+          payload?.properties?.hashed_token ||
+          payload?.properties?.hashedToken ||
+          "",
+        4000,
+      );
+
       return {
         email: normalizedEmail,
         actionLink,
+        hashedToken,
       };
     } catch (error) {
       lastError = error;

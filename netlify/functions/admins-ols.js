@@ -1313,19 +1313,25 @@ const sendAdminsOlsInviteEmail = async ({ to, invitedByName, siteOrigin, acceptU
   return payload;
 };
 
-const fixInviteLink = (actionLink = "", redirectTo = "") => {
+const fixInviteLink = (actionLink = "", redirectTo = "", hashedToken = "") => {
   const raw = sanitizeString(actionLink, 4000);
   const target = sanitizeString(redirectTo, 4000);
+  const normalizedHashedToken = sanitizeString(hashedToken, 4000);
   if (!raw) return "";
 
   if (target) {
     try {
       const parsed = new URL(raw);
-      const inviteToken = sanitizeString(parsed.searchParams.get("token") || parsed.searchParams.get("token_hash") || "", 4000);
+      // Prefer hashed_token from the generate_link response: POST /verify accepts token_hash
+      // without requiring an email field; the plain token OTP format does require one.
+      const tokenHash = normalizedHashedToken || sanitizeString(parsed.searchParams.get("token_hash") || "", 4000);
+      const tokenOtp = sanitizeString(parsed.searchParams.get("token") || "", 4000);
+      const tokenToUse = tokenHash || tokenOtp;
+      const useTokenHash = Boolean(tokenHash);
       const inviteType = sanitizeString(parsed.searchParams.get("type") || "invite", 80);
-      if (inviteToken && inviteType.toLowerCase() === "invite") {
+      if (tokenToUse && inviteType.toLowerCase() === "invite") {
         const direct = new URL(target);
-        direct.searchParams.set(parsed.searchParams.has("token_hash") ? "token_hash" : "token", inviteToken);
+        direct.searchParams.set(useTokenHash ? "token_hash" : "token", tokenToUse);
         direct.searchParams.set("type", inviteType);
         return direct.toString();
       }
@@ -1412,7 +1418,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
               invite_sent_at: new Date().toISOString(),
             },
           });
-          actionLink = fixInviteLink(action?.actionLink || "", redirectTo);
+          actionLink = fixInviteLink(action?.actionLink || "", redirectTo, action?.hashedToken || "");
         } catch (error) {
           actionLink = "";
           linkWarning = sanitizeString(error?.message || "Unable to generate a backup invite link.", 240);
@@ -1463,7 +1469,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
       },
     });
 
-    const actionLink = fixInviteLink(action?.actionLink || "", redirectTo);
+    const actionLink = fixInviteLink(action?.actionLink || "", redirectTo, action?.hashedToken || "");
     let emailPayload = { skipped: true };
     let warning = "";
     try {
@@ -1519,7 +1525,7 @@ const inviteAdminUser = async (payload = {}, adminUser = {}, event = {}) => {
       invitedAt: new Date().toISOString(),
       redirectTo,
       inviteSent: false,
-      actionLink: fixInviteLink(action.actionLink, redirectTo),
+      actionLink: fixInviteLink(action.actionLink, redirectTo, action?.hashedToken || ""),
       warning: sanitizeString(error?.message || "Invite email could not be sent.", 500),
     };
   }
