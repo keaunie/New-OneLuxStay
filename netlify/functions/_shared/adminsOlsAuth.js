@@ -618,26 +618,31 @@ export const acceptAdminsOlsInvite = async ({
     ? desiredRoleRaw
     : ADMINS_OLS_ROLE;
 
-  // One-time acceptance: set password and mark invite accepted.
-  const updateBody = {
-    password: normalizedPassword,
-    data: {
-      ...(typeof userMetadata === "object" && userMetadata ? userMetadata : {}),
-      invite_pending: false,
-      invite_accepted_at: new Date().toISOString(),
-      ...(normalizedFullName
-        ? {
-            full_name: normalizedFullName,
-            fullName: normalizedFullName,
-          }
-        : {}),
-    },
-  };
-
+  // Call 1: Accept the invite by setting only the password.
+  // Supabase GoTrue rejects any `data` fields on the OTP session used for invite acceptance.
   const updatedUser = await callSupabaseAuth("user", {
     method: "PUT",
     accessToken: normalizedAccessToken,
-    body: updateBody,
+    body: { password: normalizedPassword },
+  });
+
+  // Call 2: Now that the session is a normal session, update user metadata.
+  await callSupabaseAuth("user", {
+    method: "PUT",
+    accessToken: normalizedAccessToken,
+    body: {
+      data: {
+        ...(typeof userMetadata === "object" && userMetadata ? userMetadata : {}),
+        invite_pending: false,
+        invite_accepted_at: new Date().toISOString(),
+        ...(normalizedFullName
+          ? {
+              full_name: normalizedFullName,
+              fullName: normalizedFullName,
+            }
+          : {}),
+      },
+    },
   });
 
   // Role hardening: promote app_metadata on the server so superadmin checks do not rely on user_metadata.
