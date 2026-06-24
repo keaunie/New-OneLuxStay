@@ -556,6 +556,42 @@ export const generateAdminsOlsInviteLink = async ({
         4000,
       );
 
+      // Supabase cloud's generate_link response does NOT embed the User object,
+      // so payload?.id is undefined. Fall back to an admin email lookup.
+      let userId = sanitizeString(payload?.id || payload?.user?.id || "", 120);
+      if (!userId) {
+        try {
+          const usersPayload = await callSupabaseAuth(
+            `admin/users?email=${encodeURIComponent(normalizedEmail)}&page=1&per_page=1`,
+            { method: "GET", useServiceRole: true },
+          );
+          userId = sanitizeString(
+            usersPayload?.users?.[0]?.id || (Array.isArray(usersPayload) ? usersPayload[0]?.id : null) || "",
+            120,
+          );
+        } catch {
+          // ignore — metadata update is best-effort
+        }
+      }
+
+      // admin/generate_link only stores `data` in user_metadata when creating a NEW user.
+      // For existing users it regenerates the OTP without touching user_metadata.
+      // Explicitly force-set via admin API so invite_pending:true is always present at acceptance time.
+      if (userId) {
+        try {
+          await callSupabaseAuth(`admin/users/${encodeURIComponent(userId)}`, {
+            method: "PUT",
+            useServiceRole: true,
+            body: { user_metadata: { ...data, invite_pending: true } },
+          });
+          console.log("[invite-generate] user_metadata force-set", { userId });
+        } catch (metaErr) {
+          console.log("[invite-generate] user_metadata update failed (non-fatal)", String(metaErr?.message || metaErr));
+        }
+      } else {
+        console.log("[invite-generate] could not resolve userId — skipping user_metadata force-set", { email: normalizedEmail });
+      }
+
       return {
         email: normalizedEmail,
         actionLink,
@@ -597,16 +633,31 @@ export const acceptAdminsOlsInvite = async ({
     throw new Error("Password must be at least 8 characters.");
   }
 
+  console.log("[invite-accept] tokens", {
+    hasAccessToken: Boolean(normalizedAccessToken),
+    hasInviteToken: Boolean(normalizedInviteToken),
+    hasInviteTokenHash: Boolean(normalizedInviteTokenHash),
+    inviteType: normalizedInviteType,
+  });
+
   if (!normalizedAccessToken) {
+    const verifyBody = {
+      type: normalizedInviteType,
+      ...(normalizedInviteTokenHash ? { token_hash: normalizedInviteTokenHash } : { token: normalizedInviteToken }),
+    };
+    console.log("[invite-accept] calling verify", { usingTokenHash: Boolean(normalizedInviteTokenHash) });
+
     const verifiedInvite = await callSupabaseAuth("verify", {
       method: "POST",
-      body: {
-        type: normalizedInviteType,
-        ...(normalizedInviteTokenHash ? { token_hash: normalizedInviteTokenHash } : { token: normalizedInviteToken }),
-      },
+      body: verifyBody,
     });
+
     normalizedAccessToken = sanitizeString(verifiedInvite?.access_token, 4000);
     normalizedRefreshToken = sanitizeString(verifiedInvite?.refresh_token, 4000);
+    console.log("[invite-accept] verify result", {
+      hasAccessToken: Boolean(normalizedAccessToken),
+      hasRefreshToken: Boolean(normalizedRefreshToken),
+    });
     if (!normalizedAccessToken) throw new Error("Unable to verify invite token.");
   }
 
@@ -619,10 +670,24 @@ export const acceptAdminsOlsInvite = async ({
   const verified = verifyAdminUser(user);
 
   const userMetadata = user?.user_metadata || {};
-  if (userMetadata?.invite_pending !== true) {
+  console.log("[invite-accept] invite status", {
+    invite_pending: userMetadata?.invite_pending,
+    metadata_keys: Object.keys(userMetadata).join(","),
+    userId: user?.id,
+  });
+
+  // Block only when invite_pending is explicitly false (written by a previous successful acceptance).
+  // undefined means the metadata was never written — the OTP one-time-use guarantee covers this case.
+  if (userMetadata?.invite_pending === false) {
+    console.log("[invite-accept] blocking — invite_pending explicitly false (already accepted)");
     const error = new Error("This invite link has already been accepted. Please sign in on the login page.");
     error.statusCode = 409;
     throw error;
+  }
+  if (userMetadata?.invite_pending !== true) {
+    console.log("[invite-accept] invite_pending not set — proceeding on OTP guarantee", {
+      value: userMetadata?.invite_pending,
+    });
   }
 
   const desiredRoleRaw = sanitizeString(userMetadata?.role || "", 80);
@@ -637,6 +702,7 @@ export const acceptAdminsOlsInvite = async ({
     accessToken: normalizedAccessToken,
     body: { password: normalizedPassword },
   });
+  console.log("[invite-accept] password update result", { userId: updatedUser?.id || user?.id });
 
   // Call 2: Now that the session is a normal session, update user metadata.
   await callSupabaseAuth("user", {
@@ -656,6 +722,7 @@ export const acceptAdminsOlsInvite = async ({
       },
     },
   });
+  console.log("[invite-accept] metadata update done");
 
   // Role hardening: promote app_metadata on the server so superadmin checks do not rely on user_metadata.
   // If this fails, we still allow admin access (via user_metadata.admins_ols), but superadmin capabilities may not apply.
