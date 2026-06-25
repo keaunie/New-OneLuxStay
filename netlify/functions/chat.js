@@ -627,6 +627,19 @@ const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
 const isCityOnlyMessage = (text = "", supportedCities = []) => {
   const cleaned = String(text || "").trim().toLowerCase().replace(/[!?.,"']+$/, "");
   if (!cleaned || cleaned.length > 40) return false;
+  const locationOnlyText = cleaned
+    .replace(/\./g, " ")
+    .replace(/\b(?:i said|in|for|at|the|please)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (
+    /^(?:antwerp|antwerpen|los angeles|losangeles|l a|la|oc|o c|orange county|socal|southern california|dtla|downtown la|downtown los angeles|west hollywood|weho|miami|miami beach|south beach|brickell|redondo|redondo beach|dubai)$/.test(
+      locationOnlyText,
+    ) &&
+    extractCityHintFromPrompt(cleaned, supportedCities)
+  ) {
+    return true;
+  }
   return supportedCities.some((city) => {
     const c = String(city || "").toLowerCase();
     return cleaned === c || cleaned === `i said ${c}` || cleaned === `in ${c}` || cleaned === `${c} please`;
@@ -1461,9 +1474,16 @@ const listingMatchesBedroomPreference = (listing = {}, preference = null) => {
 const slugifyCity = (value = "") => {
   const city = String(value || "").trim().toLowerCase();
   if (!city) return "";
-  if (city.includes("los angeles")) return "los-angeles";
+  if (
+    city.includes("los angeles") ||
+    /\b(?:o\.?\s*c\.?|orange county|socal|southern california|dtla|downtown l\.?\s*a\.?|downtown los angeles|west hollywood|weho)\b/i.test(
+      city,
+    )
+  ) {
+    return "los-angeles";
+  }
   if (city.includes("redondo")) return "redondo-beach";
-  if (city.includes("miami")) return "miami";
+  if (city.includes("miami") || city.includes("south beach") || city.includes("brickell")) return "miami";
   if (city.includes("antwerp") || city.includes("antwerpen")) return "antwerp";
   if (city.includes("dubai")) return "dubai";
   return city
@@ -1491,9 +1511,22 @@ const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
     { label: "Antwerp", patterns: [/\bantwer\w*\b/i] },
     {
       label: "Los Angeles",
-      patterns: [/\blos angeles\b/i, /\blosangeles\b/i, /\bL\.?A\.?\b/, /\b(?:in|for|at)\s+la\b/i],
+      patterns: [
+        /\blos angeles\b/i,
+        /\blosangeles\b/i,
+        /\bL\.?A\.?\b/i,
+        /\b(?:in|for|at)\s+la\b/i,
+        /\borange county\b/i,
+        /\b(?:the\s+)?o\.?\s*c\.?\b/i,
+        /\bsocal\b/i,
+        /\bsouthern california\b/i,
+        /\bdtla\b/i,
+        /\bdowntown\s+(?:l\.?\s*a\.?|los angeles)\b/i,
+        /\bwest hollywood\b/i,
+        /\bweho\b/i,
+      ],
     },
-    { label: "Miami", patterns: [/\bmiami\b/i, /\bmiami beach\b/i] },
+    { label: "Miami", patterns: [/\bmiami\b/i, /\bmiami beach\b/i, /\bsouth beach\b/i, /\bbrickell\b/i] },
     { label: "Redondo Beach", patterns: [/\bredondo\b/i, /\bredondo beach\b/i] },
     { label: "Dubai", patterns: [/\bdubai\b/i] },
   ];
@@ -1529,11 +1562,29 @@ const normalizeCityLabel = (value = "") => {
   const source = sanitizeString(value, 120);
   if (!source) return "";
   const lower = source.toLowerCase();
+  const compact = lower.replace(/\./g, "").replace(/\s+/g, " ").trim();
   if (lower.includes("antwerpen") || lower.includes("antwerp")) return "Antwerp";
-  if (lower.includes("los angeles") || lower === "la" || lower.includes("losangeles")) return "Los Angeles";
+  if (
+    lower.includes("los angeles") ||
+    lower === "la" ||
+    compact === "la" ||
+    compact === "l a" ||
+    lower.includes("losangeles") ||
+    compact === "oc" ||
+    compact === "the oc" ||
+    /\borange county\b/.test(lower) ||
+    /\bsocal\b/.test(lower) ||
+    /\bsouthern california\b/.test(lower) ||
+    /\bdtla\b/.test(lower) ||
+    /\bdowntown\s+(?:l\.?\s*a\.?|los angeles)\b/.test(lower) ||
+    /\bwest hollywood\b/.test(lower) ||
+    /\bweho\b/.test(lower)
+  ) {
+    return "Los Angeles";
+  }
   if (lower.includes("dubai")) return "Dubai";
   if (lower.includes("redondo")) return "Redondo Beach";
-  if (lower.includes("miami")) return "Miami";
+  if (lower.includes("miami") || lower.includes("south beach") || lower.includes("brickell")) return "Miami";
   return source;
 };
 
@@ -2161,7 +2212,7 @@ const respondWithIntentPayload = async ({
   });
 };
 
-const fallbackResponse = ({
+const fallbackResponse = async ({
   event,
   latestUserMessage,
   pageContext,
@@ -2186,13 +2237,37 @@ const fallbackResponse = ({
     supportedCities,
     languageProfile,
   });
-  const baseReply = skipLocalization
+  let baseReply = skipLocalization
     ? fallbackReply
     : buildSentimentAwareReply({
         reply: fallbackReply,
         latestUserMessage: latestUserMessage?.content || "",
         lessons: sentimentLessons,
       });
+  const shouldTryFallbackRescue =
+    Boolean(apiKey) &&
+    isGenericFallbackText(baseReply) &&
+    countGenericFallbackReplies(messages) > 0 &&
+    countPreviousMatchingUserMessages({ messages, latestUserMessage }) < 2 &&
+    !hasRecentAttentionHandoff(messages);
+
+  if (shouldTryFallbackRescue) {
+    const rescueReply = await buildFallbackRescueReply({
+      apiKey,
+      model,
+      latestUserMessage,
+      pageContext,
+      messages,
+      conciergeKnowledge,
+      supportedCities,
+      languageProfile,
+      fallbackReply: baseReply,
+    });
+
+    if (rescueReply && !isGenericFallbackText(rescueReply)) {
+      baseReply = rescueReply;
+    }
+  }
 
   return buildFallbackOrAttentionResponse({
     event,
@@ -2224,6 +2299,74 @@ const isGenericFallbackText = (value = "") => {
     normalized.includes("im lucy the one lux stay concierge") ||
     normalized.includes("what can i help you with")
   );
+};
+
+const countGenericFallbackReplies = (messages = []) =>
+  (messages || []).filter((message) => message?.role === "assistant" && isGenericFallbackText(message?.content || "")).length;
+
+const countPreviousMatchingUserMessages = ({ messages = [], latestUserMessage } = {}) => {
+  const latest = normalizeComparableReply(latestUserMessage?.content || "");
+  if (!latest) return 0;
+
+  const userMessages = (messages || [])
+    .filter((message) => message?.role !== "assistant")
+    .map((message) => normalizeComparableReply(message?.content || ""))
+    .filter(Boolean);
+  const previousMessages = userMessages[userMessages.length - 1] === latest ? userMessages.slice(0, -1) : userMessages;
+
+  return previousMessages.filter((message) => message === latest).length;
+};
+
+const buildFallbackRescueReply = async ({
+  apiKey = "",
+  model = "gpt-5-mini",
+  latestUserMessage,
+  pageContext = {},
+  messages = [],
+  conciergeKnowledge,
+  supportedCities = [],
+  languageProfile,
+  fallbackReply = "",
+} = {}) => {
+  const guestMessage = sanitizeString(latestUserMessage?.content || "", 600);
+  if (!apiKey || !guestMessage) return "";
+
+  const languageInstruction = buildLanguageReplyInstruction({ languageProfile, latestUserMessage });
+  const cityHint = normalizeCityLabel(extractCityHintFromPrompt(guestMessage, supportedCities) || pageContext?.city || "");
+  const knowledgeText = conciergeKnowledge ? buildKnowledgeText(conciergeKnowledge) : "";
+  const input = [
+    knowledgeText,
+    "Current website context:",
+    `Page title: ${pageContext?.title || "Unknown"}`,
+    `Pathname: ${pageContext?.pathname || "/"}`,
+    `Page type: ${pageContext?.pageType || "Unknown"}`,
+    `City context: ${pageContext?.city || cityHint || "Unknown"}`,
+    cityHint ? `Interpreted location: ${cityHint}` : "",
+    "",
+    "Recent conversation:",
+    formatTranscript((messages || []).slice(-8)),
+    "",
+    `The guest said: ${guestMessage}`,
+    `Avoid repeating this generic fallback: ${sanitizeString(fallbackReply, 500)}`,
+    "Answer helpfully without repeating the intro. Do not start with \"I'm Lucy\". If the guest provided an informal or partial location, acknowledge the inferred supported area and ask for check-in/check-out dates plus guest count if needed. Return only the guest-facing reply.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return requestSimpleGuestReply({
+    apiKey,
+    model,
+    instructions: [
+      buildSiteContext(supportedCities),
+      languageInstruction ? `Language: ${languageInstruction}` : "",
+      "The previous answer would have been generic. Give a specific, concise concierge response instead.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    input,
+    maxOutputTokens: 400,
+    timeoutMs: 15_000,
+  });
 };
 
 const shouldEscalateGuestAttention = ({ messages = [], reply = "" } = {}) => {
@@ -2313,9 +2456,10 @@ const buildFallbackOrAttentionResponse = async ({
   apiKey = "",
   model = "gpt-5-mini",
 }) => {
+  const repeatedGuestMessageCount = countPreviousMatchingUserMessages({ messages, latestUserMessage });
   const shouldEscalate =
     isGenericFallbackText(reply) &&
-    shouldEscalateGuestAttention({ messages, reply }) &&
+    (shouldEscalateGuestAttention({ messages, reply }) || repeatedGuestMessageCount >= 2) &&
     !hasRecentAttentionHandoff(messages);
 
   if (shouldEscalate) {
@@ -2436,6 +2580,48 @@ const extractOutputText = (payload) => {
   });
 
   return parts.join("\n").trim();
+};
+
+const requestSimpleGuestReply = async ({
+  apiKey = "",
+  model = "gpt-5-mini",
+  instructions = "",
+  input = "",
+  maxOutputTokens = 400,
+  timeoutMs = 15_000,
+} = {}) => {
+  if (!apiKey) return "";
+
+  try {
+    const response = await fetchWithTimeout(
+      OPENAI_API_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          instructions,
+          input,
+          max_output_tokens: maxOutputTokens,
+        }),
+      },
+      timeoutMs,
+    );
+    const text = await response.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      return "";
+    }
+    if (!response.ok) return "";
+    return sanitizeString(extractOutputText(data), 3000);
+  } catch {
+    return "";
+  }
 };
 
 const toVectorLiteral = (values = []) => `[${values.map((value) => Number(value) || 0).join(",")}]`;
@@ -5060,7 +5246,7 @@ export async function handler(event) {
           sentimentLearningText,
           languageInstruction,
         }),
-        reasoning: { effort: "low" },
+        reasoning: { effort: "medium" },
         text: { verbosity: "low" },
         max_output_tokens: 900,
       }),
@@ -5126,6 +5312,41 @@ export async function handler(event) {
 
     const reply = extractOutputText(data);
     if (!reply) {
+      const retryReply = await requestSimpleGuestReply({
+        apiKey,
+        model,
+        instructions: [
+          siteContext,
+          languageInstruction ? `Language: ${languageInstruction}` : "",
+          "Respond helpfully to the latest guest message. If the guest gave a partial or informal location such as OC, infer the closest supported One Lux Stay area and ask for dates plus guest count when booking details are missing.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        input: buildInput({
+          pageContext,
+          messages,
+          knowledgeText,
+          retrievedPolicyText,
+          learningText,
+          sentimentLearningText,
+          languageInstruction,
+        }),
+        maxOutputTokens: 400,
+        timeoutMs: 15_000,
+      });
+
+      if (retryReply) {
+        return respondWithGuestPayload({
+          event,
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          reply: retryReply,
+          translateReply: Boolean(languageProfile?.shouldTranslate),
+        });
+      }
+
       return fallbackResponse({
         event,
         latestUserMessage,
