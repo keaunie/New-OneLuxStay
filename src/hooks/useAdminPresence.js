@@ -8,7 +8,16 @@ import { getNormalizedUserRole } from "../../shared/adminRoles.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const ACTIVITY_PUSH_DEBOUNCE_MS = 3_500;
+const ONLINE_WINDOW_MS = 60_000;
+const AWAY_WINDOW_MS = 300_000;
+const RECENT_OFFLINE_WINDOW_MS = 6 * 60 * 60_000;
+const STALE_CLEANUP_WINDOW_MS = 24 * 60 * 60_000;
+const PRESENCE_SESSION_STORAGE_PREFIX = "ols-admin-presence-session";
 const LOG_PREFIX = "[Admin Presence]";
+const DEBUG_PRESENCE =
+  String(import.meta.env.VITE_ADMIN_PRESENCE_DEBUG || "")
+    .trim()
+    .toLowerCase() === "true";
 
 const sanitizeString = (value = "", maxLength = 300) =>
   String(value || "")
@@ -58,6 +67,7 @@ const getSessionDiagnostics = ({ adminId = "", email = "", accessToken = "", rol
 });
 
 const logPresence = (stage = "", detail = {}) => {
+  if (!DEBUG_PRESENCE) return;
   console.log(`${LOG_PREFIX} ${stage}`, detail);
 };
 
@@ -90,19 +100,77 @@ const generateSessionId = (adminId = "") => {
   return sanitizeString(`${prefix}:${randomPart}`, 140);
 };
 
+const canUseSessionStorage = () => {
+  try {
+    return typeof window !== "undefined" && Boolean(window.sessionStorage);
+  } catch {
+    return false;
+  }
+};
+
+const getPresenceSessionStorageKey = (adminId = "") =>
+  `${PRESENCE_SESSION_STORAGE_PREFIX}:${sanitizeString(adminId, 120) || "anonymous"}`;
+
+const readStoredPresenceSession = (adminId = "") => {
+  if (!adminId || !canUseSessionStorage()) return null;
+  try {
+    const raw = window.sessionStorage.getItem(getPresenceSessionStorageKey(adminId));
+    const parsed = raw ? JSON.parse(raw) : null;
+    const sessionId = sanitizeString(parsed?.sessionId, 140);
+    const loggedInAt = sanitizeString(parsed?.loggedInAt, 80);
+    if (!sessionId || !loggedInAt) return null;
+    return { sessionId, loggedInAt };
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredPresenceSession = (adminId = "", value = {}) => {
+  if (!adminId || !canUseSessionStorage()) return;
+  try {
+    window.sessionStorage.setItem(getPresenceSessionStorageKey(adminId), JSON.stringify(value));
+  } catch {
+    // Ignore browser storage failures; heartbeat still works with an in-memory session id.
+  }
+};
+
+const getOrCreatePresenceSession = (adminId = "") => {
+  const normalizedAdminId = sanitizeString(adminId, 120);
+  if (!normalizedAdminId) return { sessionId: "", loggedInAt: "" };
+
+  const stored = readStoredPresenceSession(normalizedAdminId);
+  if (stored) return stored;
+
+  const next = {
+    sessionId: generateSessionId(normalizedAdminId),
+    loggedInAt: new Date().toISOString(),
+  };
+  writeStoredPresenceSession(normalizedAdminId, next);
+  return next;
+};
+
 const toTimestamp = (value = "") => {
   const parsed = Date.parse(String(value || ""));
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const getPresenceAgeMs = (row = {}) => {
+  const timestamp = toTimestamp(row?.last_active_at);
+  if (!timestamp) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Date.now() - timestamp);
+};
+
 const getStatusFromRow = (row = {}) => {
   const explicitStatus = sanitizeString(row?.status, 20).toLowerCase();
   if (explicitStatus === "offline") return "offline";
-  const ageMs = Date.now() - toTimestamp(row?.last_active_at);
-  if (ageMs <= 60_000) return "online";
-  if (ageMs <= 300_000) return "away";
+  const ageMs = getPresenceAgeMs(row);
+  if (ageMs <= ONLINE_WINDOW_MS) return "online";
+  if (ageMs <= AWAY_WINDOW_MS) return "away";
   return "offline";
 };
+
+const isRecentPresenceRow = (row = {}) =>
+  getStatusFromRow(row) !== "offline" || getPresenceAgeMs(row) <= RECENT_OFFLINE_WINDOW_MS;
 
 const mergePresenceRow = (rows = [], nextRow = {}) => {
   const sessionId = sanitizeString(nextRow?.session_id, 140);
@@ -139,7 +207,9 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   const fullName = sanitizeString(session?.user?.fullName, 160);
   const role = sanitizeString(getNormalizedUserRole(session?.user || {}), 80) || "admin";
   const normalizedPath = sanitizeString(currentPath || "/", 240) || "/";
-  const sessionId = useMemo(() => (adminId ? generateSessionId(adminId) : ""), [adminId]);
+  const presenceSession = useMemo(() => getOrCreatePresenceSession(adminId), [adminId]);
+  const sessionId = presenceSession.sessionId;
+  const persistedLoggedInAt = presenceSession.loggedInAt;
 
   const canRun = enabled && Boolean(adminId && email && accessToken && hasSupabasePresenceConfig);
 
@@ -305,6 +375,21 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     setLastSyncedAt(new Date().toISOString());
   }, [accessToken, adminId, canRun, email, role]);
 
+  const pruneOwnStalePresenceRows = useCallback(async () => {
+    if (!canRun || !clientRef.current || !adminId) return;
+    const cutoffIso = new Date(Date.now() - STALE_CLEANUP_WINDOW_MS).toISOString();
+    const { error: cleanupError } = await clientRef.current
+      .from("admin_presence")
+      .delete()
+      .eq("admin_id", adminId)
+      .neq("session_id", sessionId)
+      .lt("last_active_at", cutoffIso);
+
+    if (cleanupError) {
+      logPresenceError("stale presence cleanup error", cleanupError, { cutoffIso, adminId, sessionId });
+    }
+  }, [adminId, canRun, sessionId]);
+
   useEffect(() => {
     if (!canRun) {
       logPresence("heartbeat initialization stopped", {
@@ -346,7 +431,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     });
 
     const nowIso = new Date().toISOString();
-    loggedInAtRef.current = nowIso;
+    loggedInAtRef.current = persistedLoggedInAt || nowIso;
     lastInteractionAtRef.current = Date.now();
 
     const channel = client
@@ -420,6 +505,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     upsertPresence({ statusOverride: "online" }).catch((error) =>
       logPresenceError("initial heartbeat rejected", error),
     );
+    pruneOwnStalePresenceRows().catch((error) => logPresenceError("stale presence cleanup rejected", error));
 
     const intervalId = window.setInterval(() => {
       const inactiveMs = Date.now() - lastInteractionAtRef.current;
@@ -459,6 +545,8 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     enabled,
     fetchPresenceRows,
     markOfflineBestEffort,
+    persistedLoggedInAt,
+    pruneOwnStalePresenceRows,
     role,
     sessionId,
     upsertPresence,
@@ -473,10 +561,13 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
 
   const decoratedRows = useMemo(
     () =>
-      rows.map((row) => ({
-        ...row,
-        computed_status: getStatusFromRow(row),
-      })),
+      rows
+        .map((row) => ({
+          ...row,
+          computed_status: getStatusFromRow(row),
+          presence_age_ms: getPresenceAgeMs(row),
+        }))
+        .filter(isRecentPresenceRow),
     [rows],
   );
 

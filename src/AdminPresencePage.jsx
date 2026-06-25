@@ -11,8 +11,13 @@ import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminPresencePage.css";
 
 const LOG_PREFIX = "[Admin Presence Page]";
+const DEBUG_PRESENCE_PAGE =
+  String(import.meta.env.VITE_ADMIN_PRESENCE_DEBUG || "")
+    .trim()
+    .toLowerCase() === "true";
 
 const logPresencePage = (stage = "", detail = {}) => {
+  if (!DEBUG_PRESENCE_PAGE) return;
   console.log(`${LOG_PREFIX} ${stage}`, detail);
 };
 
@@ -79,6 +84,115 @@ const getStatusLabel = (status = "") => {
   if (normalized === "online") return "ONLINE";
   if (normalized === "away") return "AWAY";
   return "OFFLINE";
+};
+
+const STATUS_SORT_ORDER = {
+  online: 0,
+  away: 1,
+  offline: 2,
+};
+
+const PAGE_LABELS = [
+  [/^\/executive-ols\/admin-presence/i, "Live Admin Monitor"],
+  [/^\/executive-ols\/guest-journeys/i, "Guest Journeys"],
+  [/^\/executive-ols\/conversations/i, "Conversations"],
+  [/^\/executive-ols\/chat\//i, "Guest Chat"],
+  [/^\/executive-ols\/whatsapp/i, "WhatsApp Inbox"],
+  [/^\/executive-ols\/calls/i, "Calls"],
+  [/^\/executive-ols\/audit/i, "Audit Center"],
+  [/^\/executive-ols\/blog/i, "Blog Admin"],
+  [/^\/executive-ols\/?$/i, "Executive Dashboard"],
+  [/^\/admin-reservations/i, "Reservations"],
+  [/^\/dev-ols\/config/i, "System Config"],
+  [/^\/ai-agent/i, "AI Agent Console"],
+];
+
+const toTitleCase = (value = "") =>
+  String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const getFriendlyPageName = (path = "") => {
+  const normalized = String(path || "/").split("?")[0] || "/";
+  const matched = PAGE_LABELS.find(([pattern]) => pattern.test(normalized));
+  if (matched) return matched[1];
+  if (normalized === "/") return "Website Home";
+  const segment = normalized.split("/").filter(Boolean).at(-1);
+  return segment ? toTitleCase(segment) : normalized;
+};
+
+const getDeviceLabel = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "mobile") return "Mobile";
+  if (normalized === "tablet") return "Tablet";
+  return "Desktop";
+};
+
+const getStatusSortValue = (status = "") => STATUS_SORT_ORDER[String(status || "").toLowerCase()] ?? 3;
+
+const getRowTime = (row = {}) => {
+  const parsed = Date.parse(String(row?.last_active_at || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getAdminGroupKey = (row = {}) =>
+  String(row?.admin_id || row?.email || row?.session_id || row?.id || "unknown").trim().toLowerCase();
+
+const getAdminDisplayName = (row = {}) => String(row?.full_name || row?.email || "Admin").trim();
+
+const buildAdminGroups = (rows = []) => {
+  const groups = new Map();
+
+  rows.forEach((row) => {
+    const key = getAdminGroupKey(row);
+    const current = groups.get(key) || {
+      key,
+      name: getAdminDisplayName(row),
+      email: String(row?.email || "").trim(),
+      role: String(row?.role || "admin").trim(),
+      sessions: [],
+    };
+
+    current.sessions.push({
+      ...row,
+      friendly_page: getFriendlyPageName(row?.current_path || "/"),
+      device_label: getDeviceLabel(row?.device_type),
+      computed_status: String(row?.computed_status || row?.status || "offline").toLowerCase(),
+    });
+    groups.set(key, current);
+  });
+
+  return [...groups.values()]
+    .map((group) => {
+      const sessions = group.sessions.sort((left, right) => {
+        const statusDelta = getStatusSortValue(left.computed_status) - getStatusSortValue(right.computed_status);
+        if (statusDelta) return statusDelta;
+        return getRowTime(right) - getRowTime(left);
+      });
+      const primary = sessions[0] || {};
+      const devices = [...new Set(sessions.map((row) => row.device_label).filter(Boolean))];
+      const activeSessions = sessions.filter((row) => row.computed_status !== "offline");
+
+      return {
+        ...group,
+        name: getAdminDisplayName(primary) || group.name,
+        email: String(primary?.email || group.email || "").trim(),
+        role: String(primary?.role || group.role || "admin").trim(),
+        status: primary.computed_status || "offline",
+        currentPage: primary.friendly_page || "Unknown",
+        lastActiveAt: primary.last_active_at || "",
+        devices,
+        sessions,
+        activeSessionCount: activeSessions.length,
+      };
+    })
+    .sort((left, right) => {
+      const statusDelta = getStatusSortValue(left.status) - getStatusSortValue(right.status);
+      if (statusDelta) return statusDelta;
+      return getRowTime({ last_active_at: right.lastActiveAt }) - getRowTime({ last_active_at: left.lastActiveAt });
+    });
 };
 
 const getInitials = (row = {}) => {
@@ -170,9 +284,6 @@ function AdminPresencePage() {
     rows,
     loading,
     error,
-    onlineCount,
-    awayCount,
-    offlineCount,
     lastSyncedAt,
     refreshNow,
     hasRealtime,
@@ -183,6 +294,15 @@ function AdminPresencePage() {
   });
 
   const isSuperAdmin = userHasSuperAdminRole(session?.user || {});
+  const adminGroups = useMemo(() => buildAdminGroups(rows), [rows]);
+  const onlineGroups = useMemo(() => adminGroups.filter((group) => group.status === "online"), [adminGroups]);
+  const awayGroups = useMemo(() => adminGroups.filter((group) => group.status === "away"), [adminGroups]);
+  const offlineGroups = useMemo(() => adminGroups.filter((group) => group.status === "offline"), [adminGroups]);
+  const activeSessionCount = useMemo(
+    () => rows.filter((row) => String(row?.computed_status || "").toLowerCase() !== "offline").length,
+    [rows],
+  );
+  const activeAdminCount = onlineGroups.length + awayGroups.length;
 
   if (!authChecking && !session?.accessToken && !session?.sharedKey) {
     return <Navigate to="/executive-ols/login?next=%2Fexecutive-ols%2Fadmin-presence" replace />;
@@ -192,17 +312,62 @@ function AdminPresencePage() {
     return <Navigate to="/executive-ols" replace />;
   }
 
+  const renderAdminGroup = (group, { compact = false } = {}) => {
+    const visibleSessions = compact ? group.sessions.slice(0, 2) : group.sessions;
+    return (
+      <article key={group.key} className={`admin-presence-admin is-${group.status}`}>
+        <div className="admin-presence-admin-main">
+          <div className="admin-presence-avatar">{getInitials(group.sessions[0] || {})}</div>
+          <div className="admin-presence-identity">
+            <h2>{group.name || "Admin"}</h2>
+            <p>{group.email || "No email"}</p>
+          </div>
+          <span className={`admin-presence-status is-${group.status}`}>{getStatusLabel(group.status)}</span>
+        </div>
+
+        <div className="admin-presence-admin-summary">
+          <div>
+            <span>Current page</span>
+            <strong>{group.currentPage}</strong>
+          </div>
+          <div>
+            <span>Last active</span>
+            <strong>{formatRelative(group.lastActiveAt)}</strong>
+          </div>
+          <div>
+            <span>Device</span>
+            <strong>{group.devices.join(", ") || "Unknown"}</strong>
+          </div>
+        </div>
+
+        <div className="admin-presence-session-list" aria-label={`${group.name || "Admin"} sessions`}>
+          {visibleSessions.map((row) => (
+            <div key={row.session_id || row.id} className={`admin-presence-session is-${row.computed_status}`}>
+              <span className="admin-presence-session-page">{row.friendly_page}</span>
+              <span>{row.device_label}</span>
+              <span>{formatRelative(row.last_active_at)}</span>
+              <span>{formatDuration(row.logged_in_at)}</span>
+            </div>
+          ))}
+          {compact && group.sessions.length > visibleSessions.length && (
+            <div className="admin-presence-session-more">+{group.sessions.length - visibleSessions.length} more sessions</div>
+          )}
+        </div>
+      </article>
+    );
+  };
+
   return (
     <div className="admin-presence-page">
       <header className="admin-presence-hero">
         <div className="admin-presence-hero-copy">
           <p className="admin-presence-eyebrow">OneLuxStay Executive</p>
-          <p className="admin-presence-superadmin-badge">Superadmin Control Center</p>
-          <h1>Live Admin Presence</h1>
-          <p>Monitor active admins, route context, and real-time availability across the admin system.</p>
+          <h1>Live Admin Monitor</h1>
           <div className="admin-presence-meta">
             <span>Last sync: {lastSyncedAt ? formatDateTime(lastSyncedAt) : "Waiting..."}</span>
             <span>{hasRealtime ? "Realtime connected" : "Realtime unavailable"}</span>
+            <span>{activeAdminCount} active admins</span>
+            <span>{rows.length} recent sessions tracked</span>
           </div>
         </div>
         <div className="admin-presence-hero-actions">
@@ -221,74 +386,83 @@ function AdminPresencePage() {
 
       <section className="admin-presence-stats" aria-label="Presence summary">
         <article>
-          <span>Online</span>
-          <strong>{onlineCount}</strong>
+          <span>Online Admins</span>
+          <strong>{onlineGroups.length}</strong>
         </article>
         <article>
-          <span>Away</span>
-          <strong>{awayCount}</strong>
+          <span>Away Admins</span>
+          <strong>{awayGroups.length}</strong>
         </article>
         <article>
-          <span>Offline</span>
-          <strong>{offlineCount}</strong>
+          <span>Recent Offline</span>
+          <strong>{offlineGroups.length}</strong>
         </article>
         <article>
-          <span>Total Sessions</span>
-          <strong>{rows.length}</strong>
+          <span>Active Sessions</span>
+          <strong>{activeSessionCount}</strong>
         </article>
       </section>
 
       {error && <div className="admin-presence-error">{error}</div>}
 
-      <section className="admin-presence-grid" aria-label="Admin presence cards">
-        {rows.map((row) => {
-          const status = String(row?.computed_status || row?.status || "offline").toLowerCase();
-          return (
-            <article key={row.session_id || row.id} className="admin-presence-card">
-              <div className="admin-presence-card-head">
-                <div className="admin-presence-avatar">{getInitials(row)}</div>
-                <div className="admin-presence-identity">
-                  <h2>{row.full_name || "Admin"}</h2>
-                  <p>{row.email || "No email"}</p>
-                </div>
-                <span className={`admin-presence-status is-${status}`}>{getStatusLabel(status)}</span>
+      <section className="admin-presence-monitor" aria-label="Live admin monitor">
+        <div className="admin-presence-live-column">
+          <section className="admin-presence-section">
+            <div className="admin-presence-section-head">
+              <div>
+                <span>Online</span>
+                <h2>Who is working now</h2>
               </div>
-              <dl className="admin-presence-details">
-                <div>
-                  <dt>Role</dt>
-                  <dd>{row.role || "admin"}</dd>
-                </div>
-                <div>
-                  <dt>Device</dt>
-                  <dd>{row.device_type || "desktop"}</dd>
-                </div>
-                <div>
-                  <dt>Path</dt>
-                  <dd>{row.current_path || "/"}</dd>
-                </div>
-                <div>
-                  <dt>Last Active</dt>
-                  <dd>{formatRelative(row.last_active_at)}</dd>
-                </div>
-                <div>
-                  <dt>Session Started</dt>
-                  <dd>{formatDateTime(row.logged_in_at)}</dd>
-                </div>
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{formatDuration(row.logged_in_at)}</dd>
-                </div>
-              </dl>
-            </article>
-          );
-        })}
-        {!rows.length && !loading && (
-          <article className="admin-presence-empty">
-            <h3>No active admin sessions yet.</h3>
-            <p>Once admins log in, their live presence will appear here automatically.</p>
-          </article>
-        )}
+              <strong>{onlineGroups.length}</strong>
+            </div>
+            <div className="admin-presence-stack">
+              {onlineGroups.map((group) => renderAdminGroup(group))}
+              {!onlineGroups.length && !loading && (
+                <div className="admin-presence-empty">No admins are online right now.</div>
+              )}
+            </div>
+          </section>
+
+          <section className="admin-presence-section">
+            <div className="admin-presence-section-head">
+              <div>
+                <span>Away</span>
+                <h2>Recently active</h2>
+              </div>
+              <strong>{awayGroups.length}</strong>
+            </div>
+            <div className="admin-presence-stack">
+              {awayGroups.map((group) => renderAdminGroup(group))}
+              {!awayGroups.length && !loading && (
+                <div className="admin-presence-empty">No recently idle admins.</div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <aside className="admin-presence-offline-panel" aria-label="Recently offline admins">
+          <div className="admin-presence-section-head">
+            <div>
+              <span>Offline</span>
+              <h2>Recent only</h2>
+            </div>
+            <strong>{offlineGroups.length}</strong>
+          </div>
+          <div className="admin-presence-stack">
+            {offlineGroups.map((group) => renderAdminGroup(group, { compact: true }))}
+            {!offlineGroups.length && !loading && (
+              <div className="admin-presence-empty">No recent offline sessions.</div>
+            )}
+          </div>
+        </aside>
       </section>
+
+      {!adminGroups.length && !loading && (
+        <section className="admin-presence-empty admin-presence-empty--wide">
+          <h3>No admin sessions yet.</h3>
+          <p>Active admins will appear here automatically after their first heartbeat.</p>
+        </section>
+      )}
     </div>
   );
 }
