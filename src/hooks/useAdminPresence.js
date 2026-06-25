@@ -178,7 +178,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
       return undefined;
     }
 
-    const client = getSupabasePresenceClient();
+    const client = getSupabasePresenceClient(accessToken);
     if (!client) {
       setError("Unable to initialize Supabase client for presence.");
       return undefined;

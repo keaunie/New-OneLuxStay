@@ -15,26 +15,24 @@ const supabaseAnonKey = resolveValue(
   import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY,
 );
 
-let cachedClient = null;
-
 export const hasSupabasePresenceConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const getSupabasePresenceClient = () => {
+export const getSupabasePresenceClient = (accessToken = "") => {
   if (!hasSupabasePresenceConfig) return null;
-  if (cachedClient) return cachedClient;
 
-  cachedClient = createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
+    global: {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    },
     realtime: {
       params: { eventsPerSecond: 10 },
     },
   });
-
-  return cachedClient;
 };
 
 export const getSupabasePresenceRestConfig = () => ({
