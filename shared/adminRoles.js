@@ -1,6 +1,7 @@
 const SUPERADMIN_ROLES = new Set(["superadmin", "admins_ols_superadmin"]);
 const ADMIN_ROLES = new Set(["admin", "admins_ols", "admins_ols_superadmin", "superadmin"]);
 const GENERIC_AUTH_ROLES = new Set(["authenticated", "anon", "service_role", "supabase_admin"]);
+const PRIMARY_SUPERADMIN_EMAILS = ["admin@oneluxstay.com"];
 const RAW_SUPABASE_USER_FIELDS = new Set([
   "aud",
   "app_metadata",
@@ -21,6 +22,32 @@ const hasOwn = (source = {}, key = "") => Object.prototype.hasOwnProperty.call(s
 const looksLikeRawSupabaseUser = (user = {}) =>
   Boolean(user && typeof user === "object" && [...RAW_SUPABASE_USER_FIELDS].some((field) => hasOwn(user, field)));
 
+const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
+
+const readEnvValue = (name = "") => {
+  const processValue = globalThis?.process?.env?.[name];
+  if (processValue) return processValue;
+  return import.meta.env?.[name] || "";
+};
+
+const parseList = (value = "") =>
+  String(value || "")
+    .split(",")
+    .map((item) => normalizeEmail(item))
+    .filter(Boolean);
+
+const getSuperAdminEmails = () =>
+  new Set([
+    ...PRIMARY_SUPERADMIN_EMAILS,
+    ...parseList(readEnvValue("ADMINS_OLS_SUPERADMIN_EMAILS")),
+    ...parseList(readEnvValue("VITE_ADMINS_OLS_SUPERADMIN_EMAILS")),
+  ]);
+
+const hasSuperAdminEmail = (user = {}) => {
+  const email = normalizeEmail(user?.email);
+  return Boolean(email && getSuperAdminEmails().has(email));
+};
+
 const roleFromFlags = (source = {}) => {
   if (!source || typeof source !== "object") return "";
   if (source.superadmin === true || source.admins_ols_superadmin === true) return "admins_ols_superadmin";
@@ -35,6 +62,7 @@ export const getNormalizedUserRole = (
   const appMetadata = user?.app_metadata || {};
   const userMetadata = user?.user_metadata || {};
   const shouldTrustTopLevelRole = !looksLikeRawSupabaseUser(user);
+  if (hasSuperAdminEmail(user)) return "admins_ols_superadmin";
   const candidates = [
     user?.adminRole,
     user?.admin_role,
@@ -63,7 +91,7 @@ export const isSuperAdminRole = (value = "") => SUPERADMIN_ROLES.has(normalizeRo
 export const isAdminRole = (value = "") => ADMIN_ROLES.has(normalizeRole(value));
 
 export const userHasSuperAdminRole = (user = {}) =>
-  Boolean(user?.isSuperAdmin === true) || isSuperAdminRole(getNormalizedUserRole(user));
+  Boolean(user?.isSuperAdmin === true) || hasSuperAdminEmail(user) || isSuperAdminRole(getNormalizedUserRole(user));
 
 export const userHasAdminRole = (user = {}) =>
   isAdminRole(getNormalizedUserRole(user)) || userHasSuperAdminRole(user);
