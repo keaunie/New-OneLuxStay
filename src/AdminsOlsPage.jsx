@@ -9,6 +9,7 @@ import {
   refreshAdminsOlsSession,
   saveAdminsOlsSession,
 } from "./utils/adminsOlsAuth";
+import { useAdminPresence } from "./hooks/useAdminPresence";
 import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminsOlsPage.css";
 
@@ -635,6 +636,17 @@ function AdminsOlsPage() {
   const currentAdmin = dashboard?.currentAdmin || session?.user || {};
   const isSharedKeySession = Boolean(session?.sharedKey && !session?.accessToken);
   const isSuperAdmin = userHasSuperAdminRole(currentAdmin);
+  const adminPresencePath = useMemo(
+    () => `${location.pathname || "/"}${location.search || ""}`,
+    [location.pathname, location.search],
+  );
+
+  useAdminPresence({
+    session,
+    enabled: Boolean(session?.accessToken),
+    currentPath: adminPresencePath,
+  });
+
   const recentSessions = Array.isArray(dashboard?.recentSessions) ? dashboard.recentSessions : [];
   const recentFeedback = Array.isArray(dashboard?.recentFeedback) ? dashboard.recentFeedback : [];
   const recentAssistantMessages = Array.isArray(dashboard?.recentAssistantMessages)
