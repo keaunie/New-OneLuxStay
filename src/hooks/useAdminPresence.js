@@ -14,15 +14,158 @@ const RECENT_OFFLINE_WINDOW_MS = 6 * 60 * 60_000;
 const STALE_CLEANUP_WINDOW_MS = 24 * 60 * 60_000;
 const PRESENCE_SESSION_STORAGE_PREFIX = "ols-admin-presence-session";
 const LOG_PREFIX = "[Admin Presence]";
-const DEBUG_PRESENCE =
+const ENV_DEBUG_PRESENCE =
   String(import.meta.env.VITE_ADMIN_PRESENCE_DEBUG || "")
     .trim()
     .toLowerCase() === "true";
+const PRESENCE_DEBUG_STORAGE_KEY = "ols-admin-presence-debug";
+const MAX_DIAGNOSTIC_EVENTS = 80;
+const REDACTED_HEADER_NAMES = new Set(["authorization", "apikey"]);
+
+const isPresenceDebugEnabled = () => {
+  if (ENV_DEBUG_PRESENCE) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      String(window.localStorage?.getItem(PRESENCE_DEBUG_STORAGE_KEY) || "")
+        .trim()
+        .toLowerCase() === "true" ||
+      String(window.sessionStorage?.getItem(PRESENCE_DEBUG_STORAGE_KEY) || "")
+        .trim()
+        .toLowerCase() === "true"
+    );
+  } catch {
+    return false;
+  }
+};
 
 const sanitizeString = (value = "", maxLength = 300) =>
   String(value || "")
     .trim()
     .slice(0, maxLength);
+
+const getPresenceRuntime = () => {
+  if (typeof window === "undefined") return null;
+  window.__OLS_ADMIN_PRESENCE_DIAGNOSTICS__ ||= {
+    nextHookInstanceNumber: 1,
+    nextClientInstanceNumber: 1,
+    activeHooks: {},
+    activeIntervals: {},
+    clientsCreated: [],
+    events: [],
+    lastSuccessfulHeartbeat: null,
+    firstFailedHeartbeat: null,
+  };
+  return window.__OLS_ADMIN_PRESENCE_DIAGNOSTICS__;
+};
+
+const getNextHookInstanceId = () => {
+  const runtime = getPresenceRuntime();
+  if (!runtime) return "server";
+  const id = `presence-hook-${runtime.nextHookInstanceNumber || 1}`;
+  runtime.nextHookInstanceNumber = (runtime.nextHookInstanceNumber || 1) + 1;
+  return id;
+};
+
+const getNextClientInstanceId = () => {
+  const runtime = getPresenceRuntime();
+  if (!runtime) return "presence-client-server";
+  const id = `presence-client-${runtime.nextClientInstanceNumber || 1}`;
+  runtime.nextClientInstanceNumber = (runtime.nextClientInstanceNumber || 1) + 1;
+  return id;
+};
+
+const storeDiagnosticEvent = (event = {}) => {
+  if (!isPresenceDebugEnabled()) return;
+  const runtime = getPresenceRuntime();
+  if (!runtime) return;
+  runtime.events = [event, ...(runtime.events || [])].slice(0, MAX_DIAGNOSTIC_EVENTS);
+};
+
+const registerActiveHook = (hookInstanceId = "", detail = {}) => {
+  if (!isPresenceDebugEnabled()) return;
+  const runtime = getPresenceRuntime();
+  if (!runtime || !hookInstanceId) return;
+  runtime.activeHooks[hookInstanceId] = {
+    ...detail,
+    updatedAt: new Date().toISOString(),
+  };
+};
+
+const unregisterActiveHook = (hookInstanceId = "") => {
+  const runtime = getPresenceRuntime();
+  if (!runtime || !hookInstanceId) return;
+  delete runtime.activeHooks[hookInstanceId];
+};
+
+const registerActiveInterval = (intervalRuntimeId = "", detail = {}) => {
+  if (!isPresenceDebugEnabled()) return;
+  const runtime = getPresenceRuntime();
+  if (!runtime || !intervalRuntimeId) return;
+  runtime.activeIntervals[intervalRuntimeId] = {
+    ...detail,
+    startedAt: new Date().toISOString(),
+  };
+};
+
+const unregisterActiveInterval = (intervalRuntimeId = "") => {
+  const runtime = getPresenceRuntime();
+  if (!runtime || !intervalRuntimeId) return;
+  delete runtime.activeIntervals[intervalRuntimeId];
+};
+
+const recordClientCreated = (detail = {}) => {
+  if (!isPresenceDebugEnabled()) return;
+  const runtime = getPresenceRuntime();
+  if (!runtime) return;
+  runtime.clientsCreated = [
+    {
+      ...detail,
+      createdAt: new Date().toISOString(),
+    },
+    ...(runtime.clientsCreated || []),
+  ].slice(0, MAX_DIAGNOSTIC_EVENTS);
+};
+
+const getActiveRuntimeCounts = () => {
+  const runtime = getPresenceRuntime();
+  if (!runtime) return { activeHookCount: 0, activeIntervalCount: 0, clientCount: 0 };
+  return {
+    activeHookCount: Object.keys(runtime.activeHooks || {}).length,
+    activeIntervalCount: Object.keys(runtime.activeIntervals || {}).length,
+    clientCount: Array.isArray(runtime.clientsCreated) ? runtime.clientsCreated.length : 0,
+  };
+};
+
+const recordHeartbeatDiagnostic = (diagnostic = {}, result = {}) => {
+  if (!isPresenceDebugEnabled()) return null;
+  const runtime = getPresenceRuntime();
+  if (!runtime) return null;
+
+  const entry = {
+    ...diagnostic,
+    ...result,
+    recordedAt: new Date().toISOString(),
+    runtimeCounts: getActiveRuntimeCounts(),
+  };
+
+  if (result.ok) {
+    runtime.lastSuccessfulHeartbeat = entry;
+  } else if (!runtime.firstFailedHeartbeat) {
+    runtime.firstFailedHeartbeat = entry;
+    logPresence("first failed heartbeat comparison", {
+      lastSuccessfulHeartbeat: runtime.lastSuccessfulHeartbeat,
+      firstFailedHeartbeat: entry,
+    });
+  }
+
+  storeDiagnosticEvent({
+    type: result.ok ? "heartbeat-success" : "heartbeat-failure",
+    ...entry,
+  });
+
+  return entry;
+};
 
 const decodeJwtPayload = (token = "") => {
   try {
@@ -66,8 +209,86 @@ const getSessionDiagnostics = ({ adminId = "", email = "", accessToken = "", rol
   ...getTokenDiagnostics(accessToken),
 });
 
+const getAccessTokenHashPrefix = async (accessToken = "") => {
+  const token = String(accessToken || "");
+  if (!token) return "";
+
+  try {
+    if (typeof crypto !== "undefined" && crypto.subtle && typeof TextEncoder !== "undefined") {
+      const encoded = new TextEncoder().encode(token);
+      const digest = await crypto.subtle.digest("SHA-256", encoded);
+      return Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("")
+        .slice(0, 20);
+    }
+  } catch {
+    // Fall through to a non-cryptographic fingerprint. It is only a diagnostic token change marker.
+  }
+
+  let hash = 2166136261;
+  for (let index = 0; index < token.length; index += 1) {
+    hash ^= token.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0).toString(16).padStart(8, "0").repeat(3).slice(0, 20);
+};
+
+const getHeartbeatRequestUrl = (supabaseUrl = "") => {
+  const baseUrl = String(supabaseUrl || "").replace(/\/+$/, "");
+  if (!baseUrl) return "";
+  return `${baseUrl}/rest/v1/admin_presence?on_conflict=session_id&select=*`;
+};
+
+const summarizeHeaders = (...headerSources) => {
+  const out = {};
+  const assignHeader = (key = "", value = "") => {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) return;
+    const lowerKey = normalizedKey.toLowerCase();
+    out[normalizedKey] = REDACTED_HEADER_NAMES.has(lowerKey) ? "[redacted]" : String(value || "");
+  };
+
+  headerSources.filter(Boolean).forEach((headers) => {
+    if (headers instanceof Headers) {
+      headers.forEach((value, key) => assignHeader(key, value));
+      return;
+    }
+    if (Array.isArray(headers)) {
+      headers.forEach(([key, value]) => assignHeader(key, value));
+      return;
+    }
+    if (typeof headers === "object") {
+      Object.entries(headers).forEach(([key, value]) => assignHeader(key, value));
+    }
+  });
+
+  return out;
+};
+
+const getResponseHeaders = (headers) => {
+  const out = {};
+  try {
+    headers?.forEach((value, key) => {
+      out[key] = value;
+    });
+  } catch {
+    return out;
+  }
+  return out;
+};
+
+const getRequestUrl = (input) => {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return String(input?.url || "");
+};
+
+const getRequestMethod = (input, init = {}) =>
+  String(init?.method || input?.method || "GET").toUpperCase();
+
 const logPresence = (stage = "", detail = {}) => {
-  if (!DEBUG_PRESENCE) return;
+  if (!isPresenceDebugEnabled()) return;
   console.log(`${LOG_PREFIX} ${stage}`, detail);
 };
 
@@ -200,6 +421,15 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   const loggedInAtRef = useRef(new Date().toISOString());
   const lastInteractionAtRef = useRef(0);
   const activityPushTimeoutRef = useRef(null);
+  const hookInstanceIdRef = useRef(null);
+  const clientInstanceIdRef = useRef("");
+  const heartbeatCounterRef = useRef(0);
+  const networkContextRef = useRef(null);
+  const accessTokenHashRef = useRef("");
+
+  if (hookInstanceIdRef.current === null) {
+    hookInstanceIdRef.current = getNextHookInstanceId();
+  }
 
   const adminId = sanitizeString(session?.user?.id, 120);
   const email = sanitizeString(session?.user?.email, 200).toLowerCase();
@@ -214,7 +444,127 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   const canRun = enabled && Boolean(adminId && email && accessToken && hasSupabasePresenceConfig);
 
   useEffect(() => {
+    let active = true;
+    if (!isPresenceDebugEnabled() || !accessToken) {
+      accessTokenHashRef.current = "";
+      return () => {
+        active = false;
+      };
+    }
+
+    getAccessTokenHashPrefix(accessToken).then((hash) => {
+      if (!active) return;
+      accessTokenHashRef.current = hash;
+      logPresence("access token hash updated", {
+        hookInstanceId: hookInstanceIdRef.current,
+        userId: adminId,
+        email,
+        accessTokenHashPrefix: hash,
+        sessionExpiresAt: sanitizeString(session?.expiresAt, 80),
+        jwtExpiresAt: getTokenDiagnostics(accessToken).jwtExpiresAt,
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, adminId, email, session?.expiresAt]);
+
+  const buildHeartbeatDiagnostics = useCallback(
+    async ({ heartbeatNumber = 0, heartbeatKind = "unknown", status = "", payload = null } = {}) => {
+      const restConfig = getSupabasePresenceRestConfig();
+      const tokenDiagnostics = getTokenDiagnostics(accessToken);
+      const accessTokenHashPrefix = isPresenceDebugEnabled()
+        ? accessTokenHashRef.current || (await getAccessTokenHashPrefix(accessToken))
+        : "";
+
+      return {
+        hookInstanceId: hookInstanceIdRef.current,
+        clientInstanceId: clientInstanceIdRef.current,
+        heartbeatNumber,
+        heartbeatKind,
+        timestamp: new Date().toISOString(),
+        userId: adminId,
+        email,
+        role,
+        status,
+        currentPath: normalizedPath,
+        sessionId,
+        sessionExpiresAt: sanitizeString(session?.expiresAt, 80),
+        jwtExpiresAt: tokenDiagnostics.jwtExpiresAt,
+        jwtIssuedAt: tokenDiagnostics.jwtIssuedAt,
+        jwtRole: tokenDiagnostics.jwtRole,
+        accessTokenHashPrefix,
+        supabaseUrl: restConfig.supabaseUrl,
+        requestUrl: getHeartbeatRequestUrl(restConfig.supabaseUrl),
+        payload,
+        runtimeCounts: getActiveRuntimeCounts(),
+      };
+    },
+    [accessToken, adminId, email, normalizedPath, role, session?.expiresAt, sessionId],
+  );
+
+  const instrumentedFetch = useCallback(async (input, init = {}) => {
+    const context = networkContextRef.current || {};
+    const requestStartedAt = new Date().toISOString();
+    const requestUrl = getRequestUrl(input);
+    const method = getRequestMethod(input, init);
+    const requestHeaders = summarizeHeaders(input?.headers, init?.headers);
+
+    logPresence("network request", {
+      ...context,
+      requestStartedAt,
+      method,
+      requestUrl,
+      requestHeaders,
+      runtimeCounts: getActiveRuntimeCounts(),
+    });
+
+    try {
+      const response = await fetch(input, init);
+      const responseHeaders = getResponseHeaders(response.headers);
+      let responseBody = "";
+
+      if (!response.ok || response.status >= 500) {
+        try {
+          responseBody = await response.clone().text();
+        } catch {
+          responseBody = "[unavailable]";
+        }
+      }
+
+      logPresence("network response", {
+        ...context,
+        requestStartedAt,
+        responseReceivedAt: new Date().toISOString(),
+        method,
+        requestUrl,
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        responseHeaders,
+        responseBody: sanitizeString(responseBody, 2000),
+        runtimeCounts: getActiveRuntimeCounts(),
+      });
+
+      return response;
+    } catch (error) {
+      logPresenceError("network request failed", error, {
+        ...context,
+        requestStartedAt,
+        failedAt: new Date().toISOString(),
+        method,
+        requestUrl,
+        requestHeaders,
+        runtimeCounts: getActiveRuntimeCounts(),
+      });
+      throw error;
+    }
+  }, []);
+
+  useEffect(() => {
     logPresence("hook state", {
+      hookInstanceId: hookInstanceIdRef.current,
       enabled,
       canRun,
       hasSupabasePresenceConfig,
@@ -231,9 +581,18 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   }, [accessToken, adminId, canRun, email, enabled, normalizedPath, role]);
 
   const upsertPresence = useCallback(
-    async ({ statusOverride = "" } = {}) => {
+    async ({ statusOverride = "", heartbeatKind = "manual" } = {}) => {
+      const heartbeatNumber = heartbeatCounterRef.current + 1;
+      heartbeatCounterRef.current = heartbeatNumber;
+
       if (!canRun || !clientRef.current || !sessionId) {
+        const skippedDiagnostics = await buildHeartbeatDiagnostics({
+          heartbeatNumber,
+          heartbeatKind,
+          status: sanitizeString(statusOverride, 20).toLowerCase(),
+        });
         logPresence("heartbeat skipped", {
+          ...skippedDiagnostics,
           canRun,
           hasClient: Boolean(clientRef.current),
           sessionIdPresent: Boolean(sessionId),
@@ -259,24 +618,59 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         session_id: sessionId,
       };
 
+      const heartbeatDiagnostics = await buildHeartbeatDiagnostics({
+        heartbeatNumber,
+        heartbeatKind,
+        status,
+        payload,
+      });
+
       logPresence("sending heartbeat", {
+        ...heartbeatDiagnostics,
         payload,
         session: getSessionDiagnostics({ adminId, email, accessToken, role }),
       });
 
-      const { data, error: upsertError } = await clientRef.current
-        .from("admin_presence")
-        .upsert(payload, { onConflict: "session_id" })
-        .select("*")
-        .limit(1);
+      networkContextRef.current = heartbeatDiagnostics;
+      const heartbeatStartedAt = Date.now();
+      let data = null;
+      let upsertError = null;
+      try {
+        const response = await clientRef.current
+          .from("admin_presence")
+          .upsert(payload, { onConflict: "session_id" })
+          .select("*")
+          .limit(1);
+        data = response.data;
+        upsertError = response.error;
+      } catch (error) {
+        upsertError = error;
+      } finally {
+        networkContextRef.current = null;
+      }
 
       if (upsertError) {
         setError(sanitizeString(upsertError.message || "Unable to update live admin presence.", 300));
-        logPresenceError("heartbeat error", upsertError, { payload });
+        const failureEntry = recordHeartbeatDiagnostic(heartbeatDiagnostics, {
+          ok: false,
+          durationMs: Date.now() - heartbeatStartedAt,
+          errorMessage: upsertError?.message || "",
+          errorName: upsertError?.name || "",
+          errorCode: upsertError?.code || "",
+          errorStatus: upsertError?.status || upsertError?.statusCode || "",
+        });
+        logPresenceError("heartbeat error", upsertError, { payload, heartbeat: failureEntry || heartbeatDiagnostics });
         throw upsertError;
       }
 
+      const successEntry = recordHeartbeatDiagnostic(heartbeatDiagnostics, {
+        ok: true,
+        durationMs: Date.now() - heartbeatStartedAt,
+        returnedRows: Array.isArray(data) ? data.length : 0,
+      });
+
       logPresence("heartbeat response", {
+        ...(successEntry || heartbeatDiagnostics),
         returnedRows: Array.isArray(data) ? data.length : 0,
         rows: data,
       });
@@ -287,7 +681,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         setLastSyncedAt(nowIso);
       }
     },
-    [accessToken, adminId, canRun, email, fullName, normalizedPath, role, sessionId],
+    [accessToken, adminId, buildHeartbeatDiagnostics, canRun, email, fullName, normalizedPath, role, sessionId],
   );
 
   const markOfflineBestEffort = useCallback(() => {
@@ -310,7 +704,29 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     const nowIso = new Date().toISOString();
 
     const endpoint = `${supabaseUrl}/rest/v1/admin_presence?session_id=eq.${encodeURIComponent(sessionId)}`;
+    const heartbeatNumber = heartbeatCounterRef.current + 1;
+    heartbeatCounterRef.current = heartbeatNumber;
+    const offlineDiagnostics = {
+      hookInstanceId: hookInstanceIdRef.current,
+      clientInstanceId: clientInstanceIdRef.current,
+      heartbeatNumber,
+      heartbeatKind: "offline-keepalive",
+      timestamp: nowIso,
+      userId: adminId,
+      email,
+      role,
+      status: "offline",
+      currentPath: normalizedPath,
+      sessionId,
+      sessionExpiresAt: sanitizeString(session?.expiresAt, 80),
+      jwtExpiresAt: getTokenDiagnostics(accessToken).jwtExpiresAt,
+      accessTokenHashPrefix: accessTokenHashRef.current,
+      supabaseUrl,
+      requestUrl: endpoint,
+      runtimeCounts: getActiveRuntimeCounts(),
+    };
     logPresence("sending offline heartbeat", {
+      ...offlineDiagnostics,
       endpoint,
       sessionId,
       nowIso,
@@ -331,14 +747,27 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
       keepalive: true,
     })
       .then((response) => {
+        recordHeartbeatDiagnostic(offlineDiagnostics, {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+        });
         logPresence("offline heartbeat response", {
+          ...offlineDiagnostics,
           status: response.status,
           ok: response.ok,
           statusText: response.statusText,
         });
       })
-      .catch((error) => logPresenceError("offline heartbeat error", error, { endpoint, sessionId }));
-  }, [accessToken, adminId, email, role, sessionId]);
+      .catch((error) => {
+        const failureEntry = recordHeartbeatDiagnostic(offlineDiagnostics, {
+          ok: false,
+          errorMessage: error?.message || "",
+          errorName: error?.name || "",
+        });
+        logPresenceError("offline heartbeat error", error, { endpoint, sessionId, heartbeat: failureEntry });
+      });
+  }, [accessToken, adminId, email, normalizedPath, role, session?.expiresAt, sessionId]);
 
   const fetchPresenceRows = useCallback(async () => {
     if (!canRun || !clientRef.current) {
@@ -393,6 +822,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   useEffect(() => {
     if (!canRun) {
       logPresence("heartbeat initialization stopped", {
+        hookInstanceId: hookInstanceIdRef.current,
         enabled,
         canRun,
         hasSupabasePresenceConfig,
@@ -409,25 +839,52 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
       return undefined;
     }
 
-    const client = getSupabasePresenceClient(accessToken);
+    registerActiveHook(hookInstanceIdRef.current, {
+      adminId,
+      email,
+      role,
+      sessionId,
+      currentPath: normalizedPath,
+    });
+
+    const clientInstanceId = getNextClientInstanceId();
+    clientInstanceIdRef.current = clientInstanceId;
+    const client = getSupabasePresenceClient(accessToken, { fetch: instrumentedFetch });
     if (!client) {
       setError("Unable to initialize Supabase client for presence.");
       logPresence("Supabase presence client unavailable", {
+        hookInstanceId: hookInstanceIdRef.current,
+        clientInstanceId,
         hasSupabasePresenceConfig,
         session: getSessionDiagnostics({ adminId, email, accessToken, role }),
       });
+      unregisterActiveHook(hookInstanceIdRef.current);
       return undefined;
     }
 
+    recordClientCreated({
+      hookInstanceId: hookInstanceIdRef.current,
+      clientInstanceId,
+      adminId,
+      email,
+      role,
+      sessionId,
+      currentPath: normalizedPath,
+      accessTokenHashPrefix: accessTokenHashRef.current,
+      sessionExpiresAt: sanitizeString(session?.expiresAt, 80),
+    });
     clientRef.current = client;
     client.realtime.setAuth(accessToken);
     const restConfig = getSupabasePresenceRestConfig();
     logPresence("heartbeat initialized", {
+      hookInstanceId: hookInstanceIdRef.current,
+      clientInstanceId,
       supabaseUrl: restConfig.supabaseUrl,
       supabaseAnonKeyPresent: Boolean(restConfig.supabaseAnonKey),
       realtimeAuthSet: true,
       channelName: `admin-presence:${sessionId}`,
       session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+      runtimeCounts: getActiveRuntimeCounts(),
     });
 
     const nowIso = new Date().toISOString();
@@ -473,7 +930,10 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
       if (activityPushTimeoutRef.current) return;
       activityPushTimeoutRef.current = setTimeout(() => {
         activityPushTimeoutRef.current = null;
-        upsertPresence({ statusOverride: document.hidden ? "away" : "online" }).catch((error) =>
+        upsertPresence({
+          statusOverride: document.hidden ? "away" : "online",
+          heartbeatKind: "activity",
+        }).catch((error) =>
           logPresenceError("activity heartbeat rejected", error),
         );
       }, ACTIVITY_PUSH_DEBOUNCE_MS);
@@ -486,7 +946,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
 
     const handleVisibilityChange = () => {
       const status = document.hidden ? "away" : "online";
-      upsertPresence({ statusOverride: status }).catch((error) =>
+      upsertPresence({ statusOverride: status, heartbeatKind: "visibility" }).catch((error) =>
         logPresenceError("visibility heartbeat rejected", error, { status }),
       );
     };
@@ -502,21 +962,39 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     window.addEventListener("pagehide", handlePageHide);
 
     fetchPresenceRows().catch((error) => logPresenceError("initial presence fetch rejected", error));
-    upsertPresence({ statusOverride: "online" }).catch((error) =>
+    upsertPresence({ statusOverride: "online", heartbeatKind: "initial" }).catch((error) =>
       logPresenceError("initial heartbeat rejected", error),
     );
     pruneOwnStalePresenceRows().catch((error) => logPresenceError("stale presence cleanup rejected", error));
 
+    const intervalRuntimeId = `${hookInstanceIdRef.current}:interval:${Date.now()}`;
     const intervalId = window.setInterval(() => {
       const inactiveMs = Date.now() - lastInteractionAtRef.current;
       const computedStatus = document.hidden || inactiveMs > 60_000 ? "away" : "online";
-      upsertPresence({ statusOverride: computedStatus }).catch((error) =>
+      upsertPresence({ statusOverride: computedStatus, heartbeatKind: "interval" }).catch((error) =>
         logPresenceError("interval heartbeat rejected", error, { computedStatus, inactiveMs }),
       );
     }, HEARTBEAT_INTERVAL_MS);
+    registerActiveInterval(intervalRuntimeId, {
+      hookInstanceId: hookInstanceIdRef.current,
+      clientInstanceId,
+      adminId,
+      email,
+      sessionId,
+      intervalMs: HEARTBEAT_INTERVAL_MS,
+      currentPath: normalizedPath,
+    });
+    logPresence("heartbeat interval started", {
+      hookInstanceId: hookInstanceIdRef.current,
+      clientInstanceId,
+      intervalRuntimeId,
+      intervalMs: HEARTBEAT_INTERVAL_MS,
+      runtimeCounts: getActiveRuntimeCounts(),
+    });
 
     return () => {
       window.clearInterval(intervalId);
+      unregisterActiveInterval(intervalRuntimeId);
       listeners.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handlePageHide);
@@ -526,7 +1004,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         activityPushTimeoutRef.current = null;
       }
 
-      upsertPresence({ statusOverride: "offline" }).catch((error) =>
+      upsertPresence({ statusOverride: "offline", heartbeatKind: "cleanup" }).catch((error) =>
         logPresenceError("cleanup heartbeat rejected", error),
       );
       markOfflineBestEffort();
@@ -535,7 +1013,14 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
           .removeChannel(channelRef.current)
           .catch((error) => logPresenceError("remove realtime channel rejected", error));
       }
+      logPresence("heartbeat lifecycle cleaned up", {
+        hookInstanceId: hookInstanceIdRef.current,
+        clientInstanceId,
+        intervalRuntimeId,
+        runtimeCounts: getActiveRuntimeCounts(),
+      });
       channelRef.current = null;
+      unregisterActiveHook(hookInstanceIdRef.current);
     };
   }, [
     accessToken,
@@ -544,17 +1029,23 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     email,
     enabled,
     fetchPresenceRows,
+    instrumentedFetch,
     markOfflineBestEffort,
+    normalizedPath,
     persistedLoggedInAt,
     pruneOwnStalePresenceRows,
     role,
+    session?.expiresAt,
     sessionId,
     upsertPresence,
   ]);
 
   useEffect(() => {
     if (!canRun) return;
-    upsertPresence({ statusOverride: document.hidden ? "away" : "online" }).catch((error) =>
+    upsertPresence({
+      statusOverride: document.hidden ? "away" : "online",
+      heartbeatKind: "path",
+    }).catch((error) =>
       logPresenceError("path heartbeat rejected", error, { normalizedPath }),
     );
   }, [canRun, normalizedPath, upsertPresence]);

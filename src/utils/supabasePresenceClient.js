@@ -17,7 +17,7 @@ const supabaseAnonKey = resolveValue(
 
 export const hasSupabasePresenceConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const getSupabasePresenceClient = (accessToken = "") => {
+export const getSupabasePresenceClient = (accessToken = "", { fetch: customFetch } = {}) => {
   if (!hasSupabasePresenceConfig) return null;
 
   return createClient(supabaseUrl, supabaseAnonKey, {
@@ -28,6 +28,7 @@ export const getSupabasePresenceClient = (accessToken = "") => {
     },
     global: {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      ...(typeof customFetch === "function" ? { fetch: customFetch } : {}),
     },
     realtime: {
       params: { eventsPerSecond: 10 },
