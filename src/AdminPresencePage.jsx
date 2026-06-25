@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { useAdminPresence } from "./hooks/useAdminPresence";
 import {
@@ -9,6 +9,38 @@ import {
 import apiBase from "./utils/apiBase";
 import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import "./AdminPresencePage.css";
+
+const LOG_PREFIX = "[Admin Presence Page]";
+
+const logPresencePage = (stage = "", detail = {}) => {
+  console.log(`${LOG_PREFIX} ${stage}`, detail);
+};
+
+const logPresencePageError = (stage = "", error = null, detail = {}) => {
+  console.error(`${LOG_PREFIX} ${stage}`, {
+    ...detail,
+    error,
+    message: error?.message || "",
+    code: error?.code || "",
+    details: error?.details || "",
+    hint: error?.hint || "",
+    status: error?.status || error?.statusCode || "",
+  });
+};
+
+const getPageSessionDiagnostics = (session = null) => ({
+  sessionExists: Boolean(session),
+  hasAccessToken: Boolean(session?.accessToken),
+  accessTokenLength: String(session?.accessToken || "").length,
+  hasRefreshToken: Boolean(session?.refreshToken),
+  hasSharedKey: Boolean(session?.sharedKey),
+  databaseRole: session?.databaseRole || "",
+  expiresAt: session?.expiresAt || "",
+  userId: session?.user?.id || "",
+  email: session?.user?.email || "",
+  role: session?.user?.role || "",
+  isSuperAdmin: session?.user?.isSuperAdmin === true,
+});
 
 const formatDateTime = (value = "") => {
   if (!value) return "Unknown";
@@ -64,8 +96,14 @@ function AdminPresencePage() {
   const location = useLocation();
   const [session, setSession] = useState(() => loadAdminsOlsSession());
   const [authChecking, setAuthChecking] = useState(true);
+  const initialPathRef = useRef(`${location.pathname || "/"}${location.search || ""}`);
+  const initialSessionRef = useRef(session);
 
   useEffect(() => {
+    logPresencePage("mounted", {
+      path: initialPathRef.current,
+      initialSession: getPageSessionDiagnostics(initialSessionRef.current),
+    });
     const previousTitle = document.title;
     document.title = "OneLuxStay Live Admin Presence";
 
@@ -86,8 +124,10 @@ function AdminPresencePage() {
 
     const bootstrap = async () => {
       const loaded = loadAdminsOlsSession();
+      logPresencePage("session loaded", getPageSessionDiagnostics(loaded));
       if (!loaded?.accessToken && !loaded?.sharedKey) {
         if (active) {
+          logPresencePage("session missing; redirecting to login");
           setSession(null);
           setAuthChecking(false);
         }
@@ -95,7 +135,12 @@ function AdminPresencePage() {
       }
 
       if (loaded?.accessToken && isAdminsOlsSessionExpired(loaded)) {
-        const refreshed = await refreshAdminsOlsSession(apiBase, loaded).catch(() => null);
+        logPresencePage("session expired; refreshing", getPageSessionDiagnostics(loaded));
+        const refreshed = await refreshAdminsOlsSession(apiBase, loaded).catch((error) => {
+          logPresencePageError("session refresh failed", error, getPageSessionDiagnostics(loaded));
+          return null;
+        });
+        logPresencePage("session refresh result", getPageSessionDiagnostics(refreshed));
         if (active) {
           setSession(refreshed || null);
           setAuthChecking(false);
@@ -104,6 +149,7 @@ function AdminPresencePage() {
       }
 
       if (active) {
+        logPresencePage("session accepted", getPageSessionDiagnostics(loaded));
         setSession(loaded);
         setAuthChecking(false);
       }
@@ -160,7 +206,13 @@ function AdminPresencePage() {
           </div>
         </div>
         <div className="admin-presence-hero-actions">
-          <button type="button" onClick={() => refreshNow().catch(() => null)} disabled={loading}>
+          <button
+            type="button"
+            onClick={() =>
+              refreshNow().catch((error) => logPresencePageError("manual presence refresh failed", error))
+            }
+            disabled={loading}
+          >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
           <Link to="/executive-ols">Back to Dashboard</Link>

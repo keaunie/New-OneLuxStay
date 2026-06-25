@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/preserve-manual-memoization */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getSupabasePresenceClient,
@@ -9,11 +8,70 @@ import { getNormalizedUserRole } from "../../shared/adminRoles.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const ACTIVITY_PUSH_DEBOUNCE_MS = 3_500;
+const LOG_PREFIX = "[Admin Presence]";
 
 const sanitizeString = (value = "", maxLength = 300) =>
   String(value || "")
     .trim()
     .slice(0, maxLength);
+
+const decodeJwtPayload = (token = "") => {
+  try {
+    const [, payload] = String(token || "").split(".");
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch (error) {
+    console.error(`${LOG_PREFIX} JWT decode failed`, error);
+    return null;
+  }
+};
+
+const getTokenDiagnostics = (accessToken = "") => {
+  const token = String(accessToken || "");
+  const claims = decodeJwtPayload(token);
+  return {
+    accessTokenPresent: Boolean(token),
+    accessTokenLength: token.length,
+    authUid: claims?.sub || "",
+    jwtRole: claims?.role || "",
+    jwtExpiresAt: claims?.exp ? new Date(Number(claims.exp) * 1000).toISOString() : "",
+    jwtIssuedAt: claims?.iat ? new Date(Number(claims.iat) * 1000).toISOString() : "",
+    appMetadata: claims?.app_metadata || null,
+    userMetadata: claims?.user_metadata || null,
+    adminRole:
+      claims?.app_metadata?.admin_role ||
+      claims?.app_metadata?.role ||
+      claims?.user_metadata?.admin_role ||
+      claims?.user_metadata?.role ||
+      "",
+  };
+};
+
+const getSessionDiagnostics = ({ adminId = "", email = "", accessToken = "", role = "" } = {}) => ({
+  sessionExists: Boolean(adminId || email || accessToken),
+  userId: adminId,
+  email,
+  role,
+  ...getTokenDiagnostics(accessToken),
+});
+
+const logPresence = (stage = "", detail = {}) => {
+  console.log(`${LOG_PREFIX} ${stage}`, detail);
+};
+
+const logPresenceError = (stage = "", error = null, detail = {}) => {
+  console.error(`${LOG_PREFIX} ${stage}`, {
+    ...detail,
+    error,
+    message: error?.message || "",
+    code: error?.code || "",
+    details: error?.details || "",
+    hint: error?.hint || "",
+    status: error?.status || error?.statusCode || "",
+  });
+};
 
 const getDeviceType = () => {
   if (typeof window === "undefined") return "desktop";
@@ -85,9 +143,34 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
 
   const canRun = enabled && Boolean(adminId && email && accessToken && hasSupabasePresenceConfig);
 
+  useEffect(() => {
+    logPresence("hook state", {
+      enabled,
+      canRun,
+      hasSupabasePresenceConfig,
+      hasClient: Boolean(clientRef.current),
+      currentPath: normalizedPath,
+      missing: {
+        adminId: !adminId,
+        email: !email,
+        accessToken: !accessToken,
+        supabaseConfig: !hasSupabasePresenceConfig,
+      },
+      session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+    });
+  }, [accessToken, adminId, canRun, email, enabled, normalizedPath, role]);
+
   const upsertPresence = useCallback(
     async ({ statusOverride = "" } = {}) => {
-      if (!canRun || !clientRef.current || !sessionId) return;
+      if (!canRun || !clientRef.current || !sessionId) {
+        logPresence("heartbeat skipped", {
+          canRun,
+          hasClient: Boolean(clientRef.current),
+          sessionIdPresent: Boolean(sessionId),
+          session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+        });
+        return;
+      }
 
       const nowIso = new Date().toISOString();
       const explicitStatus = sanitizeString(statusOverride, 20).toLowerCase();
@@ -106,29 +189,63 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         session_id: sessionId,
       };
 
+      logPresence("sending heartbeat", {
+        payload,
+        session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+      });
+
       const { data, error: upsertError } = await clientRef.current
         .from("admin_presence")
         .upsert(payload, { onConflict: "session_id" })
         .select("*")
         .limit(1);
 
-      if (upsertError) throw upsertError;
+      if (upsertError) {
+        setError(sanitizeString(upsertError.message || "Unable to update live admin presence.", 300));
+        logPresenceError("heartbeat error", upsertError, { payload });
+        throw upsertError;
+      }
+
+      logPresence("heartbeat response", {
+        returnedRows: Array.isArray(data) ? data.length : 0,
+        rows: data,
+      });
+
       const row = Array.isArray(data) ? data[0] : null;
       if (row) {
         setRows((current) => mergePresenceRow(current, row));
         setLastSyncedAt(nowIso);
       }
     },
-    [adminId, canRun, email, fullName, normalizedPath, role, sessionId],
+    [accessToken, adminId, canRun, email, fullName, normalizedPath, role, sessionId],
   );
 
   const markOfflineBestEffort = useCallback(() => {
-    if (!sessionId || !accessToken || !hasSupabasePresenceConfig) return;
+    if (!sessionId || !accessToken || !hasSupabasePresenceConfig) {
+      logPresence("offline heartbeat skipped", {
+        sessionIdPresent: Boolean(sessionId),
+        accessTokenPresent: Boolean(accessToken),
+        hasSupabasePresenceConfig,
+      });
+      return;
+    }
     const { supabaseUrl, supabaseAnonKey } = getSupabasePresenceRestConfig();
-    if (!supabaseUrl || !supabaseAnonKey) return;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      logPresence("offline heartbeat missing REST config", {
+        supabaseUrlPresent: Boolean(supabaseUrl),
+        supabaseAnonKeyPresent: Boolean(supabaseAnonKey),
+      });
+      return;
+    }
     const nowIso = new Date().toISOString();
 
     const endpoint = `${supabaseUrl}/rest/v1/admin_presence?session_id=eq.${encodeURIComponent(sessionId)}`;
+    logPresence("sending offline heartbeat", {
+      endpoint,
+      sessionId,
+      nowIso,
+      session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+    });
     fetch(endpoint, {
       method: "PATCH",
       headers: {
@@ -142,13 +259,31 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         last_active_at: nowIso,
       }),
       keepalive: true,
-    }).catch(() => null);
-  }, [accessToken, sessionId]);
+    })
+      .then((response) => {
+        logPresence("offline heartbeat response", {
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+        });
+      })
+      .catch((error) => logPresenceError("offline heartbeat error", error, { endpoint, sessionId }));
+  }, [accessToken, adminId, email, role, sessionId]);
 
   const fetchPresenceRows = useCallback(async () => {
-    if (!canRun || !clientRef.current) return;
+    if (!canRun || !clientRef.current) {
+      logPresence("presence fetch skipped", {
+        canRun,
+        hasClient: Boolean(clientRef.current),
+        session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+      });
+      return;
+    }
     setLoading(true);
     setError("");
+    logPresence("fetching presence rows", {
+      session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+    });
     const { data, error: fetchError } = await clientRef.current
       .from("admin_presence")
       .select("*")
@@ -158,15 +293,26 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
 
     if (fetchError) {
       setError(sanitizeString(fetchError.message || "Unable to load live admin presence.", 300));
+      logPresenceError("presence fetch error", fetchError);
       return;
     }
 
+    logPresence("presence fetch response", {
+      returnedRows: Array.isArray(data) ? data.length : 0,
+      rows: data,
+    });
     setRows(Array.isArray(data) ? data : []);
     setLastSyncedAt(new Date().toISOString());
-  }, [canRun]);
+  }, [accessToken, adminId, canRun, email, role]);
 
   useEffect(() => {
     if (!canRun) {
+      logPresence("heartbeat initialization stopped", {
+        enabled,
+        canRun,
+        hasSupabasePresenceConfig,
+        session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+      });
       setRows([]);
       if (!hasSupabasePresenceConfig) {
         setError("Supabase presence is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
@@ -181,11 +327,23 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     const client = getSupabasePresenceClient(accessToken);
     if (!client) {
       setError("Unable to initialize Supabase client for presence.");
+      logPresence("Supabase presence client unavailable", {
+        hasSupabasePresenceConfig,
+        session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+      });
       return undefined;
     }
 
     clientRef.current = client;
     client.realtime.setAuth(accessToken);
+    const restConfig = getSupabasePresenceRestConfig();
+    logPresence("heartbeat initialized", {
+      supabaseUrl: restConfig.supabaseUrl,
+      supabaseAnonKeyPresent: Boolean(restConfig.supabaseAnonKey),
+      realtimeAuthSet: true,
+      channelName: `admin-presence:${sessionId}`,
+      session: getSessionDiagnostics({ adminId, email, accessToken, role }),
+    });
 
     const nowIso = new Date().toISOString();
     loggedInAtRef.current = nowIso;
@@ -197,6 +355,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "admin_presence" },
         (payload) => {
+          logPresence("Realtime INSERT received", payload);
           setRows((current) => mergePresenceRow(current, payload.new || {}));
         },
       )
@@ -204,6 +363,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "admin_presence" },
         (payload) => {
+          logPresence("Realtime UPDATE received", payload);
           setRows((current) => mergePresenceRow(current, payload.new || {}));
         },
       )
@@ -211,10 +371,16 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "admin_presence" },
         (payload) => {
+          logPresence("Realtime DELETE received", payload);
           setRows((current) => deletePresenceRow(current, payload.old || {}));
         },
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        logPresence("Realtime subscription status", { status, error });
+        if (error) {
+          logPresenceError("Realtime subscription error", error, { status });
+        }
+      });
 
     channelRef.current = channel;
 
@@ -222,7 +388,9 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
       if (activityPushTimeoutRef.current) return;
       activityPushTimeoutRef.current = setTimeout(() => {
         activityPushTimeoutRef.current = null;
-        upsertPresence({ statusOverride: document.hidden ? "away" : "online" }).catch(() => null);
+        upsertPresence({ statusOverride: document.hidden ? "away" : "online" }).catch((error) =>
+          logPresenceError("activity heartbeat rejected", error),
+        );
       }, ACTIVITY_PUSH_DEBOUNCE_MS);
     };
 
@@ -233,7 +401,9 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
 
     const handleVisibilityChange = () => {
       const status = document.hidden ? "away" : "online";
-      upsertPresence({ statusOverride: status }).catch(() => null);
+      upsertPresence({ statusOverride: status }).catch((error) =>
+        logPresenceError("visibility heartbeat rejected", error, { status }),
+      );
     };
 
     const handlePageHide = () => {
@@ -246,13 +416,17 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     window.addEventListener("beforeunload", handlePageHide);
     window.addEventListener("pagehide", handlePageHide);
 
-    fetchPresenceRows().catch(() => null);
-    upsertPresence({ statusOverride: "online" }).catch(() => null);
+    fetchPresenceRows().catch((error) => logPresenceError("initial presence fetch rejected", error));
+    upsertPresence({ statusOverride: "online" }).catch((error) =>
+      logPresenceError("initial heartbeat rejected", error),
+    );
 
     const intervalId = window.setInterval(() => {
       const inactiveMs = Date.now() - lastInteractionAtRef.current;
       const computedStatus = document.hidden || inactiveMs > 60_000 ? "away" : "online";
-      upsertPresence({ statusOverride: computedStatus }).catch(() => null);
+      upsertPresence({ statusOverride: computedStatus }).catch((error) =>
+        logPresenceError("interval heartbeat rejected", error, { computedStatus, inactiveMs }),
+      );
     }, HEARTBEAT_INTERVAL_MS);
 
     return () => {
@@ -266,18 +440,35 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
         activityPushTimeoutRef.current = null;
       }
 
-      upsertPresence({ statusOverride: "offline" }).catch(() => null);
+      upsertPresence({ statusOverride: "offline" }).catch((error) =>
+        logPresenceError("cleanup heartbeat rejected", error),
+      );
       markOfflineBestEffort();
       if (channelRef.current && clientRef.current) {
-        clientRef.current.removeChannel(channelRef.current).catch(() => null);
+        clientRef.current
+          .removeChannel(channelRef.current)
+          .catch((error) => logPresenceError("remove realtime channel rejected", error));
       }
       channelRef.current = null;
     };
-  }, [accessToken, canRun, fetchPresenceRows, markOfflineBestEffort, sessionId, upsertPresence]);
+  }, [
+    accessToken,
+    adminId,
+    canRun,
+    email,
+    enabled,
+    fetchPresenceRows,
+    markOfflineBestEffort,
+    role,
+    sessionId,
+    upsertPresence,
+  ]);
 
   useEffect(() => {
     if (!canRun) return;
-    upsertPresence({ statusOverride: document.hidden ? "away" : "online" }).catch(() => null);
+    upsertPresence({ statusOverride: document.hidden ? "away" : "online" }).catch((error) =>
+      logPresenceError("path heartbeat rejected", error, { normalizedPath }),
+    );
   }, [canRun, normalizedPath, upsertPresence]);
 
   const decoratedRows = useMemo(
