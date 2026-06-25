@@ -76,12 +76,12 @@ const getSharedKeyUser = () => ({
   id: "shared-key-admin",
   email: "shared-key@internal.local",
   fullName: "Shared Key Admin",
-  role: ADMINS_OLS_ROLE,
+  role: ADMINS_OLS_SUPERADMIN_ROLE,
   isSuperAdmin: true,
 });
 
 const summarizeUser = (user = {}) => {
-  const normalizedRole = getNormalizedUserRole(user);
+  const normalizedRole = getEffectiveAdminRole(user) || getNormalizedUserRole(user) || ADMINS_OLS_ROLE;
 
   return {
     id: sanitizeString(user?.id, 120),
@@ -96,6 +96,8 @@ const summarizeUser = (user = {}) => {
 };
 
 const userIsSuperAdmin = (user = {}) => {
+  if (user?.isSuperAdmin === true) return true;
+
   const email = normalizeEmail(user?.email);
   const appMetadata = user?.app_metadata || {};
   const superAdminEmails = parseAllowedSuperAdminEmails();
@@ -135,6 +137,131 @@ const userHasAdminRole = (user = {}) => {
 
   // If no allowlist is configured, trust authenticated users from this Supabase project.
   return Boolean(email);
+};
+
+const getEffectiveAdminRole = (user = {}) => {
+  if (userIsSuperAdmin(user)) return ADMINS_OLS_SUPERADMIN_ROLE;
+  if (userHasAdminRole(user)) return ADMINS_OLS_ROLE;
+  return "";
+};
+
+const buildAdminAppMetadata = (user = {}, role = ADMINS_OLS_ROLE) => {
+  const normalizedRole = isSuperAdminRole(role) ? ADMINS_OLS_SUPERADMIN_ROLE : ADMINS_OLS_ROLE;
+  const isSuperAdmin = normalizedRole === ADMINS_OLS_SUPERADMIN_ROLE;
+  const next = {
+    ...(user?.app_metadata && typeof user.app_metadata === "object" ? user.app_metadata : {}),
+  };
+
+  // `role` is the PostgREST database role claim in Supabase JWTs. Keep OneLuxStay
+  // application roles in explicit app metadata fields instead.
+  delete next.role;
+
+  return {
+    ...next,
+    admin_role: normalizedRole,
+    admins_ols: true,
+    admins_ols_superadmin: isSuperAdmin,
+    superadmin: isSuperAdmin,
+  };
+};
+
+const appMetadataMatchesAdminRole = (metadata = {}, role = ADMINS_OLS_ROLE) => {
+  const normalizedRole = isSuperAdminRole(role) ? ADMINS_OLS_SUPERADMIN_ROLE : ADMINS_OLS_ROLE;
+  const isSuperAdmin = normalizedRole === ADMINS_OLS_SUPERADMIN_ROLE;
+  return (
+    metadata?.role === undefined &&
+    metadata?.admin_role === normalizedRole &&
+    metadata?.admins_ols === true &&
+    metadata?.admins_ols_superadmin === isSuperAdmin &&
+    metadata?.superadmin === isSuperAdmin
+  );
+};
+
+const syncAdminAppMetadata = async (user = {}, role = "") => {
+  const userId = sanitizeString(user?.id, 120);
+  const normalizedRole = isSuperAdminRole(role) ? ADMINS_OLS_SUPERADMIN_ROLE : ADMINS_OLS_ROLE;
+  if (!userId || !normalizedRole) return { user, changed: false };
+
+  const nextAppMetadata = buildAdminAppMetadata(user, normalizedRole);
+  if (appMetadataMatchesAdminRole(user?.app_metadata || {}, normalizedRole)) {
+    return { user, changed: false };
+  }
+
+  try {
+    const updatedUser = await callSupabaseAuth(`admin/users/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+      useServiceRole: true,
+      body: {
+        app_metadata: nextAppMetadata,
+      },
+    });
+    return { user: updatedUser?.user || updatedUser || user, changed: true };
+  } catch (error) {
+    console.warn("[admins-ols-auth] app metadata sync failed", {
+      message: sanitizeString(error?.message || String(error), 240),
+      userId,
+    });
+    return { user, changed: false };
+  }
+};
+
+const refreshSessionAfterMetadataSync = async (refreshToken = "") => {
+  const normalizedRefreshToken = sanitizeString(refreshToken, 4000);
+  if (!normalizedRefreshToken) return null;
+
+  try {
+    return await callSupabaseAuth("token?grant_type=refresh_token", {
+      method: "POST",
+      body: {
+        refresh_token: normalizedRefreshToken,
+      },
+      useServiceRole: false,
+    });
+  } catch {
+    return null;
+  }
+};
+
+const attachVerifiedAdminUser = async (session = {}) => {
+  const accessToken = sanitizeString(session?.access_token, 4000);
+  if (!accessToken) return session;
+
+  const user = await callSupabaseAuth("user", {
+    method: "GET",
+    accessToken,
+  });
+  const verifiedUser = verifyAdminUser(user);
+  const effectiveRole = getEffectiveAdminRole(user) || verifiedUser.role || ADMINS_OLS_ROLE;
+  const { user: syncedUser, changed } = await syncAdminAppMetadata(user, effectiveRole);
+
+  if (changed) {
+    const refreshedSession = await refreshSessionAfterMetadataSync(session?.refresh_token);
+    if (refreshedSession?.access_token) {
+      const refreshedUser = await callSupabaseAuth("user", {
+        method: "GET",
+        accessToken: sanitizeString(refreshedSession.access_token, 4000),
+      });
+      return {
+        ...refreshedSession,
+        user: verifyAdminUser(refreshedUser),
+      };
+    }
+  }
+
+  return {
+    ...session,
+    user: verifyAdminUser(syncedUser || user),
+  };
+};
+
+const decodeJwtPayload = (token = "") => {
+  try {
+    const [, payload] = String(token || "").split(".");
+    if (!payload) return null;
+    return JSON.parse(Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
 };
 
 const parseAuthResponse = async (response) => {
@@ -261,15 +388,7 @@ export const signInAdminsOlsUser = async ({ email = "", password = "" } = {}) =>
     useServiceRole: false,
   });
 
-  const user = await callSupabaseAuth("user", {
-    method: "GET",
-    accessToken: sanitizeString(session?.access_token, 4000),
-  });
-
-  return {
-    ...session,
-    user: verifyAdminUser(user),
-  };
+  return attachVerifiedAdminUser(session);
 };
 
 export const refreshAdminsOlsSession = async ({ refreshToken = "" } = {}) => {
@@ -284,15 +403,7 @@ export const refreshAdminsOlsSession = async ({ refreshToken = "" } = {}) => {
     useServiceRole: false,
   });
 
-  const user = await callSupabaseAuth("user", {
-    method: "GET",
-    accessToken: sanitizeString(session?.access_token, 4000),
-  });
-
-  return {
-    ...session,
-    user: verifyAdminUser(user),
-  };
+  return attachVerifiedAdminUser(session);
 };
 
 export const createAdminsOlsUser = async ({
@@ -330,10 +441,13 @@ export const createAdminsOlsUser = async ({
       user_metadata: {
         full_name: normalizedFullName || normalizedEmail,
         admins_ols: true,
+        admin_role: ADMINS_OLS_ROLE,
       },
       app_metadata: {
-        role: ADMINS_OLS_ROLE,
+        admin_role: ADMINS_OLS_ROLE,
         admins_ols: true,
+        admins_ols_superadmin: false,
+        superadmin: false,
       },
     },
   });
@@ -444,6 +558,7 @@ export const inviteAdminsOlsUserByEmail = async ({
   const data = {
     full_name: normalizedFullName || normalizedEmail,
     admins_ols: true,
+    admin_role: normalizedRole,
     role: normalizedRole,
     admins_ols_superadmin: normalizedRole === ADMINS_OLS_SUPERADMIN_ROLE || normalizedRole === SUPERADMIN_ROLE,
     invite_pending: true,
@@ -690,9 +805,9 @@ export const acceptAdminsOlsInvite = async ({
     });
   }
 
-  const desiredRoleRaw = sanitizeString(userMetadata?.role || "", 80);
+  const desiredRoleRaw = sanitizeString(userMetadata?.admin_role || userMetadata?.role || "", 80);
   const desiredRole = [ADMINS_OLS_SUPERADMIN_ROLE, SUPERADMIN_ROLE].includes(desiredRoleRaw)
-    ? desiredRoleRaw
+    ? ADMINS_OLS_SUPERADMIN_ROLE
     : ADMINS_OLS_ROLE;
 
   // Call 1: Accept the invite by setting only the password.
@@ -731,17 +846,16 @@ export const acceptAdminsOlsInvite = async ({
       method: "PUT",
       useServiceRole: true,
       body: {
-        app_metadata: {
-          role: desiredRole,
-          admins_ols: true,
-          ...(desiredRole === ADMINS_OLS_SUPERADMIN_ROLE || desiredRole === SUPERADMIN_ROLE
-            ? { superadmin: desiredRole === SUPERADMIN_ROLE, admins_ols_superadmin: true }
-            : {}),
-        },
+        app_metadata: buildAdminAppMetadata(updatedUser || user, desiredRole),
       },
     });
   } catch {
     // ignore
+  }
+
+  const refreshedSession = await refreshSessionAfterMetadataSync(normalizedRefreshToken);
+  if (refreshedSession?.access_token) {
+    return attachVerifiedAdminUser(refreshedSession);
   }
 
   return {
@@ -756,6 +870,7 @@ export const formatAdminsOlsSession = (session = {}) => ({
   accessToken: sanitizeString(session?.access_token, 4000),
   refreshToken: sanitizeString(session?.refresh_token, 4000),
   sharedKey: sanitizeString(session?.shared_key || session?.sharedKey, 240),
+  databaseRole: sanitizeString(decodeJwtPayload(session?.access_token)?.role || "", 80),
   expiresIn: Number.isFinite(Number(session?.expires_in)) ? Number(session.expires_in) : 0,
   expiresAt:
     Number.isFinite(Number(session?.expires_in)) && Number(session.expires_in) > 0

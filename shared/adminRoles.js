@@ -1,20 +1,52 @@
 const SUPERADMIN_ROLES = new Set(["superadmin", "admins_ols_superadmin"]);
 const ADMIN_ROLES = new Set(["admin", "admins_ols", "admins_ols_superadmin", "superadmin"]);
 const GENERIC_AUTH_ROLES = new Set(["authenticated", "anon", "service_role", "supabase_admin"]);
+const RAW_SUPABASE_USER_FIELDS = new Set([
+  "aud",
+  "app_metadata",
+  "user_metadata",
+  "created_at",
+  "confirmed_at",
+  "email_confirmed_at",
+  "last_sign_in_at",
+]);
 
 export const normalizeRole = (value = "") =>
   String(value ?? "")
     .toLowerCase()
     .trim();
 
+const hasOwn = (source = {}, key = "") => Object.prototype.hasOwnProperty.call(source || {}, key);
+
+const looksLikeRawSupabaseUser = (user = {}) =>
+  Boolean(user && typeof user === "object" && [...RAW_SUPABASE_USER_FIELDS].some((field) => hasOwn(user, field)));
+
+const roleFromFlags = (source = {}) => {
+  if (!source || typeof source !== "object") return "";
+  if (source.superadmin === true || source.admins_ols_superadmin === true) return "admins_ols_superadmin";
+  if (source.admins_ols === true) return "admins_ols";
+  return "";
+};
+
 export const getNormalizedUserRole = (
   user = {},
   { includeAppMetadata = true, includeUserMetadata = true } = {},
 ) => {
+  const appMetadata = user?.app_metadata || {};
+  const userMetadata = user?.user_metadata || {};
+  const shouldTrustTopLevelRole = !looksLikeRawSupabaseUser(user);
   const candidates = [
-    user?.role,
-    includeAppMetadata ? user?.app_metadata?.role : "",
-    includeUserMetadata ? user?.user_metadata?.role : "",
+    user?.adminRole,
+    user?.admin_role,
+    user?.appRole,
+    user?.app_role,
+    shouldTrustTopLevelRole ? user?.role : "",
+    includeAppMetadata ? roleFromFlags(appMetadata) : "",
+    includeAppMetadata ? appMetadata?.admin_role || appMetadata?.adminRole || appMetadata?.app_role || appMetadata?.appRole : "",
+    includeAppMetadata ? appMetadata?.role : "",
+    includeUserMetadata ? roleFromFlags(userMetadata) : "",
+    includeUserMetadata ? userMetadata?.admin_role || userMetadata?.adminRole || userMetadata?.app_role || userMetadata?.appRole : "",
+    includeUserMetadata ? userMetadata?.role : "",
   ]
     .map((value) => normalizeRole(value))
     .filter(Boolean);

@@ -67,10 +67,26 @@ const sanitizeString = (value = "", maxLength = 4000) =>
     .trim()
     .slice(0, maxLength);
 
+const decodeJwtPayload = (token = "") => {
+  try {
+    const [, payload] = String(token || "").split(".");
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
+
+const getTokenDatabaseRole = (accessToken = "") =>
+  sanitizeString(decodeJwtPayload(accessToken)?.role || "", 80).toLowerCase();
+
 const normalizeSession = (value = {}) => {
   const accessToken = sanitizeString(value?.accessToken, 4000);
   const refreshToken = sanitizeString(value?.refreshToken, 4000);
   const expiresAt = sanitizeString(value?.expiresAt, 80);
+  const databaseRole = sanitizeString(value?.databaseRole || getTokenDatabaseRole(accessToken), 80);
 
   if (!accessToken) return null;
 
@@ -91,6 +107,7 @@ const normalizeSession = (value = {}) => {
   return {
     accessToken,
     refreshToken,
+    databaseRole,
     expiresIn: Number.isFinite(Number(value?.expiresIn)) ? Number(value.expiresIn) : 0,
     expiresAt,
     user: appUser,
@@ -181,6 +198,7 @@ export const refreshExecutiveOlsSession = async (sessionOverride = null) => {
 export const isExecutiveOlsSessionExpired = (session, { skewMs = 60_000 } = {}) => {
   const normalized = normalizeSession(session);
   if (!normalized?.accessToken) return isAdminsOlsSessionExpired(session, { skewMs });
+  if (normalized.databaseRole && normalized.databaseRole !== "authenticated") return true;
   if (!normalized?.expiresAt) return false;
   const expiresAt = new Date(normalized.expiresAt).getTime();
   if (!Number.isFinite(expiresAt)) return false;
