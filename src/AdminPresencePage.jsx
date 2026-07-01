@@ -275,6 +275,35 @@ function AdminPresencePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session?.accessToken || !session?.refreshToken || !session?.expiresAt) return;
+
+    let active = true;
+    let refreshing = false;
+
+    const checkExpiry = async () => {
+      if (refreshing) return;
+      const expiresAt = new Date(session.expiresAt).getTime();
+      if (!Number.isFinite(expiresAt)) return;
+      if (expiresAt - Date.now() > 5 * 60 * 1000) return;
+      refreshing = true;
+      logPresencePage("proactive token refresh triggered", getPageSessionDiagnostics(session));
+      const refreshed = await refreshAdminsOlsSession(apiBase, session).catch((error) => {
+        logPresencePageError("proactive token refresh failed", error, getPageSessionDiagnostics(session));
+        return null;
+      });
+      if (!active) return;
+      logPresencePage("proactive token refresh result", getPageSessionDiagnostics(refreshed));
+      if (refreshed) setSession(refreshed);
+    };
+
+    const intervalId = window.setInterval(checkExpiry, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [session]);
+
   const currentPath = useMemo(
     () => `${location.pathname || "/"}${location.search || ""}`,
     [location.pathname, location.search],
