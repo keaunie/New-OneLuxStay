@@ -9,7 +9,7 @@
 		"dev:netlify": "npx netlify dev --command \"npm run dev:client\" --target-port 5174",
 		"start": "npm run preview -- --host --port 4173",
 		"sitemap:generate": "node scripts/generate-sitemap.js",
-		"build": "npm run sitemap:generate && vite build && cp public/.htaccess dist/.htaccess",
+		"build": "npm run sitemap:generate && vite build && node -e \"require('fs').copyFileSync('public/.htaccess','dist/.htaccess')\"",
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"email:preview:city-guide": "node scripts/preview-city-guide-email.mjs",

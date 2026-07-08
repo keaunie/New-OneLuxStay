@@ -24,7 +24,7 @@ const DEFAULT_ITEMS = [
   {
     title: "Hollywood",
     subtitle: "Iconic suites and hilltop views",
-    href: "/losangeles/hollywood",
+    href: "/hollywood",
     image:
       "https://assets.guesty.com/image/upload/v1729697715/production/666b3af27fc6d5653142b0af/t9xacjoibl7vpywhi6jf.jpg",
   },

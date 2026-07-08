@@ -18,7 +18,12 @@
       "Bash(Get-Content .env)",
       "Bash(Select-String \"APALEO_SCOPE\")",
       "WebFetch(domain:api.apaleo.com)",
-      "Bash(graphify query *)"
+      "Bash(graphify query *)",
+      "PowerShell(npm ls framer-motion motion-dom motion-utils)",
+      "PowerShell(cmd /c \"rd /s /q node_modules\\\\motion-dom\")",
+      "PowerShell(Rename-Item node_modules\\\\motion-dom motion-dom.corrupted-remnant)",
+      "PowerShell(npm install --no-audit --no-fund)",
+      "PowerShell(npm run build)"
     ]
   }
 }

@@ -10,6 +10,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const ACTIVITY_PUSH_DEBOUNCE_MS = 3_500;
 const ONLINE_WINDOW_MS = 60_000;
 const AWAY_WINDOW_MS = 300_000;
+const EXPLICIT_ONLINE_WINDOW_MS = AWAY_WINDOW_MS;
 const RECENT_OFFLINE_WINDOW_MS = 6 * 60 * 60_000;
 const STALE_CLEANUP_WINDOW_MS = 24 * 60 * 60_000;
 const PRESENCE_SESSION_STORAGE_PREFIX = "ols-admin-presence-session";
@@ -385,6 +386,7 @@ const getStatusFromRow = (row = {}) => {
   const explicitStatus = sanitizeString(row?.status, 20).toLowerCase();
   if (explicitStatus === "offline") return "offline";
   const ageMs = getPresenceAgeMs(row);
+  if (explicitStatus === "online" && ageMs <= EXPLICIT_ONLINE_WINDOW_MS) return "online";
   if (ageMs <= ONLINE_WINDOW_MS) return "online";
   if (ageMs <= AWAY_WINDOW_MS) return "away";
   return "offline";
@@ -603,7 +605,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
 
       const nowIso = new Date().toISOString();
       const explicitStatus = sanitizeString(statusOverride, 20).toLowerCase();
-      const status = explicitStatus || (document.hidden ? "away" : "online");
+      const status = explicitStatus || "online";
 
       const payload = {
         admin_id: adminId,
@@ -931,7 +933,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
       activityPushTimeoutRef.current = setTimeout(() => {
         activityPushTimeoutRef.current = null;
         upsertPresence({
-          statusOverride: document.hidden ? "away" : "online",
+          statusOverride: "online",
           heartbeatKind: "activity",
         }).catch((error) =>
           logPresenceError("activity heartbeat rejected", error),
@@ -945,7 +947,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     };
 
     const handleVisibilityChange = () => {
-      const status = document.hidden ? "away" : "online";
+      const status = "online";
       upsertPresence({ statusOverride: status, heartbeatKind: "visibility" }).catch((error) =>
         logPresenceError("visibility heartbeat rejected", error, { status }),
       );
@@ -970,7 +972,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
     const intervalRuntimeId = `${hookInstanceIdRef.current}:interval:${Date.now()}`;
     const intervalId = window.setInterval(() => {
       const inactiveMs = Date.now() - lastInteractionAtRef.current;
-      const computedStatus = document.hidden || inactiveMs > 60_000 ? "away" : "online";
+      const computedStatus = "online";
       upsertPresence({ statusOverride: computedStatus, heartbeatKind: "interval" }).catch((error) =>
         logPresenceError("interval heartbeat rejected", error, { computedStatus, inactiveMs }),
       );
@@ -1043,7 +1045,7 @@ export const useAdminPresence = ({ session = null, enabled = true, currentPath =
   useEffect(() => {
     if (!canRun) return;
     upsertPresence({
-      statusOverride: document.hidden ? "away" : "online",
+      statusOverride: "online",
       heartbeatKind: "path",
     }).catch((error) =>
       logPresenceError("path heartbeat rejected", error, { normalizedPath }),
