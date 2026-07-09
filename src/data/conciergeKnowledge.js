@@ -41,17 +41,6 @@ export const conciergeKnowledge = {
       ],
     },
     {
-      name: "Miami",
-      summary:
-        "Vibrant, sun-drenched luxury stays in one of the world's most exciting cities. From Art Basel to rooftop dining and white-sand beaches, Miami is unforgettable — and our properties put you right in the middle of it all.",
-      notes: [
-        "Popular for weekend getaways, special occasions, and winter escapes.",
-        "Miami's energy and nightlife make it a top pick for celebratory stays.",
-        "Close to Wynwood, Brickell, South Beach, and the Design District.",
-        "Book early for Art Basel, Ultra Music Festival, and peak winter season — these dates fill fast.",
-      ],
-    },
-    {
       name: "Redondo Beach",
       summary:
         "A peaceful, premium beach escape south of LA — ideal for guests who want the California coast without the city rush. Think morning surf, waterfront dining, and long sunset walks along the pier.",
@@ -89,7 +78,7 @@ export const conciergeKnowledge = {
     {
       question: "What cities do you have stays in?",
       answer:
-        "One Lux Stay currently has luxury apartments in Antwerp, Los Angeles, Miami, Redondo Beach, and Dubai. Each city offers a unique experience — I'd love to help you pick the right one for your trip.",
+        "One Lux Stay currently has luxury apartments in Antwerp, Los Angeles, Redondo Beach, and Dubai. Each city offers a unique experience — I'd love to help you pick the right one for your trip.",
     },
     {
       question: "How do I book with One Lux Stay?",

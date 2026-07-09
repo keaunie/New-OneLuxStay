@@ -71,7 +71,7 @@ const getSupportedCities = (knowledge) =>
     .filter(Boolean);
 
 const buildSiteContext = (supportedCities = []) => `
-You are Lucy, the personal concierge for One Lux Stay — a curated luxury short-term rental brand with properties in ${supportedCities.join(", ") || "Antwerp, Los Angeles, Miami, Redondo Beach, Dubai"}.
+You are Lucy, the personal concierge for One Lux Stay — a curated luxury short-term rental brand with properties in ${supportedCities.join(", ") || "Antwerp, Los Angeles, Redondo Beach, Dubai"}.
 
 Your primary role is to help guests discover the perfect stay AND guide them confidently toward booking. You are the brand's most important sales asset.
 
@@ -86,7 +86,7 @@ Your primary role is to help guests discover the perfect stay AND guide them con
 ## Selling mindset — you are a concierge who closes deals
 - One Lux Stay offers something most hotels and short-term rentals can't: a full luxury apartment in a prime location, with all the space and privacy of home and the quality of a boutique hotel. Lead with this when relevant.
 - When a guest is browsing or comparing options, gently highlight the value: space, privacy, full kitchen, high-end finishes, prime locations, and the personalized service you offer through this chat.
-- If a guest mentions a special occasion (honeymoon, anniversary, birthday, work trip, vacation), acknowledge it and tie the property to that experience — "a 2-bedroom in Miami sounds perfect for a long weekend getaway."
+- If a guest mentions a special occasion (honeymoon, anniversary, birthday, work trip, vacation), acknowledge it and tie the property to that experience — "a 2-bedroom in Los Angeles sounds perfect for a long weekend getaway."
 - When you sense hesitation or indecision, use light social proof: "This city has been really popular lately" or "Guests who stay in [city] often book again." Never fabricate specific numbers or reviews.
 - When a guest has dates and a city, move forward confidently: "Let me pull up what's available for those dates" — don't wait for them to explicitly ask to book.
 - After showing options, always invite the next step: "Would you like me to walk you through the booking steps?" or "Ready to secure this one?"
@@ -633,7 +633,7 @@ const isCityOnlyMessage = (text = "", supportedCities = []) => {
     .replace(/\s+/g, " ")
     .trim();
   if (
-    /^(?:antwerp|antwerpen|los angeles|losangeles|l a|la|oc|o c|orange county|socal|southern california|dtla|downtown la|downtown los angeles|west hollywood|weho|miami|miami beach|south beach|brickell|redondo|redondo beach|dubai)$/.test(
+    /^(?:antwerp|antwerpen|los angeles|losangeles|l a|la|oc|o c|orange county|socal|southern california|dtla|downtown la|downtown los angeles|west hollywood|weho|redondo|redondo beach|dubai)$/.test(
       locationOnlyText,
     ) &&
     extractCityHintFromPrompt(cleaned, supportedCities)
@@ -1213,7 +1213,7 @@ const buildQuickReplySet = (items = []) =>
     .slice(0, 6);
 
 const getVisibleCities = (supportedCities = []) => {
-  const fallbackCities = ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"];
+  const fallbackCities = ["Antwerp", "Los Angeles", "Redondo Beach", "Dubai"];
   const source = supportedCities.length ? supportedCities : fallbackCities;
   return [...new Set(source.map((city) => normalizeCityLabel(city)).filter(Boolean))].slice(0, 5);
 };
@@ -1483,7 +1483,6 @@ const slugifyCity = (value = "") => {
     return "los-angeles";
   }
   if (city.includes("redondo")) return "redondo-beach";
-  if (city.includes("miami") || city.includes("south beach") || city.includes("brickell")) return "miami";
   if (city.includes("antwerp") || city.includes("antwerpen")) return "antwerp";
   if (city.includes("dubai")) return "dubai";
   return city
@@ -1526,7 +1525,6 @@ const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
         /\bweho\b/i,
       ],
     },
-    { label: "Miami", patterns: [/\bmiami\b/i, /\bmiami beach\b/i, /\bsouth beach\b/i, /\bbrickell\b/i] },
     { label: "Redondo Beach", patterns: [/\bredondo\b/i, /\bredondo beach\b/i] },
     { label: "Dubai", patterns: [/\bdubai\b/i] },
   ];
@@ -1584,7 +1582,6 @@ const normalizeCityLabel = (value = "") => {
   }
   if (lower.includes("dubai")) return "Dubai";
   if (lower.includes("redondo")) return "Redondo Beach";
-  if (lower.includes("miami") || lower.includes("south beach") || lower.includes("brickell")) return "Miami";
   return source;
 };
 
@@ -1721,7 +1718,7 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
   const onCityPage = pageContext.pageType === "city";
   const visibleCities = supportedCities.length
     ? supportedCities
-    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"];
+    : ["Antwerp", "Los Angeles", "Redondo Beach", "Dubai"];
 
   const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
   const supportsBasicLocale = locale === "ar" || locale === "nl" || locale === "fr" || locale === "ja";
@@ -1824,7 +1821,7 @@ const buildSmallTalkReply = ({ languageProfile, supportedCities = [] } = {}) => 
   const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
   const citiesText = (Array.isArray(supportedCities) && supportedCities.length
     ? supportedCities
-    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
+    : ["Antwerp", "Los Angeles", "Redondo Beach", "Dubai"]
   ).join(", ");
 
   if (locale === "ja") {
@@ -1942,7 +1939,7 @@ const buildCurrentTimeReply = ({ pageContext = {}, supportedCities = [], latestU
   const locationSuffix = detectedTz ? ` (${zoneLabel})` : city && city !== "Global" ? ` for ${city} (${zoneLabel})` : ` (${zoneLabel})`;
   const supportedCitiesText = (Array.isArray(supportedCities) && supportedCities.length
     ? supportedCities
-    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
+    : ["Antwerp", "Los Angeles", "Redondo Beach", "Dubai"]
   ).join(", ");
 
   return `Right now it is ${formatted}${locationSuffix}. If you want, I can also help with availability, booking status, or choosing between ${supportedCitiesText}.`;
@@ -1959,7 +1956,7 @@ const buildDestinationRecommendationReply = ({ latestUserMessage, conciergeKnowl
 
   const citiesText = (Array.isArray(supportedCities) && supportedCities.length
     ? supportedCities
-    : ["Antwerp", "Los Angeles", "Miami", "Redondo Beach", "Dubai"]
+    : ["Antwerp", "Los Angeles", "Redondo Beach", "Dubai"]
   ).join(", ");
   return `I can help you narrow that down. Right now One Lux Stay features stays in ${citiesText}. Tell me the vibe you want most, like beach, walkable city, calm coastal, or upscale luxury, and I’ll point you to the best fit.`;
 };

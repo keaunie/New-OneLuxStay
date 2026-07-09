@@ -23,8 +23,6 @@ const KNOWN_CITIES = [
   "antwerpen",
   "dubai",
   "redondo beach",
-  "miami",
-  "miami beach",
 ];
 const REDONDO_MONTHLY_RANGE_LABEL = "$4,500 – $6,500 / month";
 const REDONDO_MONTHLY_RANGE_NOTE = "Seasonal Monthly Pricing";
@@ -113,7 +111,6 @@ const normalizeCity = (listing) => {
 
   const primary = listing?.city || listing?.address?.city;
   if (typeof primary === "string" && primary.trim()) {
-    if (primary.trim().toLowerCase() === "miami beach") return "Miami";
     return primary.trim();
   }
 
@@ -122,14 +119,12 @@ const normalizeCity = (listing) => {
     listing.tags.find((tag) => typeof tag === "string" && KNOWN_CITIES.includes(tag.toLowerCase()));
 
   if (typeof tagCity === "string" && tagCity.trim()) {
-    if (tagCity.trim().toLowerCase() === "miami beach") return "Miami";
     return tagCity.trim();
   }
 
   if (titleLower) {
     const match = KNOWN_CITIES.find((city) => titleLower.includes(city));
     if (match) {
-      if (match === "miami beach") return "Miami";
       return match
         .split(" ")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -147,7 +142,6 @@ const citySlugFromName = (value) => {
   const lower = value.toLowerCase();
   if (lower.includes("los angeles") || lower.includes("hollywood")) return "los-angeles";
   if (lower.includes("antwerp") || lower.includes("antwerpen")) return "antwerp";
-  if (lower.includes("miami")) return "miami";
   if (lower.includes("redondo")) return "redondo-beach";
   if (lower.includes("dubai")) return "dubai";
   return "";
@@ -541,7 +535,7 @@ function GlobalUnitsPage() {
     const checkInParam = params.get("checkIn") || "";
     const checkOutParam = params.get("checkOut") || "";
     const roomsParam = Number.parseInt(params.get("rooms") || "", 10);
-    if (cityParam) setCityFilter(cityParam);
+    if (cityParam) setCityFilter(/miami/i.test(cityParam) ? "All" : cityParam);
     if (checkInParam || checkOutParam) {
       setStayDates((prev) => ({
         checkIn: checkInParam || prev.checkIn,
@@ -563,7 +557,7 @@ function GlobalUnitsPage() {
         if (!res.ok) throw new Error("Unable to load One Lux Stay Global units.");
         const data = await res.json();
         const results = Array.isArray(data?.results) ? data.results : [];
-        const parentOnly = results.filter((listing) => !isChildListing(listing));
+        const parentOnly = results.filter((listing) => !isChildListing(listing) && !isHiddenUnit(listing));
         const unique = [];
         const seen = new Set();
         parentOnly.forEach((listing) => {
@@ -732,15 +726,6 @@ function GlobalUnitsPage() {
     };
   }, [listings, stayDates.checkIn, stayDates.checkOut]);
 
-  const cityOptions = useMemo(() => {
-    const uniqueCities = new Set(["All"]);
-    listings.forEach((listing) => {
-      const city = normalizeCity(listing);
-      if (city) uniqueCities.add(city);
-    });
-    return Array.from(uniqueCities);
-  }, [listings]);
-
   const visibleListings = useMemo(
     () =>
       listings.filter((listing) => {
@@ -749,6 +734,15 @@ function GlobalUnitsPage() {
       }),
     [listings],
   );
+
+  const cityOptions = useMemo(() => {
+    const uniqueCities = new Set(["All"]);
+    visibleListings.forEach((listing) => {
+      const city = normalizeCity(listing);
+      if (city) uniqueCities.add(city);
+    });
+    return Array.from(uniqueCities);
+  }, [visibleListings]);
 
   const cityAndSearchFilteredListings = useMemo(() => {
     const q = search.trim().toLowerCase();

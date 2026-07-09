@@ -16,7 +16,7 @@ const SearchIcon = () => (
 const CANONICAL = buildCanonicalUrl("/blog");
 const PAGE_TITLE = "Travel & Living Blog | OneLuxStay";
 const PAGE_DESCRIPTION =
-  "Expert guides to luxury short-term rentals, local neighborhoods, and travel tips for Dubai, Antwerp, Miami, Los Angeles, and Redondo Beach.";
+  "Expert guides to luxury short-term rentals, local neighborhoods, and travel tips for Dubai, Antwerp, Los Angeles, and Redondo Beach.";
 
 export default function BlogPage() {
   const [activeCategory, setActiveCategory] = useState("All");

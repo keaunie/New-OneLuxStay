@@ -5,7 +5,7 @@ import {
     isSupabaseListingsEnabled,
 } from "./_shared/supabaseListingsService.js";
 import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
-import { HIDDEN_UNIT_IDS } from "../../src/config/hiddenUnits.js";
+import { HIDDEN_UNIT_IDS, isHiddenUnit } from "../../src/config/hiddenUnits.js";
 
 const OPEN_API_HOST = process.env.GUESTY_OPEN_API_HOST || "https://open-api.guesty.com";
 const GUESTY_LISTINGS_URL = `${OPEN_API_HOST}/v1/listings`;
@@ -485,6 +485,7 @@ const getHiddenConfig = () => {
 };
 
 const isHiddenListing = (listing, hiddenIds, hiddenTitleTerms) => {
+    if (isHiddenUnit(listing)) return true;
     const id = String(getListingId(listing) || "");
     if (id && hiddenIds.has(id)) return true;
     const title = String(listing?.title || "").toLowerCase();

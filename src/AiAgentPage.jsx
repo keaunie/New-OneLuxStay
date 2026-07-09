@@ -13,7 +13,6 @@ const buildPageContext = () => {
     const lower = pathname.toLowerCase();
     if (lower.startsWith("/antwerp") || lower.startsWith("/antwerpen")) return "Antwerp";
     if (lower.startsWith("/los-angeles") || lower.startsWith("/losangeles")) return "Los Angeles";
-    if (lower.startsWith("/miami")) return "Miami";
     if (lower.startsWith("/redondo")) return "Redondo Beach";
     if (lower.startsWith("/dubai")) return "Dubai";
     if (lower.startsWith("/global")) return "Global";
@@ -30,7 +29,6 @@ const buildPageContext = () => {
       lower.startsWith("/antwerpen") ||
       lower.startsWith("/los-angeles") ||
       lower.startsWith("/losangeles") ||
-      lower.startsWith("/miami") ||
       lower.startsWith("/redondo") ||
       lower.startsWith("/dubai")
     ) {

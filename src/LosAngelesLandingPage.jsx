@@ -2312,7 +2312,7 @@ const getListingCityRoute = (listing) => {
     .toLowerCase();
   if (/hollywood/.test(text)) return "/hollywood";
   if (/redondo\s+beach/.test(text)) return "/redondo-beach";
-  if (/miami/.test(text)) return "/miami";
+  if (/miami/.test(text)) return "/global";
   if (/antwerp|antwerpen|belgium/.test(text)) return "/antwerp";
   if (/dubai|united arab emirates|\buae\b/.test(text)) return "/dubai";
   return "/los-angeles";
@@ -2621,6 +2621,10 @@ export default function LosAngelesLandingPage() {
   const [sectionCheckIn, setSectionCheckIn] = useState("");
   const [sectionCheckOut, setSectionCheckOut] = useState("");
   const [sectionGuests, setSectionGuests] = useState("2");
+  const [draftSectionCheckIn, setDraftSectionCheckIn] = useState("");
+  const [draftSectionCheckOut, setDraftSectionCheckOut] = useState("");
+  const [draftSectionGuests, setDraftSectionGuests] = useState("2");
+  const [isFilterApplying, setIsFilterApplying] = useState(false);
   const [sectionAvailability, setSectionAvailability] = useState([]);
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
@@ -2632,6 +2636,15 @@ export default function LosAngelesLandingPage() {
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
+  const filterApplyingTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isListingRoute) return undefined;
@@ -2687,8 +2700,13 @@ export default function LosAngelesLandingPage() {
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
-    if (paramQuery && paramQuery !== searchQuery) {
+    if (nextCheckIn !== draftSectionCheckIn) setDraftSectionCheckIn(nextCheckIn);
+    if (nextCheckOut !== draftSectionCheckOut) setDraftSectionCheckOut(nextCheckOut);
+    if (nextGuests && nextGuests !== draftSectionGuests) setDraftSectionGuests(nextGuests);
+    if (paramQuery !== searchQuery) {
       setSearchQuery(paramQuery);
+    }
+    if (paramQuery !== appliedSearch) {
       setAppliedSearch(paramQuery);
     }
   }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
@@ -2718,23 +2736,39 @@ export default function LosAngelesLandingPage() {
     }
   }, [hasStayDates]);
 
-  const applySearchQuery = (value, { scrollToListings = true } = {}) => {
+  const applySearchQuery = (value, { scrollToListings = true, showLoading = true } = {}) => {
     const trimmed = value.trim();
     setSearchQuery(trimmed);
     setAppliedSearch(trimmed);
     setIsSearchFocused(false);
+    const nextCheckIn = draftSectionCheckIn || "";
+    const nextCheckOut = draftSectionCheckOut || "";
+    const nextGuests = draftSectionGuests || "2";
+    setSectionCheckIn(nextCheckIn);
+    setSectionCheckOut(nextCheckOut);
+    setSectionGuests(nextGuests);
     const params = new URLSearchParams(location.search);
     if (trimmed) {
       params.set("q", trimmed);
     } else {
       params.delete("q");
     }
-    if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
+    if (nextCheckIn) params.set("checkIn", nextCheckIn);
     else params.delete("checkIn");
-    if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
+    if (nextCheckOut) params.set("checkOut", nextCheckOut);
     else params.delete("checkOut");
-    if (sectionGuests) params.set("guests", sectionGuests);
+    if (nextGuests) params.set("guests", nextGuests);
     else params.delete("guests");
+    if (showLoading) {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+      setIsFilterApplying(true);
+      filterApplyingTimerRef.current = window.setTimeout(() => {
+        setIsFilterApplying(false);
+        filterApplyingTimerRef.current = null;
+      }, 750);
+    }
     const search = params.toString();
     navigate(`${location.pathname}${search ? `?${search}` : ""}`, {
       replace: true,
@@ -5717,6 +5751,34 @@ const applyCheckoutPromoCode = () => {
     });
   };
 
+  const clearSearchFilters = () => {
+    if (filterApplyingTimerRef.current) {
+      window.clearTimeout(filterApplyingTimerRef.current);
+      filterApplyingTimerRef.current = null;
+    }
+    setIsFilterApplying(false);
+    setSearchQuery("");
+    setAppliedSearch("");
+    setDraftSectionCheckIn("");
+    setDraftSectionCheckOut("");
+    setDraftSectionGuests("2");
+    setSectionCheckIn("");
+    setSectionCheckOut("");
+    setSectionGuests("2");
+    setMinBedrooms(1);
+    setShowMonthlyTotal(false);
+    const params = new URLSearchParams(location.search);
+    params.delete("q");
+    params.delete("checkIn");
+    params.delete("checkOut");
+    params.delete("guests");
+    const search = params.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ""}`, {
+      replace: true,
+      state: { skipCityLoader: true },
+    });
+  };
+
   const getSignaturePoint = (event) => {
     const canvas = checkoutSignatureCanvasRef.current;
     if (!canvas) return null;
@@ -7961,7 +8023,8 @@ const applyCheckoutPromoCode = () => {
                 className="city-search-clear-btn"
                 aria-label="Clear search"
                 onClick={() => {
-                  applySearchQuery("", { scrollToListings: false });
+                  setSearchQuery("");
+                  setIsSearchFocused(false);
                 }}
               >
                 &times;
@@ -7982,7 +8045,8 @@ const applyCheckoutPromoCode = () => {
                   className="city-search-dropdown__item"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    applySearchQuery(item.label, { scrollToListings: false });
+                    setSearchQuery(item.label);
+                    setIsSearchFocused(false);
                   }}
                 >
                   <span className="city-search-dropdown__icon" aria-hidden="true">
@@ -8001,12 +8065,12 @@ const applyCheckoutPromoCode = () => {
           <span className="city-search-divider" aria-hidden="true" />
           <div className="city-search-field city-search-field--dates">
             <DateRangePicker
-              value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              value={{ checkIn: draftSectionCheckIn, checkOut: draftSectionCheckOut }}
               onValidationChange={handleSectionDateValidation}
               dropdownClassName="city-search-date-dropdown"
               onChange={({ checkIn, checkOut }) => {
-                setSectionCheckIn(checkIn);
-                setSectionCheckOut(checkOut);
+                setDraftSectionCheckIn(checkIn);
+                setDraftSectionCheckOut(checkOut);
               }}
             />
           </div>
@@ -8015,8 +8079,8 @@ const applyCheckoutPromoCode = () => {
             <span className="city-search-guests-label">Guests</span>
             <select
               className="city-search-guests-select"
-              value={sectionGuests}
-              onChange={(event) => setSectionGuests(event.target.value)}
+              value={draftSectionGuests}
+              onChange={(event) => setDraftSectionGuests(event.target.value)}
               aria-label="Guests"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
@@ -8029,17 +8093,30 @@ const applyCheckoutPromoCode = () => {
           <button
             type="button"
             className="city-search-clear city-search-clear--inline"
-            onClick={() => {
-              setSearchQuery("");
-              setAppliedSearch("");
-              setSectionCheckIn("");
-              setSectionCheckOut("");
-              setSectionGuests("2");
-              setMinBedrooms(1);
-              setShowMonthlyTotal(false);
-            }}
+            onClick={clearSearchFilters}
           >
             Clear filters
+          </button>
+          <button
+            type="button"
+            className={`city-search-submit city-search-submit--inline${isFilterApplying ? " is-loading" : ""}`}
+            onClick={handleSearchSubmit}
+            disabled={isFilterApplying}
+            aria-busy={isFilterApplying ? "true" : "false"}
+          >
+            {isFilterApplying ? (
+              <span className="city-search-submit__spinner" aria-hidden="true" />
+            ) : (
+              <span className="city-search-submit__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path
+                    d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+            )}
+            <span>{isFilterApplying ? "Searching" : "Search"}</span>
           </button>
         </div>
         <p className="city-search-summary" aria-live="polite">

@@ -271,6 +271,10 @@ export async function handler(event) {
       return jsonResponse(404, { error: "Listing not found", raw }, event);
     }
 
+    if (isHiddenUnit(listing)) {
+      return jsonResponse(404, { error: "Listing not found" }, event);
+    }
+
     return jsonResponse(200, { listing, raw }, event);
   } catch (error) {
     return jsonResponse(

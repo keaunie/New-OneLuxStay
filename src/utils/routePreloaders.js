@@ -5,9 +5,9 @@ const preloadHollywoodLandingPage = () => import("../HollywoodLandingPage");
 const preloadRedondoBeachPrimaryPage = () => import("../RedondoBeachPrimaryPage");
 const preloadRedondoBeachLegacyProtectedPage = () => import("../RedondoBeachLegacyProtectedPage");
 const preloadDubaiLandingPage = () => import("../DubaiLandingPage");
-const preloadMiamiBeachLandingPage = () => import("../MiamiBeachLandingPage");
 const preloadListingPage = () => import("../ListingPage");
 const preloadGlobalUnitsPage = () => import("../GlobalUnitsPage");
+const preloadHealthcareProfessionalsPage = () => import("../HealthcareProfessionalsPage");
 const preloadPrivacyPolicy = () => import("../PrivacyPolicy");
 const preloadTermsConditions = () => import("../TermsConditions");
 const preloadCaliforniaPrivacyPolicy = () => import("../CaliforniaPrivacyPolicy");
@@ -42,9 +42,9 @@ export const routePreloaders = {
   redondoBeach: preloadRedondoBeachPrimaryPage,
   redondoBeachLegacy: preloadRedondoBeachLegacyProtectedPage,
   dubai: preloadDubaiLandingPage,
-  miami: preloadMiamiBeachLandingPage,
   listing: preloadListingPage,
   global: preloadGlobalUnitsPage,
+  healthcareProfessionals: preloadHealthcareProfessionalsPage,
   privacy: preloadPrivacyPolicy,
   terms: preloadTermsConditions,
   californiaPrivacy: preloadCaliforniaPrivacyPolicy,
@@ -96,9 +96,6 @@ export const prefetchCityRoute = (value = "") => {
   if (normalized === "/los-angeles" || normalized === "/losangeles" || normalized.startsWith("/los-angeles/") || normalized.startsWith("/losangeles/")) {
     return Promise.all([routePreloaders.losAngeles(), routePreloaders.listing()]).then(() => undefined);
   }
-  if (normalized === "/miami" || normalized === "/miami-beach" || normalized.startsWith("/miami/") || normalized.startsWith("/miami-beach/")) {
-    return Promise.all([routePreloaders.miami(), routePreloaders.listing()]).then(() => undefined);
-  }
   if (normalized === "/redondo-beach") {
     return Promise.all([routePreloaders.redondoBeach(), routePreloaders.listing()]).then(() => undefined);
   }
@@ -123,11 +120,17 @@ export const prefetchRouteByPath = (value = "") => {
   const normalized = normalizePathname(value);
   if (!normalized) return Promise.resolve();
   if (normalized === "/" || normalized === "") return routePreloaders.landing().then(() => undefined);
+  if (normalized === "/miami" || normalized === "/miami-beach" || normalized.startsWith("/miami/") || normalized.startsWith("/miami-beach/")) {
+    return routePreloaders.global().then(() => undefined);
+  }
   if (normalized === "/listings" || normalized.includes("/listing/")) {
     return routePreloaders.listing().then(() => undefined);
   }
   if (normalized === "/global" || normalized === "/global-units" || normalized === "/one-lux-stay-global") {
     return routePreloaders.global().then(() => undefined);
+  }
+  if (normalized === "/healthcare-professionals" || normalized === "/business/healthcare-professionals") {
+    return routePreloaders.healthcareProfessionals().then(() => undefined);
   }
   if (normalized === "/privacy" || normalized === "/privacy-policy") {
     return routePreloaders.privacy().then(() => undefined);

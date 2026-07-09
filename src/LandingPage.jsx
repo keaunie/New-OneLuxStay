@@ -28,8 +28,6 @@ const KNOWN_CITIES = [
   "antwerpen",
   "dubai",
   "redondo beach",
-  "miami",
-  "miami beach",
 ];
 
 const CITY_DISPLAY_LABELS = {
@@ -38,10 +36,17 @@ const CITY_DISPLAY_LABELS = {
   Hollywood: "Hollywood, CA",
   "Los Angeles": "Los Angeles, CA",
   "Redondo Beach": "Redondo Beach, CA",
-  Miami: "Miami, FL",
 };
 
-const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach", "Miami"];
+const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach"];
+
+const BUSINESS_ACCOMMODATION_DEALS = [
+  { label: "Construction Accommodations" },
+  { label: "Corporate Assignment & Relocation" },
+  { label: "Entertainment Industry" },
+  { label: "Government" },
+  { label: "Healthcare Professionals", to: "/healthcare-professionals" },
+];
 
 const citySlugFromName = (value) => {
   if (!value) return "";
@@ -49,7 +54,6 @@ const citySlugFromName = (value) => {
   if (lower.includes("los angeles")) return "los-angeles";
   if (lower.includes("hollywood")) return "hollywood";
   if (lower.includes("antwerp") || lower.includes("antwerpen")) return "antwerp";
-  if (lower.includes("miami")) return "miami";
   if (lower.includes("redondo beach")) return "redondo-beach";
   if (lower.includes("dubai")) return "dubai";
   return lower.replace(/,/g, "").trim().replace(/\s+/g, "-");
@@ -62,7 +66,6 @@ const normalizeListingCity = (listing) => {
   const primary = listing?.city || listing?.address?.city;
   if (primary) {
     const trimmed = primary.trim();
-    if (trimmed.toLowerCase() === "miami beach") return "Miami";
     return trimmed;
   }
 
@@ -71,14 +74,12 @@ const normalizeListingCity = (listing) => {
     listing.tags.find((t) => typeof t === "string" && KNOWN_CITIES.includes(t.toLowerCase()));
   if (tagCity) {
     const trimmed = tagCity.trim();
-    if (trimmed.toLowerCase() === "miami beach") return "Miami";
     return trimmed;
   }
 
   if (titleLower) {
     const match = KNOWN_CITIES.find((c) => titleLower.includes(c));
     if (match) {
-      if (match === "miami beach") return "Miami";
       return match
         .split(" ")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -710,6 +711,56 @@ const DateRangePicker = ({ value, onChange }) => {
   );
 };
 
+const BusinessAccommodationsDeal = ({ onExplore }) => (
+  <section
+    id="business-accommodations"
+    className="landing-business-section landing-animate"
+    aria-labelledby="landing-business-deal-title"
+  >
+    <div className="landing-business-section__inner px-6 md:px-10">
+      <article className="landing-business-deal">
+        <div className="landing-business-deal__copy">
+          <p className="landing-business-deal__eyebrow">Business accommodations</p>
+          <h2 id="landing-business-deal-title">
+            Stays built for teams, assignments, and essential work.
+          </h2>
+          <p className="landing-business-deal__body">
+            Extended-stay comfort, direct booking support, and serviced residences for the people keeping projects,
+            relocations, productions, and critical work moving.
+          </p>
+        </div>
+        <ul className="landing-business-deal__list" aria-label="Business stay categories">
+          {BUSINESS_ACCOMMODATION_DEALS.map((deal) => (
+            <li key={deal.label} className={deal.to ? "is-linked" : undefined}>
+              {deal.to ? (
+                <Link
+                  to={deal.to}
+                  onMouseEnter={() => prefetchRouteByPath(deal.to)}
+                  onFocus={() => prefetchRouteByPath(deal.to)}
+                  onClick={() =>
+                    trackCtaClick({
+                      ctaText: deal.label,
+                      location: "landing_business_accommodations",
+                      sourcePage: window.location.pathname + window.location.search,
+                    })
+                  }
+                >
+                  {deal.label}
+                </Link>
+              ) : (
+                <span>{deal.label}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+        <button type="button" className="landing-business-deal__cta" onClick={onExplore}>
+          Explore business-ready stays
+        </button>
+      </article>
+    </div>
+  </section>
+);
+
 function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -861,7 +912,6 @@ function LandingPage() {
     Antwerp: "/antwerp",
     Hollywood: "/hollywood",
     "Los Angeles": "/losangeles",
-    Miami: "/miami",
     "Redondo Beach": "/redondo-beach",
     Dubai: "/dubai",
   };
@@ -915,7 +965,8 @@ function LandingPage() {
     const guestsParam = params.get("guests") || params.get("adults") || "";
     const roomsParam = params.get("rooms") || "";
     const persisted = readPersistedBooking();
-    setDestination(destinationParam || persisted?.destination || "All");
+    const nextDestination = destinationParam || persisted?.destination || "All";
+    setDestination(/miami/i.test(nextDestination) ? "All" : nextDestination);
     setCheckIn(checkInParam || persisted?.checkIn || "");
     setCheckOut(checkOutParam || persisted?.checkOut || "");
     setGuests(guestsParam ? Number(guestsParam) || 1 : persisted?.guests || 1);
@@ -953,6 +1004,7 @@ function LandingPage() {
         const results = Array.isArray(json?.results) ? json.results : [];
         const parentResults = results
           .filter((listing) => isListingActiveForShowcase(listing))
+          .filter((listing) => !isHiddenUnit(listing))
           .filter((listing) => !isChildListing(listing));
         let listingsToRender = parentResults;
 
@@ -1338,6 +1390,20 @@ function LandingPage() {
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  const handleBusinessDealExplore = useCallback(() => {
+    trackCtaClick({
+      ctaText: "explore business-ready stays",
+      location: "landing_business_accommodations",
+      sourcePage: window.location.pathname + window.location.search,
+    });
+    trackGuestJourneyEvent({
+      eventType: "cta_click",
+      destinationPath: "#collection",
+      sourceSection: "hero_business_accommodations",
+      sourceLabel: "explore_business_ready_stays",
+    });
+    scrollToCollection();
+  }, [scrollToCollection]);
 
   const handleHeroSubmit = (e) => {
     e.preventDefault();
@@ -1356,7 +1422,6 @@ function LandingPage() {
       if (cityParam === "Hollywood") return "/hollywood";
       if (cityParam === "Los Angeles") return "/losangeles";
       if (cityParam === "Antwerp") return "/antwerp";
-      if (cityParam === "Miami" || cityParam === "Miami Beach") return "/miami";
       if (cityParam === "Redondo Beach") return "/redondo-beach";
       if (cityParam === "Dubai") return "/dubai";
       return "/global";
@@ -1451,7 +1516,7 @@ function LandingPage() {
           </h1>
           <p className="landing-hero-lead">
             Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Belgium; Dubai, UAE; Hollywood, CA; Los
-            Angeles, CA; Miami, FL; and Redondo Beach, CA.
+            Angeles, CA; and Redondo Beach, CA.
           </p>
 
           <div className="landing-chip-row" data-tour-target="destination-shortcuts">
@@ -1486,7 +1551,7 @@ function LandingPage() {
                   prefetchCityByName(next);
                 }}
               >
-                {["All", "Hollywood", "Los Angeles", "Redondo Beach", "Dubai", "Antwerp", "Miami"].map((c) => (
+                {["All", "Hollywood", "Los Angeles", "Redondo Beach", "Dubai", "Antwerp"].map((c) => (
                   <option key={c} value={c}>
                     {c === "All" ? "All destinations" : formatCityLabel(c)}
                   </option>
@@ -1605,7 +1670,6 @@ function LandingPage() {
                   <option value="Redondo Beach">{formatCityLabel("Redondo Beach")}</option>
                   <option value="Dubai">{formatCityLabel("Dubai")}</option>
                   <option value="Antwerp">{formatCityLabel("Antwerp")}</option>
-                  <option value="Miami">{formatCityLabel("Miami")}</option>
                 </select>
                 {destination !== "All" && (
                   <button
@@ -1736,6 +1800,8 @@ function LandingPage() {
           </div>
         )}
       </header>
+
+      <BusinessAccommodationsDeal onExplore={handleBusinessDealExplore} />
 
       <section
         id="offers"

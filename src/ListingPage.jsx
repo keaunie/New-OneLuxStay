@@ -4,7 +4,7 @@ import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
-import { HIDDEN_UNIT_IDS } from "./config/hiddenUnits";
+import { HIDDEN_UNIT_IDS, isHiddenUnit } from "./config/hiddenUnits";
 import {
   trackAvailabilityOpened,
   trackAvailabilitySearch,
@@ -105,8 +105,6 @@ const KNOWN_CITIES = [
   "antwerpen",
   "dubai",
   "redondo beach",
-  "miami",
-  "miami beach",
 ];
 const REDONDO_MONTHLY_RANGE_LABEL = "$4,500 – $6,500 / month";
 const REDONDO_MONTHLY_RANGE_NOTE = "Seasonal Monthly Pricing";
@@ -117,7 +115,6 @@ const cityFromSlug = (slug) => {
   if (lower === "los-angeles" || lower === "losangeles") return "Los Angeles";
   if (lower === "hollywood") return "Hollywood";
   if (lower === "antwerp" || lower === "antwerpen") return "Antwerp";
-  if (lower === "miami" || lower === "miami-beach") return "Miami";
   if (lower === "redondo-beach") return "Redondo Beach";
   if (lower === "dubai") return "Dubai";
   return lower
@@ -133,7 +130,6 @@ const normalizeCity = (listing) => {
   const primary = listing.city || listing.address?.city;
   if (primary) {
     const trimmed = primary.trim();
-    if (trimmed.toLowerCase() === "miami beach") return "Miami";
     return trimmed;
   }
 
@@ -142,14 +138,12 @@ const normalizeCity = (listing) => {
     listing.tags.find((t) => typeof t === "string" && KNOWN_CITIES.includes(t.toLowerCase()));
   if (tagCity) {
     const trimmed = tagCity.trim();
-    if (trimmed.toLowerCase() === "miami beach") return "Miami";
     return trimmed;
   }
 
   if (titleLower) {
     const match = KNOWN_CITIES.find((c) => titleLower.includes(c));
     if (match) {
-      if (match === "miami beach") return "Miami";
       return match
         .split(" ")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -650,6 +644,7 @@ function ListingPage() {
           const title = typeof listing.title === "string" ? listing.title.toLowerCase() : "";
           const isRedondoListing = normalizeCity(listing).toLowerCase() === "redondo beach";
           if (isRedondoListing) return isAllowedRedondoListing(listing) || REDONDO_ONLY_VISIBLE_UNIT_IDS.has(normalizedId);
+          if (isHiddenUnit(listing)) return false;
           if (id && HIDDEN_LISTING_IDS.includes(id)) return false;
           if (!isRedondoListing && title && HIDDEN_LISTING_TITLES.some((hidden) => title.includes(hidden))) return false;
           return true;

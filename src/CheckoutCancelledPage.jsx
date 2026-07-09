@@ -16,7 +16,7 @@ const cityRouteFromValue = (value = "") => {
   if (!normalized) return "";
   if (normalized.includes("los angeles") || normalized.includes("hollywood")) return "/losangeles";
   if (normalized.includes("antwerp") || normalized.includes("antwerpen")) return "/antwerp";
-  if (normalized.includes("miami")) return "/miami";
+  if (normalized.includes("miami")) return "/global";
   if (normalized.includes("redondo")) return "/redondo-beach";
   if (normalized.includes("dubai")) return "/dubai";
   return "";
@@ -26,7 +26,6 @@ const inferCityFromPath = (path = "") => {
   const normalized = String(path).toLowerCase();
   if (normalized.startsWith("/los-angeles") || normalized.startsWith("/losangeles")) return "Los Angeles";
   if (normalized.startsWith("/antwerp") || normalized.startsWith("/antwerpen")) return "Antwerp";
-  if (normalized.startsWith("/miami") || normalized.startsWith("/miami-beach")) return "Miami";
   if (normalized.startsWith("/redondo") || normalized.startsWith("/redondo-beach")) return "Redondo Beach";
   if (normalized.startsWith("/dubai")) return "Dubai";
   return "";

@@ -28,7 +28,7 @@ export const BLOG_AUTHORS = {
   },
 };
 
-export const blogPosts = [
+const allBlogPosts = [
   {
     id: "1",
     slug: "luxury-stays-dubai-2026-guide",
@@ -929,6 +929,10 @@ export const blogPosts = [
     ],
   },
 ];
+
+const HIDDEN_BLOG_SLUGS = new Set(["miami-beachfront-vacation-guide"]);
+
+export const blogPosts = allBlogPosts.filter((post) => !HIDDEN_BLOG_SLUGS.has(post.slug));
 
 export const getBlogPost = (slug) => blogPosts.find((p) => p.slug === slug) || null;
 

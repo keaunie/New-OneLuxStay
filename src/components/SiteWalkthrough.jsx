@@ -7,8 +7,6 @@ const CITY_PATH_PREFIXES = [
   "/antwerpen",
   "/los-angeles",
   "/losangeles",
-  "/miami",
-  "/miami-beach",
   "/redondo",
   "/redondo-beach",
   "/dubai",

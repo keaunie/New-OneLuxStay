@@ -178,7 +178,7 @@ export const getNormalizedProperties = async ({ provider = "", city = "", query 
 
   const normalized = toArray(supabaseRows?.results)
     .map((listing) => normalizeGuestyProperty(listing))
-    .filter((row) => row.id && !isHiddenUnit(row.id));
+    .filter((row) => row.id && !isHiddenUnit(row));
 
   return {
     provider: PROVIDERS.GUESTY,

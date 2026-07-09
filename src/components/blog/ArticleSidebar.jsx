@@ -4,7 +4,6 @@ import TableOfContents from "./TableOfContents";
 const CITY_CTA = {
   dubai: { emoji: "🌆", title: "Stay in Dubai", desc: "Luxury apartments in Marina, Downtown & Palm Jumeirah.", href: "/dubai", label: "View Dubai Properties" },
   antwerp: { emoji: "💎", title: "Stay in Antwerp", desc: "Premium apartments in Zurenborg, Het Eilandje & Zuid.", href: "/antwerp", label: "View Antwerp Properties" },
-  miami: { emoji: "🌊", title: "Stay in Miami", desc: "Beachfront residences in South Beach & Brickell.", href: "/miami", label: "View Miami Properties" },
   "redondo-beach": { emoji: "🏄", title: "Stay in Redondo Beach", desc: "Coastal apartments steps from the Pacific.", href: "/redondo-beach", label: "View Redondo Beach Properties" },
   "los-angeles": { emoji: "✨", title: "Stay in Los Angeles", desc: "Luxury apartments across the best LA neighborhoods.", href: "/los-angeles", label: "View LA Properties" },
 };

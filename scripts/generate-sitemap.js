@@ -61,10 +61,6 @@ const CITY_CONFIG = {
     roots: ["/los-angeles", "/losangeles"],
     areaSlugs: ["hwh", "downtownla", "hollywood", "neardodger"],
   },
-  miami: {
-    roots: ["/miami-beach", "/miami"],
-    areaSlugs: ["brickell", "wynwood", "designdistrict", "miami"],
-  },
   redondo: {
     roots: ["/redondo-beach"],
     areaSlugs: [],
@@ -112,6 +108,8 @@ const isPublicSitemapRoute = (routePath = "") => {
   if (normalized === "/redondo-beach/listing/:listingid") return false;
   if (normalized === "/redondo-beach/:areaslug") return false;
   if (normalized === "/redondo-beach/:areaslug/:bookingbundle") return false;
+  if (normalized === "/miami" || normalized === "/miami-beach") return false;
+  if (normalized.startsWith("/miami/") || normalized.startsWith("/miami-beach/")) return false;
   return true;
 };
 
@@ -141,7 +139,7 @@ const normalizeListingCity = (listing) => {
 
   if (cityLower.includes("los angeles") || cityLower.includes("hollywood")) return "los-angeles";
   if (cityLower.includes("antwerp") || cityLower.includes("antwerpen")) return "antwerp";
-  if (cityLower.includes("miami")) return "miami";
+  if (cityLower.includes("miami")) return "";
   if (cityLower.includes("redondo")) return "redondo";
   if (cityLower.includes("dubai")) return "dubai";
 
@@ -149,13 +147,13 @@ const normalizeListingCity = (listing) => {
   const joinedTags = tags.join(" ");
   if (joinedTags.includes("los angeles") || joinedTags.includes("hollywood")) return "los-angeles";
   if (joinedTags.includes("antwerp") || joinedTags.includes("antwerpen")) return "antwerp";
-  if (joinedTags.includes("miami")) return "miami";
+  if (joinedTags.includes("miami")) return "";
   if (joinedTags.includes("redondo")) return "redondo";
   if (joinedTags.includes("dubai")) return "dubai";
 
   if (titleLower.includes("los angeles") || titleLower.includes("hollywood")) return "los-angeles";
   if (titleLower.includes("antwerp") || titleLower.includes("antwerpen")) return "antwerp";
-  if (titleLower.includes("miami")) return "miami";
+  if (titleLower.includes("miami")) return "";
   if (titleLower.includes("redondo")) return "redondo";
   if (titleLower.includes("dubai")) return "dubai";
 
@@ -246,7 +244,6 @@ const buildRouteSet = (baseRoutes, listings) => {
     let config = null;
     if (cityKey === "antwerp") config = CITY_CONFIG.antwerp;
     if (cityKey === "los-angeles") config = CITY_CONFIG.losAngeles;
-    if (cityKey === "miami") config = CITY_CONFIG.miami;
     if (cityKey === "redondo") return;
     if (cityKey === "dubai") config = CITY_CONFIG.dubai;
     if (!config) return;
@@ -265,7 +262,6 @@ const buildRouteSet = (baseRoutes, listings) => {
 const BLOG_POST_SLUGS = [
   "luxury-stays-dubai-2026-guide",
   "antwerp-travel-guide-2026",
-  "miami-beachfront-vacation-guide",
   "redondo-beach-vacation-guide",
   "business-travel-antwerp-guide",
 ];

@@ -33,8 +33,6 @@ const FOOTER_CITY_LINKS = [
   { label: "Hollywood", to: "/hollywood", city: "Hollywood" },
   { label: "Los Angeles", to: "/los-angeles", city: "Los Angeles" },
   { label: "LA Attractions", to: "/los-angeles/attractions", city: "Los Angeles" },
-  { label: "Miami", to: "/miami", city: "Miami" },
-  { label: "Miami Attractions", to: "/miami/attractions", city: "Miami" },
   { label: "Redondo Beach", to: "/redondo-beach", city: "Redondo Beach" },
   { label: "Redondo Attractions", to: "/redondo-beach/attractions", city: "Redondo Beach" },
 ];
