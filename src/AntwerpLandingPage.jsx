@@ -18,6 +18,7 @@ import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPa
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
+import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
@@ -1325,8 +1326,8 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
 
     const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
     const quoteNightly =
-      (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
-      (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
+      getAverageNightlyFromTotal(quoteTotal, quotedNights) ??
+      getAverageNightlyFromTotal(daySum, quotedNights) ??
       (quoteDays[0]?.manualPrice ?? quoteDays[0]?.price ?? quoteDays[0]?.basePrice);
 
     const breakdown = (() => {
@@ -2925,6 +2926,10 @@ export default function AntwerpLandingPage() {
   const [sectionCheckIn, setSectionCheckIn] = useState("");
   const [sectionCheckOut, setSectionCheckOut] = useState("");
   const [sectionGuests, setSectionGuests] = useState("2");
+  const [draftSectionCheckIn, setDraftSectionCheckIn] = useState("");
+  const [draftSectionCheckOut, setDraftSectionCheckOut] = useState("");
+  const [draftSectionGuests, setDraftSectionGuests] = useState("2");
+  const [isFilterApplying, setIsFilterApplying] = useState(false);
   const [sectionAvailability, setSectionAvailability] = useState([]);
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
@@ -2936,6 +2941,15 @@ export default function AntwerpLandingPage() {
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
+  const filterApplyingTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isListingRoute) return undefined;
@@ -2991,8 +3005,13 @@ export default function AntwerpLandingPage() {
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
-    if (paramQuery && paramQuery !== searchQuery) {
+    if (nextCheckIn !== draftSectionCheckIn) setDraftSectionCheckIn(nextCheckIn);
+    if (nextCheckOut !== draftSectionCheckOut) setDraftSectionCheckOut(nextCheckOut);
+    if (nextGuests && nextGuests !== draftSectionGuests) setDraftSectionGuests(nextGuests);
+    if (paramQuery !== searchQuery) {
       setSearchQuery(paramQuery);
+    }
+    if (paramQuery !== appliedSearch) {
       setAppliedSearch(paramQuery);
     }
   }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
@@ -3849,10 +3868,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             Number.isFinite(dayDailyRate) && Number.isFinite(toNumber(cleaningFee))
               ? dayDailyRate + toNumber(cleaningFee)
               : null;
-          const nightly = firstNumber(dayPlusCleaning, selectedPlan?.nightly);
+          const payableTotal = getPayableTotalFromBreakdown(selectedPlan?.breakdown, selectedPlan?.total);
+          const averageNightly = getAverageNightlyFromTotal(payableTotal, selectedPlan?.nights || nights);
+          const nightly = firstNumber(averageNightly, selectedPlan?.nightly, dayPlusCleaning);
           if (Number.isFinite(toNumber(nightly))) {
             nextRates[displayListingId] = {
               nightly,
+              total: payableTotal,
+              nights: selectedPlan?.nights || nights,
               currency:
                 dayPrices[0]?.currency ||
                 selectedPlan?.currency ||
@@ -3933,15 +3956,18 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       quoteLookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
     const displayCurrency = quoteRateEntry?.currency || currency;
     const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+    const quotedTotal = firstNumber(quoteRateEntry?.total);
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
     const canShowStayTotal =
       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
     const priceValue = canShowStayTotal
-      ? dailyRate * stayNights
+      ? (typeof quotedTotal === "number" ? quotedTotal : dailyRate * stayNights)
       : dailyRate;
     const priceLabel =
       typeof priceValue === "number"
-        ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
+        ? `${formatCurrency(priceValue, displayCurrency)}${
+            canShowStayTotal ? " total" : typeof quotedTotal === "number" ? " avg/night" : " / night"
+          }`
         : "Checking price...";
     const bedrooms = getListingBedrooms(listing);
     const bathrooms = firstNumber(listing?.bathrooms);
@@ -6189,23 +6215,39 @@ const applyCheckoutPromoCode = () => {
     syncListingMarkers(filteredListings);
   }, [filteredListings]);
 
-  const applySearchQuery = (value, { scrollToListings = true } = {}) => {
+  const applySearchQuery = (value, { scrollToListings = true, showLoading = true } = {}) => {
     const trimmed = value.trim();
     setSearchQuery(trimmed);
     setAppliedSearch(trimmed);
     setIsSearchFocused(false);
+    const nextCheckIn = draftSectionCheckIn || "";
+    const nextCheckOut = draftSectionCheckOut || "";
+    const nextGuests = draftSectionGuests || "2";
+    setSectionCheckIn(nextCheckIn);
+    setSectionCheckOut(nextCheckOut);
+    setSectionGuests(nextGuests);
     const params = new URLSearchParams(location.search);
     if (trimmed) {
       params.set("q", trimmed);
     } else {
       params.delete("q");
     }
-    if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
+    if (nextCheckIn) params.set("checkIn", nextCheckIn);
     else params.delete("checkIn");
-    if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
+    if (nextCheckOut) params.set("checkOut", nextCheckOut);
     else params.delete("checkOut");
-    if (sectionGuests) params.set("guests", sectionGuests);
+    if (nextGuests) params.set("guests", nextGuests);
     else params.delete("guests");
+    if (showLoading) {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+      setIsFilterApplying(true);
+      filterApplyingTimerRef.current = window.setTimeout(() => {
+        setIsFilterApplying(false);
+        filterApplyingTimerRef.current = null;
+      }, 750);
+    }
     const search = params.toString();
     navigate(`${location.pathname}${search ? `?${search}` : ""}`, {
       replace: true,
@@ -6219,6 +6261,34 @@ const applyCheckoutPromoCode = () => {
 
   const handleSearchSubmit = () => {
     applySearchQuery(searchQuery);
+  };
+
+  const clearSearchFilters = () => {
+    if (filterApplyingTimerRef.current) {
+      window.clearTimeout(filterApplyingTimerRef.current);
+      filterApplyingTimerRef.current = null;
+    }
+    setIsFilterApplying(false);
+    setSearchQuery("");
+    setAppliedSearch("");
+    setDraftSectionCheckIn("");
+    setDraftSectionCheckOut("");
+    setDraftSectionGuests("2");
+    setSectionCheckIn("");
+    setSectionCheckOut("");
+    setSectionGuests("2");
+    setMinBedrooms(1);
+    setShowMonthlyTotal(false);
+    const params = new URLSearchParams(location.search);
+    params.delete("q");
+    params.delete("checkIn");
+    params.delete("checkOut");
+    params.delete("guests");
+    const search = params.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ""}`, {
+      replace: true,
+      state: { skipCityLoader: true },
+    });
   };
 
   const resetMapView = () => {
@@ -6600,6 +6670,11 @@ const applyCheckoutPromoCode = () => {
           selectedPlan?.total ??
           quote?.total ??
           null;
+        const payableTotal = getPayableTotalFromBreakdown(breakdown, totalPrice);
+        const averageNightlyNights = firstNumber(quote?.nights, breakdown?.nights, cityDateNightCount);
+        const averageNightlyRate = getAverageNightlyFromTotal(payableTotal, averageNightlyNights);
+        const displayDailyRate = averageNightlyRate ?? dailyRate;
+        const displayDailyRateCurrency = averageNightlyRate !== null ? priceCurrency : dailyRateCurrency;
         return (
           <>
             <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
@@ -6743,8 +6818,10 @@ const applyCheckoutPromoCode = () => {
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
                 <div className="la-unit-modal__bp-price">
-                  <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
-                  <small>per night {"\u00b7"} taxes at checkout</small>
+                  <strong>{formatCurrency(displayDailyRate, displayDailyRateCurrency)}</strong>
+                  <small>
+                    {averageNightlyRate !== null ? "avg per night" : "per night \u00b7 taxes at checkout"}
+                  </small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
                 <div ref={sectionDatePickerRef}>
@@ -8262,7 +8339,8 @@ const applyCheckoutPromoCode = () => {
                 className="city-search-clear-btn"
                 aria-label="Clear search"
                 onClick={() => {
-                  applySearchQuery("", { scrollToListings: false });
+                  setSearchQuery("");
+                  setIsSearchFocused(false);
                 }}
               >
                 &times;
@@ -8283,7 +8361,8 @@ const applyCheckoutPromoCode = () => {
                   className="city-search-dropdown__item"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    applySearchQuery(item.label, { scrollToListings: false });
+                    setSearchQuery(item.label);
+                    setIsSearchFocused(false);
                   }}
                 >
                   <span className="city-search-dropdown__icon" aria-hidden="true">
@@ -8302,11 +8381,11 @@ const applyCheckoutPromoCode = () => {
           <span className="city-search-divider" aria-hidden="true" />
           <div className="city-search-field city-search-field--dates">
             <DateRangePicker
-              value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              value={{ checkIn: draftSectionCheckIn, checkOut: draftSectionCheckOut }}
               onValidationChange={handleSectionDateValidation}
               onChange={({ checkIn, checkOut }) => {
-                setSectionCheckIn(checkIn);
-                setSectionCheckOut(checkOut);
+                setDraftSectionCheckIn(checkIn);
+                setDraftSectionCheckOut(checkOut);
               }}
             />
           </div>
@@ -8315,8 +8394,8 @@ const applyCheckoutPromoCode = () => {
             <span className="city-search-guests-label">Guests</span>
             <select
               className="city-search-guests-select"
-              value={sectionGuests}
-              onChange={(event) => setSectionGuests(event.target.value)}
+              value={draftSectionGuests}
+              onChange={(event) => setDraftSectionGuests(event.target.value)}
               aria-label="Guests"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
@@ -8329,17 +8408,30 @@ const applyCheckoutPromoCode = () => {
           <button
             type="button"
             className="city-search-clear city-search-clear--inline"
-            onClick={() => {
-              setSearchQuery("");
-              setAppliedSearch("");
-              setSectionCheckIn("");
-              setSectionCheckOut("");
-              setSectionGuests("2");
-              setMinBedrooms(1);
-              setShowMonthlyTotal(false);
-            }}
+            onClick={clearSearchFilters}
           >
             Clear filters
+          </button>
+          <button
+            type="button"
+            className={`city-search-submit city-search-submit--inline${isFilterApplying ? " is-loading" : ""}`}
+            onClick={handleSearchSubmit}
+            disabled={isFilterApplying}
+            aria-busy={isFilterApplying ? "true" : "false"}
+          >
+            {isFilterApplying ? (
+              <span className="city-search-submit__spinner" aria-hidden="true" />
+            ) : (
+              <span className="city-search-submit__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path
+                    d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+            )}
+            <span>{isFilterApplying ? "Searching" : "Search"}</span>
           </button>
         </div>
         <p className="city-search-summary" aria-live="polite">
@@ -8534,17 +8626,21 @@ const applyCheckoutPromoCode = () => {
                     const quoteRateEntry = listingId ? cardQuoteRates[toLookupKey(listingId)] : null;
                     const displayCurrency = quoteRateEntry?.currency || currency;
                     const dailyRate = firstNumber(quoteRateEntry?.nightly, nightlyPrice, basePrice);
+                    const quotedTotal = firstNumber(quoteRateEntry?.total);
                     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
                     const canShowStayTotal =
                       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
-                    const stayTotal = canShowStayTotal ? dailyRate * stayNights : null;
+                    const stayTotal = canShowStayTotal
+                      ? (typeof quotedTotal === "number" ? quotedTotal : dailyRate * stayNights)
+                      : null;
+                    const nightlyPriceLabel = typeof quotedTotal === "number" ? "avg/night" : "/ night";
                     const priceMain = canShowStayTotal
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof dailyRate === "number"
-                        ? `${formatCurrency(dailyRate, displayCurrency)} / night`
+                        ? `${formatCurrency(dailyRate, displayCurrency)} ${nightlyPriceLabel}`
                         : "Checking price...";
                     const priceSub = canShowStayTotal
-                      ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      ? `${formatCurrency(dailyRate, displayCurrency)} ${nightlyPriceLabel} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
@@ -9176,6 +9272,11 @@ const applyCheckoutPromoCode = () => {
                         selectedPlan?.total ??
                         fallbackTotal ??
                         null;
+                      const rowPayableTotal = getPayableTotalFromBreakdown(breakdown, total);
+                      const rowAverageNightly = getAverageNightlyFromTotal(
+                        rowPayableTotal,
+                        quote?.nights || breakdown?.nights || sectionStayNights
+                      );
                       const originalTotal =
                         breakdown && typeof breakdown.discountAmount === "number"
                           ? breakdown.total + breakdown.discountAmount
@@ -9190,8 +9291,10 @@ const applyCheckoutPromoCode = () => {
                         sectionStayNights > 0 && sectionStayNights < rowMinNights;
                       const rowTooShortMessage = `Minimum stay is ${rowMinNights} nights.`;
                       const priceValue =
-                        typeof total === "number"
-                          ? total
+                        typeof rowPayableTotal === "number"
+                          ? rowPayableTotal
+                          : typeof total === "number"
+                            ? total
                           : typeof baseNightly === "number"
                             ? baseNightly
                             : baseNightly;
@@ -9305,7 +9408,9 @@ const applyCheckoutPromoCode = () => {
                                   )}
                                   <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
                                   <span>
-                                    Total (cleaning + tax included)
+                                    {rowAverageNightly
+                                      ? `${formatCurrency(rowAverageNightly, priceCurrency)} avg/night`
+                                      : "Total (cleaning + tax included)"}
                                   </span>
                                 </>
                               )}

@@ -21,6 +21,7 @@ import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPa
 import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHref } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
+import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
@@ -1351,8 +1352,8 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
 
     const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
     const quoteNightly =
-      (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
-      (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
+      getAverageNightlyFromTotal(quoteTotal, quotedNights) ??
+      getAverageNightlyFromTotal(daySum, quotedNights) ??
       (quoteDays[0]?.manualPrice ?? quoteDays[0]?.price ?? quoteDays[0]?.basePrice);
 
     const breakdown = (() => {
@@ -3641,10 +3642,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             Number.isFinite(dayDailyRate) && Number.isFinite(toNumber(cleaningFee))
               ? dayDailyRate + toNumber(cleaningFee)
               : null;
-          const nightly = firstNumber(dayPlusCleaning, selectedPlan?.nightly);
+          const payableTotal = getPayableTotalFromBreakdown(selectedPlan?.breakdown, selectedPlan?.total);
+          const averageNightly = getAverageNightlyFromTotal(payableTotal, selectedPlan?.nights || nights);
+          const nightly = firstNumber(averageNightly, selectedPlan?.nightly, dayPlusCleaning);
           if (Number.isFinite(toNumber(nightly))) {
             nextRates[displayListingId] = {
               nightly,
+              total: payableTotal,
+              nights: selectedPlan?.nights || nights,
               currency:
                 dayPrices[0]?.currency ||
                 selectedPlan?.currency ||
@@ -3729,6 +3734,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         listingId: entryListingId,
         displayCurrency: entryQuoteRate?.currency || entryCurrency,
         dailyRate: firstNumber(entryQuoteRate?.nightly, entryNightlyPrice, entryBasePrice),
+        total: firstNumber(entryQuoteRate?.total),
+        nights: firstNumber(entryQuoteRate?.nights),
       };
     };
     const selectedRate = resolvePopupRate(listing);
@@ -3744,15 +3751,19 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       typeof selectedRate.dailyRate === "number"
         ? selectedRate.dailyRate
         : fallbackRate?.dailyRate;
+    const quotedTotal =
+      typeof selectedRate.total === "number" ? selectedRate.total : fallbackRate?.total;
     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
     const canShowStayTotal =
       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
     const priceValue = canShowStayTotal
-      ? dailyRate * stayNights
+      ? (typeof quotedTotal === "number" ? quotedTotal : dailyRate * stayNights)
       : dailyRate;
     const priceLabel =
       typeof priceValue === "number"
-        ? `${formatCurrency(priceValue, displayCurrency)}${canShowStayTotal ? " total" : " / night"}`
+        ? `${formatCurrency(priceValue, displayCurrency)}${
+            canShowStayTotal ? " total" : typeof quotedTotal === "number" ? " avg/night" : " / night"
+          }`
         : "Checking price...";
     const bedrooms = firstNumber(
       listing?.bedrooms,
@@ -3894,6 +3905,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         const quoteRate = lookupKeys.map((key) => cardQuoteRates[key]).find(Boolean) || null;
         return {
           dailyRate: firstNumber(quoteRate?.nightly, entryNightlyPrice, entryBasePrice),
+          total: firstNumber(quoteRate?.total),
+          nights: firstNumber(quoteRate?.nights),
           displayCurrency: quoteRate?.currency || entryCurrency,
         };
       };
@@ -6399,6 +6412,11 @@ const applyCheckoutPromoCode = () => {
           selectedPlan?.total ??
           quote?.total ??
           null;
+        const payableTotal = getPayableTotalFromBreakdown(breakdown, totalPrice);
+        const averageNightlyNights = firstNumber(quote?.nights, breakdown?.nights, cityDateNightCount);
+        const averageNightlyRate = getAverageNightlyFromTotal(payableTotal, averageNightlyNights);
+        const displayDailyRate = averageNightlyRate ?? dailyRate;
+        const displayDailyRateCurrency = averageNightlyRate !== null ? priceCurrency : dailyRateCurrency;
         return (
           <>
             <div className="la-unit-modal__grid la-unit-modal__grid--fullbleed" id="la-overview">
@@ -6538,8 +6556,10 @@ const applyCheckoutPromoCode = () => {
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
                 <div className="la-unit-modal__bp-price">
-                  <strong>{formatCurrency(dailyRate, dailyRateCurrency)}</strong>
-                  <small>per night {"\u00b7"} taxes at checkout</small>
+                  <strong>{formatCurrency(displayDailyRate, displayDailyRateCurrency)}</strong>
+                  <small>
+                    {averageNightlyRate !== null ? "avg per night" : "per night \u00b7 taxes at checkout"}
+                  </small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
                 <DateRangePicker
@@ -8297,17 +8317,21 @@ const applyCheckoutPromoCode = () => {
                     const resolvedCardRate = resolveCardRateForListing(listing);
                     const displayCurrency = resolvedCardRate?.displayCurrency || currency;
                     const dailyRate = resolvedCardRate?.dailyRate;
+                    const quotedTotal = resolvedCardRate?.total;
                     const stayNights = diffNights(sectionCheckIn, sectionCheckOut);
                     const canShowStayTotal =
                       showMonthlyTotal && stayNights > 0 && typeof dailyRate === "number";
-                    const stayTotal = canShowStayTotal ? dailyRate * stayNights : null;
+                    const stayTotal = canShowStayTotal
+                      ? (typeof quotedTotal === "number" ? quotedTotal : dailyRate * stayNights)
+                      : null;
+                    const nightlyPriceLabel = typeof quotedTotal === "number" ? "avg/night" : "/ night";
                     const priceMain = canShowStayTotal
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof dailyRate === "number"
-                        ? `${formatCurrency(dailyRate, displayCurrency)} / night`
+                        ? `${formatCurrency(dailyRate, displayCurrency)} ${nightlyPriceLabel}`
                         : "Checking price...";
                     const priceSub = canShowStayTotal
-                      ? `${formatCurrency(dailyRate, displayCurrency)} / night | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
+                      ? `${formatCurrency(dailyRate, displayCurrency)} ${nightlyPriceLabel} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&
@@ -8962,6 +8986,11 @@ const applyCheckoutPromoCode = () => {
                         selectedPlan?.total ??
                         fallbackTotal ??
                         null;
+                      const rowPayableTotal = getPayableTotalFromBreakdown(breakdown, total);
+                      const rowAverageNightly = getAverageNightlyFromTotal(
+                        rowPayableTotal,
+                        quote?.nights || breakdown?.nights || sectionStayNights
+                      );
                       const originalTotal =
                         breakdown && typeof breakdown.discountAmount === "number"
                           ? breakdown.total + breakdown.discountAmount
@@ -8976,8 +9005,10 @@ const applyCheckoutPromoCode = () => {
                         sectionStayNights > 0 && sectionStayNights < rowMinNights;
                       const rowTooShortMessage = `Minimum stay is ${rowMinNights} nights.`;
                       const priceValue =
-                        typeof total === "number"
-                          ? total
+                        typeof rowPayableTotal === "number"
+                          ? rowPayableTotal
+                          : typeof total === "number"
+                            ? total
                           : typeof baseNightly === "number"
                             ? baseNightly
                             : baseNightly;
@@ -9085,7 +9116,9 @@ const applyCheckoutPromoCode = () => {
                                   )}
                                   <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
                                   <span>
-                                    Total (cleaning + tax included)
+                                    {rowAverageNightly
+                                      ? `${formatCurrency(rowAverageNightly, priceCurrency)} avg/night`
+                                      : "Total (cleaning + tax included)"}
                                   </span>
                                 </>
                               )}

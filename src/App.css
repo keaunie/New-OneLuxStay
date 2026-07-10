@@ -5375,6 +5375,12 @@ body {
   box-shadow: 0 14px 30px rgba(24, 41, 63, 0.3);
 }
 
+.city-search-submit.is-loading,
+.city-search-submit:disabled {
+  cursor: progress;
+  transform: none;
+}
+
 .city-search-submit__icon svg {
   width: 18px;
   height: 18px;

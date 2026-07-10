@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useId } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
 import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { buildStaticMapUrl, buildEmbedMapUrl } from "./utils/leafletMapsAdapter";
+import { getAverageNightlyFromTotal } from "./utils/pricingDisplay";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -518,14 +519,20 @@ const HollywoodGroupHeader = () => (
 
 export default function HollywoodLandingPage() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState("2");
   const [minBedrooms, setMinBedrooms] = useState(1);
+  const [draftCheckIn, setDraftCheckIn] = useState("");
+  const [draftCheckOut, setDraftCheckOut] = useState("");
+  const [draftGuests, setDraftGuests] = useState("2");
+  const [draftMinBedrooms, setDraftMinBedrooms] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isFilterApplying, setIsFilterApplying] = useState(false);
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -534,19 +541,35 @@ export default function HollywoodLandingPage() {
   const [showNightlyTotal, setShowNightlyTotal] = useState(false);
 
   const [isMapEnabled, setIsMapEnabled] = useState(false);
+  const filterApplyingTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+    };
+  }, []);
 
   // Read URL params + persisted booking on mount
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const persisted = readPersistedBooking();
-    setCheckIn(params.get("checkIn") || persisted?.checkIn || "");
-    setCheckOut(params.get("checkOut") || persisted?.checkOut || "");
-    setGuests(params.get("guests") || persisted?.guests || "2");
+    const nextCheckIn = params.get("checkIn") || persisted?.checkIn || "";
+    const nextCheckOut = params.get("checkOut") || persisted?.checkOut || "";
+    const nextGuests = params.get("guests") || persisted?.guests || "2";
+    const nextBedrooms = Number(params.get("bedrooms") || "") || 1;
+    setCheckIn(nextCheckIn);
+    setCheckOut(nextCheckOut);
+    setGuests(nextGuests);
+    setMinBedrooms(nextBedrooms);
+    setDraftCheckIn(nextCheckIn);
+    setDraftCheckOut(nextCheckOut);
+    setDraftGuests(nextGuests);
+    setDraftMinBedrooms(nextBedrooms);
     const q = params.get("q") || "";
-    if (q) {
-      setSearchQuery(q);
-      setAppliedSearch(q);
-    }
+    setSearchQuery(q);
+    setAppliedSearch(q);
   }, [location.search]);
 
   // Persist booking
@@ -642,21 +665,90 @@ export default function HollywoodLandingPage() {
     return `/hollywood/listing/${encodeURIComponent(listingId)}${query ? `?${query}` : ""}`;
   };
 
-  const handleSearchSubmit = () => setAppliedSearch(searchQuery.trim());
+  const handleSearchSubmit = () => {
+    const trimmed = searchQuery.trim();
+    const nextCheckIn = draftCheckIn || "";
+    const nextCheckOut = draftCheckOut || "";
+    const nextGuests = draftGuests || "2";
+    const nextBedrooms = Number(draftMinBedrooms) || 1;
+    setSearchQuery(trimmed);
+    setAppliedSearch(trimmed);
+    setCheckIn(nextCheckIn);
+    setCheckOut(nextCheckOut);
+    setGuests(nextGuests);
+    setMinBedrooms(nextBedrooms);
+    setIsSearchFocused(false);
+
+    const params = new URLSearchParams(location.search);
+    if (trimmed) params.set("q", trimmed);
+    else params.delete("q");
+    if (nextCheckIn) params.set("checkIn", nextCheckIn);
+    else params.delete("checkIn");
+    if (nextCheckOut) params.set("checkOut", nextCheckOut);
+    else params.delete("checkOut");
+    if (nextGuests && nextGuests !== "2") params.set("guests", nextGuests);
+    else params.delete("guests");
+    if (nextBedrooms > 1) params.set("bedrooms", String(nextBedrooms));
+    else params.delete("bedrooms");
+
+    if (filterApplyingTimerRef.current) {
+      window.clearTimeout(filterApplyingTimerRef.current);
+    }
+    setIsFilterApplying(true);
+    filterApplyingTimerRef.current = window.setTimeout(() => {
+      setIsFilterApplying(false);
+      filterApplyingTimerRef.current = null;
+    }, 750);
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : "",
+      },
+      { replace: true }
+    );
+  };
+
   const clearFilters = () => {
+    if (filterApplyingTimerRef.current) {
+      window.clearTimeout(filterApplyingTimerRef.current);
+      filterApplyingTimerRef.current = null;
+    }
+    setIsFilterApplying(false);
     setSearchQuery("");
     setAppliedSearch("");
     setMinBedrooms(1);
+    setDraftMinBedrooms(1);
     setCheckIn("");
     setCheckOut("");
+    setDraftCheckIn("");
+    setDraftCheckOut("");
     setGuests("2");
+    setDraftGuests("2");
     setShowNightlyTotal(false);
     writePersistedBooking(null);
+    const params = new URLSearchParams(location.search);
+    params.delete("q");
+    params.delete("checkIn");
+    params.delete("checkOut");
+    params.delete("guests");
+    params.delete("bedrooms");
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : "",
+      },
+      { replace: true }
+    );
   };
 
   const nights = diffNights(checkIn, checkOut);
   const hasActiveFilters =
-    Boolean(appliedSearch) || minBedrooms > 1 || Boolean(checkIn) || Boolean(checkOut);
+    Boolean(appliedSearch) ||
+    minBedrooms > 1 ||
+    guests !== "2" ||
+    Boolean(checkIn) ||
+    Boolean(checkOut);
 
   const mapStaticUrl = buildStaticMapUrl(HOLLYWOOD_COORDS, "480x360", 13);
   const mapEmbedUrl = buildEmbedMapUrl(HOLLYWOOD_COORDS, 14);
@@ -741,10 +833,10 @@ export default function HollywoodLandingPage() {
 
           <div className="city-search-field city-search-field--dates">
             <DateRangePicker
-              value={{ checkIn, checkOut }}
+              value={{ checkIn: draftCheckIn, checkOut: draftCheckOut }}
               onChange={(next) => {
-                setCheckIn(next.checkIn);
-                setCheckOut(next.checkOut);
+                setDraftCheckIn(next.checkIn);
+                setDraftCheckOut(next.checkOut);
               }}
             />
           </div>
@@ -752,8 +844,8 @@ export default function HollywoodLandingPage() {
           <label className="city-search-field city-search-field--guests">
             <span className="city-search-label">Guests</span>
             <select
-              value={guests}
-              onChange={(e) => setGuests(e.target.value)}
+              value={draftGuests}
+              onChange={(e) => setDraftGuests(e.target.value)}
               aria-label="Number of guests"
             >
               {["1", "2", "3", "4", "5", "6", "7", "8"].map((g) => (
@@ -767,8 +859,8 @@ export default function HollywoodLandingPage() {
           <label className="city-search-field city-search-field--bedrooms">
             <span className="city-search-label">Bedrooms</span>
             <select
-              value={minBedrooms}
-              onChange={(e) => setMinBedrooms(Number(e.target.value))}
+              value={draftMinBedrooms}
+              onChange={(e) => setDraftMinBedrooms(Number(e.target.value))}
               aria-label="Minimum bedrooms"
             >
               {[1, 2, 3, 4].map((b) => (
@@ -781,11 +873,16 @@ export default function HollywoodLandingPage() {
 
           <button
             type="button"
-            className="city-search-submit"
+            className={`city-search-submit${isFilterApplying ? " is-loading" : ""}`}
             onClick={handleSearchSubmit}
+            disabled={isFilterApplying}
+            aria-busy={isFilterApplying ? "true" : "false"}
             aria-label="Search"
           >
-            Search
+            {isFilterApplying ? (
+              <span className="city-search-submit__spinner" aria-hidden="true" />
+            ) : null}
+            <span>{isFilterApplying ? "Searching" : "Search"}</span>
           </button>
         </div>
       </section>
@@ -938,13 +1035,14 @@ export default function HollywoodLandingPage() {
                       typeof nightlyPrice === "number"
                         ? nightlyPrice * nights
                         : null;
+                    const averageNightly = getAverageNightlyFromTotal(stayTotal, nights);
                     const priceMain = stayTotal
                       ? `${formatCurrency(stayTotal, currency)} total`
                       : typeof nightlyPrice === "number"
                         ? `${formatCurrency(nightlyPrice, currency)} / night`
                         : "Price on request";
                     const priceSub = stayTotal
-                      ? `${formatCurrency(nightlyPrice, currency)} / night · ${nights} ${nights === 1 ? "night" : "nights"}`
+                      ? `${formatCurrency(averageNightly ?? nightlyPrice, currency)} avg/night · ${nights} ${nights === 1 ? "night" : "nights"}`
                       : "";
                     const hasStrikePrice =
                       typeof originalPrice === "number" &&

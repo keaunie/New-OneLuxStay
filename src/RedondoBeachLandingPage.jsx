@@ -19,6 +19,7 @@ import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPa
 import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHref } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
+import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
@@ -1384,8 +1385,8 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
 
     const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
     const quoteNightly =
-      (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
-      (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
+      getAverageNightlyFromTotal(quoteTotal, quotedNights) ??
+      getAverageNightlyFromTotal(daySum, quotedNights) ??
       (quoteDays[0]?.manualPrice ?? quoteDays[0]?.price ?? quoteDays[0]?.basePrice);
 
     const breakdown = (() => {
@@ -2473,6 +2474,10 @@ export default function RedondoBeachLandingPage({
   const [sectionCheckIn, setSectionCheckIn] = useState("");
   const [sectionCheckOut, setSectionCheckOut] = useState("");
   const [sectionGuests, setSectionGuests] = useState("4");
+  const [draftSectionCheckIn, setDraftSectionCheckIn] = useState("");
+  const [draftSectionCheckOut, setDraftSectionCheckOut] = useState("");
+  const [draftSectionGuests, setDraftSectionGuests] = useState("4");
+  const [isFilterApplying, setIsFilterApplying] = useState(false);
   const [sectionAvailability, setSectionAvailability] = useState([]);
   const [sectionAvailabilityLoading, setSectionAvailabilityLoading] = useState(false);
   const [sectionAvailabilityError, setSectionAvailabilityError] = useState("");
@@ -2494,6 +2499,15 @@ export default function RedondoBeachLandingPage({
   const [inquiryFormError, setInquiryFormError] = useState("");
   const [inquiryFormSubmitted, setInquiryFormSubmitted] = useState(false);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
+  const filterApplyingTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isListingRoute) return undefined;
@@ -2549,8 +2563,13 @@ export default function RedondoBeachLandingPage({
     if (nextCheckIn !== sectionCheckIn) setSectionCheckIn(nextCheckIn);
     if (nextCheckOut !== sectionCheckOut) setSectionCheckOut(nextCheckOut);
     if (nextGuests && nextGuests !== sectionGuests) setSectionGuests(nextGuests);
-    if (paramQuery && paramQuery !== searchQuery) {
+    if (nextCheckIn !== draftSectionCheckIn) setDraftSectionCheckIn(nextCheckIn);
+    if (nextCheckOut !== draftSectionCheckOut) setDraftSectionCheckOut(nextCheckOut);
+    if (nextGuests && nextGuests !== draftSectionGuests) setDraftSectionGuests(nextGuests);
+    if (paramQuery !== searchQuery) {
       setSearchQuery(paramQuery);
+    }
+    if (paramQuery !== appliedSearch) {
       setAppliedSearch(paramQuery);
     }
   }, [location.search, routeCheckInParam, routeCheckOutParam, routeGuestsParam, routeBookingBundle]);
@@ -2570,20 +2589,39 @@ export default function RedondoBeachLandingPage({
     });
   }, [sectionCheckIn, sectionCheckOut, sectionGuests]);
 
-  const applySearchQuery = (value, { scrollToListings = true } = {}) => {
+  const applySearchQuery = (value, { scrollToListings = true, showLoading = true } = {}) => {
     const trimmed = value.trim();
     setSearchQuery(trimmed);
     setAppliedSearch(trimmed);
     setIsSearchFocused(false);
+    const nextCheckIn = draftSectionCheckIn || "";
+    const nextCheckOut = draftSectionCheckOut || "";
+    const nextGuests = draftSectionGuests || "4";
+    setSectionCheckIn(nextCheckIn);
+    setSectionCheckOut(nextCheckOut);
+    setSectionGuests(nextGuests);
     const params = new URLSearchParams(location.search);
     if (trimmed) {
       params.set("q", trimmed);
     } else {
       params.delete("q");
     }
-    if (sectionCheckIn) params.set("checkIn", sectionCheckIn);
-    if (sectionCheckOut) params.set("checkOut", sectionCheckOut);
-    if (sectionGuests) params.set("guests", sectionGuests);
+    if (nextCheckIn) params.set("checkIn", nextCheckIn);
+    else params.delete("checkIn");
+    if (nextCheckOut) params.set("checkOut", nextCheckOut);
+    else params.delete("checkOut");
+    if (nextGuests) params.set("guests", nextGuests);
+    else params.delete("guests");
+    if (showLoading) {
+      if (filterApplyingTimerRef.current) {
+        window.clearTimeout(filterApplyingTimerRef.current);
+      }
+      setIsFilterApplying(true);
+      filterApplyingTimerRef.current = window.setTimeout(() => {
+        setIsFilterApplying(false);
+        filterApplyingTimerRef.current = null;
+      }, 750);
+    }
     navigate(
       {
         pathname: location.pathname,
@@ -2601,6 +2639,35 @@ export default function RedondoBeachLandingPage({
 
   const handleSearchSubmit = () => {
     applySearchQuery(searchQuery);
+  };
+
+  const clearSearchFilters = () => {
+    if (filterApplyingTimerRef.current) {
+      window.clearTimeout(filterApplyingTimerRef.current);
+      filterApplyingTimerRef.current = null;
+    }
+    setIsFilterApplying(false);
+    setSearchQuery("");
+    setAppliedSearch("");
+    setDraftSectionCheckIn("");
+    setDraftSectionCheckOut("");
+    setDraftSectionGuests("4");
+    setSectionCheckIn("");
+    setSectionCheckOut("");
+    setSectionGuests("4");
+    setMinBedrooms(1);
+    const params = new URLSearchParams(location.search);
+    params.delete("q");
+    params.delete("checkIn");
+    params.delete("checkOut");
+    params.delete("guests");
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : "",
+      },
+      { replace: true, state: { skipCityLoader: true } }
+    );
   };
   const [houseRulesLoading, setHouseRulesLoading] = useState(false);
   const [houseRulesError, setHouseRulesError] = useState("");
@@ -7490,7 +7557,8 @@ const applyCheckoutPromoCode = () => {
                 className="city-search-clear-btn"
                 aria-label="Clear search"
                 onClick={() => {
-                  applySearchQuery("", { scrollToListings: false });
+                  setSearchQuery("");
+                  setIsSearchFocused(false);
                 }}
               >
                 &times;
@@ -7511,7 +7579,8 @@ const applyCheckoutPromoCode = () => {
                   className="city-search-dropdown__item"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    applySearchQuery(item.label, { scrollToListings: false });
+                    setSearchQuery(item.label);
+                    setIsSearchFocused(false);
                   }}
                 >
                   <span className="city-search-dropdown__icon" aria-hidden="true">
@@ -7530,11 +7599,11 @@ const applyCheckoutPromoCode = () => {
           <span className="city-search-divider" aria-hidden="true" />
           <div className="city-search-field city-search-field--dates">
             <DateRangePicker
-              value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
+              value={{ checkIn: draftSectionCheckIn, checkOut: draftSectionCheckOut }}
               onValidationChange={handleSectionDateValidation}
               onChange={({ checkIn, checkOut }) => {
-                setSectionCheckIn(checkIn);
-                setSectionCheckOut(checkOut);
+                setDraftSectionCheckIn(checkIn);
+                setDraftSectionCheckOut(checkOut);
               }}
             />
           </div>
@@ -7543,8 +7612,8 @@ const applyCheckoutPromoCode = () => {
             <span className="city-search-guests-label">Guests</span>
             <select
               className="city-search-guests-select"
-              value={sectionGuests}
-              onChange={(event) => setSectionGuests(event.target.value)}
+              value={draftSectionGuests}
+              onChange={(event) => setDraftSectionGuests(event.target.value)}
               aria-label="Guests"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((guestCount) => (
@@ -7557,16 +7626,30 @@ const applyCheckoutPromoCode = () => {
           <button
             type="button"
             className="city-search-clear city-search-clear--inline"
-            onClick={() => {
-              setSearchQuery("");
-              setAppliedSearch("");
-              setSectionCheckIn("");
-              setSectionCheckOut("");
-              setSectionGuests("4");
-              setMinBedrooms(1);
-            }}
+            onClick={clearSearchFilters}
           >
             Clear filters
+          </button>
+          <button
+            type="button"
+            className={`city-search-submit city-search-submit--inline${isFilterApplying ? " is-loading" : ""}`}
+            onClick={handleSearchSubmit}
+            disabled={isFilterApplying}
+            aria-busy={isFilterApplying ? "true" : "false"}
+          >
+            {isFilterApplying ? (
+              <span className="city-search-submit__spinner" aria-hidden="true" />
+            ) : (
+              <span className="city-search-submit__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path
+                    d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0-2a8.5 8.5 0 1 0 5.34 15.09l4.53 4.53a1 1 0 1 0 1.42-1.42l-4.53-4.53A8.5 8.5 0 0 0 10.5 2z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+            )}
+            <span>{isFilterApplying ? "Searching" : "Search"}</span>
           </button>
         </div>
         <p className="city-search-summary" aria-live="polite">
@@ -8374,6 +8457,11 @@ const applyCheckoutPromoCode = () => {
                         selectedPlan?.total ??
                         fallbackTotal ??
                         null;
+                      const rowPayableTotal = getPayableTotalFromBreakdown(breakdown, total);
+                      const rowAverageNightly = getAverageNightlyFromTotal(
+                        rowPayableTotal,
+                        quote?.nights || breakdown?.nights || sectionStayNights
+                      );
                       const originalTotal =
                         breakdown && typeof breakdown.discountAmount === "number"
                           ? breakdown.total + breakdown.discountAmount
@@ -8388,8 +8476,10 @@ const applyCheckoutPromoCode = () => {
                         sectionStayNights > 0 && sectionStayNights < rowMinNights;
                       const rowInquiryMode = isRedondoInquiryFlow && rowTooShort;
                       const priceValue =
-                        typeof total === "number"
-                          ? total
+                        typeof rowPayableTotal === "number"
+                          ? rowPayableTotal
+                          : typeof total === "number"
+                            ? total
                           : typeof baseNightly === "number"
                             ? baseNightly
                             : baseNightly;
@@ -8497,7 +8587,9 @@ const applyCheckoutPromoCode = () => {
                                   )}
                                   <strong>{formatCurrency(priceValue, priceCurrency)}</strong>
                                   <span>
-                                    Total (cleaning + tax included)
+                                    {rowAverageNightly
+                                      ? `${formatCurrency(rowAverageNightly, priceCurrency)} avg/night`
+                                      : "Total (cleaning + tax included)"}
                                   </span>
                                 </>
                               )}

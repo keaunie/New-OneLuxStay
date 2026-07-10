@@ -4,6 +4,7 @@ import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
+import { getAverageNightlyFromTotal } from "./utils/pricingDisplay";
 import { HIDDEN_UNIT_IDS, isHiddenUnit } from "./config/hiddenUnits";
 import {
   trackAvailabilityOpened,
@@ -913,8 +914,8 @@ function ListingPage() {
       const quoteTotal = typeof quoteTotalRaw === "number" ? quoteTotalRaw : null;
 
       const quoteNightly =
-        (quoteTotal && quotedNights ? quoteTotal / quotedNights : undefined) ??
-        (typeof daySum === "number" && quotedNights ? daySum / quotedNights : undefined) ??
+        getAverageNightlyFromTotal(quoteTotal, quotedNights) ??
+        getAverageNightlyFromTotal(daySum, quotedNights) ??
         (quoteDays[0]?.price ?? quoteDays[0]?.manualPrice ?? quoteDays[0]?.basePrice);
 
       const nightly = quoteNightly ?? listing.basePrice;
