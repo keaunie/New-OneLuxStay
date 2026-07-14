@@ -26,7 +26,7 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
-import { PROMO_TIERS, usePromoConfig, validatePromoExtension } from "./utils/promoConfig";
+import { PROMO_TIERS, isPromoSelectionBlocking, usePromoConfig, validatePromoExtension } from "./utils/promoConfig";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
@@ -1502,10 +1502,12 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1, promoConfi
       accommodationFromQuote ??
       (typeof daySum === "number" ? daySum : undefined) ??
       (Number.isFinite(quoteNightly) && quotedNights ? quoteNightly * quotedNights : undefined);
+    const isPromoEligible = promoTier.key === "none" || quotedNights >= promoTier.nights;
     const configuredPercent = promoTier.key === "none" ? 0 : Number(promoConfig?.[promoTier.key]);
-    const discountRate = Number.isFinite(configuredPercent)
+    const advertisedDiscountRate = Number.isFinite(configuredPercent)
       ? Math.min(0.9, Math.max(0, configuredPercent / 100))
       : 0;
+    const discountRate = isPromoEligible ? advertisedDiscountRate : 0;
     const discountAmount =
       typeof accommodationBase === "number"
         ? accommodationBase * discountRate
@@ -1546,9 +1548,10 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1, promoConfi
     return {
       id: `${planId}::${promoTier.key}`,
       providerPlanId: planId,
-      label: promoTier.key === "none" ? "None" : `${promoTier.label} (${Math.round(discountRate * 100)}% off)`,
+      label: promoTier.key === "none" ? "None" : `${promoTier.label} (${Math.round(advertisedDiscountRate * 100)}% off · ${promoTier.nights}+ nights)`,
       promoKey: promoTier.key,
       requiredNights: promoTier.nights,
+      isPromoEligible,
       isNonRefundable,
       nightly: quoteNightly,
       currency: quoteCurrency,
@@ -2704,6 +2707,7 @@ export default function DubaiLandingPage() {
   const [sectionObservedMinNightsByDate, setSectionObservedMinNightsByDate] = useState({});
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
   const [sectionAvailabilityMap, setSectionAvailabilityMap] = useState({});
+  const autoAvailabilityTimerRef = useRef(null);
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [promoApplyingId, setPromoApplyingId] = useState("");
   const [promoFeedback, setPromoFeedback] = useState({});
@@ -4298,7 +4302,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     sectionCheckIn && sectionCheckOut && sectionStayNights === 0
       ? "Please change the check-out date."
       : sectionStayNights > 0 && sectionStayNights < requiredMinNightsForSelection
-        ? `Minimum stay is ${requiredMinNightsForSelection} nights.`
+        ? `This residence requires at least ${requiredMinNightsForSelection} nights. Your stay is ${sectionStayNights} nights, so add ${requiredMinNightsForSelection - sectionStayNights} more night${requiredMinNightsForSelection - sectionStayNights === 1 ? "" : "s"} to continue.`
         : "";
   const stayTooShortMessage = sectionDateValidationError || computedStayRestrictionMessage;
   const sectionValidationNotice = stayTooShortMessage || sectionAvailabilityError;
@@ -5115,7 +5119,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           changed = true;
           return;
         }
-        if (!plans.some((plan) => plan.id === next[listingId])) {
+        const selectedPlan = plans.find((plan) => plan.id === next[listingId]);
+        if (!selectedPlan) {
           next[listingId] = defaultId;
           changed = true;
         }
@@ -5422,10 +5427,49 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
   };
 
+  useEffect(() => {
+    if (autoAvailabilityTimerRef.current) {
+      window.clearTimeout(autoAvailabilityTimerRef.current);
+      autoAvailabilityTimerRef.current = null;
+    }
+
+    // A quote belongs to one exact date/guest selection. Remove it immediately
+    // when that selection changes so a previous total is never shown as current.
+    setSectionAvailability([]);
+    setSectionAvailabilityMap({});
+    setSectionAvailabilityActive(false);
+    setSectionQuotes({});
+    setSectionAvailabilityError("");
+    setPromoFeedback({});
+
+    if (
+      !sectionCheckIn ||
+      !sectionCheckOut ||
+      (!activeListing && !activeSection?.listings?.length) ||
+      isStayTooShort
+    ) {
+      return undefined;
+    }
+
+    autoAvailabilityTimerRef.current = window.setTimeout(() => {
+      autoAvailabilityTimerRef.current = null;
+      fetchAvailabilityListings();
+    }, 300);
+
+    return () => {
+      if (autoAvailabilityTimerRef.current) {
+        window.clearTimeout(autoAvailabilityTimerRef.current);
+        autoAvailabilityTimerRef.current = null;
+      }
+    };
+    // fetchAvailabilityListings intentionally uses the state snapshot represented
+    // by these dependencies; including its render-local identity would re-fetch forever.
+  }, [sectionCheckIn, sectionCheckOut, sectionGuests, activeListing, activeSectionKey, isStayTooShort]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handlePromoSelection = async ({ listingId, planId }) => {
     const promoKey = String(planId || "").split("::").pop();
+    setSelectedRatePlans((current) => ({ ...current, [listingId]: planId }));
     if (promoKey === "none") {
-      setSelectedRatePlans((current) => ({ ...current, [listingId]: planId }));
       setPromoFeedback((current) => ({ ...current, [listingId]: null }));
       return;
     }
@@ -5449,6 +5493,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       }
       setSectionCheckOut(result.nextCheckOut);
       setDraftSectionCheckOut(result.nextCheckOut);
+      setSelectedRatePlans((current) => ({ ...current, [listingId]: planId }));
       setSectionQuotes({});
       setSectionAvailabilityActive(false);
       setPromoFeedback((current) => ({ ...current, [listingId]: { tone: "success", message: `${result.tier.label} applied. Check-out moved to ${result.nextCheckOut}; refresh availability to update pricing.` } }));
@@ -6491,6 +6536,13 @@ const applyCheckoutPromoCode = () => {
           quote?.plan ||
           quote?.pricing ||
           null;
+        const selectedPromoShortfall =
+          selectedPlan?.promoKey &&
+          selectedPlan.promoKey !== "none" &&
+          cityDateNightCount > 0 &&
+          cityDateNightCount < selectedPlan.requiredNights
+            ? selectedPlan.requiredNights - cityDateNightCount
+            : 0;
         const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
         const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
         const targetDailyRateDate = sectionCheckIn || toISODate(new Date());
@@ -6744,7 +6796,10 @@ const applyCheckoutPromoCode = () => {
                 </div>
                 <div className="la-unit-modal__availability-details">
                   {isStayTooShort ? (
-                    <p>{stayTooShortMessage}</p>
+                    <div className="la-unit-modal__promo-warning" role="alert">
+                      <strong>Insufficient nights</strong>
+                      <span>{stayTooShortMessage}</span>
+                    </div>
                   ) : availability === false ? (
                     <p>Unavailable for the selected dates.</p>
                   ) : breakdown ? (
@@ -6792,6 +6847,14 @@ const applyCheckoutPromoCode = () => {
                     <p>Check availability to view pricing breakdown.</p>
                   )}
                 </div>
+                {selectedPromoShortfall > 0 && (
+                  <div className="la-unit-modal__promo-warning" role="status">
+                    <strong>More nights needed for {selectedPlan.label.split(" (")[0]}</strong>
+                    <span>
+                      This promotion requires {selectedPlan.requiredNights} nights. Your stay is {cityDateNightCount} nights, so add {selectedPromoShortfall} more night{selectedPromoShortfall === 1 ? "" : "s"} to receive the {Math.round(Number(promoConfig?.[selectedPlan.promoKey]) || 0)}% discount.
+                    </span>
+                  </div>
+                )}
                 {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                   <div className="la-unit-modal__rate-plan">
                     <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Promos</label>
@@ -6820,7 +6883,7 @@ const applyCheckoutPromoCode = () => {
                         <button
                           type="button"
                           className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
-                          disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
+                          disabled={sectionAvailabilityLoading || isReserving || isStayTooShort || isPromoSelectionBlocking(selectedPlan, cityDateNightCount, promoFeedback[listingId])}
                           onClick={() => {
                             if (isStayTooShort) {
                               setSectionAvailabilityError(stayTooShortMessage);
@@ -9315,7 +9378,7 @@ const applyCheckoutPromoCode = () => {
                                 <button
                                   type="button"
                                   className="la-booking-table__reserve"
-                                  disabled={isLoadingRates || isReserving || rowTooShort}
+                                  disabled={isLoadingRates || isReserving || rowTooShort || isPromoSelectionBlocking(selectedPlan, sectionStayNights, promoFeedback[listingId])}
                                   onClick={() => {
                                     if (rowTooShort) {
                                       setSectionAvailabilityError(rowTooShortMessage);
@@ -9770,7 +9833,7 @@ const applyCheckoutPromoCode = () => {
                               <button
                                 type="button"
                                 className="la-unit-modal__action-primary"
-                                disabled={sectionAvailabilityLoading || isReserving || isStayTooShort}
+                                disabled={sectionAvailabilityLoading || isReserving || isStayTooShort || isPromoSelectionBlocking(selectedPlan, cityDateNightCount, promoFeedback[listingId])}
                                 onClick={() => {
                                   if (isStayTooShort) {
                                     setSectionAvailabilityError(stayTooShortMessage);

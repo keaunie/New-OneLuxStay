@@ -16,6 +16,13 @@ export const PROMO_TIERS = Object.freeze([
   { key: "monthly", label: "Monthly Promo", nights: 28 },
 ]);
 
+export const isPromoSelectionBlocking = (plan, nights, feedback) => {
+  if (!plan?.promoKey || plan.promoKey === "none") return false;
+  const stayNights = Number(nights) || 0;
+  const requiredNights = Number(plan.requiredNights) || 0;
+  return (requiredNights > 0 && stayNights < requiredNights) || feedback?.tone === "error";
+};
+
 const normalizePercent = (value, fallback) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(90, Math.max(0, Math.round(parsed))) : fallback;

@@ -379,9 +379,20 @@
 }
 
 .healthcare-features {
+  position: relative;
   max-width: 1200px;
   margin: 0 auto clamp(68px, 8vw, 96px);
-  padding: 0 40px;
+  padding: clamp(76px, 9vw, 120px) 40px 0;
+}
+
+.healthcare-features::before {
+  content: "";
+  position: absolute;
+  top: clamp(28px, 3.5vw, 46px);
+  left: 50%;
+  width: 1px;
+  height: clamp(24px, 3vw, 36px);
+  background: linear-gradient(to bottom, transparent, var(--healthcare-gold));
 }
 
 .healthcare-features h2,
@@ -410,8 +421,24 @@
 }
 
 .healthcare-features__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   text-align: center;
   margin-bottom: 14px;
+}
+
+.healthcare-features__eyebrow::before,
+.healthcare-features__eyebrow::after {
+  content: "";
+  width: clamp(28px, 4vw, 52px);
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--healthcare-gold));
+}
+
+.healthcare-features__eyebrow::after {
+  background: linear-gradient(to left, transparent, var(--healthcare-gold));
 }
 
 .healthcare-feature-card {
@@ -1853,7 +1880,12 @@
   }
 
   .healthcare-features {
-    padding: 0 20px;
+    padding: 72px 20px 0;
+  }
+
+  .healthcare-features::before {
+    top: 24px;
+    height: 28px;
   }
 
   .healthcare-features__grid,

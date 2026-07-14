@@ -11177,6 +11177,25 @@ body {
   color: rgba(74, 63, 53, 0.8);
 }
 
+.la-unit-modal__promo-warning {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid rgba(176, 128, 48, 0.38);
+  border-left: 3px solid #b08030;
+  border-radius: 8px;
+  background: rgba(246, 234, 208, 0.48);
+  color: #5c4828;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.la-unit-modal__promo-warning strong {
+  color: #47371f;
+  font-size: 0.8rem;
+}
+
 .la-unit-modal__map img,
 .la-unit-modal__map iframe,
 .la-unit-modal__map .la-unit-modal__placeholder {
