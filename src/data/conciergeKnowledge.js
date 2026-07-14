@@ -2,7 +2,7 @@ export const conciergeKnowledge = {
   brand: {
     name: "One Lux Stay",
     description:
-      "One Lux Stay offers fully-furnished luxury apartments in prime city locations — the privacy and space of your own home combined with the quality and service of a boutique hotel. Every property is handpicked, professionally designed, and stocked with premium amenities for a seamless stay.",
+      "One Lux Stay offers fully furnished apartments in convenient city locations — the privacy and space of your own home combined with responsive guest service. Every property is professionally managed and stocked with practical amenities for a seamless stay.",
     contactEmail: "reservations@oneluxstay.com",
     contactPhone: "",
     contactWhatsApp: "+1 618 881 2613 (US + Dubai) | +32 460 25 4886 (Antwerp)",
@@ -11,7 +11,7 @@ export const conciergeKnowledge = {
     humanEscalation:
       "For anything sensitive, urgent, or policy-specific, direct guests to the One Lux Stay team via WhatsApp or email. The team is responsive and can handle special requests, group bookings, and extended stays.",
     valueProps: [
-      "Full luxury apartments — not just a room, but your own private space",
+      "Full furnished apartments — not just a room, but your own private space",
       "Prime locations in each city, steps from top restaurants, culture, and transport",
       "Hotel-grade linens, high-speed WiFi, fully-equipped kitchens, and thoughtful design",
       "Personal concierge support before and during your stay",
@@ -22,7 +22,7 @@ export const conciergeKnowledge = {
     {
       name: "Antwerp",
       summary:
-        "Stylish, walkable European city stays in the heart of Antwerp — Belgium's fashion and diamond capital. Perfect for couples and culture seekers who want a chic base to explore the city's world-class restaurants, boutiques, and museums.",
+        "walkable, walkable European city stays in the heart of Antwerp — Belgium's fashion and diamond capital. Perfect for couples and culture seekers who want a convenient base to explore the city's major restaurants, boutiques, and museums.",
       notes: [
         "Antwerp's historic center is a 10-minute walk from most One Lux Stay properties.",
         "Ideal for weekend city breaks and longer European stays.",
@@ -33,7 +33,7 @@ export const conciergeKnowledge = {
     {
       name: "Los Angeles",
       summary:
-        "Luxury apartments in LA's most sought-after neighborhoods — close to beaches, studios, and the city's best dining. Whether you're here for business, pleasure, or a little of both, our LA stays give you the comfort of home in the city's best postcodes.",
+        "furnished apartments in LA's most sought-after neighborhoods — close to beaches, studios, and the city's best dining. Whether you're here for business, pleasure, or a little of both, our LA stays give you the comfort of home in the city's best postcodes.",
       notes: [
         "Great for guests attending film industry events, corporate stays, or California road trips.",
         "Properties are positioned near key LA neighborhoods for easy access to the city.",
@@ -43,7 +43,7 @@ export const conciergeKnowledge = {
     {
       name: "Redondo Beach",
       summary:
-        "A peaceful, premium beach escape south of LA — ideal for guests who want the California coast without the city rush. Think morning surf, waterfront dining, and long sunset walks along the pier.",
+        "A peaceful, modern beach escape south of LA — ideal for guests who want the California coast without the city rush. Think morning surf, waterfront dining, and long sunset walks along the pier.",
       notes: [
         "Perfect for families, couples, and anyone needing a calm but elevated beach retreat.",
         "Close enough to LA for day trips, relaxed enough to fully unwind.",
@@ -53,9 +53,9 @@ export const conciergeKnowledge = {
     {
       name: "Dubai",
       summary:
-        "Ultra-luxury apartments in the world's most ambitious city. Dubai blends futuristic skylines, world-class dining, and extraordinary hospitality — our properties deliver that same standard of excellence right inside your front door.",
+        "furnished apartments in the world's most ambitious city. Dubai blends futuristic skylines, major dining, and extraordinary hospitality — our properties deliver that same standard of excellence right inside your front door.",
       notes: [
-        "Ideal for business travelers, high-end leisure guests, and guests attending major events.",
+        "Ideal for business travelers, leisure guests, and guests attending major events.",
         "Dubai's peak season runs October through April — book ahead for the best availability.",
         "Properties offer easy access to Dubai Marina, Downtown, DIFC, and Palm Jumeirah.",
         "Popular for guests combining business in Dubai with leisure travel in the region.",
@@ -78,7 +78,7 @@ export const conciergeKnowledge = {
     {
       question: "What cities do you have stays in?",
       answer:
-        "One Lux Stay currently has luxury apartments in Antwerp, Los Angeles, Redondo Beach, and Dubai. Each city offers a unique experience — I'd love to help you pick the right one for your trip.",
+        "One Lux Stay currently has furnished apartments in Antwerp, Los Angeles, Redondo Beach, and Dubai. Each city offers a unique experience — I'd love to help you pick the right one for your trip.",
     },
     {
       question: "How do I book with One Lux Stay?",
@@ -88,7 +88,7 @@ export const conciergeKnowledge = {
     {
       question: "What makes One Lux Stay different from a hotel?",
       answer:
-        "You get a full private apartment — your own kitchen, living space, and bedrooms — with hotel-quality finishes and linens. It's the comfort and space of home with the quality of a boutique hotel, usually at a better price per person for groups or longer stays.",
+        "You get a full private apartment — your own kitchen, living space, and bedrooms — with hotel-style finishes and linens. It's the comfort and space of home with the service of a boutique hotel, usually at a better price per person for groups or longer stays.",
     },
     {
       question: "Can I book for a special occasion?",

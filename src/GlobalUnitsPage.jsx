@@ -897,7 +897,7 @@ function GlobalUnitsPage() {
             />
           </Link>
           <h1 className="global-hero__title landing-display">View All Our Units Worldwide</h1>
-          <p className="global-hero__tagline">Luxury Without Borders.</p>
+          <p className="global-hero__tagline">Stays Across Destinations.</p>
           <p className="global-hero__subtitle">
             Guests can browse every OneLuxStay unit we offer across all destinations worldwide.
           </p>

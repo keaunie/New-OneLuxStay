@@ -7,7 +7,7 @@ const preloadRedondoBeachLegacyProtectedPage = () => import("../RedondoBeachLega
 const preloadDubaiLandingPage = () => import("../DubaiLandingPage");
 const preloadListingPage = () => import("../ListingPage");
 const preloadGlobalUnitsPage = () => import("../GlobalUnitsPage");
-const preloadHealthcareProfessionalsPage = () => import("../HealthcareProfessionalsPage");
+const preloadHealthcareProfessionalsPage = () => import("../professional_careers");
 const preloadPrivacyPolicy = () => import("../PrivacyPolicy");
 const preloadTermsConditions = () => import("../TermsConditions");
 const preloadCaliforniaPrivacyPolicy = () => import("../CaliforniaPrivacyPolicy");
@@ -129,7 +129,14 @@ export const prefetchRouteByPath = (value = "") => {
   if (normalized === "/global" || normalized === "/global-units" || normalized === "/one-lux-stay-global") {
     return routePreloaders.global().then(() => undefined);
   }
-  if (normalized === "/healthcare-professionals" || normalized === "/business/healthcare-professionals") {
+  if (
+    normalized === "/healthcare-professionals" ||
+    normalized === "/business/healthcare-professionals" ||
+    normalized === "/business/construction-accommodations" ||
+    normalized === "/business/corporate-relocation" ||
+    normalized === "/business/entertainment-industry" ||
+    normalized === "/business/government"
+  ) {
     return routePreloaders.healthcareProfessionals().then(() => undefined);
   }
   if (normalized === "/privacy" || normalized === "/privacy-policy") {

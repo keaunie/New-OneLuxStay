@@ -246,7 +246,7 @@ function SiteFooter() {
               </Link>
               <div className="policy-footer-brand-copy">
                 <p>
-                  Curated luxury stays across global destinations.
+                  Curated furnished stays across global destinations.
                 </p>
               </div>
             </div>

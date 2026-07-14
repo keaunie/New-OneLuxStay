@@ -37,7 +37,7 @@ const DEFAULT_ITEMS = [
   },
   {
     title: "Redondo Beach",
-    subtitle: "Coastal luxury stays",
+    subtitle: "Coastal furnished stays",
     href: "/redondo-beach",
     image:
       "https://assets.guesty.com/image/upload/v1760726898/production/666b3af27fc6d5653142b0af/anjv8iafdjmf6knycd8n.jpg",
@@ -55,7 +55,7 @@ export default function ChromaGrid({ items = DEFAULT_ITEMS }) {
   return (
     <section className="chroma-grid" aria-label="Featured destinations">
       <ul className="chroma-grid__list" role="list">
-        {items.map((item, index) => (
+        {items.map((item) => (
           <li key={item.title} className="chroma-grid__item">
             <Link
               to={item.href || "/"}
@@ -82,9 +82,6 @@ export default function ChromaGrid({ items = DEFAULT_ITEMS }) {
                   className="chroma-grid-card__image"
                 />
                 <div className="chroma-grid-card__overlay" />
-                <span className="chroma-grid-card__index" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
               </div>
               <div className="chroma-grid-card__body">
                 <p className="chroma-grid-card__kicker">One Lux Stay</p>

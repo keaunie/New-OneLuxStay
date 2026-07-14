@@ -31,7 +31,7 @@ const EMPTY_FORM = {
   title: "",
   slug: "",
   excerpt: "",
-  category: "Luxury Stays",
+  category: "furnished stays",
   content: "",
   featuredImage: "",
   seoTitle: "",
@@ -220,7 +220,7 @@ export default function AdminBlogPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="admin-blog-form__field" style={{ gridColumn: "1 / -1" }}>
                 <label className="admin-blog-form__label">Article Title *</label>
-                <input className="admin-blog-form__input" name="title" value={form.title} onChange={handleChange} required placeholder="e.g. The Ultimate Guide to Luxury Stays in Dubai 2025" />
+                <input className="admin-blog-form__input" name="title" value={form.title} onChange={handleChange} required placeholder="e.g. The Ultimate Guide to furnished stays in Dubai 2025" />
                 <p style={{ fontSize: "0.75rem", color: seoScore < 40 ? "#c0524a" : "var(--landing-muted)", marginTop: "0.3rem" }}>
                   {form.title.length}/65 chars {form.title.length >= 30 && form.title.length <= 65 ? "✓" : "(aim for 30–65)"}
                 </p>
@@ -274,7 +274,7 @@ export default function AdminBlogPage() {
 
               <div className="admin-blog-form__field" style={{ gridColumn: "1 / -1" }}>
                 <label className="admin-blog-form__label">Keywords (comma-separated)</label>
-                <input className="admin-blog-form__input" name="keywords" value={form.keywords} onChange={handleChange} placeholder="luxury stays Dubai, Dubai Marina apartments, …" />
+                <input className="admin-blog-form__input" name="keywords" value={form.keywords} onChange={handleChange} placeholder="furnished stays Dubai, Dubai Marina apartments, …" />
                 <p style={{ fontSize: "0.75rem", color: "var(--landing-muted)", marginTop: "0.3rem" }}>
                   {form.keywords.split(",").filter((k) => k.trim()).length} keywords added
                 </p>

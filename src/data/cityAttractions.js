@@ -7,7 +7,7 @@ export const CITY_ATTRACTIONS = {
     country: "Belgium",
     tagline: "A city of diamonds, art, and Flemish grandeur.",
     intro:
-      "Antwerp is Belgium's second-largest city and one of Europe's most cultured destinations — home to world-class museums, a thriving fashion scene, and a medieval old town threaded with cobblestone alleys and cathedral spires.",
+      "Antwerp is Belgium's second-largest city and one of Europe's most cultured destinations — home to major museums, a thriving fashion scene, and a medieval old town threaded with cobblestone alleys and cathedral spires.",
     cityPath: "/antwerp",
     bookPath: "/antwerp",
     heroGradient: "linear-gradient(135deg, #2c2420 0%, #4a3728 60%, #6b4f38 100%)",
@@ -60,7 +60,7 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Royal Museum of Fine Arts",
             description:
-              "After an extensive renovation, Antwerp's premier art museum showcases Flemish masters from Van Eyck to Ensor across beautifully restored halls — one of Belgium's finest art collections.",
+              "After an extensive renovation, Antwerp's premier art museum showcases Flemish masters from Van Eyck to Ensor across beautifully restored halls — one of Belgium's notable art collections.",
             tag: "Fine Arts",
             distance: "15 min walk",
           },
@@ -77,7 +77,7 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Meir",
             description:
-              "Antwerp's elegant main shopping boulevard stretches through 19th-century architecture and hosts flagship stores, Belgian chocolate boutiques, and the opulent Stadsfeestzaal shopping gallery.",
+              "Antwerp's historic main shopping boulevard stretches through 19th-century architecture and hosts flagship stores, Belgian chocolate boutiques, and the ornate Stadsfeestzaal shopping gallery.",
             tag: "Shopping Boulevard",
             distance: "5 min walk",
           },
@@ -153,7 +153,7 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Stadspark",
             description:
-              "Antwerp's elegant 19th-century city park is ideal for a peaceful morning stroll among fountains, statues, and a lake. It connects directly to the Royal Museum of Fine Arts.",
+              "Antwerp's historic 19th-century city park is ideal for a peaceful morning stroll among fountains, statues, and a lake. It connects directly to the Royal Museum of Fine Arts.",
             tag: "City Park",
             distance: "10 min walk",
           },
@@ -174,7 +174,7 @@ export const CITY_ATTRACTIONS = {
     country: "USA",
     tagline: "Sun, culture, and endless California energy.",
     intro:
-      "Los Angeles is a sprawling, sun-drenched metropolis where world-class art museums sit beside surf beaches, celebrity neighbourhoods blend with ethnic enclaves, and the creative spirit of Hollywood infuses everything.",
+      "Los Angeles is a sprawling, sun-drenched metropolis where major art museums sit beside surf beaches, celebrity neighbourhoods blend with ethnic enclaves, and the creative spirit of Hollywood infuses everything.",
     cityPath: "/los-angeles",
     bookPath: "/los-angeles",
     heroGradient: "linear-gradient(135deg, #1a2a3a 0%, #2c4a6e 60%, #4a7fa0 100%)",
@@ -192,8 +192,8 @@ export const CITY_ATTRACTIONS = {
           {
             name: "The Getty Center",
             description:
-              "Perched high in the Santa Monica Mountains, the Getty offers one of the finest free art collections in the world alongside stunning architecture and sweeping views from Malibu to downtown LA.",
-            tag: "World-Class Museum · Free Entry",
+              "Perched high in the Santa Monica Mountains, the Getty offers one of the notable free art collections in the world alongside stunning architecture and sweeping views from Malibu to downtown LA.",
+            tag: "major Museum · Free Entry",
             distance: "25 min drive",
           },
           {
@@ -294,13 +294,13 @@ export const CITY_ATTRACTIONS = {
         icon: "shopping",
         image: U("1476610182048-b716b8518aae"),
         narrative:
-          "Los Angeles is not one city but dozens of villages, each with its own character. The best way to understand it is to walk its streets — from the luxury of Rodeo Drive to the murals of Melrose.",
+          "Los Angeles is not one city but dozens of villages, each with its own character. The best way to understand it is to walk its streets — from Rodeo Drive to the murals of Melrose.",
         attractions: [
           {
             name: "Rodeo Drive",
             description:
-              "Beverly Hills' legendary three-block luxury shopping street is lined with Chanel, Gucci, and Cartier. Even window shopping here feels like a scene from a film — because it often was.",
-            tag: "Luxury Shopping",
+              "Beverly Hills' legendary three-block designer shopping street is lined with Chanel, Gucci, and Cartier. Even window shopping here feels like a scene from a film — because it often was.",
+            tag: "designer shopping",
             distance: "30 min drive",
           },
           {
@@ -327,7 +327,7 @@ export const CITY_ATTRACTIONS = {
     country: "USA",
     tagline: "Neon nights, turquoise water, and the art of living loud.",
     intro:
-      "Miami is a city of contrasts — Art Deco elegance meets modern high-rises, Latin warmth meets cosmopolitan cool, and white-sand beaches meet a world-class art scene. There is no city quite like it.",
+      "Miami is a city of contrasts — Art Deco elegance meets modern high-rises, Latin warmth meets cosmopolitan cool, and white-sand beaches meet a major art scene. There is no city quite like it.",
     cityPath: "/miami",
     bookPath: "/miami",
     heroGradient: "linear-gradient(135deg, #0d2b40 0%, #1a5276 60%, #148f77 100%)",
@@ -345,7 +345,7 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Wynwood Walls",
             description:
-              "An outdoor museum of world-class murals painted by international street artists on the walls of a former warehouse district. Wynwood has grown into Miami's most creative neighbourhood, full of galleries and design studios.",
+              "An outdoor museum of major murals painted by international street artists on the walls of a former warehouse district. Wynwood has grown into Miami's most creative neighbourhood, full of galleries and design studios.",
             tag: "Street Art · Galleries",
             distance: "20 min drive",
           },
@@ -428,14 +428,14 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Design District",
             description:
-              "Miami's Design District blends luxury fashion flagships (Dior, Louis Vuitton, Hermès), outdoor art installations, world-class restaurants, and cutting-edge galleries in a compact walkable area.",
-            tag: "Luxury · Dining",
+              "Miami's Design District blends designer fashion flagships (Dior, Louis Vuitton, Hermès), outdoor art installations, major restaurants, and cutting-edge galleries in a compact walkable area.",
+            tag: "Design · Dining",
             distance: "20 min drive",
           },
           {
             name: "Brickell City Centre",
             description:
-              "A modern urban mall with a spectacular 'Climate Ribbon' canopy — home to upscale dining, boutiques, and a rooftop cinema, right in Miami's booming financial district.",
+              "A modern urban mall with a spectacular 'Climate Ribbon' canopy — home to walkable dining, boutiques, and a rooftop cinema, right in Miami's booming financial district.",
             tag: "Shopping · Dining",
             distance: "Downtown",
           },
@@ -543,7 +543,7 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Manhattan Beach",
             description:
-              "The most upscale of the South Bay beach cities — home to the Manhattan Beach Pier, a boutique Main Street of shops and restaurants, and some of the best surf breaks in LA County.",
+              "The most walkable of the South Bay beach cities — home to the Manhattan Beach Pier, a boutique Main Street of shops and restaurants, and some of the best surf breaks in LA County.",
             tag: "Surf · Boutiques",
             distance: "20 min walk / 5 min drive",
           },
@@ -626,7 +626,7 @@ export const CITY_ATTRACTIONS = {
     country: "UAE",
     tagline: "The city that turned ambition into architecture.",
     intro:
-      "Dubai is a city that operates at a scale unlike any other — record-breaking towers, man-made islands, indoor ski slopes, and world-class dining, all wrapped in a desert landscape and a deeply hospitable Emirati culture.",
+      "Dubai is a city that operates at a scale unlike any other — record-breaking towers, man-made islands, indoor ski slopes, and major dining, all wrapped in a desert landscape and a deeply hospitable Emirati culture.",
     cityPath: "/dubai",
     bookPath: "/dubai",
     heroGradient: "linear-gradient(135deg, #1a1a2e 0%, #2d2d4a 60%, #5c3d1e 100%)",
@@ -772,7 +772,7 @@ export const CITY_ATTRACTIONS = {
           {
             name: "Business Bay Dining",
             description:
-              "Dubai's Business Bay district, surrounding our units, hosts some of the city's best rooftop restaurants, waterfront cafés, and luxury hotel bars along the Dubai Canal — all within walking distance.",
+              "Dubai's Business Bay district, surrounding our units, hosts some of the city's best rooftop restaurants, waterfront cafés, and hotel bars along the Dubai Canal — all within walking distance.",
             tag: "Local Dining · Canal Views",
             distance: "Walking distance",
           },

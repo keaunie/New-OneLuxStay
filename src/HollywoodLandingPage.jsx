@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useId } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./App.css";
+import CitySearchLoadingOverlay from "./components/CitySearchLoadingOverlay";
 import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
@@ -763,6 +764,7 @@ export default function HollywoodLandingPage() {
 
   return (
     <>
+      <CitySearchLoadingOverlay active={isFilterApplying} />
       <div className="city-viewport-shell city-viewport-shell--dubai">
 
       {/* ── Sticky header ── */}

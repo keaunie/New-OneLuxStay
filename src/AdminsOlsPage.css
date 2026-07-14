@@ -4066,3 +4066,18 @@
 .admins-ols-whatsapp-embed :global(.executive-ols-shell) {
   background: rgba(18, 15, 13, 0.28);
 }
+.admins-ols-promo-fieldset {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid rgba(205, 181, 143, 0.24);
+  border-radius: 16px;
+}
+
+.admins-ols-promo-fieldset legend {
+  padding: 0 8px;
+  color: #d8bd91;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}

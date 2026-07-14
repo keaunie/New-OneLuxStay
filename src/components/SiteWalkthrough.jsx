@@ -15,7 +15,7 @@ const CITY_PATH_PREFIXES = [
 const HOME_COMMON_STEPS = [
   {
     title: "Booking island",
-    description: "This is where you can search your next luxury stays around the world.",
+    description: "This is where you can search your next furnished stays around the world.",
     selectors: ["[data-tour-target='booking-island']", ".landing-hero-form", ".ols-booking-card"],
   },
   {

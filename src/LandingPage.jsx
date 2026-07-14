@@ -41,11 +41,36 @@ const CITY_DISPLAY_LABELS = {
 const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach"];
 
 const BUSINESS_ACCOMMODATION_DEALS = [
-  { label: "Construction Accommodations" },
-  { label: "Corporate Assignment & Relocation" },
-  { label: "Entertainment Industry" },
-  { label: "Government" },
-  { label: "Healthcare Professionals", to: "/healthcare-professionals" },
+  {
+    label: "Construction Accommodations",
+    to: "/business/construction-accommodations",
+    blurb: "Crew-ready homes near the job site",
+    image: "https://assets.guesty.com/image/upload/v1729880354/production/666b3af27fc6d5653142b0af/yc51idfkqenc81wnse8n.jpg",
+  },
+  {
+    label: "Corporate Assignment & Relocation",
+    to: "/business/corporate-relocation",
+    blurb: "Settled from day one, anywhere",
+    image: "https://assets.guesty.com/image/upload/v1733508976/production/666b3af27fc6d5653142b0af/uw8axioi311sthwkvv3u.jpg",
+  },
+  {
+    label: "Entertainment Industry",
+    to: "/business/entertainment-industry",
+    blurb: "Private stays for cast and crew",
+    image: "https://assets.guesty.com/image/upload/v1729698598/production/666b3af27fc6d5653142b0af/at1j16rqji4epdet5xna.jpg",
+  },
+  {
+    label: "Government",
+    to: "/business/government",
+    blurb: "Dependable housing for official travel",
+    image: "https://assets.guesty.com/image/upload/v1730118454/production/666b3af27fc6d5653142b0af/hhak8hklrbv2ewtdwuoy.jpg",
+  },
+  {
+    label: "Healthcare Professionals",
+    to: "/healthcare-professionals",
+    blurb: "Real rest between demanding shifts",
+    image: "https://assets.guesty.com/image/upload/v1729698123/production/666b3af27fc6d5653142b0af/gbfnbuvqtbreaw3100fk.jpg",
+  },
 ];
 
 const citySlugFromName = (value) => {
@@ -711,55 +736,101 @@ const DateRangePicker = ({ value, onChange }) => {
   );
 };
 
-const BusinessAccommodationsDeal = ({ onExplore }) => (
-  <section
-    id="business-accommodations"
-    className="landing-business-section landing-animate"
-    aria-labelledby="landing-business-deal-title"
-  >
-    <div className="landing-business-section__inner px-6 md:px-10">
-      <article className="landing-business-deal">
-        <div className="landing-business-deal__copy">
-          <p className="landing-business-deal__eyebrow">Business accommodations</p>
-          <h2 id="landing-business-deal-title">
-            Stays built for teams, assignments, and essential work.
-          </h2>
-          <p className="landing-business-deal__body">
-            Extended-stay comfort, direct booking support, and serviced residences for the people keeping projects,
-            relocations, productions, and critical work moving.
-          </p>
-        </div>
-        <ul className="landing-business-deal__list" aria-label="Business stay categories">
-          {BUSINESS_ACCOMMODATION_DEALS.map((deal) => (
-            <li key={deal.label} className={deal.to ? "is-linked" : undefined}>
-              {deal.to ? (
-                <Link
-                  to={deal.to}
-                  onMouseEnter={() => prefetchRouteByPath(deal.to)}
-                  onFocus={() => prefetchRouteByPath(deal.to)}
-                  onClick={() =>
-                    trackCtaClick({
-                      ctaText: deal.label,
-                      location: "landing_business_accommodations",
-                      sourcePage: window.location.pathname + window.location.search,
-                    })
-                  }
-                >
-                  {deal.label}
-                </Link>
-              ) : (
-                <span>{deal.label}</span>
-              )}
-            </li>
-          ))}
-        </ul>
+const BusinessAccommodationsDeal = ({ onExplore }) => {
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || typeof window === "undefined") return undefined;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    if (window.matchMedia("(max-width: 640px)").matches) return undefined;
+    const cards = Array.from(list.querySelectorAll(".landing-business-card"));
+    if (!cards.length) return undefined;
+
+    let rafId = 0;
+    const update = () => {
+      rafId = 0;
+      const viewportHeight = window.innerHeight;
+      cards.forEach((card, index) => {
+        const rect = card.getBoundingClientRect();
+        if (rect.bottom < -120 || rect.top > viewportHeight + 120) return;
+        const progress = (rect.top + rect.height / 2 - viewportHeight / 2) / viewportHeight;
+        const depth = index % 2 === 0 ? 30 : 46;
+        card.style.setProperty("--card-parallax", `${(-progress * depth).toFixed(1)}px`);
+      });
+    };
+    const requestUpdate = () => {
+      if (!rafId) rafId = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate, { passive: true });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+    };
+  }, []);
+
+  return (
+    <section
+      id="business-accommodations"
+      className="landing-business-section landing-animate"
+      aria-labelledby="landing-business-deal-title"
+    >
+      <div className="landing-business-section__inner landing-business-deal__copy px-6 md:px-10">
+        <p className="landing-business-deal__eyebrow">Business accommodations</p>
+        <h2 id="landing-business-deal-title">
+          Stays built for teams, assignments, and essential work.
+        </h2>
+        <p className="landing-business-deal__body">
+          Extended-stay comfort, direct booking support, and serviced residences for the people keeping projects,
+          relocations, productions, and critical work moving.
+        </p>
+      </div>
+      <ul className="landing-business-deal__list" aria-label="Business stay categories" ref={listRef}>
+        {BUSINESS_ACCOMMODATION_DEALS.map((deal) => (
+          <li key={deal.label}>
+            <Link
+              className="landing-business-card"
+              to={deal.to}
+              onMouseEnter={() => prefetchRouteByPath(deal.to)}
+              onFocus={() => prefetchRouteByPath(deal.to)}
+              onClick={() =>
+                trackCtaClick({
+                  ctaText: deal.label,
+                  location: "landing_business_accommodations",
+                  sourcePage: window.location.pathname + window.location.search,
+                })
+              }
+            >
+              <img
+                src={optimizeLandingImage(deal.image, 960)}
+                srcSet={`${optimizeLandingImage(deal.image, 480)} 480w, ${optimizeLandingImage(deal.image, 960)} 960w`}
+                sizes="(max-width: 640px) 68vw, 20vw"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+              <span className="landing-business-card__shade" aria-hidden="true" />
+              <span className="landing-business-card__text">
+                <strong>{deal.label}</strong>
+                <em>{deal.blurb}</em>
+                <span className="landing-business-card__go" aria-hidden="true">Explore &rarr;</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="landing-business-deal__actions">
         <button type="button" className="landing-business-deal__cta" onClick={onExplore}>
           Explore business-ready stays
         </button>
-      </article>
-    </div>
-  </section>
-);
+      </div>
+    </section>
+  );
+};
 
 function LandingPage() {
   const navigate = useNavigate();
@@ -1510,7 +1581,7 @@ function LandingPage() {
         {!isMobileViewport && (
           <div className="landing-hero-inner landing-hero-desktop">
           <div className="landing-logo-mark">OneLuxStay</div>
-          <p className="landing-kicker landing-hero-kicker">The art of luxurious stays</p>
+          <p className="landing-kicker landing-hero-kicker">The art of comfortable stays</p>
           <h1 className="landing-display landing-hero-title">
             Experience Timeless Elevated Living
           </h1>
@@ -1644,7 +1715,7 @@ function LandingPage() {
           <div className="ols-booking-headline">
             <h1 className="landing-display landing-hero-title">Find your next stay</h1>
             <p className="landing-hero-lead">
-              Search curated penthouses, skyline suites, and premium serviced homes across OneLuxStay cities.
+              Search curated penthouses, skyline suites, and modern serviced homes across OneLuxStay cities.
             </p>
           </div>
 
@@ -1813,7 +1884,7 @@ function LandingPage() {
             <div className="landing-offers-copy">
               <p className="landing-kicker">Direct booking offers</p>
               <h2 id="landing-offers-title" className="landing-display landing-collection-title">
-                Luxury stay offers
+                furnished stay offers
               </h2>
               <p className="landing-collection-copy">
                 Save on last-minute, weekly, and monthly stays when you book direct with One Lux Stay.
@@ -1864,7 +1935,7 @@ function LandingPage() {
               Iconic cities, <span className="landing-title-italic">unforgettable stays</span>
             </h2>
             <p className="landing-collection-copy">
-              Explore our destinations and discover refined penthouses and skyline suites curated for each city.
+              Explore our destinations and discover relaxed penthouses and skyline suites curated for each city.
             </p>
           </div>
         </div>

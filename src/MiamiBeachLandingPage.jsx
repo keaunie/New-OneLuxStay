@@ -1960,7 +1960,7 @@ const SECTION_STORIES = {
     title: "Brickell",
     tagline: "Skyline living, bayfront walks, and a downtown pulse.",
     copy:
-      "Wake to glass towers and a city energy that stays refined. Brickell blends waterfront views with rooftop dining and walkable business hubs.",
+      "Wake to glass towers and a city energy that stays relaxed. Brickell blends waterfront views with rooftop dining and walkable business hubs.",
     landmarks: ["Brickell City Centre", "Mary Brickell Village", "Bayfront Park", "Biscayne Bay"],
     transit: ["Metromover", "Metrorail", "Brickell Ave routes"],
   },
@@ -2257,7 +2257,7 @@ const CITY_TOUR_SLIDES = {
       title: "Brickell Arrival",
       subtitle: "Skyline lines and bayfront light.",
       copy:
-        "Start with a concierge-ready arrival and a skyline view. Brickell sets the tone with modern towers, waterfront walks, and a refined pace.",
+        "Start with a concierge-ready arrival and a skyline view. Brickell sets the tone with modern towers, waterfront walks, and a relaxed pace.",
       highlights: ["Brickell City Centre", "Bayfront Park", "Rooftop tables"],
       image:
         "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80",
@@ -5852,7 +5852,7 @@ const applyCheckoutPromoCode = () => {
             <p className="la-listing-hero__kicker">Miami private stay</p>
             <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Miami")}</h3>
             <div className="la-unit-modal__chips">
-              <span>Exceptional location</span>
+              <span>convenient location</span>
               <span>Fast arrival</span>
               <span>Design-forward suites</span>
             </div>
@@ -8843,7 +8843,7 @@ const applyCheckoutPromoCode = () => {
               <div>
                 <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Miami")}</h3>
                 <div className="la-unit-modal__chips">
-                  <span>Exceptional location</span>
+                  <span>convenient location</span>
                   <span>Fast arrival</span>
                 </div>
                 <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>

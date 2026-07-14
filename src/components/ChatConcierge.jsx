@@ -799,7 +799,7 @@ function ChatConcierge() {
                     ? "Let me help you secure this stay"
                     : pageContext.pageType === "city" && pageContext.city
                       ? `Find your perfect stay in ${pageContext.city}`
-                      : "Find your perfect luxury stay"}
+                      : "Find your perfect furnished stay"}
                 </p>
                 <p className="chat-concierge__welcome-copy">
                   {pageContext.pageType === "listing"

@@ -68,7 +68,7 @@ export const buildBlogListSchema = (posts = []) => ({
   "@type": "Blog",
   name: `${SITE_NAME} Travel Blog`,
   description:
-    "Expert guides to luxury short-term rentals in Dubai, Antwerp, Los Angeles, and Redondo Beach.",
+    "Expert guides to furnished short-term rentals in Dubai, Antwerp, Los Angeles, and Redondo Beach.",
   url: buildCanonicalUrl("/blog"),
   publisher: {
     "@type": "Organization",

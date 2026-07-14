@@ -63,7 +63,7 @@ export default function ReservationCard({ property, onSelect }) {
           <span className="grp-card-property-label">{property.propertyTitle}</span>
         )}
         <h3 className="grp-card-title">
-          {unitGroupName || property.title || "Luxury Property"}
+          {unitGroupName || property.title || "furnished property"}
         </h3>
         <div className="grp-card-meta">
           {accommodates > 0 && (

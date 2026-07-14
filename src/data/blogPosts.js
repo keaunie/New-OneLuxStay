@@ -2,7 +2,7 @@ export const BLOG_CATEGORIES = [
   "All",
   "Dubai Travel",
   "Antwerp Living",
-  "Luxury Stays",
+  "furnished stays",
   "Business Travel",
   "Vacation Rentals",
   "Local Guides",
@@ -14,17 +14,17 @@ export const BLOG_AUTHORS = {
   editorial: {
     name: "OneLuxStay Editorial",
     avatar: null,
-    bio: "The OneLuxStay team curates insider guides on luxury short-term rentals across our global cities.",
+    bio: "The OneLuxStay team writes practical guides to short-term rentals across our global cities.",
   },
   lucia: {
     name: "Lucia van den Berg",
     avatar: null,
-    bio: "Lucia is a luxury travel writer based between Antwerp and Dubai with a passion for design and architecture.",
+    bio: "Lucia is a travel writer based between Antwerp and Dubai with a passion for design and architecture.",
   },
   marcus: {
     name: "Marcus Reid",
     avatar: null,
-    bio: "Marcus covers business travel, coworking culture, and the intersection of work and premium living.",
+    bio: "Marcus covers business travel, coworking culture, and the intersection of work and modern living.",
   },
 };
 
@@ -32,22 +32,22 @@ const allBlogPosts = [
   {
     id: "1",
     slug: "luxury-stays-dubai-2026-guide",
-    title: "The Complete Guide to Luxury Stays in Dubai (2026)",
+    title: "The Complete Guide to furnished stays in Dubai (2026)",
     excerpt:
-      "From Dubai Marina to Downtown's glittering skyline, discover everything you need to know about finding and booking a premium short-term rental in Dubai — including insider neighborhoods, pricing, and what to expect.",
+      "From Dubai Marina to Downtown's glittering skyline, discover everything you need to know about finding and booking a modern short-term rental in Dubai — including insider neighborhoods, pricing, and what to expect.",
     category: "Dubai Travel",
     featuredImage:
       "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1400&q=85&auto=format&fit=crop",
     featuredImageAlt: "Dubai skyline at twilight with Marina towers reflected in the water",
-    seoTitle: "Luxury Stays in Dubai 2026: The Complete Guide | OneLuxStay",
+    seoTitle: "furnished stays in Dubai 2026: The Complete Guide | OneLuxStay",
     seoDescription:
-      "Planning a luxury stay in Dubai? Our 2026 guide covers the best neighborhoods, top short-term rental tips, pricing, and insider advice for booking premium apartments in Dubai Marina, Downtown, and Palm Jumeirah.",
+      "Planning a furnished stay in Dubai? Our 2026 guide covers the best neighborhoods, top short-term rental tips, pricing, and insider advice for booking modern apartments in Dubai Marina, Downtown, and Palm Jumeirah.",
     keywords: [
-      "luxury stays Dubai",
+      "furnished stays Dubai",
       "Dubai short term rental",
       "Dubai Marina apartments",
-      "luxury apartments Dubai 2026",
-      "premium holiday homes Dubai",
+      "furnished apartments Dubai 2026",
+      "modern holiday homes Dubai",
       "where to stay in Dubai",
     ],
     author: BLOG_AUTHORS.lucia,
@@ -57,12 +57,12 @@ const allBlogPosts = [
     relatedCities: ["dubai"],
     relatedSlugs: ["antwerp-travel-guide-2026", "business-travel-antwerp-guide"],
     tableOfContents: [
-      { id: "why-dubai", text: "Why Dubai for a Luxury Stay?" },
+      { id: "why-dubai", text: "Why Dubai for a furnished stay?" },
       { id: "best-neighborhoods", text: "Best Neighborhoods to Stay" },
       { id: "dubai-marina", text: "Dubai Marina" },
       { id: "downtown-dubai", text: "Downtown Dubai" },
       { id: "palm-jumeirah", text: "Palm Jumeirah" },
-      { id: "what-to-expect", text: "What to Expect in a Luxury Rental" },
+      { id: "what-to-expect", text: "What to Expect in a furnished rental" },
       { id: "best-time-to-visit", text: "Best Time to Visit Dubai" },
       { id: "booking-tips", text: "Booking Tips & Insider Advice" },
       { id: "faq", text: "Frequently Asked Questions" },
@@ -70,17 +70,17 @@ const allBlogPosts = [
     content: [
       {
         type: "paragraph",
-        text: "Dubai has long been synonymous with luxury — and its short-term rental market delivers exactly that. Whether you're arriving for business, leisure, or an extended stay, the city offers an unparalleled range of premium apartments that rival the world's finest hotels, often at a fraction of the cost.",
+        text: "Dubai has long been known for its hospitality — and its short-term rental market delivers exactly that. Whether you're arriving for business, leisure, or an extended stay, the city offers an unparalleled range of modern apartments that rival the world's notable hotels, often at a fraction of the cost.",
       },
       {
         type: "heading",
         level: 2,
         id: "why-dubai",
-        text: "Why Choose Dubai for a Luxury Stay?",
+        text: "Why Choose Dubai for a furnished stay?",
       },
       {
         type: "paragraph",
-        text: "Dubai is a city designed for ambition. Its architecture pushes the boundaries of what's possible; its hospitality sets the standard for the region. For travelers seeking space, privacy, and world-class amenities without the rigid structure of a hotel, a luxury short-term rental in Dubai is the obvious answer.",
+        text: "Dubai is a city designed for ambition. Its architecture pushes the boundaries of what's possible, and its hospitality sets the standard for the region. For travelers seeking space, privacy, and useful amenities without the rigid structure of a hotel, a furnished short-term rental is a practical option.",
       },
       {
         type: "list",
@@ -131,7 +131,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Home to the Burj Khalifa, Dubai Mall, and the world-famous dancing fountains, Downtown Dubai is the city's cultural and commercial centerpiece. Staying here means you're steps from the most iconic sights in the UAE. The apartments are typically ultra-premium — think floor-to-ceiling windows with direct Burj views, concierge services, and an address that impresses.",
+        text: "Home to the Burj Khalifa, Dubai Mall, and the world-famous dancing fountains, Downtown Dubai is the city's cultural and commercial centerpiece. Staying here means you're steps from the most iconic sights in the UAE. The apartments are typically contemporary — think floor-to-ceiling windows with direct Burj views, concierge services, and an address that impresses.",
       },
       {
         type: "heading",
@@ -146,7 +146,7 @@ const allBlogPosts = [
       {
         type: "cta",
         title: "Ready to Book a Dubai Stay?",
-        description: "Explore our curated selection of premium apartments in Dubai Marina, Downtown, and Palm Jumeirah.",
+        description: "Explore our curated selection of modern apartments in Dubai Marina, Downtown, and Palm Jumeirah.",
         buttonText: "View Dubai Properties",
         buttonHref: "/dubai",
         variant: "dubai",
@@ -155,18 +155,18 @@ const allBlogPosts = [
         type: "heading",
         level: 2,
         id: "what-to-expect",
-        text: "What to Expect in a Luxury Dubai Rental",
+        text: "What to Expect in a Furnished Dubai Rental",
       },
       {
         type: "paragraph",
-        text: "Unlike budget holiday lets, a luxury short-term rental in Dubai is fully equipped and professionally managed. Here's what's standard across OneLuxStay's Dubai portfolio:",
+        text: "A furnished short-term rental in Dubai is fully equipped and professionally managed. Here's what's standard across OneLuxStay's Dubai portfolio:",
       },
       {
         type: "list",
         ordered: false,
         items: [
-          "Hotel-quality linen and towels, changed weekly on extended stays",
-          "Fully equipped kitchen with high-end appliances",
+          "hotel-style linen and towels, changed weekly on extended stays",
+          "Fully equipped kitchen with modern appliances",
           "High-speed fiber WiFi (100Mbps+)",
           "Smart home technology: automated blinds, climate control, keyless entry",
           "24/7 building concierge and security",
@@ -182,12 +182,12 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Dubai has two seasons that matter for leisure travel: the cool season (October to April) and the hot season (May to September). The sweet spot for a luxury stay is November through March — temperatures are 22–28°C, the pool is inviting without the scorching sun, and the city is at its most vibrant with festivals, outdoor events, and perfect beach weather.",
+        text: "Dubai has two seasons that matter for leisure travel: the cool season (October to April) and the hot season (May to September). The sweet spot for a furnished stay is November through March — temperatures are 22–28°C, the pool is inviting without the scorching sun, and the city is at its most vibrant with festivals, outdoor events, and perfect beach weather.",
       },
       {
         type: "callout",
         variant: "info",
-        text: "Visiting in summer? Dubai's indoor culture is exceptional — world-class malls, restaurants, and attractions mean you'll never run out of things to do, and rental prices often drop significantly.",
+        text: "Visiting in summer? Dubai's indoor culture offers plenty to do — major malls, restaurants, and attractions mean you'll never run out of things to do, and rental prices often drop significantly.",
       },
       {
         type: "heading",
@@ -197,7 +197,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Getting the most out of a luxury Dubai rental comes down to a few key decisions. First, book directly with a reputable property management company — you'll get better rates, more flexibility, and direct support. Second, be specific about what you need: floor level, view direction, proximity to the beach or metro. Third, ask about additional services: airport transfers, housekeeping frequency, grocery delivery, and baby equipment if traveling with family.",
+        text: "Getting the most out of a furnished Dubai rental comes down to a few key decisions. First, book directly with a reputable property management company for clear rates, flexibility, and direct support. Second, be specific about what you need: floor level, view direction, and proximity to the beach or metro. Third, ask about services such as airport transfers, housekeeping, grocery delivery, and baby equipment if traveling with family.",
       },
       {
         type: "heading",
@@ -209,9 +209,9 @@ const allBlogPosts = [
         type: "faq",
         items: [
           {
-            question: "What is the minimum stay for luxury rentals in Dubai?",
+            question: "What is the minimum stay for furnished rentals in Dubai?",
             answer:
-              "Most premium apartments in Dubai have a minimum stay of 1–3 nights for short-term bookings. For monthly rates (which offer significant savings), you can book for 30 days or more with greater flexibility.",
+              "Most modern apartments in Dubai have a minimum stay of 1–3 nights for short-term bookings. For monthly rates (which offer significant savings), you can book for 30 days or more with greater flexibility.",
           },
           {
             question: "Is it safe to stay in a short-term rental in Dubai?",
@@ -219,14 +219,14 @@ const allBlogPosts = [
               "Absolutely. Dubai is consistently ranked among the safest cities in the world. DTCM (Dubai Tourism) licenses all legitimate short-term rentals, so always book with a licensed operator like OneLuxStay.",
           },
           {
-            question: "Do luxury rentals in Dubai include cleaning?",
+            question: "Do furnished rentals in Dubai include cleaning?",
             answer:
               "Yes. All OneLuxStay Dubai properties include a complimentary clean before your arrival. Extended stays include regular housekeeping. Additional cleaning services can be arranged on request.",
           },
           {
             question: "Can I get an apartment with a private pool in Dubai?",
             answer:
-              "Yes — particularly on the Palm Jumeirah and in some villa-style units. All building pools are included in the rental. Private rooftop pools are available in select ultra-premium properties.",
+              "Yes — particularly on the Palm Jumeirah and in some villa-style units. All building pools are included in the rental. Private rooftop pools are available in select contemporary properties.",
           },
         ],
       },
@@ -238,19 +238,19 @@ const allBlogPosts = [
     slug: "antwerp-travel-guide-2026",
     title: "Antwerp Travel Guide 2026: Where to Stay, What to Do, and Why It's Europe's Best-Kept Secret",
     excerpt:
-      "Antwerp is Belgium's most stylish city — a port town turned fashion capital with world-class museums, a vibrant food scene, and some of Europe's most beautiful short-term apartments. Here's everything you need to know.",
+      "Antwerp is Belgium's most walkable city — a port town turned fashion capital with major museums, a vibrant food scene, and some of Europe's most beautiful short-term apartments. Here's everything you need to know.",
     category: "Antwerp Living",
     featuredImage:
       "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=85&auto=format&fit=crop",
     featuredImageAlt: "Antwerp Cathedral and historic city center at golden hour",
     seoTitle: "Antwerp Travel Guide 2026: Best Neighborhoods, Stays & Things To Do | OneLuxStay",
     seoDescription:
-      "Discover Antwerp in 2026 — from the diamond district to the fashion quarter. Our complete travel guide covers the best areas to stay, top attractions, luxury apartment recommendations, and insider tips for first-time visitors.",
+      "Discover Antwerp in 2026 — from the diamond district to the fashion quarter. Our complete travel guide covers the best areas to stay, top attractions, furnished apartment recommendations, and insider tips for first-time visitors.",
     keywords: [
       "Antwerp travel guide",
       "where to stay in Antwerp",
       "Antwerp short term rental",
-      "Antwerp luxury apartments",
+      "Antwerp furnished apartments",
       "visit Antwerp Belgium",
       "best neighborhoods Antwerp",
       "Antwerp hotel alternative",
@@ -275,7 +275,7 @@ const allBlogPosts = [
     content: [
       {
         type: "paragraph",
-        text: "There's a reason Antwerp keeps appearing on every serious travel list. It's a city of contradictions that somehow work perfectly: medieval architecture sharing streets with cutting-edge fashion boutiques, a world-class diamond trade coexisting with indie art galleries, and Flemish comfort food sitting alongside Michelin-starred restaurants. Antwerp is Belgium at its finest.",
+        text: "There's a reason Antwerp keeps appearing on every serious travel list. It's a city of contradictions that somehow work perfectly: medieval architecture sharing streets with cutting-edge fashion boutiques, a major diamond trade coexisting with indie art galleries, and Flemish comfort food sitting alongside Michelin-starred restaurants. Antwerp is Belgium at its notable.",
       },
       {
         type: "heading",
@@ -320,7 +320,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Once a working dockland, Het Eilandje ('The Little Island') has been transformed into one of Antwerp's most desirable living areas. The waterfront warehouses have been converted into loft apartments with industrial-chic aesthetics; the quays are lined with restaurants and bars; and the MAS Museum (Museum aan de Stroom) anchors the cultural life of the district. This is where young professionals and design-conscious travelers gravitate.",
+        text: "Once a working dockland, Het Eilandje ('The Little Island') has been transformed into one of Antwerp's most desirable living areas. The waterfront warehouses have been converted into loft apartments with industrial-convenient aesthetics; the quays are lined with restaurants and bars; and the MAS Museum (Museum aan de Stroom) anchors the cultural life of the district. This is where young professionals and design-conscious travelers gravitate.",
       },
       {
         type: "heading",
@@ -335,7 +335,7 @@ const allBlogPosts = [
       {
         type: "cta",
         title: "Stay in Antwerp with OneLuxStay",
-        description: "Browse our handpicked selection of luxury apartments across Antwerp's most desirable neighborhoods.",
+        description: "Browse our handpicked selection of furnished apartments across Antwerp's most desirable neighborhoods.",
         buttonText: "Explore Antwerp Listings",
         buttonHref: "/antwerp",
         variant: "antwerp",
@@ -422,21 +422,21 @@ const allBlogPosts = [
   {
     id: "3",
     slug: "miami-beachfront-vacation-guide",
-    title: "Miami Beachfront Stays: The Definitive Luxury Vacation Guide",
+    title: "Miami Beachfront Stays: The Definitive beach vacation Guide",
     excerpt:
-      "Miami blends Art Deco glamour, tropical energy, and world-class beaches into one intoxicating package. Our guide covers the best luxury stays, the neighborhoods you should know, and how to make the most of your time in this iconic city.",
+      "Miami blends Art Deco glamour, tropical energy, and major beaches into one intoxicating package. Our guide covers the best furnished stays, the neighborhoods you should know, and how to make the most of your time in this iconic city.",
     category: "Vacation Rentals",
     featuredImage:
       "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&q=85&auto=format&fit=crop",
     featuredImageAlt: "Miami Beach sunrise over turquoise ocean with palm trees",
-    seoTitle: "Miami Beachfront Luxury Stays Guide 2026 | OneLuxStay",
+    seoTitle: "Miami Beachfront furnished stays Guide 2026 | OneLuxStay",
     seoDescription:
-      "Planning a luxury vacation in Miami? Our complete guide covers beachfront rentals, the best neighborhoods (South Beach, Brickell, Surfside), what to do, and insider tips for booking the perfect Miami luxury apartment.",
+      "Planning a beach vacation in Miami? Our complete guide covers beachfront rentals, the best neighborhoods (South Beach, Brickell, Surfside), what to do, and insider tips for booking the perfect Miami furnished apartment.",
     keywords: [
-      "Miami luxury stays",
+      "Miami furnished stays",
       "Miami Beach vacation rental",
       "Miami beachfront apartment",
-      "luxury vacation Miami",
+      "beach vacation Miami",
       "Miami short term rental",
       "South Beach vacation",
       "where to stay in Miami",
@@ -460,13 +460,13 @@ const allBlogPosts = [
     content: [
       {
         type: "paragraph",
-        text: "Miami is unlike any other American city. It faces the Caribbean rather than the American heartland, its culture is shaped by Latin America as much as by the US, its architecture ranges from pastel Art Deco to glass ultra-modern, and its beaches are world-class by any measure. For luxury travelers, Miami offers a concentration of premium apartments, penthouses, and beach residences that make it one of North America's best short-term rental destinations.",
+        text: "Miami is unlike any other American city. It faces the Caribbean rather than the American heartland, its culture is shaped by Latin America as much as by the US, its architecture ranges from pastel Art Deco to glass contemporary, and its beaches are major by any measure. For travelers, Miami offers a concentration of modern apartments, penthouses, and beach residences that make it one of North America's best short-term rental destinations.",
       },
       {
         type: "heading",
         level: 2,
         id: "why-miami",
-        text: "Why Miami Is Perfect for a Luxury Stay",
+        text: "Why Miami Is Perfect for a furnished stay",
       },
       {
         type: "paragraph",
@@ -480,7 +480,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "South Beach is what most people picture when they think of Miami — the pastel Art Deco hotels along Ocean Drive, the wide white sand beach, the impossibly beautiful people at Nikki Beach. Staying in South Beach puts you at the center of the action: everything is walkable, the beach is steps away, and the nightlife is legendary. For a true Miami luxury stay, look for an apartment with a rooftop pool and ocean views.",
+        text: "South Beach is what most people picture when they think of Miami — the pastel Art Deco hotels along Ocean Drive, the wide white sand beach, the impossibly beautiful people at Nikki Beach. Staying in South Beach puts you at the center of the action: everything is walkable, the beach is steps away, and the nightlife is legendary. For a true Miami furnished stay, look for an apartment with a rooftop pool and ocean views.",
       },
       {
         type: "heading",
@@ -496,16 +496,16 @@ const allBlogPosts = [
         type: "heading",
         level: 2,
         id: "surfside",
-        text: "Surfside & Bal Harbour: The Quieter Luxury",
+        text: "Surfside & Bal Harbour: A Quieter Stay",
       },
       {
         type: "paragraph",
-        text: "For travelers who want the Miami experience without South Beach's intensity, Surfside and Bal Harbour offer a calmer, more residential luxury. The beaches here are arguably better — wider, quieter, and more pristine. Bal Harbour Shops is one of the finest luxury retail destinations in the US, and the condo residences along Collins Avenue offer spectacular ocean views in a more tranquil environment.",
+        text: "For travelers who want the Miami experience without South Beach's intensity, Surfside and Bal Harbour offer a calmer, more residential setting. The beaches here are arguably better — wider, quieter, and more pristine. Bal Harbour Shops is one of the notable designer retail destinations in the US, and the condo residences along Collins Avenue offer spectacular ocean views in a more tranquil environment.",
       },
       {
         type: "cta",
         title: "Book Your Miami Escape",
-        description: "Explore OneLuxStay's handpicked luxury apartments across Miami Beach, Brickell, and beyond.",
+        description: "Explore OneLuxStay's handpicked furnished apartments across Miami Beach, Brickell, and beyond.",
         buttonText: "Browse Miami Properties",
         buttonHref: "/miami",
         variant: "miami",
@@ -538,7 +538,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Miami's restaurant scene has evolved from tourist-trap Ocean Drive staples to a genuinely world-class dining destination. Wynwood, Brickell, and Design District are the epicenters of serious dining — José Andrés, Gordon Ramsay, and dozens of celebrated local chefs have all planted flags here. The nightlife needs no introduction: Miami's clubs and rooftop bars set the standard for the entire hemisphere.",
+        text: "Miami's restaurant scene has evolved from tourist-trap Ocean Drive staples to a genuinely major dining destination. Wynwood, Brickell, and Design District are the epicenters of serious dining — José Andrés, Gordon Ramsay, and dozens of celebrated local chefs have all planted flags here. The nightlife needs no introduction: Miami's clubs and rooftop bars set the standard for the entire hemisphere.",
       },
       {
         type: "callout",
@@ -549,11 +549,11 @@ const allBlogPosts = [
         type: "heading",
         level: 2,
         id: "booking-tips",
-        text: "Booking Tips for Miami Luxury Rentals",
+        text: "Booking Tips for Miami furnished rentals",
       },
       {
         type: "paragraph",
-        text: "Miami's luxury rental market moves fast, particularly during Art Basel (December), Spring Break (March), and the winter season (January–March). Book at least 4–6 weeks ahead for peak periods. For summer visits, prices drop considerably and you'll often find premium apartments at significant discounts — the weather is hot but manageable, and the beaches are far less crowded.",
+        text: "Miami's furnished rental market moves fast, particularly during Art Basel (December), Spring Break (March), and the winter season (January–March). Book at least 4–6 weeks ahead for peak periods. For summer visits, prices drop considerably and you'll often find modern apartments at significant discounts — the weather is hot but manageable, and the beaches are far less crowded.",
       },
       {
         type: "heading",
@@ -587,19 +587,19 @@ const allBlogPosts = [
   {
     id: "4",
     slug: "redondo-beach-vacation-guide",
-    title: "Redondo Beach: LA's Most Underrated Luxury Beach Destination",
+    title: "Redondo Beach: An Underrated LA Beach Destination",
     excerpt:
       "While tourists flock to Santa Monica and Venice, savvy travelers are discovering Redondo Beach — a laid-back, genuinely beautiful coastal town that offers all the California beach magic without the crowds or the chaos.",
     category: "Local Guides",
     featuredImage:
       "https://images.unsplash.com/photo-1468413253369-08c2a2dde8d8?w=1400&q=85&auto=format&fit=crop",
     featuredImageAlt: "Redondo Beach pier at sunset with California coast stretching south",
-    seoTitle: "Redondo Beach Vacation Guide 2026: Luxury Stays & Things to Do | OneLuxStay",
+    seoTitle: "Redondo Beach Vacation Guide 2026: furnished stays & Things to Do | OneLuxStay",
     seoDescription:
-      "Discover Redondo Beach — Los Angeles County's best-kept beach secret. Our guide covers luxury vacation rentals, the best restaurants, what to do, and why this South Bay gem beats Santa Monica for a relaxed California beach experience.",
+      "Discover Redondo Beach — Los Angeles County's best-kept beach secret. Our guide covers beach vacation rentals, the best restaurants, what to do, and why this South Bay gem beats Santa Monica for a relaxed California beach experience.",
     keywords: [
       "Redondo Beach vacation",
-      "Redondo Beach luxury rental",
+      "Redondo Beach furnished rental",
       "Redondo Beach California",
       "South Bay LA beach towns",
       "Redondo Beach short term rental",
@@ -676,7 +676,7 @@ const allBlogPosts = [
       {
         type: "cta",
         title: "Find Your Redondo Beach Retreat",
-        description: "Browse our curated luxury apartments and beach cottages in Redondo Beach, just steps from the Pacific.",
+        description: "Browse our curated furnished apartments and beach cottages in Redondo Beach, just steps from the Pacific.",
         buttonText: "View Redondo Beach Properties",
         buttonHref: "/redondo-beach",
         variant: "default",
@@ -695,7 +695,7 @@ const allBlogPosts = [
         type: "list",
         ordered: false,
         items: [
-          "Manhattan Beach (15 min bike north) — upscale boutiques and beach volleyball",
+          "Manhattan Beach (15 min bike north) — walkable boutiques and beach volleyball",
           "Hermosa Beach (10 min bike north) — the most social of the South Bay towns",
           "Palos Verdes Peninsula (20 min drive) — dramatic clifftop trails and the Wayfarer's Chapel",
           "Long Beach (25 min drive) — the Queen Mary and vibrant waterfront",
@@ -710,7 +710,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Redondo Beach has a surprisingly excellent dining scene for a town its size. The pier area is all about casual seafood — AJ's on the Pier, Kincaid's, and the farmers market on Tuesdays. For more serious dining, Riviera Village on Catalina Avenue has a strip of quality restaurants covering everything from sushi to Italian to craft cocktails.",
+        text: "Redondo Beach has a surprisingly excellent dining scene for a town its size. The pier area is all about casual seafood — AJ's on the Pier, Kincaid's, and the farmers market on Tuesdays. For more serious dining, Riviera Village on Catalina Avenue has a strip of restaurants covering everything from sushi to Italian to craft cocktails.",
       },
       {
         type: "heading",
@@ -746,7 +746,7 @@ const allBlogPosts = [
     slug: "business-travel-antwerp-guide",
     title: "The Business Traveler's Complete Guide to Antwerp (2026 Edition)",
     excerpt:
-      "Antwerp is one of Europe's most important business hubs — the world's diamond capital, home to Europe's second-largest port, and an emerging tech and creative economy. Here's how to make your business trip exceptional.",
+      "Antwerp is one of Europe's most important business hubs — the world's diamond capital, home to Europe's second-largest port, and an emerging tech and creative economy. Here's how to make your business trip productive.",
     category: "Business Travel",
     featuredImage:
       "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1400&q=85&auto=format&fit=crop",
@@ -802,7 +802,7 @@ const allBlogPosts = [
           "Second-largest port in Europe by container volume",
           "Major pharmaceutical and chemical industry corridor (BASF, Johnson & Johnson)",
           "Fast-growing technology and startup ecosystem",
-          "Royal Academy of Fine Arts produces world-class design and fashion talent",
+          "Royal Academy of Fine Arts produces major design and fashion talent",
           "Access to EU decision-making infrastructure via proximity to Brussels",
         ],
       },
@@ -835,7 +835,7 @@ const allBlogPosts = [
         type: "list",
         ordered: false,
         items: [
-          "Fosbury & Sons (Station area) — premium coworking in a beautifully designed space",
+          "Fosbury & Sons (Station area) — modern coworking in a beautifully designed space",
           "LOFT (Het Eilandje) — waterfront creative coworking with event spaces",
           "Silversquare (Station & CBD locations) — professional-grade hot desks and private offices",
           "The Egg (multiple locations) — flexible membership options with meeting rooms",
@@ -873,7 +873,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "Antwerp has world-class meeting and event infrastructure. The Antwerp Expo handles major trade fairs and conferences. The Port House (designed by Zaha Hadid) is one of the most photographed buildings in Belgium and an impressive backdrop for corporate events. For smaller meetings, the city's historic guild houses and hotel ballrooms offer a uniquely European setting.",
+        text: "Antwerp has major meeting and event infrastructure. The Antwerp Expo handles major trade fairs and conferences. The Port House (designed by Zaha Hadid) is one of the most photographed buildings in Belgium and an impressive backdrop for corporate events. For smaller meetings, the city's historic guild houses and hotel ballrooms offer a uniquely European setting.",
       },
       {
         type: "heading",
@@ -883,7 +883,7 @@ const allBlogPosts = [
       },
       {
         type: "paragraph",
-        text: "One of Antwerp's great gifts to the business traveler is that it's genuinely enjoyable to be in. Unlike some business destinations that are purely functional, Antwerp rewards exploration. The restaurant scene is exceptional; the museum calendar is rich; the fashion and design culture makes even a walk through the city center interesting. Business travelers who allocate an extra day or evening to explore consistently leave with a much warmer view of Belgium.",
+        text: "One of Antwerp's great gifts to the business traveler is that it's genuinely enjoyable to be in. Unlike some business destinations that are purely functional, Antwerp rewards exploration. The restaurant scene offers plenty to do; the museum calendar is rich; the fashion and design culture makes even a walk through the city center interesting. Business travelers who allocate an extra day or evening to explore consistently leave with a much warmer view of Belgium.",
       },
       {
         type: "heading",

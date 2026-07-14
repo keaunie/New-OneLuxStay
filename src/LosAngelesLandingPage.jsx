@@ -9,6 +9,7 @@ import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
+import CitySearchLoadingOverlay from "./components/CitySearchLoadingOverlay";
 import MasonryGalleryModal from "./components/MasonryGalleryModal";
 import SimilarUnitsSection from "./components/listing/SimilarUnitsSection";
 import NeighborhoodHighlightsSection from "./components/listing/NeighborhoodHighlightsSection";
@@ -23,6 +24,7 @@ import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
+import { PROMO_TIERS, usePromoConfig } from "./utils/promoConfig";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
@@ -1288,7 +1290,7 @@ const DateRangePicker = ({
     </div>
   );
 };
-const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
+const getQuotePricing = (quoteData, listing, nights, guestsCount = 1, promoConfig) => {
   if (!quoteData || !listing) return null;
   const normalizeRatePlan = (plan = {}) => {
     const labelSource = plan?.name || plan?.title || plan?.description || "";
@@ -1309,7 +1311,7 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
       ? [quoteData.rates.ratePlans]
       : [];
 
-  const buildPlanPricing = (plan, idx) => {
+  const buildPlanPricing = (plan, idx, promoTier) => {
     const ratePlanMeta = plan?.ratePlan || {};
     const { label, isNonRefundable } = normalizeRatePlan(ratePlanMeta);
     const planId = ratePlanMeta?._id || plan?._id || `plan-${idx}`;
@@ -1409,7 +1411,10 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
       accommodationFromQuote ??
       (typeof daySum === "number" ? daySum : undefined) ??
       (Number.isFinite(quoteNightly) && quotedNights ? quoteNightly * quotedNights : undefined);
-    const discountRate = isNonRefundable ? 0.15 : 0.1;
+    const configuredPercent = promoTier.key === "none" ? 0 : Number(promoConfig?.[promoTier.key]);
+    const discountRate = Number.isFinite(configuredPercent)
+      ? Math.min(0.9, Math.max(0, configuredPercent / 100))
+      : 0;
     const discountAmount =
       typeof accommodationBase === "number"
         ? accommodationBase * discountRate
@@ -1461,8 +1466,13 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
       }
     );
     return {
-      id: planId,
-      label,
+      id: `${planId}::${promoTier.key}`,
+      providerPlanId: planId,
+      label: promoTier.key === "none"
+        ? "None"
+        : `${promoTier.label} (${Math.round(discountRate * 100)}% off)`,
+      promoKey: promoTier.key,
+      requiredNights: promoTier.nights,
       isNonRefundable,
       nightly: quoteNightly,
       currency: quoteCurrency,
@@ -1472,13 +1482,20 @@ const getQuotePricing = (quoteData, listing, nights, guestsCount = 1) => {
     };
   };
 
-  const plans = plansRaw
-    .map(buildPlanPricing)
-    .filter((plan) => Boolean(plan) && !plan.isNonRefundable);
+  const refundablePlanEntries = plansRaw
+    .map((plan, idx) => ({ plan, idx, normalized: normalizeRatePlan(plan?.ratePlan || {}) }))
+    .filter((entry) => !entry.normalized.isNonRefundable);
+  const promoBaseEntry =
+    refundablePlanEntries.find((entry) =>
+      /signature|standard|refundable/i.test(entry.normalized.label)
+    ) || refundablePlanEntries[0] || null;
+  const plans = promoBaseEntry
+    ? PROMO_TIERS
+        .map((promoTier) => buildPlanPricing(promoBaseEntry.plan, promoBaseEntry.idx, promoTier))
+        .filter(Boolean)
+    : [];
   if (!plans.length) return null;
-  const standardPlan =
-    plans.find((plan) => /signature|standard|refundable/i.test(plan.label)) ||
-    null;
+  const standardPlan = plans.find((plan) => plan.id.endsWith("::none")) || null;
   return {
     plans,
     defaultPlanId: (standardPlan || plans[0]).id,
@@ -2584,6 +2601,7 @@ const formatFullDescription = (listing) => {
 };
 
 export default function LosAngelesLandingPage() {
+  const promoConfig = usePromoConfig("usa");
   const {
     listingId: routeListingId,
     checkIn: routeCheckInParam,
@@ -2634,6 +2652,8 @@ export default function LosAngelesLandingPage() {
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
   const [sectionAvailabilityMap, setSectionAvailabilityMap] = useState({});
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
+  const [promoApplyingId, setPromoApplyingId] = useState("");
+  const [promoFeedback, setPromoFeedback] = useState({});
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [inquiryListing, setInquiryListing] = useState(null);
   const [houseRulesByUnit, setHouseRulesByUnit] = useState({});
@@ -3611,7 +3631,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             quoteData,
             listing,
             nights,
-            Number(sectionGuests) || 1
+            Number(sectionGuests) || 1,
+            promoConfig
           );
           const selectedPlan =
             pricing?.plans?.find((plan) => plan.id === pricing?.defaultPlanId) ||
@@ -3626,7 +3647,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             quotePlansRaw.find((plan, idx) => {
               const ratePlanMeta = plan?.ratePlan || {};
               const planId = ratePlanMeta?._id || plan?._id || `plan-${idx}`;
-              return String(planId) === String(selectedPlan?.id || "");
+              return String(planId) === String(selectedPlan?.providerPlanId || "");
             }) || quotePlansRaw[0] || null;
           const dayPrices = Array.isArray(selectedQuotePlan?.days) ? selectedQuotePlan.days : [];
           const dayDailyRate = toNumber(
@@ -3672,7 +3693,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, [losAngelesParentListings, losAngelesListings, sectionCheckIn, sectionCheckOut, sectionGuests]);
+  }, [losAngelesParentListings, losAngelesListings, sectionCheckIn, sectionCheckOut, sectionGuests, promoConfig]);
 
   const buildMapPopupContent = useCallback((popupListings = [], activeIndex = 0, popupKey = "") => {
     const listings = (Array.isArray(popupListings) ? popupListings : [popupListings]).filter(Boolean);
@@ -4999,7 +5020,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             quoteData,
             listing,
             nights,
-            Number(sectionGuests) || 1
+            Number(sectionGuests) || 1,
+            promoConfig
           );
           const manualTotals = getManualTotal(quoteData);
           const total =
@@ -5020,7 +5042,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, [groupedListingsAll, sectionCheckIn, sectionCheckOut]);
+  }, [groupedListingsAll, sectionCheckIn, sectionCheckOut, sectionGuests, promoConfig]);
 
   useEffect(() => {
     if (!activeListing) return;
@@ -5346,7 +5368,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
               quoteData,
               listing,
               nights,
-              Number(sectionGuests) || 1
+              Number(sectionGuests) || 1,
+              promoConfig
             );
             if (!pricing) return;
             assignQuote(listing, pricing);
@@ -5378,6 +5401,106 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setSectionAvailabilityError(err.message || "Unable to load availability.");
     } finally {
       setSectionAvailabilityLoading(false);
+    }
+  };
+
+  const handlePromoSelection = async ({ listingId, planId }) => {
+    const promoKey = String(planId || "").split("::").pop();
+    const promoTier = PROMO_TIERS.find((tier) => tier.key === promoKey);
+    if (!listingId || !promoTier) return;
+
+    if (promoTier.key === "none") {
+      setSelectedRatePlans((current) => ({ ...current, [listingId]: planId }));
+      setPromoFeedback((current) => ({ ...current, [listingId]: null }));
+      setSectionAvailabilityError("");
+      return;
+    }
+
+    if (!sectionCheckIn) {
+      const message = "Select a check-in date before choosing a promo.";
+      setPromoFeedback((current) => ({ ...current, [listingId]: { tone: "error", message } }));
+      setSectionAvailabilityError(message);
+      return;
+    }
+
+    const currentNights = diffNights(sectionCheckIn, sectionCheckOut);
+    if (currentNights >= promoTier.nights) {
+      setSelectedRatePlans((current) => ({ ...current, [listingId]: planId }));
+      setPromoFeedback((current) => ({
+        ...current,
+        [listingId]: {
+          tone: "success",
+          message: `${promoTier.label} applies to this ${currentNights}-night stay.`,
+        },
+      }));
+      setSectionAvailabilityError("");
+      return;
+    }
+
+    const checkInDate = new Date(`${sectionCheckIn}T12:00:00`);
+    if (Number.isNaN(checkInDate.getTime())) return;
+    checkInDate.setDate(checkInDate.getDate() + promoTier.nights);
+    const nextCheckOut = toISODate(checkInDate);
+    const selectedListing =
+      losAngelesListings.find((listing) =>
+        getListingLookupKeys(listing).some((key) => String(key) === String(listingId))
+      ) || activeListing;
+    const relatedListings = selectedListing
+      ? getRelatedListingsByParentId(selectedListing, losAngelesListings)
+      : [];
+    const availabilityIds = [...new Set(
+      (relatedListings.length ? relatedListings : [selectedListing])
+        .filter(Boolean)
+        .flatMap((listing) => getListingLookupKeys(listing))
+        .filter(Boolean)
+    )];
+    if (!availabilityIds.length) availabilityIds.push(listingId);
+
+    setPromoApplyingId(listingId);
+    setSectionAvailabilityError("");
+    try {
+      const query = new URLSearchParams({
+        ids: availabilityIds.join(","),
+        checkIn: sectionCheckIn,
+        checkOut: nextCheckOut,
+        minOccupancy: sectionGuests || "1",
+      });
+      const response = await fetch(
+        `${apiBase}/check-units/listings/availability-query?${query}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) throw new Error("Unable to verify the extended promo dates.");
+      const payload = await response.json();
+      const availableResults = Array.isArray(payload?.results) ? payload.results : [];
+      if (!availableResults.length) {
+        const message = `${promoTier.label} cannot be applied. A ${promoTier.nights}-night stay through ${nextCheckOut} is not available. Your dates were not changed.`;
+        setPromoFeedback((current) => ({ ...current, [listingId]: { tone: "error", message } }));
+        setSectionAvailabilityError(message);
+        return;
+      }
+
+      setSectionCheckOut(nextCheckOut);
+      setDraftSectionCheckOut(nextCheckOut);
+      setSelectedRatePlans((current) => ({ ...current, [listingId]: planId }));
+      setSectionQuotes({});
+      setSectionAvailabilityActive(false);
+      const params = new URLSearchParams(location.search);
+      params.set("checkIn", sectionCheckIn);
+      params.set("checkOut", nextCheckOut);
+      params.set("guests", sectionGuests || "2");
+      navigate(`${location.pathname}?${params.toString()}`, {
+        replace: true,
+        state: { skipCityLoader: true },
+      });
+      const message = `${promoTier.label} applied. Check-out moved to ${nextCheckOut}; refresh availability to update pricing.`;
+      setPromoFeedback((current) => ({ ...current, [listingId]: { tone: "success", message } }));
+      setSectionAvailabilityError(message);
+    } catch (promoError) {
+      const message = promoError?.message || "Unable to apply this promo.";
+      setPromoFeedback((current) => ({ ...current, [listingId]: { tone: "error", message } }));
+      setSectionAvailabilityError(message);
+    } finally {
+      setPromoApplyingId("");
     }
   };
 
@@ -6296,7 +6419,7 @@ const applyCheckoutPromoCode = () => {
             <p className="la-listing-hero__kicker">Los Angeles private stay</p>
             <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Los Angeles")}</h3>
             <div className="la-unit-modal__chips">
-              <span>Exceptional location</span>
+              <span>convenient location</span>
               <span>Fast arrival</span>
               <span>Design-forward suites</span>
             </div>
@@ -6681,17 +6804,14 @@ const applyCheckoutPromoCode = () => {
                 </div>
                 {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                   <div className="la-unit-modal__rate-plan">
-                    <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                    <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Promos</label>
                     <select
                       id={`la-listing-rate-plan-${listingId || "active"}`}
                       value={selectedPlanId}
-                      disabled={sectionAvailabilityLoading}
-                      onChange={(event) =>
-                        setSelectedRatePlans((prev) => ({
-                          ...prev,
-                          [listingId]: event.target.value,
-                        }))
-                      }
+                    disabled={sectionAvailabilityLoading || promoApplyingId === listingId}
+                    onChange={(event) =>
+                      handlePromoSelection({ listingId, planId: event.target.value })
+                    }
                       className="la-booking-table__rate-select"
                     >
                       {planOptions.map((planOption) => (
@@ -6700,6 +6820,11 @@ const applyCheckoutPromoCode = () => {
                         </option>
                       ))}
                     </select>
+                    {promoFeedback[listingId]?.message && (
+                      <p className={`la-promo-feedback is-${promoFeedback[listingId].tone}`} role="status">
+                        {promoFeedback[listingId].message}
+                      </p>
+                    )}
                   </div>
                 )}
                 <div className="la-unit-modal__actions">
@@ -7956,6 +8081,7 @@ const applyCheckoutPromoCode = () => {
 
   return (
     <div className="antwerp-page">
+      <CitySearchLoadingOverlay active={isFilterApplying} />
       {listingMapModal}
       {zoomModal}
       {masonryModal}
@@ -9198,17 +9324,14 @@ const applyCheckoutPromoCode = () => {
                                 {planOptions.length > 0 ? (
                                   <li>
                                     <label htmlFor={`rate-plan-${listingId}`} className="sr-only">
-                                      Select rate plan
+                                      Select promo
                                     </label>
                                     <select
                                       id={`rate-plan-${listingId}`}
                                       value={selectedPlanId}
-                                      disabled={isLoadingRates}
-                                      onChange={(e) =>
-                                        setSelectedRatePlans((prev) => ({
-                                          ...prev,
-                                          [listingId]: e.target.value,
-                                        }))
+                                      disabled={isLoadingRates || promoApplyingId === listingId}
+                                      onChange={(event) =>
+                                        handlePromoSelection({ listingId, planId: event.target.value })
                                       }
                                       className="la-booking-table__rate-select"
                                     >
@@ -9218,6 +9341,11 @@ const applyCheckoutPromoCode = () => {
                                         </option>
                                       ))}
                                     </select>
+                                    {promoFeedback[listingId]?.message && (
+                                      <p className={`la-promo-feedback is-${promoFeedback[listingId].tone}`} role="status">
+                                        {promoFeedback[listingId].message}
+                                      </p>
+                                    )}
                                   </li>
                                 ) : null}
                                 <li>Policies shown at checkout</li>
@@ -9333,7 +9461,7 @@ const applyCheckoutPromoCode = () => {
               <div className="la-unit-modal__intro-copy">
                 <h3>{activeListing?.title || formatListingLocationLabel(activeListing, "Los Angeles")}</h3>
                 <div className="la-unit-modal__chips">
-                  <span>Exceptional location</span>
+                  <span>convenient location</span>
                   <span>Fast arrival</span>
                 </div>
                 <p className="la-unit-modal__address">{formatAddress(activeListing)}</p>
@@ -9654,16 +9782,13 @@ const applyCheckoutPromoCode = () => {
                       </div>
                       {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                         <div className="la-unit-modal__rate-plan">
-                          <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Rate plan</label>
+                          <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Promos</label>
                           <select
                             id={`la-listing-rate-plan-${listingId || "active"}`}
                             value={selectedPlanId}
-                            disabled={sectionAvailabilityLoading}
+                            disabled={sectionAvailabilityLoading || promoApplyingId === listingId}
                             onChange={(event) =>
-                              setSelectedRatePlans((prev) => ({
-                                ...prev,
-                                [listingId]: event.target.value,
-                              }))
+                              handlePromoSelection({ listingId, planId: event.target.value })
                             }
                             className="la-booking-table__rate-select"
                           >
@@ -9673,6 +9798,11 @@ const applyCheckoutPromoCode = () => {
                               </option>
                             ))}
                           </select>
+                          {promoFeedback[listingId]?.message && (
+                            <p className={`la-promo-feedback is-${promoFeedback[listingId].tone}`} role="status">
+                              {promoFeedback[listingId].message}
+                            </p>
+                          )}
                         </div>
                       )}
                       <div className="la-unit-modal__actions">

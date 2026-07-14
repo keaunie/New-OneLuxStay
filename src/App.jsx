@@ -117,9 +117,9 @@ function AppRoutes() {
     pathname.startsWith("/admin-reservations") ||
     pathname.startsWith("/private/") ||
     pathname.startsWith("/blog");
-  const renderLazyRoute = (Component) => (
+  const renderLazyRoute = (Component, props = {}) => (
     <Suspense fallback={null}>
-      <Component />
+      <Component {...props} />
     </Suspense>
   );
 
@@ -228,6 +228,10 @@ function AppRoutes() {
           <Route path="/one-lux-stay-global" element={renderLazyRoute(GlobalUnitsPage)} />
           <Route path="/healthcare-professionals" element={renderLazyRoute(HealthcareProfessionalsPage)} />
           <Route path="/business/healthcare-professionals" element={renderLazyRoute(HealthcareProfessionalsPage)} />
+          <Route path="/business/construction-accommodations" element={renderLazyRoute(HealthcareProfessionalsPage, { industry: "construction" })} />
+          <Route path="/business/corporate-relocation" element={renderLazyRoute(HealthcareProfessionalsPage, { industry: "corporate" })} />
+          <Route path="/business/entertainment-industry" element={renderLazyRoute(HealthcareProfessionalsPage, { industry: "entertainment" })} />
+          <Route path="/business/government" element={renderLazyRoute(HealthcareProfessionalsPage, { industry: "government" })} />
           <Route path="/privacy-policy" element={renderLazyRoute(PrivacyPolicy)} />
           <Route path="/privacy" element={renderLazyRoute(PrivacyPolicy)} />
           <Route path="/terms" element={renderLazyRoute(TermsConditions)} />

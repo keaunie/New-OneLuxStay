@@ -2,15 +2,15 @@ import { Link } from "react-router-dom";
 import TableOfContents from "./TableOfContents";
 
 const CITY_CTA = {
-  dubai: { emoji: "🌆", title: "Stay in Dubai", desc: "Luxury apartments in Marina, Downtown & Palm Jumeirah.", href: "/dubai", label: "View Dubai Properties" },
-  antwerp: { emoji: "💎", title: "Stay in Antwerp", desc: "Premium apartments in Zurenborg, Het Eilandje & Zuid.", href: "/antwerp", label: "View Antwerp Properties" },
+  dubai: { emoji: "🌆", title: "Stay in Dubai", desc: "furnished apartments in Marina, Downtown & Palm Jumeirah.", href: "/dubai", label: "View Dubai Properties" },
+  antwerp: { emoji: "💎", title: "Stay in Antwerp", desc: "modern apartments in Zurenborg, Het Eilandje & Zuid.", href: "/antwerp", label: "View Antwerp Properties" },
   "redondo-beach": { emoji: "🏄", title: "Stay in Redondo Beach", desc: "Coastal apartments steps from the Pacific.", href: "/redondo-beach", label: "View Redondo Beach Properties" },
-  "los-angeles": { emoji: "✨", title: "Stay in Los Angeles", desc: "Luxury apartments across the best LA neighborhoods.", href: "/los-angeles", label: "View LA Properties" },
+  "los-angeles": { emoji: "✨", title: "Stay in Los Angeles", desc: "furnished apartments across the best LA neighborhoods.", href: "/los-angeles", label: "View LA Properties" },
 };
 
 const DEFAULT_CTA = {
   emoji: "🏠",
-  title: "Book a Luxury Stay",
+  title: "Book a furnished stay",
   desc: "Explore OneLuxStay's curated apartments across five cities.",
   href: "/reserve",
   label: "Browse All Properties",

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./SettingConfigOlsPage.css";
 import apiBase from "./utils/apiBase";
+import { DEFAULT_PROMO_CONFIG, normalizePromoConfig } from "./utils/promoConfig";
 
 const SettingConfigOlsPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,6 +22,9 @@ const SettingConfigOlsPage = () => {
   const [isCalling, setIsCalling] = useState(false);
   const [callStatus, setCallStatus] = useState("");
   const [isSandbox, setIsSandbox] = useState(true); // Default to Sandbox for easy testing
+  const [promoConfig, setPromoConfig] = useState(DEFAULT_PROMO_CONFIG);
+  const [promoStatus, setPromoStatus] = useState("");
+  const [isSavingPromos, setIsSavingPromos] = useState(false);
   const [systemHealth, setSystemHealth] = useState({
     openai: false,
     twilio: false,
@@ -44,6 +48,36 @@ const SettingConfigOlsPage = () => {
     };
     fetchHealth();
   }, []);
+
+  useEffect(() => {
+    fetch(`${apiBase}/promo-config`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload?.promos) setPromoConfig(normalizePromoConfig(payload.promos));
+      })
+      .catch(() => {});
+  }, []);
+
+  const savePromoConfig = async (event) => {
+    event.preventDefault();
+    setIsSavingPromos(true);
+    setPromoStatus("");
+    try {
+      const response = await fetch(`${apiBase}/promo-config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-Config-Password": password },
+        body: JSON.stringify({ promos: promoConfig }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || "Unable to save promos");
+      setPromoConfig(normalizePromoConfig(payload.promos));
+      setPromoStatus("Promo discounts saved and published.");
+    } catch (saveError) {
+      setPromoStatus(saveError?.message || "Unable to save promos.");
+    } finally {
+      setIsSavingPromos(false);
+    }
+  };
 
   const devConfig = {
     env: "development",
@@ -219,6 +253,7 @@ const SettingConfigOlsPage = () => {
           <button className={activeTab === "endpoints" ? "active" : ""} onClick={() => setActiveTab("endpoints")}>Endpoints</button>
           <button className={activeTab === "actions" ? "active" : ""} onClick={() => setActiveTab("actions")}>System Actions</button>
           <button className={activeTab === "features" ? "active" : ""} onClick={() => setActiveTab("features")}>Features</button>
+          <button className={activeTab === "promos" ? "active" : ""} onClick={() => setActiveTab("promos")}>Promos</button>
           <button className={activeTab === "bot-test" ? "active" : ""} onClick={() => setActiveTab("bot-test")}>AI Bot Test</button>
           <button className={activeTab === "sms-test" ? "active" : ""} onClick={() => setActiveTab("sms-test")}>SMS/Call Test</button>
         </nav>
@@ -340,6 +375,45 @@ const SettingConfigOlsPage = () => {
                   </div>
                 </div>
               </div>
+            </section>
+          )}
+
+          {activeTab === "promos" && (
+            <section className="config-section fade-in">
+              <h2 className="config-section-title">Booking Promos</h2>
+              <p className="config-action-note">Set the discount percentage shown in the property booking selector.</p>
+              <form className="config-grid" onSubmit={savePromoConfig}>
+                {[
+                  ["weekly", "Weekly Promo"],
+                  ["biWeekly", "Bi-Weekly Promo"],
+                  ["monthly", "Monthly Promo"],
+                ].map(([key, label]) => (
+                  <label className="config-card" key={key}>
+                    <span className="config-card-label">{label}</span>
+                    <div className="config-card-value">
+                      <input
+                        className="config-input"
+                        type="number"
+                        min="0"
+                        max="90"
+                        step="1"
+                        value={promoConfig[key]}
+                        onChange={(event) =>
+                          setPromoConfig((current) => ({ ...current, [key]: event.target.value }))
+                        }
+                        aria-label={`${label} discount percentage`}
+                      />
+                      <span>% off</span>
+                    </div>
+                  </label>
+                ))}
+                <div className="config-actions">
+                  <button className="config-button" type="submit" disabled={isSavingPromos}>
+                    {isSavingPromos ? "Saving..." : "Save Promo Discounts"}
+                  </button>
+                  {promoStatus && <p className="config-action-note" role="status">{promoStatus}</p>}
+                </div>
+              </form>
             </section>
           )}
 

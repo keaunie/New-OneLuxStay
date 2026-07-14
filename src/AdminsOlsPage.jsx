@@ -11,6 +11,7 @@ import {
 } from "./utils/adminsOlsAuth";
 import { useAdminPresence } from "./hooks/useAdminPresence";
 import { userHasSuperAdminRole } from "../shared/adminRoles.js";
+import { DEFAULT_PROMO_CONFIG, normalizePromoConfig } from "./utils/promoConfig";
 import "./AdminsOlsPage.css";
 
 const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
@@ -595,6 +596,9 @@ function AdminsOlsPage() {
     confirmPassword: "",
   }));
   const [savingAccount, setSavingAccount] = useState(false);
+  const [promoConfig, setPromoConfig] = useState(DEFAULT_PROMO_CONFIG);
+  const [savingPromos, setSavingPromos] = useState(false);
+  const [promoNotice, setPromoNotice] = useState("");
   const [inviteForm, setInviteForm] = useState(() => ({
     email: "",
     fullName: "",
@@ -646,6 +650,40 @@ function AdminsOlsPage() {
     enabled: Boolean(session?.accessToken),
     currentPath: adminPresencePath,
   });
+
+  useEffect(() => {
+    if (!session?.accessToken && !session?.sharedKey) return;
+    fetch(`${apiBase}/promo-config`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload?.promos) setPromoConfig(normalizePromoConfig(payload.promos));
+      })
+      .catch(() => {});
+  }, [session?.accessToken, session?.sharedKey]);
+
+  const handleSavePromos = async (event) => {
+    event.preventDefault();
+    setSavingPromos(true);
+    setPromoNotice("");
+    try {
+      const response = await fetch(`${apiBase}/promo-config`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAdminsOlsAuthHeaders(session),
+        },
+        body: JSON.stringify({ promos: promoConfig }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || "Unable to save promos");
+      setPromoConfig(normalizePromoConfig(payload.promos));
+      setPromoNotice("Promo discounts saved and published.");
+    } catch (saveError) {
+      setPromoNotice(saveError?.message || "Unable to save promo discounts.");
+    } finally {
+      setSavingPromos(false);
+    }
+  };
 
   const recentSessions = Array.isArray(dashboard?.recentSessions) ? dashboard.recentSessions : [];
   const recentFeedback = Array.isArray(dashboard?.recentFeedback) ? dashboard.recentFeedback : [];
@@ -2025,6 +2063,7 @@ function AdminsOlsPage() {
     { id: "lessons", label: "Lessons" },
     { id: "feedback", label: "Feedback" },
     { id: "assistant-turns", label: "Assistant Turns" },
+    ...(isSuperAdmin ? [{ id: "promos", label: "Promos" }] : []),
     { id: "account", label: "Account" },
   ];
 
@@ -3624,6 +3663,67 @@ function AdminsOlsPage() {
             ))}
             {!recentAssistantMessages.length && <p className="admins-ols-empty">No assistant turns found yet.</p>}
           </div>
+        </section>
+
+        <section
+          id="panel-promos"
+          role="tabpanel"
+          aria-labelledby="tab-promos"
+          hidden={displayedTabId !== "promos"}
+          className="admins-ols-grid admins-ols-grid--two"
+        >
+          <article className="admins-ols-card">
+            <div className="admins-ols-card-head">
+              <h2>Booking Promos</h2>
+              <span className="admins-ols-pill is-live">Published</span>
+            </div>
+            <p className="admins-ols-copy">
+              Set the discounts displayed in the property booking promo selector. Changes apply to new quotes.
+            </p>
+            <form className="admins-ols-form" onSubmit={handleSavePromos}>
+              {[
+                ["usa", "USA"],
+                ["antwerp", "Antwerp, Belgium"],
+                ["dubai", "Dubai, UAE"],
+              ].map(([regionKey, regionLabel]) => (
+                <fieldset key={regionKey} className="admins-ols-promo-fieldset">
+                  <legend>{regionLabel}</legend>
+                  {[
+                    ["weekly", "Weekly Promo"],
+                    ["biWeekly", "Bi-Weekly Promo"],
+                    ["monthly", "Monthly Promo"],
+                  ].map(([key, label]) => (
+                    <label key={`${regionKey}-${key}`}>
+                      {label} discount (%)
+                      <input
+                        type="number"
+                        min="0"
+                        max="90"
+                        step="1"
+                        value={promoConfig[regionKey]?.[key] ?? 0}
+                        onChange={(event) =>
+                          setPromoConfig((current) => ({
+                            ...current,
+                            [regionKey]: { ...current[regionKey], [key]: event.target.value },
+                          }))
+                        }
+                        disabled={savingPromos}
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+              <button type="submit" disabled={savingPromos}>
+                {savingPromos ? "Publishing promos..." : "Save & Publish Promos"}
+              </button>
+              {promoNotice && <p className="admins-ols-note" role="status">{promoNotice}</p>}
+            </form>
+          </article>
+          <article className="admins-ols-card admins-ols-stat">
+            <span>Current Promo Schedule</span>
+            <strong>Market-specific</strong>
+            <small>USA, Antwerp, and Dubai can each use different percentages.</small>
+          </article>
         </section>
 
         <section
