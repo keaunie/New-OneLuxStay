@@ -4,7 +4,7 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://oneluxstay.com https://oneluxstayprop.netlify.app https://oneluxstay.netlify.app https://*.supabase.co wss://*.supabase.co https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://analytics.google.com; frame-src 'self' https://openstreetmap.org https://*.openstreetmap.org; child-src 'self' https://openstreetmap.org https://*.openstreetmap.org; worker-src 'self' blob:; upgrade-insecure-requests; block-all-mixed-content;
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://oneluxstay.com https://admin.oneluxstay.com https://oneluxstay.netlify.app https://*.supabase.co wss://*.supabase.co https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://analytics.google.com; frame-src 'self' https://openstreetmap.org https://*.openstreetmap.org; child-src 'self' https://openstreetmap.org https://*.openstreetmap.org; worker-src 'self' blob:; upgrade-insecure-requests; block-all-mixed-content;
 
 /private/roadmap/*
   X-Robots-Tag: noindex, nofollow, noarchive

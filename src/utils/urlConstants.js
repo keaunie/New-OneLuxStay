@@ -12,7 +12,7 @@ export const PUBLIC_WEBSITE_URL = normalizeOrigin(
 );
 
 // Static assets always served from the stable Netlify domain.
-export const ASSET_BASE_URL = "https://oneluxstayprop.netlify.app";
+export const ASSET_BASE_URL = "https://admin.oneluxstay.com";
 
 // All backend/function requests always target the deployed Netlify site.
 export const INTERNAL_API_BASE = `${API_BASE}/.netlify/functions`;

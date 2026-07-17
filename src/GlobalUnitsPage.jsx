@@ -14,7 +14,7 @@ import {
   trackGuestCountChanged,
 } from "./lib/analytics";
 import "./App.css";
-const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
+const LOGO_URL = "https://admin.oneluxstay.com/oneluxstay-logo.webp";
 
 const KNOWN_CITIES = [
   "hollywood",

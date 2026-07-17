@@ -10,7 +10,7 @@ import { getAverageNightlyFromTotal } from "./utils/pricingDisplay";
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
+const LOGO_URL = "https://admin.oneluxstay.com/oneluxstay-logo.webp";
 
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='520' viewBox='0 0 800 520'><rect width='800' height='520' fill='%23efe7dc'/><text x='400' y='260' text-anchor='middle' dominant-baseline='middle' fill='%239c8368' font-family='Arial, sans-serif' font-size='24'>Image unavailable</text></svg>";

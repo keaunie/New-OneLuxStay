@@ -28,7 +28,7 @@ import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./util
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 import { PROMO_TIERS, isPromoSelectionBlocking, usePromoConfig, validatePromoExtension } from "./utils/promoConfig";
 const mapsApiKey = "leaflet";
-const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
+const LOGO_URL = "https://admin.oneluxstay.com/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
 const AED_SYMBOL = "AED";
@@ -2708,6 +2708,7 @@ export default function DubaiLandingPage() {
   const [sectionAvailabilityActive, setSectionAvailabilityActive] = useState(false);
   const [sectionAvailabilityMap, setSectionAvailabilityMap] = useState({});
   const autoAvailabilityTimerRef = useRef(null);
+  const activeAvailabilityControllerRef = useRef(null);
   const [sectionReserveLoadingId, setSectionReserveLoadingId] = useState(null);
   const [promoApplyingId, setPromoApplyingId] = useState("");
   const [promoFeedback, setPromoFeedback] = useState({});
@@ -3521,6 +3522,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   useEffect(() => {
     let active = true;
     const loadCardQuoteRates = async () => {
+      if (activeListing || activeSectionKey) {
+        if (active) setCardQuoteRates({});
+        return;
+      }
       const parentListings = Array.isArray(losAngelesParentListings) ? losAngelesParentListings : [];
       if (!parentListings.length) {
         if (active) setCardQuoteRates({});
@@ -3686,7 +3691,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, [losAngelesParentListings, sectionCheckIn, sectionCheckOut, sectionGuests, promoConfig]);
+  }, [losAngelesParentListings, sectionCheckIn, sectionCheckOut, sectionGuests, promoConfig, activeListing, activeSectionKey]);
 
   const buildMapPopupContent = useCallback((popupListings = [], activeIndex = 0, popupKey = "") => {
     const listings = (Array.isArray(popupListings) ? popupListings : [popupListings]).filter(Boolean);
@@ -4967,6 +4972,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [activeSection]);
 
   useEffect(() => {
+    if (activeListing || activeSectionKey) {
+      setBuildingPrices({});
+      return;
+    }
     if (!groupedListingsAll.length || !sectionCheckIn || !sectionCheckOut) {
       setBuildingPrices({});
       return;
@@ -5097,7 +5106,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     return () => {
       active = false;
     };
-  }, [groupedListingsAll, sectionCheckIn, sectionCheckOut, sectionGuests, promoConfig]);
+  }, [groupedListingsAll, sectionCheckIn, sectionCheckOut, sectionGuests, promoConfig, activeListing, activeSectionKey]);
 
   useEffect(() => {
     if (!activeListing) return;
@@ -5186,6 +5195,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         scrollToAvailabilityTable();
       }
     }
+    activeAvailabilityControllerRef.current?.abort();
+    const requestController = new AbortController();
+    activeAvailabilityControllerRef.current = requestController;
     setSectionAvailabilityLoading(true);
     setSectionAvailabilityError("");
     try {
@@ -5230,7 +5242,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       }).toString();
       const availabilityRes = await fetch(
         `${apiBase}/check-units/listings/availability-query?${availabilityQs}`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: requestController.signal }
       );
       if (!availabilityRes.ok) {
         const errText = await availabilityRes.text().catch(() => "");
@@ -5261,6 +5273,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
       const bulkRes = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
         cache: "no-store",
+        signal: requestController.signal,
       });
       if (!bulkRes.ok) {
         const errText = await bulkRes.text().catch(() => "");
@@ -5367,6 +5380,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ requests: quoteRequests }),
+          signal: requestController.signal,
         });
         if (res.ok) {
           const data = await res.json();
@@ -5421,9 +5435,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         );
       }
     } catch (err) {
+      if (err?.name === "AbortError") return;
       setSectionAvailabilityError(err.message || "Unable to load availability.");
     } finally {
-      setSectionAvailabilityLoading(false);
+      if (activeAvailabilityControllerRef.current === requestController) {
+        activeAvailabilityControllerRef.current = null;
+        setSectionAvailabilityLoading(false);
+      }
     }
   };
 
@@ -5448,6 +5466,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       (!activeListing && !activeSection?.listings?.length) ||
       isStayTooShort
     ) {
+      activeAvailabilityControllerRef.current?.abort();
       return undefined;
     }
 

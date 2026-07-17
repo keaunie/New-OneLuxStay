@@ -12,6 +12,7 @@ import {
 import { useAdminPresence } from "./hooks/useAdminPresence";
 import { userHasSuperAdminRole } from "../shared/adminRoles.js";
 import { DEFAULT_PROMO_CONFIG, normalizePromoConfig } from "./utils/promoConfig";
+import PropertyManager from "./components/admin/PropertyManager";
 import "./AdminsOlsPage.css";
 
 const DASHBOARD_ACTIVITY_DEDUPE_KEY = "admins-ols-dashboard-opened";
@@ -25,7 +26,7 @@ const CONVERSATION_SUMMARY_CACHE_PREFIX = "admins-ols-conversation-summary-cache
 const MOBILE_CONVERSATION_BREAKPOINT = 768;
 const TABLET_CONVERSATION_BREAKPOINT = 1024;
 const MOBILE_CONVERSATION_FILTER_DEFAULT = "all";
-const ADMIN_INVITE_ORIGIN = "https://oneluxstayprop.netlify.app";
+const ADMIN_INVITE_ORIGIN = "https://admin.oneluxstay.com";
 
 // Set to true to restore the Call Center sidebar link when the feature is ready
 const SHOW_CALL_CENTER = false;
@@ -2063,6 +2064,7 @@ function AdminsOlsPage() {
     { id: "lessons", label: "Lessons" },
     { id: "feedback", label: "Feedback" },
     { id: "assistant-turns", label: "Assistant Turns" },
+    { id: "properties", label: "Properties" },
     ...(isSuperAdmin ? [{ id: "promos", label: "Promos" }] : []),
     { id: "account", label: "Account" },
   ];
@@ -3663,6 +3665,25 @@ function AdminsOlsPage() {
             ))}
             {!recentAssistantMessages.length && <p className="admins-ols-empty">No assistant turns found yet.</p>}
           </div>
+        </section>
+
+        <section
+          id="panel-properties"
+          role="tabpanel"
+          aria-labelledby="tab-properties"
+          hidden={displayedTabId !== "properties"}
+          className="admins-ols-grid"
+        >
+          <article className="admins-ols-card">
+            <div className="admins-ols-card-head">
+              <h2>Property Library</h2>
+              <span className="admins-ols-pill is-live">R2 Media</span>
+            </div>
+            <p className="admins-ols-copy">
+              Manage listing information and upload property photography directly to Cloudflare R2.
+            </p>
+            <PropertyManager apiBase={apiBase} session={session} />
+          </article>
         </section>
 
         <section

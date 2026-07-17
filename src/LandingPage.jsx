@@ -1239,6 +1239,7 @@ function LandingPage() {
       return;
     }
     let active = true;
+    const requestController = new AbortController();
     setQuoteLoading(true);
     const loadQuotes = async () => {
       try {
@@ -1269,6 +1270,7 @@ function LandingPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ requests: batch }),
+            signal: requestController.signal,
           });
           if (!res.ok) continue;
           const data = await res.json();
@@ -1286,7 +1288,8 @@ function LandingPage() {
           if (pricing) pricingMap[req.listingId] = pricing;
         });
         if (active) setQuotePricing(pricingMap);
-      } catch {
+      } catch (err) {
+        if (err?.name === "AbortError") return;
         if (active) setQuotePricing({});
       } finally {
         if (active) setQuoteLoading(false);
@@ -1295,6 +1298,7 @@ function LandingPage() {
     loadQuotes();
     return () => {
       active = false;
+      requestController.abort();
       setQuoteLoading(false);
     };
   }, [galleryListings, checkIn, checkOut, guests, shouldLoadHeroGallery]);

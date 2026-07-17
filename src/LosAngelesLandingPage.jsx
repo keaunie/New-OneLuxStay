@@ -26,7 +26,7 @@ import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./util
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 import { PROMO_TIERS, isPromoSelectionBlocking, usePromoConfig } from "./utils/promoConfig";
 const mapsApiKey = "leaflet";
-const LOGO_URL = "https://oneluxstayprop.netlify.app/oneluxstay-logo.webp";
+const LOGO_URL = "https://admin.oneluxstay.com/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><circle cx='18' cy='18' r='16' fill='%231f1c19' stroke='%23c9b59c' stroke-width='2'/><path d='M9.5 17.8 18 11l8.5 6.8v8.8a1.2 1.2 0 0 1-1.2 1.2h-5.2v-6.3h-4.2v6.3h-5.2a1.2 1.2 0 0 1-1.2-1.2z' fill='%23f7f2e9'/></svg>";
 const PROPERTY_ADDRESS = "Westlake, Los Angeles, CA";

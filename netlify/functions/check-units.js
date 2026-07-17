@@ -2444,6 +2444,9 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
   if (!Array.isArray(requests) || !requests.length) {
     return jsonResponse(400, { message: "Missing quote requests" });
   }
+  if (requests.length > 50) {
+    return jsonResponse(400, { message: "A maximum of 50 quote requests is allowed per batch" });
+  }
 
   const quotes = requests
     .map((req) => {
@@ -2468,18 +2471,29 @@ const handleQuotesBulk = async (event, token, tokenSource) => {
     return jsonResponse(400, { message: "No valid quote requests" });
   }
 
-  const res = await fetchWithTimeout(
-    `${OPEN_API_V1}/quotes/multiple?mergeAccommodationFarePriceComponents=true`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+  let res;
+  try {
+    res = await fetchWithTimeout(
+      `${OPEN_API_V1}/quotes/multiple?mergeAccommodationFarePriceComponents=true`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ quotes }),
       },
-      body: JSON.stringify({ quotes }),
-    }
-  );
+      8_000,
+    );
+  } catch (error) {
+    const timedOut = error?.name === "AbortError" || /abort|timeout/i.test(String(error?.message || ""));
+    return jsonResponse(timedOut ? 504 : 502, {
+      message: timedOut ? "Quote provider timed out" : "Quote provider request failed",
+      results: {},
+      errors: [{ message: timedOut ? "Guesty did not respond in time" : "Unable to reach Guesty" }],
+    });
+  }
 
   if (res.status === 429) {
     return jsonResponse(200, { results: {}, errors: [{ message: "Rate limited by Guesty" }], rateLimited: true });

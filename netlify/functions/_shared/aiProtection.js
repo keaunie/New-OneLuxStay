@@ -3,7 +3,7 @@ const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(nam
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://oneluxstay.com",
   "https://www.oneluxstay.com",
-  "https://oneluxstayprop.netlify.app",
+  "https://admin.oneluxstay.com",
   "https://oneluxstay.netlify.app",
   "http://localhost:5174",
   "http://localhost:5175",

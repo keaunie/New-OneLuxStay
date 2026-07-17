@@ -20,7 +20,7 @@ Required environment variables:
 
 - `OPENAI_API_KEY`: your OpenAI API key
 - `OPENAI_CHAT_MODEL`: optional override for the default model (`gpt-5-mini`)
-- `VITE_API_BASE`: internal functions origin for frontend calls (defaults to `https://oneluxstayprop.netlify.app`)
+- `VITE_API_BASE`: internal functions origin for frontend calls (defaults to `https://admin.oneluxstay.com`)
 - `VITE_PUBLIC_SITE`: guest-facing base for generated links (defaults to `https://oneluxstay.com`)
 - `VITE_PUBLIC_WEBSITE_URL`: optional override for guest-facing/public links (defaults to `https://oneluxstay.com`)
 - `VITE_INTERNAL_API_BASE`: optional override for internal `/.netlify/functions` base (leave empty to auto-detect from `window.location`)

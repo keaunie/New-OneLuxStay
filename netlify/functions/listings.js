@@ -1,5 +1,5 @@
 import { getGuestyOpenApiCredentials } from "./_shared/guestyEnv.js";
-import { isSupabaseEnforced } from "./_shared/supabaseClient.js";
+import { isSupabaseEnforced, supabaseRestRequest } from "./_shared/supabaseClient.js";
 import {
     fetchListingsFromSupabase,
     isSupabaseListingsEnabled,
@@ -381,12 +381,85 @@ const enrichListingWithSecurityDeposit = async (listing) => {
 };
 
 const enrichListingsWithSecurityDeposits = async (listings = []) => {
-    const rows = Array.isArray(listings) ? listings : [];
+    const rows = await applyR2ImageFallbacks(Array.isArray(listings) ? listings : []);
     if (!rows.length) return rows;
     return Promise.all(
         rows.map((listing) => enrichListingWithSecurityDeposit(listing))
     );
 };
+
+const getUsableImageUrls = (listing = {}) => {
+    const values = [
+        listing?.picture?.original,
+        listing?.picture?.large,
+        listing?.picture?.thumbnail,
+        typeof listing?.picture === "string" ? listing.picture : "",
+        ...(Array.isArray(listing?.pictures)
+            ? listing.pictures.flatMap((item) => typeof item === "string"
+                ? [item]
+                : [item?.original, item?.large, item?.regular, item?.thumbnail])
+            : []),
+    ];
+    return values.map((value) => String(value || "").trim()).filter((value) => /^https?:\/\//i.test(value));
+};
+
+const sortFallbackImages = (images = []) => [...images].sort((a, b) => {
+    if (Boolean(a?.is_primary) !== Boolean(b?.is_primary)) return a?.is_primary ? -1 : 1;
+    return (Number(a?.sort_order) || 0) - (Number(b?.sort_order) || 0);
+});
+
+const loadR2FallbackImageMap = async () => {
+    const selectCandidates = [
+        "id,guesty_id,guesty_listing_id,property_images(url,is_primary,sort_order)",
+        "id,guesty_id,property_images(url,is_primary,sort_order)",
+        "id,guesty_listing_id,property_images(url,is_primary,sort_order)",
+    ];
+    let lastError = null;
+    for (const select of selectCandidates) {
+        try {
+            const properties = await supabaseRestRequest("properties", {
+                query: { select, limit: "1000" },
+            });
+            const map = new Map();
+            (Array.isArray(properties) ? properties : []).forEach((property) => {
+                const images = sortFallbackImages(property?.property_images)
+                    .map((image) => String(image?.url || "").trim())
+                    .filter((url) => /^https?:\/\//i.test(url));
+                if (!images.length) return;
+                [property?.guesty_id, property?.guesty_listing_id]
+                    .map((id) => String(id || "").trim())
+                    .filter(Boolean)
+                    .forEach((id) => map.set(id, images));
+            });
+            return map;
+        } catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError || new Error("Unable to load R2 property image fallbacks.");
+};
+
+async function applyR2ImageFallbacks(listings = []) {
+    const rows = Array.isArray(listings) ? listings : [];
+    const needsFallback = rows.some((listing) => !getUsableImageUrls(listing).length);
+    if (!needsFallback) return rows;
+    try {
+        const imageMap = await loadR2FallbackImageMap();
+        return rows.map((listing) => {
+            if (getUsableImageUrls(listing).length) return listing;
+            const listingId = String(getListingId(listing) || "").trim();
+            const urls = imageMap.get(listingId) || [];
+            if (!urls.length) return listing;
+            const pictures = urls.map((url) => ({ original: url }));
+            return { ...listing, picture: pictures[0], pictures, imageSource: "r2_fallback" };
+        });
+    } catch (error) {
+        console.warn("R2 image fallback lookup failed; keeping Guesty listing data", {
+            error: error?.message || String(error),
+        });
+        return rows;
+    }
+}
 
 const parseBooleanFlag = (value) => {
     if (value === true || value === 1) return true;

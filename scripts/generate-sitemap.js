@@ -35,7 +35,7 @@ const FUNCTIONS_ORIGIN_CANDIDATES = [
   process.env.DEPLOY_PRIME_URL,
   process.env.URL,
   "http://localhost:8888",
-  "https://oneluxstayprop.netlify.app",
+  "https://admin.oneluxstay.com",
 ]
   .map(normalizeOrigin)
   .filter(Boolean);

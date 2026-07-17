@@ -4,7 +4,7 @@ import { apaleoRequest } from "./_shared/apaleoService.js";
 const allowedOrigins = [
   "http://localhost:8888",
   "http://localhost:5173",
-  "https://oneluxstayprop.netlify.app",
+  "https://admin.oneluxstay.com",
   "https://oneluxstay.com",
 ];
 
@@ -14,7 +14,7 @@ const buildCorsHeaders = (event) => {
   return {
     "Access-Control-Allow-Origin": allowedOrigins.includes(origin)
       ? origin
-      : "https://oneluxstayprop.netlify.app",
+      : "https://admin.oneluxstay.com",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization",
     "Access-Control-Allow-Methods":
