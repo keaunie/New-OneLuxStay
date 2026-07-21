@@ -44,7 +44,7 @@ export const createPropertyService = ({ apiBase, session }) => {
     updatePropertyDescription: (propertyId, language, updates) => action("update-description", { propertyId, language, updates }),
     getPropertyImages: async (propertyId) => (await request({ query: { propertyId } })).property?.property_images || [],
     addPropertyImage: (propertyId, input) => action("add-image", { propertyId, input }),
-    migrateNextGuestyImage: (propertyId) => action("migrate-guesty-image", { propertyId }),
+    migrateGuestyImage: (propertyId, imageId) => action("migrate-guesty-image", { propertyId, imageId }),
     updatePropertyImage: (propertyId, imageId, updates) => action("update-image", { propertyId, imageId, updates }),
     deletePropertyImage: (propertyId, imageId) => action("delete-image", { propertyId, imageId }),
     reorderPropertyImages: (propertyId, orderedImageIds) => action("reorder-images", { propertyId, orderedImageIds }),

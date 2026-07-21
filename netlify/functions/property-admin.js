@@ -37,6 +37,22 @@ const requireUuid = (value, label = "Property ID") => {
   if (!uuidPattern.test(id)) fail(`${label} must be a valid UUID.`);
   return id;
 };
+const getPropertyStorageSegment = async (propertyId) => {
+  const id = requireUuid(propertyId);
+  const rows = await supabaseRestRequest("properties", {
+    query: { select: "property_code", id: `eq.${id}`, limit: 1 },
+  });
+  const propertyCode = clean(rows?.[0]?.property_code, 120);
+  if (!propertyCode) fail("Set a OneLuxStay property code before uploading images.");
+  const safeCode = propertyCode
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+  if (!safeCode) fail("The OneLuxStay property code cannot be used as an R2 folder name.");
+  return safeCode;
+};
 const ensureFinite = (value, label, { integer = false, min = 0 } = {}) => {
   if (value === "" || value == null) return null;
   const parsed = Number(value);
@@ -203,7 +219,8 @@ const signUpload = async (payload = {}) => {
   if (!/^image\/(jpeg|png|webp|avif)$/.test(contentType)) fail("Only JPEG, PNG, WebP, and AVIF images are supported.");
   if (!Number.isFinite(size) || size <= 0 || size > 15 * 1024 * 1024) fail("Each image must be 15 MB or smaller.");
   const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" })[contentType];
-  const objectKey = `properties/${propertyId}/${Date.now()}-${crypto.randomUUID()}.${extension}`; const config = getR2Config();
+  const propertyStorageSegment = await getPropertyStorageSegment(propertyId);
+  const objectKey = `properties/${propertyStorageSegment}/${Date.now()}-${crypto.randomUUID()}.${extension}`; const config = getR2Config();
   const uploadUrl = await getSignedUrl(createR2Client(config), new PutObjectCommand({ Bucket: config.bucket, Key: objectKey, ContentType: contentType, CacheControl: "public, max-age=31536000, immutable" }), { expiresIn: 300 });
   return { uploadUrl, objectKey, publicUrl: `${config.publicBaseUrl}/${objectKey}` };
 };
@@ -215,13 +232,16 @@ const addImage = async (propertyId, payload = {}) => {
   const rows = await supabaseRestRequest("property_images", { method: "POST", body: [{ property_id: id, url, public_url: nullable(payload.publicUrl, 2000), object_key: nullable(payload.objectKey, 1000), original_source_url: nullable(payload.originalSourceUrl, 2000), alt_text: nullable(payload.altText, 300), caption: nullable(payload.caption, 500), mime_type: nullable(payload.mimeType, 120), is_primary: !existing?.length, sort_order: Math.max(0, integerOrNull(payload.sortOrder) || 0), migration_status: payload.objectKey ? "verified" : "pending", migrated_at: payload.objectKey ? now() : null, updated_at: now() }], prefer: "return=representation" });
   return { image: rows?.[0] };
 };
-const migrateGuestyImage = async (propertyId) => {
+const migrateGuestyImage = async (propertyId, requestedImageId = "") => {
   const id = requireUuid(propertyId);
+  const propertyStorageSegment = await getPropertyStorageSegment(id);
+  const requestedId = requestedImageId ? requireUuid(requestedImageId, "Image ID") : "";
   const candidates = await supabaseRestRequest("property_images", {
     query: {
       select: "id,url,original_source_url,migration_status",
       property_id: `eq.${id}`,
-      migration_status: "eq.pending",
+      migration_status: "in.(pending,failed)",
+      ...(requestedId ? { id: `eq.${requestedId}` } : {}),
       order: "sort_order.asc",
       limit: 1,
     },
@@ -258,7 +278,7 @@ const migrateGuestyImage = async (propertyId) => {
     if (bytes.length > 25 * 1024 * 1024) fail("The Guesty image exceeds the 25 MB migration limit.");
 
     const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" })[mimeType];
-    const objectKey = `properties/${id}/guesty/${imageId}.${extension}`;
+    const objectKey = `properties/${propertyStorageSegment}/${imageId}.${extension}`;
     const config = getR2Config();
     await createR2Client(config).send(new PutObjectCommand({
       Bucket: config.bucket,
@@ -329,7 +349,7 @@ const route = async (event) => {
   if (action === "update-pricing") return updatePricing(body.propertyId, body.pricing);
   if (action === "sign-upload") return signUpload(body);
   if (action === "add-image") return addImage(body.propertyId, body.input);
-  if (action === "migrate-guesty-image") return migrateGuestyImage(body.propertyId);
+  if (action === "migrate-guesty-image") return migrateGuestyImage(body.propertyId, body.imageId);
   if (action === "update-image") return updateImage(body.propertyId, body.imageId, body.updates);
   if (action === "reorder-images") return reorderImages(body.propertyId, body.orderedImageIds);
   if (action === "set-primary-image") return setPrimaryImage(body.propertyId, body.imageId);
