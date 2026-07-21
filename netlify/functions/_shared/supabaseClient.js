@@ -81,6 +81,7 @@ export const supabaseRestRequest = async (
     prefer,
     timeout = 20_000,
     useAnonKey = false,
+    includeResponse = false,
   } = {},
 ) => {
   const { serviceRoleKey, anonKey } = getSupabaseConfig({ requireServiceRole: !useAnonKey });
@@ -124,6 +125,12 @@ export const supabaseRestRequest = async (
     error.statusCode = response.status;
     error.payload = payload;
     throw error;
+  }
+
+  if (includeResponse) {
+    const contentRange = response.headers.get("content-range") || "";
+    const total = Number(contentRange.split("/")[1]);
+    return { data: payload, count: Number.isFinite(total) ? total : null };
   }
 
   return payload;

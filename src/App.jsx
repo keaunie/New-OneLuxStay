@@ -43,6 +43,7 @@ const GuestReservationPage  = lazy(routePreloaders.guestReservation);
 const BlogPage              = lazy(routePreloaders.blog);
 const BlogArticlePage       = lazy(routePreloaders.blogArticle);
 const AdminBlogPage         = lazy(routePreloaders.adminBlog);
+const AdminPropertiesPage   = lazy(() => import("./pages/AdminPropertiesPage"));
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -113,6 +114,7 @@ function AppRoutes() {
     String(import.meta.env.VITE_ENABLE_AI_AGENT_CONSOLE || "").trim().toLowerCase() === "true";
   const hideChatConcierge =
     pathname.startsWith("/admins-ols") ||
+    pathname.startsWith("/admin/properties") ||
     pathname.startsWith("/executive-ols") ||
     pathname.startsWith("/admin-reservations") ||
     pathname.startsWith("/private/") ||
@@ -271,6 +273,8 @@ function AppRoutes() {
           <Route path="/blog" element={renderLazyRoute(BlogPage)} />
           <Route path="/blog/:slug" element={renderLazyRoute(BlogArticlePage)} />
           <Route path="/executive-ols/blog" element={renderLazyRoute(AdminBlogPage)} />
+          <Route path="/admin/properties" element={renderLazyRoute(AdminPropertiesPage)} />
+          <Route path="/admin/properties/:propertyId" element={renderLazyRoute(AdminPropertiesPage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}

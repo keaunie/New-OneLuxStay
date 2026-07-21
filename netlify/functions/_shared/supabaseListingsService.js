@@ -12,6 +12,7 @@ const PROPERTIES_TABLE_NAME = "properties";
 const PROPERTIES_SELECT = [
   "id",
   "guesty_id",
+  "guesty_listing_id",
   "name",
   "property_code",
   "address",
@@ -28,9 +29,10 @@ const PROPERTIES_SELECT = [
   "has_parking",
   "has_wifi",
   "status",
+  "website_status",
   "created_at",
   "updated_at",
-  "property_images(url,is_primary,sort_order)",
+  "property_images(url,public_url,original_source_url,is_primary,sort_order)",
   "property_amenities(amenity)",
   "property_tags(tag)",
   "property_pricing(base_price,currency,cleaning_fee,security_deposit,extra_guest_fee,created_at)",
@@ -208,7 +210,7 @@ const pickPricingRow = (pricingRows = []) => {
 };
 
 const readImageUrl = (image = {}) =>
-  normalizeString(image?.url || image?.image_url || image?.imageUrl || image?.src || image?.path);
+  normalizeString(image?.public_url || image?.url || image?.original_source_url || image?.image_url || image?.imageUrl || image?.src || image?.path);
 
 const readAmenityValue = (item = {}) =>
   normalizeString(item?.amenity || item?.name || item?.value || item?.label);
@@ -218,7 +220,7 @@ const readTagValue = (item = {}) =>
 
 const mapPropertyRowToListing = (property = {}) => {
   const propertyId = normalizeString(property.id);
-  const guestyId = normalizeString(property.guesty_id);
+  const guestyId = normalizeString(property.guesty_listing_id || property.guesty_id);
   const externalId = guestyId || propertyId;
   if (!externalId) return null;
 
@@ -277,8 +279,9 @@ const mapPropertyRowToListing = (property = {}) => {
     "USD";
 
   const activeByStatus = normalizeStatusFlag(property.status);
-  const active = getBooleanValue(property, "active", "is_active") ?? activeByStatus;
-  const listed = getBooleanValue(property, "listed", "is_listed") ?? activeByStatus;
+  const visibleByWebsiteStatus = normalizeStatusFlag(property.website_status);
+  const active = (getBooleanValue(property, "active", "is_active") ?? activeByStatus) && visibleByWebsiteStatus;
+  const listed = (getBooleanValue(property, "listed", "is_listed") ?? activeByStatus) && visibleByWebsiteStatus;
   const pmsActive = getBooleanValue(property, "pmsActive", "pms_active") ?? activeByStatus;
 
   const featureTags = [];
