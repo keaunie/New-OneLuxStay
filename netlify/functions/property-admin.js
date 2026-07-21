@@ -215,6 +215,79 @@ const addImage = async (propertyId, payload = {}) => {
   const rows = await supabaseRestRequest("property_images", { method: "POST", body: [{ property_id: id, url, public_url: nullable(payload.publicUrl, 2000), object_key: nullable(payload.objectKey, 1000), original_source_url: nullable(payload.originalSourceUrl, 2000), alt_text: nullable(payload.altText, 300), caption: nullable(payload.caption, 500), mime_type: nullable(payload.mimeType, 120), is_primary: !existing?.length, sort_order: Math.max(0, integerOrNull(payload.sortOrder) || 0), migration_status: payload.objectKey ? "verified" : "pending", migrated_at: payload.objectKey ? now() : null, updated_at: now() }], prefer: "return=representation" });
   return { image: rows?.[0] };
 };
+const migrateGuestyImage = async (propertyId) => {
+  const id = requireUuid(propertyId);
+  const candidates = await supabaseRestRequest("property_images", {
+    query: {
+      select: "id,url,original_source_url,migration_status",
+      property_id: `eq.${id}`,
+      migration_status: "eq.pending",
+      order: "sort_order.asc",
+      limit: 1,
+    },
+  });
+  const image = candidates?.[0];
+  if (!image) return { processed: 0, verified: 0, failed: 0, image: null };
+
+  const imageId = requireUuid(image.id, "Image ID");
+  const sourceUrl = clean(image.original_source_url || image.url, 2000);
+  await supabaseRestRequest("property_images", {
+    method: "PATCH",
+    query: { id: `eq.${imageId}`, property_id: `eq.${id}` },
+    body: { migration_status: "copying", migration_error: null, updated_at: now() },
+    prefer: "return=minimal",
+  });
+
+  try {
+    let source;
+    try { source = new URL(sourceUrl); } catch { fail("The Guesty source URL is invalid."); }
+    if (source.protocol !== "https:" || source.hostname.toLowerCase() !== "assets.guesty.com") {
+      fail("Only HTTPS images from assets.guesty.com can be migrated.");
+    }
+
+    const response = await fetch(source, {
+      headers: { Accept: "image/*", "User-Agent": "OneLuxStay-R2-Migrator/1.0" },
+      signal: AbortSignal.timeout(20_000),
+      redirect: "follow",
+    });
+    if (!response.ok) fail(`Guesty image download failed (${response.status}).`);
+    const mimeType = clean(response.headers.get("content-type"), 120).split(";")[0].toLowerCase();
+    if (!/^image\/(jpeg|png|webp|avif)$/.test(mimeType)) fail(`Guesty returned an unsupported content type (${mimeType || "unknown"}).`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length) fail("Guesty returned an empty image.");
+    if (bytes.length > 25 * 1024 * 1024) fail("The Guesty image exceeds the 25 MB migration limit.");
+
+    const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" })[mimeType];
+    const objectKey = `properties/${id}/guesty/${imageId}.${extension}`;
+    const config = getR2Config();
+    await createR2Client(config).send(new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: objectKey,
+      Body: bytes,
+      ContentType: mimeType,
+      CacheControl: "public, max-age=31536000, immutable",
+      Metadata: { source: "guesty", "property-id": id, "image-id": imageId },
+    }));
+    const publicUrl = `${config.publicBaseUrl}/${objectKey}`;
+    const checksum = crypto.createHash("sha256").update(bytes).digest("hex");
+    const updated = await supabaseRestRequest("property_images", {
+      method: "PATCH",
+      query: { id: `eq.${imageId}`, property_id: `eq.${id}` },
+      body: { object_key: objectKey, public_url: publicUrl, mime_type: mimeType, file_size_bytes: bytes.length, checksum_sha256: checksum, migration_status: "verified", migration_error: null, migrated_at: now(), updated_at: now() },
+      prefer: "return=representation",
+    });
+    return { processed: 1, verified: 1, failed: 0, image: updated?.[0] || { id: imageId, migration_status: "verified", public_url: publicUrl } };
+  } catch (error) {
+    const message = clean(error?.name === "TimeoutError" ? "Guesty image download timed out." : error?.message || "Image migration failed.", 800);
+    await supabaseRestRequest("property_images", {
+      method: "PATCH",
+      query: { id: `eq.${imageId}`, property_id: `eq.${id}` },
+      body: { migration_status: "failed", migration_error: message, updated_at: now() },
+      prefer: "return=minimal",
+    });
+    return { processed: 1, verified: 0, failed: 1, image: { id: imageId, migration_status: "failed", migration_error: message } };
+  }
+};
 const updateImage = async (propertyId, imageId, payload = {}) => {
   const id = requireUuid(propertyId); const rowId = requireUuid(imageId, "Image ID"); const body = {};
   for (const key of ["alt_text", "caption"]) if (Object.hasOwn(payload, key)) body[key] = nullable(payload[key], key === "caption" ? 500 : 300);
@@ -256,6 +329,7 @@ const route = async (event) => {
   if (action === "update-pricing") return updatePricing(body.propertyId, body.pricing);
   if (action === "sign-upload") return signUpload(body);
   if (action === "add-image") return addImage(body.propertyId, body.input);
+  if (action === "migrate-guesty-image") return migrateGuestyImage(body.propertyId);
   if (action === "update-image") return updateImage(body.propertyId, body.imageId, body.updates);
   if (action === "reorder-images") return reorderImages(body.propertyId, body.orderedImageIds);
   if (action === "set-primary-image") return setPrimaryImage(body.propertyId, body.imageId);
