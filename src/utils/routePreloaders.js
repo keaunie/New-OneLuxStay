@@ -14,6 +14,7 @@ const preloadCaliforniaPrivacyPolicy = () => import("../CaliforniaPrivacyPolicy"
 const preloadAcknowledgementPage = () => import("../AcknowledgementPage");
 const preloadBookingConfirmationPage = () => import("../BookingConfirmationPage");
 const preloadCheckoutCancelledPage = () => import("../CheckoutCancelledPage");
+const preloadThankYouPage = () => import("../ThankYouPage");
 const preloadRoadmapPrivatePage = () => import("../RoadmapPrivatePage");
 const preloadAiAgentPage = () => import("../AiAgentPage");
 const preloadAdminsOlsPage = () => import("../AdminsOlsPage");
@@ -51,6 +52,7 @@ export const routePreloaders = {
   acknowledge: preloadAcknowledgementPage,
   bookingConfirmation: preloadBookingConfirmationPage,
   checkoutCancelled: preloadCheckoutCancelledPage,
+  thankYou: preloadThankYouPage,
   roadmapPrivate: preloadRoadmapPrivatePage,
   aiAgent: preloadAiAgentPage,
   adminsOls: preloadAdminsOlsPage,
@@ -156,6 +158,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/checkout-cancelled") {
     return routePreloaders.checkoutCancelled().then(() => undefined);
+  }
+  if (normalized === "/thank-you") {
+    return routePreloaders.thankYou().then(() => undefined);
   }
   if (normalized === "/ai-agent") {
     return routePreloaders.aiAgent().then(() => undefined);

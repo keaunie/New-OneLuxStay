@@ -25,6 +25,7 @@ const CaliforniaPrivacyPolicy = lazy(routePreloaders.californiaPrivacy);
 const AcknowledgementPage = lazy(routePreloaders.acknowledge);
 const BookingConfirmationPage = lazy(routePreloaders.bookingConfirmation);
 const CheckoutCancelledPage = lazy(routePreloaders.checkoutCancelled);
+const ThankYouPage = lazy(routePreloaders.thankYou);
 const RoadmapPrivatePage = lazy(routePreloaders.roadmapPrivate);
 const AiAgentPage = lazy(routePreloaders.aiAgent);
 const AdminsOlsPage = lazy(routePreloaders.adminsOls);
@@ -241,6 +242,7 @@ function AppRoutes() {
           <Route path="/california-privacy" element={renderLazyRoute(CaliforniaPrivacyPolicy)} />
           <Route path="/acknowledge" element={renderLazyRoute(AcknowledgementPage)} />
           <Route path="/booking-confirmation" element={renderLazyRoute(BookingConfirmationPage)} />
+          <Route path="/thank-you" element={renderLazyRoute(ThankYouPage)} />
           <Route path="/admins-ols/login" element={<Navigate to="/executive-ols/login" replace />} />
           <Route path="/admins-ols/accept" element={<Navigate to="/executive-ols/accept" replace />} />
           <Route path="/admins-ols/audit" element={<Navigate to="/executive-ols/audit" replace />} />
