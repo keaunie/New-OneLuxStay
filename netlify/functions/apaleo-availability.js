@@ -30,7 +30,7 @@ export async function handler(event) {
   const checkIn = checkInRaw || toIsoDate(addUtcDays(nowUtc, 7));
   const checkOut = checkOutRaw || toIsoDate(addUtcDays(nowUtc, 9));
   const guests = Math.max(1, Number(query.guests || 1) || 1);
-  const city = String(query.city || "Antwerp").trim();
+  const city = String(query.city || "").trim();
   const sync = isTruthy(query.sync);
   const startedAt = Date.now();
 

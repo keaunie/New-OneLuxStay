@@ -30,7 +30,7 @@ export async function handler(event) {
   const reservationCode = String(
     body.reservationCode || body.reservationId || query.reservationCode || query.reservationId || "",
   ).trim();
-  const city = String(body.city || query.city || "Antwerp").trim();
+  const city = String(body.city || query.city || "").trim();
   const sync = isTruthy(body.sync || query.sync);
   const checkIn = String(body.checkIn || query.checkIn || "").trim();
   const checkOut = String(body.checkOut || query.checkOut || "").trim();

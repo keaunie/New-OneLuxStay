@@ -61,11 +61,6 @@ const normalizeProvider = (value = "") => {
   return "";
 };
 
-const isAntwerpCity = (value = "") => {
-  const normalized = sanitizeString(value, 180).toLowerCase();
-  return /(antwerp|antwerpen|anvers|belgium|belgie|belgique)/.test(normalized);
-};
-
 const toQueryString = (query = {}) => {
   const params = new URLSearchParams();
   Object.entries(query || {}).forEach(([key, value]) => {
@@ -93,17 +88,10 @@ const guestyRequestWithQuery = async (path = "", query = {}) => {
   return guestyRequest(fullPath);
 };
 
-export const detectPmsProvider = ({ city = "", country = "", provider = "", listing = null } = {}) => {
+export const detectPmsProvider = ({ provider = "" } = {}) => {
   const explicit = normalizeProvider(provider);
   if (explicit) return explicit;
-
-  const cityHint = [city, country, listing?.city, listing?.address?.city, listing?.country]
-    .map((item) => sanitizeString(item, 180))
-    .filter(Boolean)
-    .join(" ");
-
-  if (isAntwerpCity(cityHint)) return PROVIDERS.APALEO;
-  return PROVIDERS.GUESTY;
+  return normalizeProvider(process.env.PMS_DEFAULT_PROVIDER || "apaleo") || PROVIDERS.APALEO;
 };
 
 export const normalizeGuestyProperty = (listing = {}) => ({
@@ -303,7 +291,7 @@ const buildDateSeries = ({ checkIn = "", checkOut = "" } = {}) => {
   return out;
 };
 
-export const syncApaleoProperties = async ({ city = "Antwerp", query = {} } = {}) => {
+export const syncApaleoProperties = async ({ city = "", query = {} } = {}) => {
   const rows = await listApaleoProperties({
     query: {
       ...query,

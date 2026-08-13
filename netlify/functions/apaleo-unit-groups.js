@@ -11,7 +11,7 @@ export async function handler(event) {
   }
 
   const query = event.queryStringParameters || {};
-  const city = String(query.city || "Antwerp").trim();
+  const city = String(query.city || "").trim();
   const propertyId = String(query.propertyId || query.property_id || "").trim();
   const limit = Number(query.limit || 0) || undefined;
   const startedAt = Date.now();
@@ -49,4 +49,3 @@ export async function handler(event) {
     });
   }
 }
-

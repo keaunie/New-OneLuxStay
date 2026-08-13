@@ -13,7 +13,7 @@ export async function handler(event) {
   }
 
   const query = event.queryStringParameters || {};
-  const city = String(query.city || "Antwerp").trim();
+  const city = String(query.city || "").trim();
   const sync = isTruthy(query.sync);
   const limit = Number(query.limit || 0) || undefined;
 

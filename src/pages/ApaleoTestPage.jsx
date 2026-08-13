@@ -103,7 +103,7 @@ function ApaleoTestPage() {
         if (!active) return;
         setAccountPayload(account);
 
-        const properties = await timed("Properties", () => fetchApaleoProperties({ city: "Antwerp", limit: 20 }));
+        const properties = await timed("Properties", () => fetchApaleoProperties({ city: "", limit: 250 }));
         if (!active) return;
         setPropertiesPayload(properties);
 
@@ -111,7 +111,7 @@ function ApaleoTestPage() {
         try {
           const reservations = await timed("Reservations", () =>
             fetchApaleoReservations({
-              city: "Antwerp",
+              city: "",
               checkIn: reservationsCheckIn,
               checkOut: reservationsCheckOut,
               limit: 500,
@@ -126,7 +126,7 @@ function ApaleoTestPage() {
             message: "Unable to fetch Apaleo reservations",
             error: err?.message || String(err),
             requested: {
-              city: "Antwerp",
+              city: "",
               checkIn: reservationsCheckIn,
               checkOut: reservationsCheckOut,
               limit: 500,
@@ -142,7 +142,7 @@ function ApaleoTestPage() {
 
         const unitGroups = await timed("Unit groups", () =>
           fetchApaleoUnitGroups({
-            city: "Antwerp",
+            city: "",
             ...(firstPropertyId ? { propertyId: firstPropertyId } : {}),
             limit: 100,
           }),
@@ -160,7 +160,7 @@ function ApaleoTestPage() {
         if (availabilityPropertyId) {
           const availability = await timed("Availability", () =>
             fetchApaleoAvailability({
-              city: "Antwerp",
+              city: "",
               propertyId: availabilityPropertyId,
               checkIn: fallbackCheckIn,
               checkOut: fallbackCheckOut,
@@ -205,8 +205,8 @@ function ApaleoTestPage() {
     <main className="apaleo-test-page">
       <div className="apaleo-test-shell">
         <header className="apaleo-test-header">
-          <span className="apaleo-test-kicker">Sandbox • Antwerp Only</span>
-          <h1 className="apaleo-test-title">Apaleo Antwerp Test Environment</h1>
+          <span className="apaleo-test-kicker">Apaleo • Global PMS</span>
+          <h1 className="apaleo-test-title">Apaleo Integration Test Environment</h1>
           <p className="apaleo-test-subtitle">
             Read-only integration sandbox. No reservations are created or modified on this page.
           </p>
@@ -225,7 +225,7 @@ function ApaleoTestPage() {
             <h2>Connection Status</h2>
             <ul className="apaleo-meta-list">
               <li>Read-only mode: enabled</li>
-              <li>Target city: Antwerp</li>
+              <li>Target scope: all enabled Apaleo property mappings</li>
               <li>Token available: {tokenMeta?.hasToken ? "Yes" : "No"}</li>
               <li>Account ID: {accountPayload?.account?.id || "Not available"}</li>
             </ul>

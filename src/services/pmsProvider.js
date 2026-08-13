@@ -26,16 +26,10 @@ const normalizeDate = (value = "") => {
   return parsed.toISOString().slice(0, 10);
 };
 
-const isAntwerpCity = (value = "") => {
-  const normalized = sanitizeString(value, 180).toLowerCase();
-  return /(antwerp|antwerpen|anvers|belgium|belgie|belgique)/.test(normalized);
-};
-
-export const detectPmsProvider = ({ city = "", country = "", provider = "" } = {}) => {
+export const detectPmsProvider = ({ provider = "" } = {}) => {
   const explicit = sanitizeString(provider, 40).toLowerCase();
   if (explicit === PMS_PROVIDERS.APALEO || explicit === PMS_PROVIDERS.GUESTY) return explicit;
-  if (isAntwerpCity([city, country].join(" "))) return PMS_PROVIDERS.APALEO;
-  return PMS_PROVIDERS.GUESTY;
+  return PMS_PROVIDERS.APALEO;
 };
 
 const request = async (path) => {

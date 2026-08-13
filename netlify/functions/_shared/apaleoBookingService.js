@@ -1,0 +1,218 @@
+import crypto from "node:crypto";
+import { apaleoRequest, listApaleoProperties } from "./apaleoService.js";
+import { supabaseRestRequest } from "./supabaseClient.js";
+
+const SESSION_TABLE = "apaleo_booking_sessions";
+const MAX_ADULTS = 20;
+const MAX_CHILDREN = 10;
+
+const text = (value = "", max = 240) => String(value ?? "").trim().slice(0, max);
+const array = (value) => (Array.isArray(value) ? value : []);
+const isoDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(text(value, 10)) ? text(value, 10) : "");
+const configuredPropertyIds = () => [...new Set(String(process.env.APALEO_PROPERTY_IDS || "")
+  .split(",").map((value) => text(value, 120)).filter(Boolean))];
+
+export const getAllowedPropertyIds = async () => {
+  const configured = configuredPropertyIds();
+  try {
+    const rows = await supabaseRestRequest("apaleo_property_mappings", {
+      query: { select: "apaleo_property_id", enabled: "eq.true", limit: 5000 },
+    });
+    return [...new Set([...configured, ...array(rows).map((row) => text(row.apaleo_property_id, 120)).filter(Boolean)])];
+  } catch (error) {
+    if (configured.length) return configured;
+    throw Object.assign(new Error("Apaleo property mappings are unavailable"), {
+      statusCode: 503, code: "PROPERTY_MAPPINGS_UNAVAILABLE", cause: error,
+    });
+  }
+};
+
+export const assertAllowedProperty = async (propertyId) => {
+  const id = text(propertyId, 120);
+  const allowed = await getAllowedPropertyIds();
+  if (!allowed.length) {
+    const error = new Error("Apaleo property allow-list is not configured");
+    error.statusCode = 503;
+    error.code = "PROPERTY_ALLOWLIST_MISSING";
+    throw error;
+  }
+  if (!allowed.includes(id)) {
+    const error = new Error("Property is not enabled for online booking");
+    error.statusCode = 403;
+    error.code = "PROPERTY_NOT_ALLOWED";
+    throw error;
+  }
+  return id;
+};
+
+export const resolveBookingTarget = async ({ localPropertyId = "", propertyId = "", unitGroupId = "" } = {}) => {
+  const localId = text(localPropertyId, 180);
+  if (localId) {
+    const rows = await supabaseRestRequest("apaleo_inventory_mappings", {
+      query: { select: "local_id,apaleo_property_id,apaleo_id", mapping_type: "eq.unit_group", local_id: `eq.${localId}`, enabled: "eq.true", limit: 1 },
+    });
+    const mapping = array(rows)[0];
+    if (!mapping) throw Object.assign(new Error("Property has no enabled Apaleo unit-group mapping"), { statusCode: 409, code: "APALEO_MAPPING_MISSING" });
+    return { localPropertyId: localId, propertyId: await assertAllowedProperty(mapping.apaleo_property_id), unitGroupId: text(mapping.apaleo_id, 120) };
+  }
+  const safePropertyId = await assertAllowedProperty(propertyId);
+  return { localPropertyId: safePropertyId, propertyId: safePropertyId, unitGroupId: text(unitGroupId, 120) };
+};
+
+export const validateStay = ({ arrival, departure, adults = 1, childrenAges = [] }) => {
+  const safeArrival = isoDate(arrival);
+  const safeDeparture = isoDate(departure);
+  const safeAdults = Number(adults);
+  const safeChildren = array(childrenAges).map(Number);
+  if (!safeArrival || !safeDeparture || safeDeparture <= safeArrival) {
+    throw Object.assign(new Error("Departure must be after arrival"), { statusCode: 400, code: "INVALID_DATES" });
+  }
+  if (!Number.isInteger(safeAdults) || safeAdults < 1 || safeAdults > MAX_ADULTS) {
+    throw Object.assign(new Error("Adults must be between 1 and 20"), { statusCode: 400, code: "INVALID_OCCUPANCY" });
+  }
+  if (safeChildren.length > MAX_CHILDREN || safeChildren.some((age) => !Number.isInteger(age) || age < 0 || age > 17)) {
+    throw Object.assign(new Error("Children ages must be integers from 0 to 17"), { statusCode: 400, code: "INVALID_CHILDREN_AGES" });
+  }
+  return { arrival: safeArrival, departure: safeDeparture, adults: safeAdults, childrenAges: safeChildren };
+};
+
+// Decimal-to-minor conversion intentionally avoids binary floating-point arithmetic.
+export const majorToMinor = (amount, currency = "EUR") => {
+  const value = String(amount ?? "").trim();
+  if (!/^\d+(\.\d+)?$/.test(value)) throw new Error("Invalid monetary amount");
+  const zeroDecimal = new Set(["BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"]);
+  const digits = zeroDecimal.has(text(currency, 3).toUpperCase()) ? 0 : 2;
+  const [whole, fraction = ""] = value.split(".");
+  if (fraction.length > digits && /[1-9]/.test(fraction.slice(digits))) throw new Error("Amount has unsupported precision");
+  return Number(BigInt(whole) * (10n ** BigInt(digits)) + BigInt((fraction.slice(0, digits) + "0".repeat(digits)).slice(0, digits) || "0"));
+};
+
+const money = (value = {}, fallbackCurrency = "EUR") => ({
+  amount: String(value?.amount ?? "0"),
+  currency: text(value?.currency || fallbackCurrency, 3).toUpperCase(),
+});
+
+export const normalizeOffer = (offer = {}) => {
+  const total = money(offer.totalGrossAmount);
+  const prepayment = money(offer.prePaymentGrossAmount, total.currency);
+  return {
+    ratePlanId: text(offer?.ratePlan?.id || offer?.ratePlanId, 120),
+    ratePlanName: text(offer?.ratePlan?.name, 240),
+    unitGroupId: text(offer?.unitGroup?.id || offer?.unitGroupId, 120),
+    unitGroupName: text(offer?.unitGroup?.name, 240),
+    minGuaranteeType: text(offer?.minGuaranteeType, 40),
+    availableUnits: Math.max(0, Number(offer?.availableUnits || 0)),
+    totalGrossAmount: total,
+    prePaymentGrossAmount: prepayment,
+    cityTax: offer?.cityTax || null,
+    cancellationFee: offer?.cancellationFee || null,
+    noShowFee: offer?.noShowFee || null,
+    mandatoryServices: array(offer?.services),
+    timeSlices: array(offer?.timeSlices),
+    taxDetails: array(offer?.taxDetails),
+  };
+};
+
+export const getBookingProperties = async () => {
+  const ids = await getAllowedPropertyIds();
+  if (!ids.length) return [];
+  const properties = await listApaleoProperties();
+  return properties.filter((property) => ids.includes(property.id)).map((property) => ({
+    id: property.id, title: property.title, city: property.city, country: property.country,
+    address: property.address, provider: property.provider, images: property.images, amenities: property.amenities,
+  }));
+};
+
+export const getOffers = async ({ localPropertyId, propertyId, unitGroupId, arrival, departure, adults, childrenAges = [] }) => {
+  const target = await resolveBookingTarget({ localPropertyId, propertyId, unitGroupId });
+  const stay = validateStay({ arrival, departure, adults, childrenAges });
+  const response = await apaleoRequest("/booking/v1/offers", {
+    query: {
+      propertyId: target.propertyId,
+      arrival: stay.arrival,
+      departure: stay.departure,
+      adults: stay.adults,
+      ...(stay.childrenAges.length ? { childrenAges: stay.childrenAges.join(",") } : {}),
+      channelCode: "Ibe",
+    },
+  });
+  return array(response?.payload?.offers).map(normalizeOffer)
+    .filter((offer) => offer.ratePlanId && offer.unitGroupId && offer.availableUnits > 0 && (!target.unitGroupId || offer.unitGroupId === target.unitGroupId));
+};
+
+export const getServiceOffers = async ({ ratePlanId, arrival, departure, adults, childrenAges = [] }) => {
+  const stay = validateStay({ arrival, departure, adults, childrenAges });
+  const response = await apaleoRequest("/booking/v1/service-offers", {
+    query: {
+      ratePlanId: text(ratePlanId, 120), arrival: stay.arrival, departure: stay.departure,
+      adults: stay.adults,
+      ...(stay.childrenAges.length ? { childrenAges: stay.childrenAges.join(",") } : {}),
+      channelCode: "Ibe",
+    },
+  });
+  return array(response?.payload?.services).map((entry) => ({
+    serviceId: text(entry?.service?.id || entry?.serviceId, 120),
+    name: text(entry?.service?.name, 240),
+    pricingUnit: text(entry?.service?.pricingUnit, 60),
+    count: Number(entry?.count || 0),
+    totalAmount: entry?.totalAmount || null,
+    prePaymentGrossAmount: money(entry?.prePaymentGrossAmount),
+    dates: array(entry?.dates),
+  })).filter((entry) => entry.serviceId);
+};
+
+const findOffer = (offers, ratePlanId, unitGroupId) => offers.find((offer) =>
+  offer.ratePlanId === text(ratePlanId, 120) && offer.unitGroupId === text(unitGroupId, 120));
+
+export const createBookingSession = async (input = {}) => {
+  const stay = validateStay(input);
+  const target = await resolveBookingTarget(input);
+  const offers = await getOffers({ propertyId: target.propertyId, unitGroupId: target.unitGroupId, ...stay });
+  const offer = findOffer(offers, input.ratePlanId, target.unitGroupId || input.unitGroupId);
+  if (!offer) throw Object.assign(new Error("Selected offer is no longer available"), { statusCode: 409, code: "OFFER_UNAVAILABLE" });
+  const selectedIds = new Set(array(input.selectedServices).map((item) => text(item?.serviceId || item, 120)));
+  const availableServices = selectedIds.size ? await getServiceOffers({ ratePlanId: offer.ratePlanId, ...stay }) : [];
+  const selectedServices = availableServices.filter((item) => selectedIds.has(item.serviceId));
+  if (selectedServices.length !== selectedIds.size) throw Object.assign(new Error("One or more services are unavailable"), { statusCode: 409, code: "SERVICE_UNAVAILABLE" });
+  const servicePrepayment = selectedServices.reduce((sum, item) => sum + majorToMinor(item.prePaymentGrossAmount.amount, item.prePaymentGrossAmount.currency), 0);
+  const currency = offer.totalGrossAmount.currency;
+  const row = {
+    id: crypto.randomUUID(), state: "OFFER_SELECTED", local_property_id: target.localPropertyId, property_id: target.propertyId,
+    arrival: stay.arrival, departure: stay.departure, adults: stay.adults,
+    children_ages: stay.childrenAges, unit_group_id: offer.unitGroupId, rate_plan_id: offer.ratePlanId,
+    selected_services: selectedServices, quote: offer,
+    quoted_total_minor: majorToMinor(offer.totalGrossAmount.amount, currency),
+    prepayment_minor: majorToMinor(offer.prePaymentGrossAmount.amount, currency) + servicePrepayment,
+    currency, guarantee_type: offer.minGuaranteeType,
+    payment_state: offer.minGuaranteeType === "PM6Hold" ? "NOT_REQUIRED" : "REQUIRED",
+    expires_at: new Date(Date.now() + Math.max(5, Number(process.env.APALEO_BOOKING_SESSION_TTL_MINUTES || 30)) * 60000).toISOString(),
+  };
+  const inserted = await supabaseRestRequest(SESSION_TABLE, { method: "POST", body: [row], prefer: "return=representation" });
+  return array(inserted)[0] || row;
+};
+
+export const getBookingSession = async (id) => {
+  const rows = await supabaseRestRequest(SESSION_TABLE, { query: { id: `eq.${text(id, 80)}`, limit: 1 } });
+  const session = array(rows)[0];
+  if (!session) throw Object.assign(new Error("Booking session not found"), { statusCode: 404, code: "SESSION_NOT_FOUND" });
+  if (Date.parse(session.expires_at) <= Date.now() && session.state !== "CONFIRMED") {
+    throw Object.assign(new Error("Booking session expired"), { statusCode: 410, code: "SESSION_EXPIRED" });
+  }
+  return session;
+};
+
+export const revalidateBookingSession = async (id) => {
+  const session = await getBookingSession(id);
+  const offers = await getOffers({ propertyId: session.property_id, unitGroupId: session.unit_group_id, arrival: session.arrival, departure: session.departure, adults: session.adults, childrenAges: session.children_ages });
+  const offer = findOffer(offers, session.rate_plan_id, session.unit_group_id);
+  if (!offer) throw Object.assign(new Error("Selected offer is no longer available"), { statusCode: 409, code: "OFFER_UNAVAILABLE" });
+  const totalMinor = majorToMinor(offer.totalGrossAmount.amount, offer.totalGrossAmount.currency);
+  const prepaymentMinor = majorToMinor(offer.prePaymentGrossAmount.amount, offer.prePaymentGrossAmount.currency) + array(session.selected_services)
+    .reduce((sum, item) => sum + majorToMinor(item.prePaymentGrossAmount.amount, item.prePaymentGrossAmount.currency), 0);
+  const changed = totalMinor !== Number(session.quoted_total_minor) || prepaymentMinor !== Number(session.prepayment_minor) || offer.minGuaranteeType !== session.guarantee_type;
+  const paymentSatisfied = session.payment_state === "AUTHORIZED" || offer.minGuaranteeType === "PM6Hold";
+  const patch = { quote: offer, quoted_total_minor: totalMinor, prepayment_minor: prepaymentMinor,
+    guarantee_type: offer.minGuaranteeType, state: changed ? "PRICE_CHANGED" : (paymentSatisfied ? "READY_TO_BOOK" : "READY_FOR_PAYMENT"), updated_at: new Date().toISOString() };
+  const rows = await supabaseRestRequest(`${SESSION_TABLE}?id=eq.${encodeURIComponent(session.id)}`, { method: "PATCH", body: patch, prefer: "return=representation" });
+  return { session: array(rows)[0] || { ...session, ...patch }, changed };
+};

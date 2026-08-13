@@ -84,7 +84,7 @@ export const getApaleoAccount = async ({ forceRefresh = false } = {}) => {
 export const fetchApaleoAccount = async ({ forceRefresh = false } = {}) =>
   request("/apaleo-account", { query: { forceRefresh: forceRefresh ? "1" : "0" } });
 
-export const fetchApaleoProperties = async ({ city = "Antwerp", limit, sync = false } = {}) =>
+export const fetchApaleoProperties = async ({ city = "", limit, sync = false } = {}) =>
   request("/apaleo-properties", {
     query: {
       city,
@@ -94,7 +94,7 @@ export const fetchApaleoProperties = async ({ city = "Antwerp", limit, sync = fa
   });
 
 export const fetchApaleoReservations = async ({
-  city = "Antwerp",
+  city = "",
   reservationCode = "",
   checkIn = "",
   checkOut = "",
@@ -113,7 +113,7 @@ export const fetchApaleoReservations = async ({
   });
 
 export const fetchApaleoAvailability = async ({
-  city = "Antwerp",
+  city = "",
   propertyId,
   checkIn,
   checkOut,
@@ -131,7 +131,7 @@ export const fetchApaleoAvailability = async ({
     },
   });
 
-export const fetchApaleoUnitGroups = async ({ city = "Antwerp", propertyId = "", limit } = {}) =>
+export const fetchApaleoUnitGroups = async ({ city = "", propertyId = "", limit } = {}) =>
   request("/apaleo-unit-groups", {
     query: {
       city,

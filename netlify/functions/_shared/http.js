@@ -1,7 +1,7 @@
 const baseHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, Stripe-Signature",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Stripe-Signature, Idempotency-Key",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
@@ -138,4 +138,3 @@ export const getHeaderValue = (event = {}, targetName = "") => {
   }
   return "";
 };
-
