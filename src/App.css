@@ -19774,3 +19774,243 @@ a[href="#redondo-city-tour"],
     display: none;
   }
 }
+
+/* ===== Apaleo/Adyen booking engine checkout (src/components/apaleo-checkout/) ===== */
+
+.apaleo-offer-search__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.apaleo-offer-search__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: rgba(47, 33, 22, 0.75);
+}
+
+.apaleo-offer-search__field input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(60, 48, 33, 0.2);
+  font-size: 0.95rem;
+}
+
+.apaleo-offer-search__field--guests input {
+  width: 80px;
+}
+
+.apaleo-offer-search__submit,
+.apaleo-checkout-modal__submit {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: none;
+  background: #c6a47f;
+  color: #241a10;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.apaleo-offer-search__submit:disabled,
+.apaleo-checkout-modal__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.apaleo-offer-search__error,
+.apaleo-checkout-modal__error {
+  color: #8f2525;
+  font-size: 0.85rem;
+  margin-top: 10px;
+}
+
+.apaleo-offer-search__empty {
+  margin-top: 12px;
+  color: rgba(47, 33, 22, 0.65);
+  font-size: 0.9rem;
+}
+
+.apaleo-offer-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.apaleo-offer-card {
+  border-radius: 12px;
+  border: 1px solid rgba(60, 48, 33, 0.16);
+}
+
+.apaleo-offer-card.is-selected {
+  border-color: #c6a47f;
+  box-shadow: 0 0 0 2px rgba(198, 164, 127, 0.35);
+}
+
+.apaleo-offer-card__button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.apaleo-offer-card__name {
+  font-weight: 600;
+  grid-column: 1;
+}
+
+.apaleo-offer-card__price {
+  font-weight: 700;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.apaleo-offer-card__rate-plan,
+.apaleo-offer-card__guarantee {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: rgba(47, 33, 22, 0.65);
+}
+
+.apaleo-payment-panel__dropin {
+  min-height: 220px;
+}
+
+.apaleo-payment-panel__loading,
+.apaleo-payment-panel__none {
+  color: rgba(47, 33, 22, 0.7);
+  font-size: 0.9rem;
+}
+
+.apaleo-payment-panel__error {
+  color: #8f2525;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.apaleo-checkout-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 8, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.apaleo-checkout-modal {
+  position: relative;
+  background: #fdfbf7;
+  border-radius: 18px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 32px 24px 24px;
+}
+
+.apaleo-checkout-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(47, 33, 22, 0.6);
+}
+
+.apaleo-checkout-modal__step-title {
+  margin: 0 0 16px;
+}
+
+.apaleo-checkout-modal__field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.apaleo-checkout-modal__field-grid label,
+.apaleo-checkout-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: rgba(47, 33, 22, 0.75);
+  margin-bottom: 12px;
+}
+
+.apaleo-checkout-modal__field-grid input,
+.apaleo-checkout-modal__field input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(60, 48, 33, 0.2);
+  font-size: 0.95rem;
+}
+
+.apaleo-checkout-modal__signature-pad {
+  width: 100%;
+  max-width: 420px;
+  height: 140px;
+  border: 1px dashed rgba(60, 48, 33, 0.35);
+  border-radius: 10px;
+  touch-action: none;
+  background: #fff;
+}
+
+.apaleo-checkout-modal__link-button {
+  background: none;
+  border: none;
+  color: #8a6a3f;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin: 6px 0 14px;
+  display: block;
+}
+
+.apaleo-checkout-modal__consent-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: rgba(47, 33, 22, 0.8);
+}
+
+.apaleo-checkout-modal__no-payment {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.apaleo-checkout-modal__hint {
+  color: rgba(47, 33, 22, 0.65);
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.apaleo-checkout-modal__confirmation {
+  padding: 8px 4px;
+}
+
+.apaleo-checkout-modal__confirmation h2 {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .apaleo-checkout-modal__field-grid {
+    grid-template-columns: 1fr;
+  }
+}

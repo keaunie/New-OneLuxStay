@@ -12,6 +12,7 @@ import MasonryGalleryModal from "./components/MasonryGalleryModal";
 import SimilarUnitsSection from "./components/listing/SimilarUnitsSection";
 import NeighborhoodHighlightsSection from "./components/listing/NeighborhoodHighlightsSection";
 import Stepper, { Step } from "./components/Stepper";
+import ApaleoCheckoutModal from "./components/apaleo-checkout/ApaleoCheckoutModal";
 import LottieInlineHint from "./components/LottieInlineHint";
 import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
@@ -71,6 +72,7 @@ const formatCurrency = (value, currency = "USD") =>
 
 const CHECKOUT_DEFAULT_CURRENCY = "USD";
 const ENABLE_CHECKOUT_VERIFICATION = false;
+const LEGACY_CHECKOUT_ENABLED = false; // Guesty/Stripe checkout retained for rollback, disabled — see docs/apaleo-rollout-other-cities.md
 const resolveCheckoutCurrency = (currency) => {
   const normalized = typeof currency === "string" ? currency.trim().toUpperCase() : "";
   return normalized || CHECKOUT_DEFAULT_CURRENCY;
@@ -2705,6 +2707,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
+  const [isApaleoCheckoutOpen, setIsApaleoCheckoutOpen] = useState(false);
+  const [apaleoCheckoutListing, setApaleoCheckoutListing] = useState(null);
   const checkoutSignatureCanvasRef = useRef(null);
   const isSigningRef = useRef(false);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
@@ -7559,7 +7563,7 @@ const applyCheckoutPromoCode = () => {
           <ListingLoadingScreen active cityLabel="Redondo Beach" />
         )}
         {inquiryModal}
-        {checkoutGuestModal}
+        {LEGACY_CHECKOUT_ENABLED && checkoutGuestModal}
         {listingMapModal}
         {zoomModal}
         {masonryModal}
@@ -8827,6 +8831,7 @@ const applyCheckoutPromoCode = () => {
                                   className="la-booking-table__reserve"
                                   disabled={isLoadingRates || isReserving || isPromoSelectionBlocking(selectedPlan, sectionStayNights, promoFeedback[listingId])}
                                   onClick={() => {
+                                    if (LEGACY_CHECKOUT_ENABLED) {
                                     if (
                                       !checkoutGuest.firstName ||
                                     !checkoutGuest.lastName ||
@@ -8876,6 +8881,13 @@ const applyCheckoutPromoCode = () => {
                                       consentSignerName: checkoutConsentSignerName.trim(),
                                       consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
                                     });
+                                    } else {
+                                      setApaleoCheckoutListing({
+                                        localPropertyId: checkoutListingId,
+                                        listingTitle: listing.title,
+                                      });
+                                      setIsApaleoCheckoutOpen(true);
+                                    }
                                   }}
                                 >
                                   {isReserving ? "Redirecting..." : "Reserve"}
@@ -8897,7 +8909,15 @@ const applyCheckoutPromoCode = () => {
 
       {inquiryModal}
 
-      {checkoutGuestModal}
+      {LEGACY_CHECKOUT_ENABLED && checkoutGuestModal}
+
+      <ApaleoCheckoutModal
+        open={isApaleoCheckoutOpen}
+        onClose={() => setIsApaleoCheckoutOpen(false)}
+        localPropertyId={apaleoCheckoutListing?.localPropertyId || ""}
+        listingTitle={apaleoCheckoutListing?.listingTitle || ""}
+        defaultAdults={Number(sectionGuests) || 2}
+      />
 
       {activeListing && !isListingRoute && (
         <div

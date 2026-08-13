@@ -5,6 +5,7 @@ const preloadHollywoodLandingPage = () => import("../HollywoodLandingPage");
 const preloadRedondoBeachPrimaryPage = () => import("../RedondoBeachPrimaryPage");
 const preloadRedondoBeachLegacyProtectedPage = () => import("../RedondoBeachLegacyProtectedPage");
 const preloadDubaiLandingPage = () => import("../DubaiLandingPage");
+const preloadMiamiBeachLandingPage = () => import("../MiamiBeachLandingPage");
 const preloadListingPage = () => import("../ListingPage");
 const preloadGlobalUnitsPage = () => import("../GlobalUnitsPage");
 const preloadHealthcareProfessionalsPage = () => import("../professional_careers");
@@ -43,6 +44,7 @@ export const routePreloaders = {
   redondoBeach: preloadRedondoBeachPrimaryPage,
   redondoBeachLegacy: preloadRedondoBeachLegacyProtectedPage,
   dubai: preloadDubaiLandingPage,
+  miamiBeach: preloadMiamiBeachLandingPage,
   listing: preloadListingPage,
   global: preloadGlobalUnitsPage,
   healthcareProfessionals: preloadHealthcareProfessionalsPage,
@@ -115,6 +117,14 @@ export const prefetchCityRoute = (value = "") => {
   if (normalized === "/dubai" || normalized.startsWith("/dubai/")) {
     return Promise.all([routePreloaders.dubai(), routePreloaders.listing()]).then(() => undefined);
   }
+  if (
+    normalized === "/miami" ||
+    normalized === "/miami-beach" ||
+    normalized.startsWith("/miami/") ||
+    normalized.startsWith("/miami-beach/")
+  ) {
+    return Promise.all([routePreloaders.miamiBeach(), routePreloaders.listing()]).then(() => undefined);
+  }
   return Promise.resolve();
 };
 
@@ -123,7 +133,7 @@ export const prefetchRouteByPath = (value = "") => {
   if (!normalized) return Promise.resolve();
   if (normalized === "/" || normalized === "") return routePreloaders.landing().then(() => undefined);
   if (normalized === "/miami" || normalized === "/miami-beach" || normalized.startsWith("/miami/") || normalized.startsWith("/miami-beach/")) {
-    return routePreloaders.global().then(() => undefined);
+    return routePreloaders.miamiBeach().then(() => undefined);
   }
   if (normalized === "/listings" || normalized.includes("/listing/")) {
     return routePreloaders.listing().then(() => undefined);

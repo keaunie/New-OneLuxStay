@@ -1,7 +1,17 @@
-import { jsonResponse, readJsonBody } from "./_shared/http.js";
+import { jsonResponse, readJsonBody, getPublicWebsiteUrl } from "./_shared/http.js";
 import { apaleoRequest } from "./_shared/apaleoService.js";
 import { getBookingSession, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
+import {
+  buildConsentPdf,
+  writeConsentProof,
+  writeConsentPdf,
+  sendReservationEmail,
+  formatCurrencyValue,
+  escapeHtml,
+} from "./_shared/consentProofService.js";
+
+const RESERVATIONS_COPY_EMAIL = "reservations@oneluxstay.com";
 
 const clean = (value = "", max = 300) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 const splitName = (value) => {
@@ -9,6 +19,72 @@ const splitName = (value) => {
   return { firstName: parts.shift() || "Guest", lastName: parts.join(" ") };
 };
 const nightCount = (arrival, departure) => Math.round((Date.parse(`${departure}T00:00:00Z`) - Date.parse(`${arrival}T00:00:00Z`)) / 86400000);
+
+// Persists a consent record/PDF and emails the guest, mirroring what the legacy
+// Guesty/Stripe flow does in check-units.js (handleFreeCheckout/handleCheckoutSuccess),
+// via the shared consentProofService.js so both flows produce the same artifacts.
+// Best-effort: never lets a consent/email failure fail an already-confirmed booking.
+const recordConsentAndNotify = async ({ session, bookingId, reservationIds, guest, name, email, listingTitle, consent }) => {
+  try {
+    const consentSignerName = clean(consent?.signerName, 180) || `${name.firstName} ${name.lastName}`.trim();
+    const consentSignatureDataUrl = typeof consent?.signatureDataUrl === "string" ? consent.signatureDataUrl : "";
+    const consentAcceptedAt = consent?.acceptedAt || new Date().toISOString();
+    const consentText = typeof consent?.consentText === "string" ? consent.consentText : "";
+    const amount = Number(session.quoted_total_minor) / 100;
+    const currency = session.currency;
+
+    await writeConsentProof(session.id, {
+      confirmationId: session.id,
+      reservationId: reservationIds[0] || bookingId,
+      listingTitle, checkIn: session.arrival, checkOut: session.departure,
+      guests: session.adults, amount, currency,
+      guestName: `${name.firstName} ${name.lastName}`.trim(), guestEmail: email,
+      consentText, consentAcceptedAt, consentSignerName, consentSignatureDataUrl,
+    });
+
+    const consentPdfBytes = await buildConsentPdf({
+      confirmationId: session.id, reservationId: reservationIds[0] || bookingId,
+      listingTitle, checkIn: session.arrival, checkOut: session.departure,
+      guests: session.adults, amount, currency,
+      guestName: `${name.firstName} ${name.lastName}`.trim(), guestEmail: email,
+      consentText, consentAcceptedAt, consentSignerName, consentSignatureDataUrl,
+    });
+    const consentPdfToken = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`;
+    const stored = await writeConsentPdf(consentPdfToken, consentPdfBytes, { sessionId: session.id, bookingId });
+    const consentPdfUrl = stored
+      ? `${getPublicWebsiteUrl()}/.netlify/functions/consent-proof?token=${encodeURIComponent(consentPdfToken)}`
+      : "";
+
+    const formattedAmount = formatCurrencyValue(amount, currency);
+    const emailHtml = `
+      <p>Hi ${escapeHtml(name.firstName || "Guest")},</p>
+      <p>Your reservation is confirmed.</p>
+      <p><strong>Confirmation ID:</strong> ${escapeHtml(session.id)}</p>
+      ${reservationIds[0] ? `<p><strong>Reservation ID:</strong> ${escapeHtml(reservationIds[0])}</p>` : ""}
+      <p><strong>Listing:</strong> ${escapeHtml(listingTitle || "OneLuxStay stay")}</p>
+      <p><strong>Check-in:</strong> ${escapeHtml(session.arrival)}</p>
+      <p><strong>Check-out:</strong> ${escapeHtml(session.departure)}</p>
+      <p><strong>Guests:</strong> ${escapeHtml(String(Number(session.adults) || 1))}</p>
+      <p><strong>Total charged:</strong> ${escapeHtml(formattedAmount)}</p>
+      ${consentPdfUrl ? `<p><strong>Consent proof PDF:</strong> <a href="${consentPdfUrl}" target="_blank" rel="noreferrer">Download PDF</a></p>` : ""}
+    `;
+    const emailResult = await sendReservationEmail({
+      to: [email, RESERVATIONS_COPY_EMAIL],
+      subject: "Your OneLuxStay reservation is confirmed",
+      html: emailHtml,
+      ...(consentPdfUrl && stored
+        ? { attachments: [{ filename: `consent-proof-${reservationIds[0] || session.id}.pdf`, content: Buffer.from(consentPdfBytes).toString("base64") }] }
+        : {}),
+    });
+
+    return { consentPdfUrl, emailSent: !emailResult?.skipped };
+  } catch (error) {
+    console.error("[api-booking-confirm] consent/email follow-up failed", {
+      bookingSessionId: session?.id, message: error?.message || String(error),
+    });
+    return { consentPdfUrl: "", emailSent: false };
+  }
+};
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return jsonResponse(200, { ok: true });
@@ -56,7 +132,11 @@ export async function handler(event) {
       sanitized_apaleo_response: { id: bookingId, reservations: reservationIds.map((id) => ({ id })) },
       confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }, prefer: "return=minimal" });
-    return jsonResponse(201, { bookingSessionId: session.id, apaleoBookingId: bookingId, reservationIds });
+    const { consentPdfUrl, emailSent } = await recordConsentAndNotify({
+      session, bookingId, reservationIds, guest, name, email,
+      listingTitle: clean(body.listingTitle, 240), consent: body.consent,
+    });
+    return jsonResponse(201, { bookingSessionId: session.id, apaleoBookingId: bookingId, reservationIds, consentPdfUrl, emailSent });
   } catch (error) {
     if (session?.id && session?.payment_state === "AUTHORIZED") {
       const ambiguous = /abort|timeout|fetch failed/i.test(String(error?.message || ""));

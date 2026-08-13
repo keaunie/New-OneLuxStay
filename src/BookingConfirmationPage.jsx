@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import apiBase from "./utils/apiBase";
+import { submitApaleoPaymentDetails, getApaleoBookingConfirmation } from "./services/apaleoBookingApi";
 
 const formatCurrency = (value, currency = "USD") => {
   const numeric = Number(value);
@@ -59,6 +60,58 @@ const BookingConfirmationPage = () => {
   const consentProofUrl = params.get("consentProofUrl") || "";
   const totalLabel = formatCurrency(amount, currency);
   const isPaidBooking = mode === "paid" || Number(amount) > 0 || checkoutState === "success";
+
+  // Apaleo/Adyen engine: set when api-booking-payments.js's `returnUrl` sends the guest
+  // back here for a redirect-based payment method (e.g. iDEAL), rather than completing
+  // inside the AdyenPaymentPanel overlay in ApaleoCheckoutModal.jsx. `redirectResult` is
+  // Adyen's standard param for resuming a redirect payment.
+  const bookingSessionId = params.get("bookingSessionId") || "";
+  const redirectResult = params.get("redirectResult") || "";
+  const [apaleoStatus, setApaleoStatus] = useState(bookingSessionId ? "finalizing" : "");
+  const [apaleoConfirmation, setApaleoConfirmation] = useState(null);
+  const [apaleoError, setApaleoError] = useState("");
+
+  useEffect(() => {
+    if (!bookingSessionId) return;
+    let cancelled = false;
+
+    const finalizeApaleoBooking = async () => {
+      try {
+        if (redirectResult) {
+          await submitApaleoPaymentDetails({ bookingSessionId, details: { redirectResult } });
+        }
+        const deadline = Date.now() + 20_000;
+        let result = null;
+        while (Date.now() < deadline) {
+          if (cancelled) return;
+          result = await getApaleoBookingConfirmation(bookingSessionId);
+          if (result?.state === "CONFIRMED") break;
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        if (cancelled) return;
+        if (result?.state === "CONFIRMED") {
+          setApaleoConfirmation(result);
+          setApaleoStatus("confirmed");
+        } else {
+          // Payment may have gone through, but guest details/consent captured in the
+          // checkout modal don't survive a full-page redirect, so the server can't
+          // auto-confirm on the guest's behalf. Known limitation — see
+          // docs/apaleo-rollout-other-cities.md.
+          setApaleoStatus("pending");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setApaleoError(err?.message || "Unable to finalize your booking.");
+          setApaleoStatus("error");
+        }
+      }
+    };
+
+    finalizeApaleoBooking();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingSessionId, redirectResult]);
 
   useEffect(() => {
     if (checkoutState !== "success" || !sessionId) return;
@@ -119,6 +172,43 @@ const BookingConfirmationPage = () => {
       cancelled = true;
     };
   }, [checkoutState, sessionId]);
+
+  if (bookingSessionId) {
+    return (
+      <div className="ack-page">
+        <div className="ack-card">
+          <header className="ack-card__header">
+            <p className="ack-card__kicker">OneLuxStay</p>
+            <h1>{apaleoStatus === "confirmed" ? "Thank You" : "Almost there"}</h1>
+          </header>
+          {apaleoStatus === "finalizing" && (
+            <div className="ack-success"><p>Finalizing your payment and booking. Please wait…</p></div>
+          )}
+          {apaleoStatus === "confirmed" && (
+            <div className="ack-details">
+              <p>Reservation details</p>
+              <ul>
+                <li>Booking session: {bookingSessionId}</li>
+                {apaleoConfirmation?.apaleoBookingId && <li>Booking ID: {apaleoConfirmation.apaleoBookingId}</li>}
+                {(apaleoConfirmation?.reservationIds || []).map((id) => <li key={id}>Reservation ID: {id}</li>)}
+              </ul>
+            </div>
+          )}
+          {apaleoStatus === "pending" && (
+            <div className="ack-success">
+              <p>Your payment is being processed. We&rsquo;ll email your confirmation shortly — please contact us if you don&rsquo;t hear back within a few minutes.</p>
+            </div>
+          )}
+          {apaleoStatus === "error" && (
+            <div className="ack-success"><p>{apaleoError}</p></div>
+          )}
+          <div className="ack-success">
+            <Link to="/">Return to OneLuxStay</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ack-page">
