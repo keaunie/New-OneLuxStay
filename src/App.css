@@ -9440,6 +9440,14 @@ body {
   box-shadow: 0 20px 40px rgba(60, 48, 33, 0.16);
 }
 
+.ack-card__logo {
+  display: block;
+  width: 150px;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 16px;
+}
+
 .ack-card__header h1 {
   margin: 8px 0 10px;
   font-size: 28px;
