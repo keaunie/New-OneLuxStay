@@ -32,7 +32,7 @@ export const getApaleoPayAdditionalData = ({ propertyId, guaranteeType } = {}) =
     "metadata.propertyId": safePropertyId,
   };
   if (guaranteeType === "Prepayment") {
-    const subMerchantId = clean(propertySubMerchants[safePropertyId] || process.env.APALEO_SUB_MERCHANT_ID, 180);
+    const subMerchantId = clean(propertySubMerchants[safePropertyId] || process.env.APALEO_SUB_MERCHANT_ID || process.env.APALEO_SUBMERCHANT_ID, 180);
     if (!subMerchantId) {
       throw Object.assign(new Error(`Missing Apaleo Pay sub-merchant ID for property ${safePropertyId}`), { statusCode: 503, code: "APALEO_SUB_MERCHANT_MISSING" });
     }

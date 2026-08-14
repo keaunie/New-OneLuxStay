@@ -19875,11 +19875,27 @@ a[href="#redondo-city-tour"],
 }
 
 .apaleo-offer-card__rate-plan,
+.apaleo-offer-card__prepayment,
 .apaleo-offer-card__guarantee {
   grid-column: 1 / -1;
   font-size: 0.8rem;
   color: rgba(47, 33, 22, 0.65);
 }
+
+.apaleo-offer-breakdown {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(111, 93, 70, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 252, 247, 0.82);
+}
+.apaleo-offer-breakdown h4 { margin: 0 0 .75rem; }
+.apaleo-offer-breakdown dl { display: grid; grid-template-columns: 1fr auto; gap: .4rem 1rem; margin: 0; }
+.apaleo-offer-breakdown dd { margin: 0; font-weight: 700; }
+.apaleo-offer-services { margin: .9rem 0 0; padding: .8rem 0 0; border: 0; border-top: 1px solid rgba(111, 93, 70, 0.18); }
+.apaleo-offer-services legend { padding: 0; font-weight: 700; }
+.apaleo-offer-services label { display: flex; align-items: center; gap: .55rem; margin-top: .55rem; cursor: pointer; }
+.apaleo-offer-services input { width: auto; }
 
 .apaleo-payment-panel__dropin {
   min-height: 220px;
@@ -19950,6 +19966,7 @@ a[href="#redondo-city-tour"],
   color: rgba(47, 33, 22, 0.75);
   margin-bottom: 12px;
 }
+.apaleo-checkout-modal__field-grid label.is-wide { grid-column: 1 / -1; }
 
 .apaleo-checkout-modal__field-grid input,
 .apaleo-checkout-modal__field input {

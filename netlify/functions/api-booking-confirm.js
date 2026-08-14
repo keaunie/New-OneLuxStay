@@ -108,6 +108,14 @@ export async function handler(event) {
     if (!email || !email.includes("@")) return jsonResponse(400, { message: "A valid guest email is required" });
     const primaryGuest = { firstName: name.firstName, ...(name.lastName ? { lastName: name.lastName } : {}), email,
       ...(clean(guest.phone, 60) ? { phone: clean(guest.phone, 60) } : {}) };
+    const countryCode = clean(guest.countryCode, 2).toUpperCase();
+    const address = {
+      addressLine1: clean(guest.addressLine1, 240), postalCode: clean(guest.postalCode, 40),
+      city: clean(guest.city, 120), countryCode,
+    };
+    if (!address.addressLine1 || !address.postalCode || !address.city || !/^[A-Z]{2}$/.test(countryCode)) {
+      return jsonResponse(400, { message: "A complete guest address and two-letter country code are required" });
+    }
     const paymentMetadata = session.payment_metadata || {};
     const reservation = {
       arrival: session.arrival, departure: session.departure, adults: session.adults,
@@ -120,7 +128,7 @@ export async function handler(event) {
       } : {}),
     };
     const bookingRequest = {
-      booker: primaryGuest, reservations: [reservation],
+      booker: { ...primaryGuest, address }, reservations: [reservation],
       ...(session.guarantee_type === "Prepayment" && session.payment_reference ? { transactionReference: session.payment_reference } : {}),
       ...(session.guarantee_type === "CreditCard" && paymentMetadata.payerReference && paymentMetadata.storedPaymentMethodId ? {
         paymentAccount: { payerReference: paymentMetadata.payerReference, storedPaymentMethodId: paymentMetadata.storedPaymentMethodId },

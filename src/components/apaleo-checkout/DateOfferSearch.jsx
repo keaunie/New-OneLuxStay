@@ -12,6 +12,20 @@ const describeGuarantee = (type) => {
   return "";
 };
 
+const formatMoney = (money, fallbackCurrency = "") => {
+  const amount = money?.amount ?? money?.grossAmount ?? money?.gross?.amount;
+  const currency = money?.currency || money?.gross?.currency || fallbackCurrency;
+  if (amount === undefined || amount === null || amount === "") return "";
+  const numeric = Number(amount);
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(numeric);
+  } catch {
+    return `${amount} ${currency}`.trim();
+  }
+};
+
+const serviceName = (entry) => entry?.service?.name || entry?.name || entry?.serviceId || "Included service";
+
 export default function DateOfferSearch({ flow, defaultAdults = 2, onOfferSelected }) {
   const [arrival, setArrival] = useState("");
   const [departure, setDeparture] = useState("");
@@ -85,7 +99,10 @@ export default function DateOfferSearch({ flow, defaultAdults = 2, onOfferSelect
                   <span className="apaleo-offer-card__name">{offer.unitGroupName || offer.ratePlanName}</span>
                   <span className="apaleo-offer-card__rate-plan">{offer.ratePlanName}</span>
                   <span className="apaleo-offer-card__price">
-                    {offer.totalGrossAmount?.amount} {offer.totalGrossAmount?.currency}
+                    {formatMoney(offer.totalGrossAmount)} total
+                  </span>
+                  <span className="apaleo-offer-card__prepayment">
+                    {formatMoney(offer.prePaymentGrossAmount, offer.totalGrossAmount?.currency)} due now
                   </span>
                   <span className="apaleo-offer-card__guarantee">{describeGuarantee(offer.minGuaranteeType)}</span>
                 </button>
@@ -93,6 +110,36 @@ export default function DateOfferSearch({ flow, defaultAdults = 2, onOfferSelect
             );
           })}
         </ul>
+      )}
+
+      {flow.selectedOffer && (
+        <div className="apaleo-offer-breakdown" aria-live="polite">
+          <h4>Price details</h4>
+          <dl>
+            <dt>Stay total</dt>
+            <dd>{formatMoney(flow.selectedOffer.totalGrossAmount)}</dd>
+            <dt>Due at booking</dt>
+            <dd>{formatMoney(flow.selectedOffer.prePaymentGrossAmount, flow.selectedOffer.totalGrossAmount?.currency)}</dd>
+            {flow.selectedOffer.cityTax && <><dt>City tax</dt><dd>{formatMoney(flow.selectedOffer.cityTax, flow.selectedOffer.totalGrossAmount?.currency) || "Calculated by Apaleo"}</dd></>}
+          </dl>
+          {flow.selectedOffer.mandatoryServices?.length > 0 && (
+            <div className="apaleo-offer-services">
+              <strong>Included mandatory services</strong>
+              <ul>{flow.selectedOffer.mandatoryServices.map((service, index) => <li key={service?.service?.id || service?.id || index}>{serviceName(service)}</li>)}</ul>
+            </div>
+          )}
+          {flow.serviceOffers.length > 0 && (
+            <fieldset className="apaleo-offer-services">
+              <legend>Optional extras</legend>
+              {flow.serviceOffers.map((service) => (
+                <label key={service.serviceId}>
+                  <input type="checkbox" checked={flow.selectedServiceIds.includes(service.serviceId)} onChange={() => flow.toggleService(service.serviceId)} />
+                  <span>{service.name} {formatMoney(service.totalAmount, service.prePaymentGrossAmount?.currency) ? `— ${formatMoney(service.totalAmount, service.prePaymentGrossAmount?.currency)}` : ""}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </div>
       )}
 
       {!flow.loading && flow.stay && flow.offers.length === 0 && !formError && !flow.error && (

@@ -10,12 +10,15 @@ export async function handler(event) {
     const session = await getBookingSession(body.bookingSessionId);
     if (session.guarantee_type === "PM6Hold") return jsonResponse(200, { paymentMethods: [], paymentRequired: false });
     const value = session.guarantee_type === "CreditCard" ? 0 : Number(session.prepayment_minor);
+    const countryCode = String(body.countryCode || "BE").toUpperCase().slice(0, 2);
+    const shopperLocale = String(body.shopperLocale || "en-US").slice(0, 10);
     const paymentMethods = await adyenRequest("/paymentMethods", {
       amount: { value, currency: session.currency },
-      countryCode: String(body.countryCode || "BE").toUpperCase().slice(0, 2),
+      countryCode,
+      shopperLocale,
       channel: "Web",
     });
-    return jsonResponse(200, { ...paymentMethods, configuration: getAdyenPublicConfig(), paymentRequired: true });
+    return jsonResponse(200, { ...paymentMethods, configuration: getAdyenPublicConfig(), shopperLocale, paymentRequired: true });
   } catch (error) {
     return jsonResponse(Number(error.statusCode) || 502, { message: error.message, code: error.code || "PAYMENT_METHODS_FAILED" });
   }

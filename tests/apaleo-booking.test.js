@@ -14,6 +14,7 @@ test("validates dates, adults, and children ages", () => {
   assert.deepEqual(validateStay({ arrival: "2026-09-01", departure: "2026-09-04", adults: 2, childrenAges: [5, 8] }),
     { arrival: "2026-09-01", departure: "2026-09-04", adults: 2, childrenAges: [5, 8] });
   assert.throws(() => validateStay({ arrival: "2026-09-04", departure: "2026-09-01", adults: 2 }), /Departure/);
+  assert.throws(() => validateStay({ arrival: "2020-09-01", departure: "2020-09-04", adults: 2 }), /past/);
   assert.throws(() => validateStay({ arrival: "2026-09-01", departure: "2026-09-04", adults: 2, childrenAges: [18] }), /Children/);
 });
 

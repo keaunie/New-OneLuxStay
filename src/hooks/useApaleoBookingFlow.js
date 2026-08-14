@@ -83,8 +83,8 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
     );
   }, []);
 
-  // Creates the booking session, then either skips straight to guest details
-  // (PM6Hold, no payment required) or fetches Adyen payment methods.
+  // Creates the server-side booking session. Payment methods are loaded later,
+  // after the guest supplies a country, so regional methods are not hardcoded.
   const startSession = useCallback(async () => {
     if (!selectedOffer || !stay) throw asApiError(new Error("Select an offer first."));
     setLoading(true);
@@ -97,13 +97,7 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
       });
       const newSession = created.session;
       setSession(newSession);
-      if (newSession.payment_state === "NOT_REQUIRED") {
-        setPhase(BOOKING_PHASE.GUEST_DETAILS);
-        return newSession;
-      }
-      const methods = await getApaleoPaymentMethods({ bookingSessionId: newSession.id });
-      setPaymentMethodsConfig(methods);
-      setPhase(methods.paymentRequired === false ? BOOKING_PHASE.GUEST_DETAILS : BOOKING_PHASE.PAYMENT);
+      setPhase(BOOKING_PHASE.GUEST_DETAILS);
       return newSession;
     } catch (err) {
       const apiError = asApiError(err);
@@ -113,6 +107,24 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
       setLoading(false);
     }
   }, [localPropertyId, propertyId, unitGroupId, selectedOffer, stay, selectedServiceIds]);
+
+  const loadPaymentMethods = useCallback(async ({ countryCode = "BE", shopperLocale = "en-US" } = {}) => {
+    if (!session?.id || session.payment_state === "NOT_REQUIRED") return null;
+    setLoading(true);
+    setError(null);
+    try {
+      const methods = await getApaleoPaymentMethods({ bookingSessionId: session.id, countryCode, shopperLocale });
+      setPaymentMethodsConfig(methods);
+      setPhase(BOOKING_PHASE.PAYMENT);
+      return methods;
+    } catch (err) {
+      const apiError = asApiError(err);
+      setError(apiError);
+      throw apiError;
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
 
   // Re-checks price/availability before payment or confirm; surfaces PRICE_CHANGED /
   // OFFER_UNAVAILABLE so the caller can show the guest an updated price instead of
@@ -202,7 +214,7 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
     phase, setPhase,
     stay, offers, selectedOffer, serviceOffers, selectedServiceIds,
     session, paymentMethodsConfig, confirmation, loading, error, setError,
-    searchOffers, selectOffer, toggleService, startSession, revalidate,
+    searchOffers, selectOffer, toggleService, startSession, loadPaymentMethods, revalidate,
     submitPayment, submitPaymentDetails, confirmBooking, pollConfirmation, reset,
   };
 }

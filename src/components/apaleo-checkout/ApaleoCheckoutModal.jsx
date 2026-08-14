@@ -6,7 +6,7 @@ import AdyenPaymentPanel from "./AdyenPaymentPanel";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
-const emptyGuest = { firstName: "", lastName: "", email: "", phone: "" };
+const emptyGuest = { firstName: "", lastName: "", email: "", phone: "", addressLine1: "", postalCode: "", city: "", countryCode: "" };
 
 function ConfirmationPanel({ confirmation, listingTitle, onClose }) {
   return (
@@ -82,6 +82,13 @@ export default function ApaleoCheckoutModal({
         setSessionStarting(false);
       }
     }
+    if (step === 4 && flow.session?.payment_state !== "NOT_REQUIRED" && !flow.paymentMethodsConfig) {
+      try {
+        await flow.loadPaymentMethods({ countryCode: guest.countryCode, shopperLocale: navigator.language || "en-US" });
+      } catch {
+        // surfaced via flow.error
+      }
+    }
   };
 
   const canvasPoint = (event) => {
@@ -119,7 +126,8 @@ export default function ApaleoCheckoutModal({
   };
 
   const isGuestValid =
-    guest.firstName.trim() && guest.lastName.trim() && EMAIL_RE.test(guest.email) && guest.phone.trim();
+    guest.firstName.trim() && guest.lastName.trim() && EMAIL_RE.test(guest.email) && guest.phone.trim() &&
+    guest.addressLine1.trim() && guest.postalCode.trim() && guest.city.trim() && /^[A-Za-z]{2}$/.test(guest.countryCode.trim());
   const isConsentValid = consentAccepted && consentSignerName.trim() && Boolean(consentSignatureDataUrl);
 
   const buildConsentPayload = () => ({
@@ -202,6 +210,22 @@ export default function ApaleoCheckoutModal({
                 <span>Phone</span>
                 <input type="tel" value={guest.phone} onChange={(e) => setGuest((g) => ({ ...g, phone: e.target.value }))} required />
               </label>
+              <label className="is-wide">
+                <span>Street address</span>
+                <input value={guest.addressLine1} onChange={(e) => setGuest((g) => ({ ...g, addressLine1: e.target.value }))} required />
+              </label>
+              <label>
+                <span>City</span>
+                <input value={guest.city} onChange={(e) => setGuest((g) => ({ ...g, city: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Postal code</span>
+                <input value={guest.postalCode} onChange={(e) => setGuest((g) => ({ ...g, postalCode: e.target.value }))} required />
+              </label>
+              <label>
+                <span>Country code</span>
+                <input value={guest.countryCode} maxLength={2} placeholder="US" onChange={(e) => setGuest((g) => ({ ...g, countryCode: e.target.value.toUpperCase() }))} required />
+              </label>
             </div>
           </Step>
 
@@ -246,8 +270,10 @@ export default function ApaleoCheckoutModal({
                 </button>
               </div>
             ) : (
-              <AdyenPaymentPanel flow={flow} onAuthorized={handlePaymentAuthorized} onDeclined={() => {}} />
+              flow.paymentMethodsConfig ? <AdyenPaymentPanel flow={flow} onAuthorized={handlePaymentAuthorized} onDeclined={() => {}} /> :
+                <p className="apaleo-checkout-modal__hint">Loading secure payment methods…</p>
             )}
+            {flow.error && <p className="apaleo-checkout-modal__error">{flow.error.message}</p>}
             {confirmError && <p className="apaleo-checkout-modal__error">{confirmError}</p>}
           </Step>
         </Stepper>

@@ -64,8 +64,12 @@ export const validateStay = ({ arrival, departure, adults = 1, childrenAges = []
   const safeDeparture = isoDate(departure);
   const safeAdults = Number(adults);
   const safeChildren = array(childrenAges).map(Number);
+  const today = new Date().toISOString().slice(0, 10);
   if (!safeArrival || !safeDeparture || safeDeparture <= safeArrival) {
     throw Object.assign(new Error("Departure must be after arrival"), { statusCode: 400, code: "INVALID_DATES" });
+  }
+  if (safeArrival < today) {
+    throw Object.assign(new Error("Arrival cannot be in the past"), { statusCode: 400, code: "INVALID_DATES" });
   }
   if (!Number.isInteger(safeAdults) || safeAdults < 1 || safeAdults > MAX_ADULTS) {
     throw Object.assign(new Error("Adults must be between 1 and 20"), { statusCode: 400, code: "INVALID_OCCUPANCY" });
