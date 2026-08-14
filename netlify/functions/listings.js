@@ -357,6 +357,47 @@ const normalizeListing = (listing) => {
 const getListingId = (listing) =>
     listing?._id || listing?.id || listing?.unitTypeId || null;
 
+const markApaleoMappedListings = async (listings = []) => {
+    const rows = Array.isArray(listings) ? listings : [];
+    if (!rows.length) return rows;
+
+    try {
+        const mappings = await supabaseRestRequest("apaleo_inventory_mappings", {
+            query: {
+                select: "local_id,apaleo_property_id,apaleo_id",
+                mapping_type: "eq.unit_group",
+                enabled: "eq.true",
+                limit: "5000",
+            },
+        });
+        const byLocalId = new Map(
+            (Array.isArray(mappings) ? mappings : []).map((mapping) => [
+                String(mapping?.local_id || "").trim(),
+                mapping,
+            ]),
+        );
+
+        return rows.map((listing) => {
+            const listingId = String(getListingId(listing) || "").trim();
+            const mapping = byLocalId.get(listingId);
+            if (!mapping) return listing;
+            return {
+                ...listing,
+                provider: "apaleo",
+                contentProvider: "supabase",
+                legacySourceProvider: listing?.provider || listing?.source || null,
+                apaleoPropertyId: mapping.apaleo_property_id,
+                apaleoUnitGroupId: mapping.apaleo_id,
+            };
+        });
+    } catch (error) {
+        console.warn("Unable to label Apaleo-mapped Supabase listings", {
+            error: error?.message || String(error),
+        });
+        return rows;
+    }
+};
+
 const enrichListingWithSecurityDeposit = async (listing) => {
     if (!listing || typeof listing !== "object") return listing;
 
@@ -700,6 +741,7 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
         }
 
         let orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
+        orderedResults = await markApaleoMappedListings(orderedResults);
         orderedResults = await enrichListingsWithSecurityDeposits(orderedResults);
         return {
             results: orderedResults,
@@ -733,6 +775,7 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
         }
     }
 
+    enrichedResults = await markApaleoMappedListings(enrichedResults);
     enrichedResults = await enrichListingsWithSecurityDeposits(enrichedResults);
 
     return {
