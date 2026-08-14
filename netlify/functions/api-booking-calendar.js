@@ -35,6 +35,8 @@ export async function handler(event) {
       message: error.message,
       code: error.code || "APALEO_CALENDAR_FAILED",
       requestPath: error.requestPath || null,
+      upstreamStatus: Number(error.statusCode) || null,
+      upstreamResponse: error.payload || null,
     });
   }
 }

@@ -8,6 +8,21 @@ import {
 
 const isTruthy = (value = "") => ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 
+const decodeJwtClaims = (token = "") => {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) return null;
+  try {
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+};
+
+const normalizeScopeClaim = (value) => {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  return String(value || "").split(/[\s,]+/).filter(Boolean);
+};
+
 export async function handler(event) {
   try {
     if (event.httpMethod === "OPTIONS") {
@@ -46,6 +61,14 @@ export async function handler(event) {
       });
       return null;
     });
+    const tokenClaims = debug ? decodeJwtClaims(tokenInfo?.token) : null;
+    const grantedScopes = debug
+      ? [...new Set([
+          ...normalizeScopeClaim(tokenClaims?.scope),
+          ...normalizeScopeClaim(tokenClaims?.scp),
+          ...normalizeScopeClaim(tokenClaims?.permissions),
+        ])].sort()
+      : [];
 
     return jsonResponse(200, {
       ok: true,
@@ -61,6 +84,17 @@ export async function handler(event) {
           }
         : null,
       ...(debug && accountLookupError ? { accountLookupError } : {}),
+      ...(debug ? {
+        tokenDiagnostics: {
+          grantedScopes,
+          hasAvailabilityRead: grantedScopes.includes("availability.read"),
+          hasRatesRead: grantedScopes.includes("rates.read"),
+          audience: tokenClaims?.aud || null,
+          issuer: tokenClaims?.iss || null,
+          requestedScopes: String(process.env.APALEO_SCOPE || process.env.APALEO_CLIENT_SCOPE || "")
+            .split(/\s+/).filter(Boolean),
+        },
+      } : {}),
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {
