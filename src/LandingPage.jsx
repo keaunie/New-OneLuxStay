@@ -117,16 +117,6 @@ const normalizeListingCity = (listing) => {
 
 const getListingId = (listing) => listing?.id || listing?._id || listing?.unitTypeId || "";
 
-const parseIdList = (value) =>
-  String(value || "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-const HERO_GALLERY_LISTING_IDS = parseIdList(
-  import.meta.env.VITE_LANDING_GALLERY_LISTING_IDS || import.meta.env.VITE_GALLERY_LISTING_IDS
-).filter((id) => !isHiddenUnit(id));
-
 const isChildListing = (listing) => {
   if (!listing) return false;
   const type = typeof listing.type === "string" ? listing.type.toUpperCase() : "";
@@ -1064,12 +1054,7 @@ function LandingPage() {
     const loadGalleryListings = async () => {
       setGalleryLoading(true);
       try {
-        const params = new URLSearchParams();
-        if (HERO_GALLERY_LISTING_IDS.length) {
-          params.set("onlyIds", HERO_GALLERY_LISTING_IDS.join(","));
-        }
-        const query = params.toString();
-        const res = await fetch(`${apiBase}/listings${query ? `?${query}` : ""}`);
+        const res = await fetch(`${apiBase}/listings`);
         if (!res.ok) throw new Error("Unable to load listings.");
         const json = await res.json();
         const results = Array.isArray(json?.results) ? json.results : [];
@@ -1077,19 +1062,9 @@ function LandingPage() {
           .filter((listing) => isListingActiveForShowcase(listing))
           .filter((listing) => !isHiddenUnit(listing))
           .filter((listing) => !isChildListing(listing));
-        let listingsToRender = parentResults;
-
-        if (HERO_GALLERY_LISTING_IDS.length) {
-          const byId = new Map(
-            parentResults.map((listing) => [String(getListingId(listing) || ""), listing]).filter(([id]) => id)
-          );
-          const ordered = HERO_GALLERY_LISTING_IDS.map((id) => byId.get(id)).filter(Boolean);
-          if (ordered.length) listingsToRender = ordered;
-        }
-
         const seen = new Set();
         const allUnits = [];
-        listingsToRender.forEach((listing) => {
+        parentResults.forEach((listing) => {
           const id = getListingId(listing);
           const image = getListingImage(listing);
           if (!id || !image) return;
@@ -1097,14 +1072,12 @@ function LandingPage() {
           seen.add(id);
           allUnits.push(listing);
         });
-        if (!HERO_GALLERY_LISTING_IDS.length) {
-          allUnits.sort((a, b) => {
-            const cityA = normalizeListingCity(a) || "Unknown";
-            const cityB = normalizeListingCity(b) || "Unknown";
-            if (cityA !== cityB) return cityA.localeCompare(cityB);
-            return (a?.title || "").localeCompare(b?.title || "");
-          });
-        }
+        allUnits.sort((a, b) => {
+          const cityA = normalizeListingCity(a) || "Unknown";
+          const cityB = normalizeListingCity(b) || "Unknown";
+          if (cityA !== cityB) return cityA.localeCompare(cityB);
+          return (a?.title || "").localeCompare(b?.title || "");
+        });
         if (active) {
           setGalleryListings(allUnits);
         }
