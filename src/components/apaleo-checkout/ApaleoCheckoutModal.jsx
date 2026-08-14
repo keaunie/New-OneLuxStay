@@ -45,6 +45,8 @@ export default function ApaleoCheckoutModal({
   unitGroupId = "",
   listingTitle = "",
   defaultAdults = 2,
+  defaultArrival = "",
+  defaultDeparture = "",
 }) {
   const flow = useApaleoBookingFlow({ localPropertyId, propertyId, unitGroupId });
   const [currentStep, setCurrentStep] = useState(1);
@@ -186,7 +188,12 @@ export default function ApaleoCheckoutModal({
         >
           <Step>
             <h3 className="apaleo-checkout-modal__step-title">Choose your stay</h3>
-            <DateOfferSearch flow={flow} defaultAdults={defaultAdults} />
+            <DateOfferSearch
+              flow={flow}
+              defaultAdults={defaultAdults}
+              defaultArrival={defaultArrival}
+              defaultDeparture={defaultDeparture}
+            />
           </Step>
 
           <Step>

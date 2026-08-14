@@ -813,6 +813,50 @@ const buildCalendarPayload = (daysMap = {}) => {
   return { months: 24, days };
 };
 
+const isApaleoListing = (listing) =>
+  String(listing?.provider || "").toLowerCase() === "apaleo" ||
+  Boolean(listing?.apaleoPropertyId || listing?.apaleoUnitGroupId);
+
+const buildApaleoQuote = (offers = [], nights = 0) => {
+  const plans = (Array.isArray(offers) ? offers : []).map((offer) => {
+    const total = Number(offer?.totalGrossAmount?.amount);
+    const currency = offer?.totalGrossAmount?.currency || "USD";
+    const safeTotal = Number.isFinite(total) ? total : 0;
+    return {
+      id: offer.ratePlanId,
+      providerPlanId: offer.ratePlanId,
+      label: offer.ratePlanName || "Available rate",
+      nightly: nights > 0 ? safeTotal / nights : safeTotal,
+      currency,
+      nights,
+      total: safeTotal,
+      breakdown: {
+        accommodation: safeTotal,
+        discountAmount: 0,
+        discountRate: 0,
+        cleaning: 0,
+        taxes: 0,
+        fees: 0,
+        securityDeposit: 0,
+        subtotal: safeTotal,
+        total: safeTotal,
+        nights,
+      },
+      apaleoOffer: offer,
+    };
+  });
+  if (!plans.length) return null;
+  return {
+    provider: "apaleo",
+    plans,
+    defaultPlanId: plans[0].id,
+    currency: plans[0].currency,
+    nights,
+    total: plans[0].total,
+    breakdown: plans[0].breakdown,
+  };
+};
+
 const formatDisplayDate = (value) => {
   const date = parseDateValue(value);
   if (!date) return "Add date";
@@ -4697,6 +4741,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   useEffect(() => {
     if (!activeListing || !isListingRoute) return;
+    if (isApaleoListing(activeListing)) {
+      setCalendarPrices(null);
+      setCalendarAvailability({});
+      setCalendarError("");
+      return;
+    }
     const listingId = getCalendarListingId(activeListing, losAngelesListings);
     if (!listingId) return;
     const baseDate = parseDateValue(sectionCheckIn) || new Date();
@@ -4846,6 +4896,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const handleListingCalendarOpen = (open) => {
     setIsListingCalendarOpen(open);
     if (!open || !activeListing) return;
+    if (isApaleoListing(activeListing)) {
+      setCalendarPrices(null);
+      setCalendarAvailability({});
+      setCalendarError("");
+      return;
+    }
     const baseDate = parseDateValue(sectionCheckIn) || new Date();
     baseDate.setDate(1);
     baseDate.setHours(0, 0, 0, 0);
@@ -5170,6 +5226,61 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         if (!activeListing) return [];
         return getRelatedListingsByParentId(activeListing, losAngelesListings);
       })();
+      const apaleoListings = listingPool.filter(isApaleoListing);
+      if (apaleoListings.length) {
+        const requestedIds = new Set(
+          Array.isArray(listingIds) ? listingIds.map(toLookupKey).filter(Boolean) : []
+        );
+        const targets = requestedIds.size
+          ? apaleoListings.filter((listing) =>
+              getListingLookupKeys(listing).some((key) => requestedIds.has(toLookupKey(key)))
+            )
+          : activeListing && isApaleoListing(activeListing)
+            ? [activeListing]
+            : apaleoListings;
+        const uniqueTargets = [...new Map(
+          targets.map((listing) => [toLookupKey(getListingId(listing)), listing])
+        ).values()].filter(Boolean);
+        const results = await Promise.all(uniqueTargets.map(async (listing) => {
+          const localPropertyId = toLookupKey(getListingId(listing));
+          const params = new URLSearchParams({
+            localPropertyId,
+            arrival: sectionCheckIn,
+            departure: sectionCheckOut,
+            adults: sectionGuests || "1",
+          });
+          const response = await fetch(`${apiBase}/api-booking-offers?${params}`, {
+            cache: "no-store",
+            signal: requestController.signal,
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload?.message || "Unable to check Apaleo availability.");
+          }
+          return { listing, offers: Array.isArray(payload?.offers) ? payload.offers : [] };
+        }));
+        const availabilityMap = {};
+        const quotes = {};
+        const availableListings = [];
+        results.forEach(({ listing, offers }) => {
+          const available = offers.length > 0;
+          if (available) availableListings.push(listing);
+          const quote = available ? buildApaleoQuote(offers, stayNights) : null;
+          getListingLookupKeys(listing).forEach((key) => {
+            availabilityMap[key] = available;
+            if (quote) quotes[key] = quote;
+          });
+        });
+        setSectionAvailability(availableListings);
+        setSectionAvailabilityMap(availabilityMap);
+        setSectionQuotes(quotes);
+        setSectionAvailabilityActive(true);
+        // Apaleo validates the selected stay as a whole. Do not paint future
+        // dates from the legacy Guesty nightly calendar for mapped listings.
+        setSectionCalendarAvailability({});
+        setSectionCalendarPrices(null);
+        return;
+      }
       const childIds = listingPool
         .filter((listing) => isChildListing(listing))
         .map((listing) => listing.id || listing._id || listing.unitTypeId)
@@ -6755,6 +6866,7 @@ const applyCheckoutPromoCode = () => {
                     setSectionCheckOut(checkOut);
                   }}
                   onMonthChange={(nextMonth) => {
+                    if (isApaleoListing(activeListing)) return;
                     const listingId = getCalendarListingId(activeListing, losAngelesListings);
                     if (!listingId) return;
                     const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
@@ -8150,6 +8262,8 @@ const applyCheckoutPromoCode = () => {
           localPropertyId={apaleoCheckoutListing?.localPropertyId || ""}
           listingTitle={apaleoCheckoutListing?.listingTitle || ""}
           defaultAdults={Number(sectionGuests) || 2}
+          defaultArrival={sectionCheckIn}
+          defaultDeparture={sectionCheckOut}
         />
         {inquiryModal}
         {listingMapModal}
@@ -9524,6 +9638,8 @@ const applyCheckoutPromoCode = () => {
         localPropertyId={apaleoCheckoutListing?.localPropertyId || ""}
         listingTitle={apaleoCheckoutListing?.listingTitle || ""}
         defaultAdults={Number(sectionGuests) || 2}
+        defaultArrival={sectionCheckIn}
+        defaultDeparture={sectionCheckOut}
       />
 
       {activeListing && !isListingRoute && (

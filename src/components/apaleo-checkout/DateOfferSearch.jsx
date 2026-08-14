@@ -26,9 +26,15 @@ const formatMoney = (money, fallbackCurrency = "") => {
 
 const serviceName = (entry) => entry?.service?.name || entry?.name || entry?.serviceId || "Included service";
 
-export default function DateOfferSearch({ flow, defaultAdults = 2, onOfferSelected }) {
-  const [arrival, setArrival] = useState("");
-  const [departure, setDeparture] = useState("");
+export default function DateOfferSearch({
+  flow,
+  defaultAdults = 2,
+  defaultArrival = "",
+  defaultDeparture = "",
+  onOfferSelected,
+}) {
+  const [arrival, setArrival] = useState(defaultArrival);
+  const [departure, setDeparture] = useState(defaultDeparture);
   const [adults, setAdults] = useState(defaultAdults);
   const [formError, setFormError] = useState("");
 
