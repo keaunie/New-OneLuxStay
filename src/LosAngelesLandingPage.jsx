@@ -3099,6 +3099,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const monthBase = new Date(calendarStartDate);
     monthBase.setMonth(monthBase.getMonth() + calendarMonthIndex);
     const monthStart = new Date(monthBase.getFullYear(), monthBase.getMonth(), 1);
+    if (isApaleoListing(activeListing)) {
+      fetchApaleoCalendarMonth(activeListing, monthStart);
+      return;
+    }
     fetchCalendarMonth(
       listingId,
       monthStart,
@@ -4739,12 +4743,57 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
   };
 
+  const fetchApaleoCalendarMonth = async (listing, targetDate, { force = false } = {}) => {
+    const listingId = getCalendarListingId(listing, losAngelesListings);
+    if (!listingId) return;
+    const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const rangeEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 2, 0);
+    const key = `apaleo-${listingId}-${monthKey(monthStart)}-${sectionGuests}`;
+    if (!force && calendarCacheRef.current[key]) {
+      setCalendarAvailability(calendarAvailabilityRef.current[listingId] || {});
+      return;
+    }
+    if (calendarInflightRef.current[key]) return;
+    calendarInflightRef.current[key] = true;
+    setCalendarLoading(true);
+    setCalendarError("");
+    try {
+      const query = new URLSearchParams({
+        localPropertyId: listingId,
+        startDate: toISODate(monthStart),
+        endDate: toISODate(rangeEnd),
+        adults: String(Math.max(1, Number(sectionGuests) || 1)),
+      });
+      const response = await fetch(`${apiBase}/api-booking-calendar?${query}`, {
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || "Unable to load Apaleo calendar availability.");
+      }
+      const mergedAvailability = {
+        ...(calendarAvailabilityRef.current[listingId] || {}),
+        ...(payload?.availability || {}),
+      };
+      calendarAvailabilityRef.current[listingId] = mergedAvailability;
+      calendarCacheRef.current[key] = true;
+      setCalendarAvailability(mergedAvailability);
+      setCalendarPrices(null);
+    } catch (error) {
+      setCalendarError(error?.message || "Unable to load Apaleo calendar availability.");
+    } finally {
+      calendarInflightRef.current[key] = false;
+      setCalendarLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!activeListing || !isListingRoute) return;
     if (isApaleoListing(activeListing)) {
       setCalendarPrices(null);
-      setCalendarAvailability({});
-      setCalendarError("");
+      const baseDate = parseDateValue(sectionCheckIn) || new Date();
+      const monthStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+      fetchApaleoCalendarMonth(activeListing, monthStart);
       return;
     }
     const listingId = getCalendarListingId(activeListing, losAngelesListings);
@@ -4898,8 +4947,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     if (!open || !activeListing) return;
     if (isApaleoListing(activeListing)) {
       setCalendarPrices(null);
-      setCalendarAvailability({});
-      setCalendarError("");
+      const baseDate = parseDateValue(sectionCheckIn) || new Date();
+      baseDate.setDate(1);
+      baseDate.setHours(0, 0, 0, 0);
+      setCalendarStartDate(baseDate);
+      setCalendarMonthIndex(0);
+      fetchApaleoCalendarMonth(activeListing, baseDate, { force: true });
       return;
     }
     const baseDate = parseDateValue(sectionCheckIn) || new Date();
@@ -6866,7 +6919,13 @@ const applyCheckoutPromoCode = () => {
                     setSectionCheckOut(checkOut);
                   }}
                   onMonthChange={(nextMonth) => {
-                    if (isApaleoListing(activeListing)) return;
+                    if (isApaleoListing(activeListing)) {
+                      const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+                      setCalendarStartDate(monthStart);
+                      setCalendarMonthIndex(0);
+                      fetchApaleoCalendarMonth(activeListing, monthStart);
+                      return;
+                    }
                     const listingId = getCalendarListingId(activeListing, losAngelesListings);
                     if (!listingId) return;
                     const monthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);

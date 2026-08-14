@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { majorToMinor, minorToMajor, normalizeOffer, validateStay } from "../netlify/functions/_shared/apaleoBookingService.js";
+import {
+  majorToMinor,
+  minorToMajor,
+  normalizeOffer,
+  normalizeUnitGroupCalendarAvailability,
+  validateStay,
+} from "../netlify/functions/_shared/apaleoBookingService.js";
 import { normalizeApaleoProperty } from "../netlify/functions/_shared/apaleoService.js";
 
 test("converts decimal major amounts without floating point rounding", () => {
@@ -27,6 +33,31 @@ test("normalizes the identifiers and authoritative totals needed for booking", (
   assert.equal(offer.unitGroupId, "ANT-DBL");
   assert.equal(offer.minGuaranteeType, "Prepayment");
   assert.equal(offer.totalGrossAmount.amount, "151");
+});
+
+test("normalizes Apaleo unit-group calendar availability", () => {
+  const availability = normalizeUnitGroupCalendarAvailability({
+    unitGroupId: "HWH-HWHJR1BR",
+    from: "2026-10-15",
+    to: "2026-10-17",
+    payload: {
+      timeSlices: [
+        {
+          from: "2026-10-15T15:00:00-07:00",
+          unitGroups: [{ unitGroup: { id: "HWH-HWHJR1BR" }, sellableCount: 1 }],
+        },
+        {
+          from: "2026-10-16T15:00:00-07:00",
+          unitGroups: [{ unitGroup: { id: "HWH-HWHJR1BR" }, sellableCount: 0 }],
+        },
+      ],
+    },
+  });
+  assert.deepEqual(availability, {
+    "2026-10-15": true,
+    "2026-10-16": false,
+    "2026-10-17": false,
+  });
 });
 
 test("normalizes Apaleo's property location without exposing financial fields", () => {

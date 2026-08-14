@@ -223,6 +223,84 @@ export const getOffers = async ({ localPropertyId, propertyId, unitGroupId, arri
     .filter((offer) => offer.ratePlanId && offer.unitGroupId && offer.availableUnits > 0 && (!target.unitGroupId || offer.unitGroupId === target.unitGroupId));
 };
 
+export const normalizeUnitGroupCalendarAvailability = ({ payload, unitGroupId, from, to }) => {
+  const availability = {};
+  for (let cursor = Date.parse(`${from}T00:00:00Z`); cursor <= Date.parse(`${to}T00:00:00Z`); cursor += 86_400_000) {
+    availability[new Date(cursor).toISOString().slice(0, 10)] = false;
+  }
+  array(payload?.timeSlices).forEach((slice) => {
+    const date = isoDate(String(slice?.from || "").slice(0, 10));
+    if (!date || !(date in availability)) return;
+    const group = array(slice?.unitGroups).find((entry) =>
+      text(entry?.unitGroup?.id || entry?.unitGroupId, 120) === unitGroupId);
+    availability[date] = Number(group?.sellableCount || 0) > 0;
+  });
+  return availability;
+};
+
+export const getUnitGroupCalendarAvailability = async ({
+  localPropertyId,
+  propertyId,
+  unitGroupId,
+  from,
+  to,
+  adults = 1,
+  childrenAges = [],
+}) => {
+  const target = await resolveBookingTarget({ localPropertyId, propertyId, unitGroupId });
+  const safeFrom = isoDate(from);
+  const safeTo = isoDate(to);
+  const safeAdults = Number(adults);
+  const safeChildren = array(childrenAges).map(Number);
+  if (!safeFrom || !safeTo || safeTo < safeFrom) {
+    throw Object.assign(new Error("Calendar end date must be on or after its start date"), {
+      statusCode: 400,
+      code: "INVALID_CALENDAR_DATES",
+    });
+  }
+  const rangeDays = Math.round((Date.parse(`${safeTo}T00:00:00Z`) - Date.parse(`${safeFrom}T00:00:00Z`)) / 86_400_000);
+  if (rangeDays > 93) {
+    throw Object.assign(new Error("Calendar availability is limited to 94 days per request"), {
+      statusCode: 400,
+      code: "CALENDAR_RANGE_TOO_LARGE",
+    });
+  }
+  if (!Number.isInteger(safeAdults) || safeAdults < 1 || safeAdults > MAX_ADULTS) {
+    throw Object.assign(new Error("Adults must be between 1 and 20"), { statusCode: 400, code: "INVALID_OCCUPANCY" });
+  }
+  if (safeChildren.length > MAX_CHILDREN || safeChildren.some((age) => !Number.isInteger(age) || age < 0 || age > 17)) {
+    throw Object.assign(new Error("Children ages must be integers from 0 to 17"), { statusCode: 400, code: "INVALID_CHILDREN_AGES" });
+  }
+
+  const response = await apaleoRequest("/availability/v1/unit-groups", {
+    query: {
+      propertyId: target.propertyId,
+      from: safeFrom,
+      to: safeTo,
+      timeSliceTemplate: "OverNight",
+      unitGroupIds: [target.unitGroupId],
+      adults: safeAdults,
+      ...(safeChildren.length ? { childrenAges: safeChildren } : {}),
+      onlySellable: true,
+      pageSize: 500,
+    },
+  });
+
+  const availability = normalizeUnitGroupCalendarAvailability({
+    payload: response?.payload,
+    unitGroupId: target.unitGroupId,
+    from: safeFrom,
+    to: safeTo,
+  });
+
+  return {
+    ...target,
+    from: safeFrom,
+    to: safeTo,
+    availability,
+  };
+};
+
 export const getServiceOffers = async ({ ratePlanId, arrival, departure, adults, childrenAges = [] }) => {
   const stay = validateStay({ arrival, departure, adults, childrenAges });
   const response = await apaleoRequest("/booking/v1/service-offers", {

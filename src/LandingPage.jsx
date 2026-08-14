@@ -19,6 +19,10 @@ import {
 
 const Silk = lazy(() => import("./components/Silk"));
 const CircularGallery = lazy(() => import("./components/CircularGallery"));
+
+// Temporarily keep the experimental hero property carousel out of production.
+// Property availability is now surfaced on each property's booking calendar.
+const HOMEPAGE_HERO_GALLERY_ENABLED = false;
 const ChromaGrid = lazy(() => import("./components/ChromaGrid"));
 
 const KNOWN_CITIES = [
@@ -901,7 +905,8 @@ function LandingPage() {
   const [cityNotice, setCityNotice] = useState("");
   const loopedOffers = useMemo(() => [...offers, ...offers, ...offers], []);
   const shouldUseHeroEnhancements = enableHeroEnhancements && !prefersReducedMotion;
-  const shouldLoadHeroGallery = shouldUseHeroEnhancements && isDesktopViewport;
+  const shouldLoadHeroGallery =
+    HOMEPAGE_HERO_GALLERY_ENABLED && shouldUseHeroEnhancements && isDesktopViewport;
   const displayedHeroSlides = shouldUseHeroEnhancements
     ? heroSlides
     : [isMobileViewport ? mobileHeroSlide : heroSlides[0]];
