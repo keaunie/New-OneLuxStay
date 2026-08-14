@@ -20,9 +20,11 @@ create table if not exists public.apaleo_inventory_mappings (
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (mapping_type, local_id),
-  unique (mapping_type, apaleo_id)
+  unique (mapping_type, local_id)
 );
+
+create index if not exists apaleo_inventory_mappings_apaleo_id_idx
+  on public.apaleo_inventory_mappings (mapping_type, apaleo_id);
 
 create table if not exists public.apaleo_booking_sessions (
   id uuid primary key default gen_random_uuid(),

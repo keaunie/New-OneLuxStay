@@ -1,4 +1,5 @@
 import {
+  isSupabaseConfigured,
   parseEnvBoolean,
   shouldUseSupabaseProvider,
   supabaseRestRequest,
@@ -412,10 +413,18 @@ export const isSupabaseListingsEnabled = () => {
   const providerOverride = resolveListingsProviderOverride();
   if (GUESTY_PROVIDER_VALUES.has(providerOverride)) return false;
   if (SUPABASE_PROVIDER_VALUES.has(providerOverride)) return true;
-  return (
+  if (
     shouldUseSupabaseProvider("listings") ||
     parseEnvBoolean(process.env.SUPABASE_USE_FOR_LISTINGS, false)
-  );
+  ) {
+    return true;
+  }
+
+  // Apaleo is the default PMS, while Supabase owns the website content that
+  // Apaleo deliberately does not provide (photos, descriptions and slugs).
+  // Keep Guesty available only as an explicit listings-provider rollback.
+  const pmsProvider = normalizeString(process.env.PMS_DEFAULT_PROVIDER || "apaleo").toLowerCase();
+  return pmsProvider === "apaleo" && isSupabaseConfigured();
 };
 
 export const fetchListingsFromSupabase = async ({ queryParams = {} } = {}) => {

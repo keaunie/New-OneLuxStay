@@ -6,7 +6,9 @@ Apaleo is the global PMS and inventory authority for every bookable property. Ex
 
 Set secret values in Netlify, never in committed files:
 
-- `APALEO_CLIENT_ID`, `APALEO_CLIENT_SECRET`, and the minimum scopes in `APALEO_SCOPE`.
+- `APALEO_CLIENT_ID`, `APALEO_CLIENT_SECRET`, and the minimum Core Booking API scopes in
+  `APALEO_SCOPE` (`setup.read offers.read reservations.read reservations.manage`). Every requested
+  scope must also be granted to the client in Apaleo or token creation fails with `invalid_scope`.
 - Enable every migrated property in `apaleo_property_mappings`. `APALEO_PROPERTY_IDS` is an emergency/additive allow-list only. If neither source has IDs, no properties are exposed.
 - `ADYEN_API_KEY`, `ADYEN_MERCHANT_ACCOUNT`, `ADYEN_CLIENT_KEY`, and `ADYEN_ENVIRONMENT=test`.
 - `APALEO_ACCOUNT_ID` and the Apaleo Pay property sub-merchant identifier. Use
