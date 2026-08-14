@@ -2910,6 +2910,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const calendarCacheRef = useRef({});
   const calendarDaysRef = useRef({});
   const calendarAvailabilityRef = useRef({});
+  const calendarOfferUnavailableRef = useRef({});
   const calendarGlobalCacheRef = useRef({});
   const calendarGlobalDaysRef = useRef({});
   const calendarGlobalInflightRef = useRef({});
@@ -4774,6 +4775,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       const mergedAvailability = {
         ...(calendarAvailabilityRef.current[listingId] || {}),
         ...(payload?.availability || {}),
+        ...(calendarOfferUnavailableRef.current[listingId] || {}),
       };
       calendarAvailabilityRef.current[listingId] = mergedAvailability;
       calendarCacheRef.current[key] = true;
@@ -5324,6 +5326,33 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             if (quote) quotes[key] = quote;
           });
         });
+        if (activeListing && isApaleoListing(activeListing)) {
+          const activeListingId = getCalendarListingId(activeListing, losAngelesListings);
+          const activeResult = results.find(({ listing }) =>
+            toLookupKey(getCalendarListingId(listing, losAngelesListings)) === toLookupKey(activeListingId));
+          if (activeListingId && activeResult && activeResult.offers.length === 0) {
+            const rejectedNights = {};
+            const rejectedStart = parseDateValue(sectionCheckIn);
+            const rejectedEnd = parseDateValue(sectionCheckOut);
+            if (rejectedStart && rejectedEnd) {
+              const cursor = new Date(rejectedStart);
+              while (cursor < rejectedEnd) {
+                rejectedNights[toISODate(cursor)] = false;
+                cursor.setDate(cursor.getDate() + 1);
+              }
+            }
+            calendarOfferUnavailableRef.current[activeListingId] = {
+              ...(calendarOfferUnavailableRef.current[activeListingId] || {}),
+              ...rejectedNights,
+            };
+            const mergedCalendarAvailability = {
+              ...(calendarAvailabilityRef.current[activeListingId] || {}),
+              ...calendarOfferUnavailableRef.current[activeListingId],
+            };
+            calendarAvailabilityRef.current[activeListingId] = mergedCalendarAvailability;
+            setCalendarAvailability(mergedCalendarAvailability);
+          }
+        }
         setSectionAvailability(availableListings);
         setSectionAvailabilityMap(availabilityMap);
         setSectionQuotes(quotes);
