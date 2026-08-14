@@ -25,6 +25,7 @@ export async function handler(event) {
       to: result.to,
       availability: result.availability,
       days: result.days,
+      ...(result.pricingWarning ? { warning: result.pricingWarning } : {}),
     }, {
       "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
     });
@@ -33,6 +34,7 @@ export async function handler(event) {
       ok: false,
       message: error.message,
       code: error.code || "APALEO_CALENDAR_FAILED",
+      requestPath: error.requestPath || null,
     });
   }
 }

@@ -329,30 +329,49 @@ export const getUnitGroupCalendarAvailability = async ({
     to: safeTo,
   });
 
-  const ratePlanResponse = await apaleoRequest("/rateplan/v1/rate-plans", {
-    query: {
-      propertyId: target.propertyId,
-      unitGroupIds: [target.unitGroupId],
-      channelCodes: ["Ibe"],
-      timeSliceTemplate: "OverNight",
-      includeArchived: false,
-      pageSize: 500,
-    },
-  });
-  const ratePlans = array(ratePlanResponse?.payload?.ratePlans)
-    .filter((plan) => plan?.isArchived !== true && !array(plan?.promoCodes).length)
-    .slice(0, 20);
-  const rateRangeEnd = new Date(Date.parse(`${safeTo}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  const rateResponses = await Promise.all(ratePlans.map(async (ratePlan) => {
-    const rates = await apaleoRequest(`/rateplan/v1/rate-plans/${encodeURIComponent(text(ratePlan?.id, 120))}/rates`, {
-      query: { from: safeFrom, to: rateRangeEnd, pageSize: 500 },
+  let rateDays = {};
+  let pricingWarning = null;
+  try {
+    const ratePlanResponse = await apaleoRequest("/rateplan/v1/rate-plans", {
+      query: {
+        propertyId: target.propertyId,
+        unitGroupIds: [target.unitGroupId],
+        channelCodes: ["Ibe"],
+        timeSliceTemplate: "OverNight",
+        includeArchived: false,
+        pageSize: 500,
+      },
     });
-    return { ratePlan, payload: rates?.payload };
-  }));
-  const rateDays = normalizeUnitGroupCalendarRates({ rateResponses, adults: safeAdults });
+    const ratePlans = array(ratePlanResponse?.payload?.ratePlans)
+      .filter((plan) => plan?.isArchived !== true && !array(plan?.promoCodes).length)
+      .slice(0, 20);
+    const rateRangeEnd = new Date(Date.parse(`${safeTo}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const rateResponses = await Promise.all(ratePlans.map(async (ratePlan) => {
+      const rates = await apaleoRequest(`/rateplan/v1/rate-plans/${encodeURIComponent(text(ratePlan?.id, 120))}/rates`, {
+        query: { from: safeFrom, to: rateRangeEnd, pageSize: 500 },
+      });
+      return { ratePlan, payload: rates?.payload };
+    }));
+    rateDays = normalizeUnitGroupCalendarRates({ rateResponses, adults: safeAdults });
+  } catch (error) {
+    if (![401, 403].includes(Number(error?.statusCode))) throw error;
+    pricingWarning = {
+      code: "APALEO_RATE_PERMISSION_MISSING",
+      message: "Apaleo inventory is available, but calendar prices and restrictions require rateplans.read and rates.read.",
+      requestPath: text(error?.requestPath, 240),
+    };
+    console.warn("[apaleo-calendar] rate details unavailable; returning inventory-only calendar", {
+      propertyId: target.propertyId,
+      unitGroupId: target.unitGroupId,
+      requestPath: pricingWarning.requestPath,
+      statusCode: error?.statusCode,
+    });
+  }
   const days = Object.keys(availability).map((date) => {
     const rateDay = rateDays[date] || null;
-    const available = availability[date] === true && Boolean(rateDay?.availableForArrival);
+    const available = availability[date] === true && (pricingWarning
+      ? true
+      : Boolean(rateDay?.availableForArrival));
     return {
       date,
       available,
@@ -370,6 +389,7 @@ export const getUnitGroupCalendarAvailability = async ({
     to: safeTo,
     availability: Object.fromEntries(days.map((day) => [day.date, day.available])),
     days,
+    pricingWarning,
   };
 };
 
