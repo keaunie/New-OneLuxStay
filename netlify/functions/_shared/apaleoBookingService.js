@@ -238,6 +238,42 @@ export const normalizeUnitGroupCalendarAvailability = ({ payload, unitGroupId, f
   return availability;
 };
 
+export const normalizeUnitGroupCalendarRates = ({ rateResponses = [], adults = 1 }) => {
+  const days = {};
+  array(rateResponses).forEach(({ ratePlan = {}, payload = {} }) => {
+    array(payload?.rates).forEach((rate) => {
+      const date = isoDate(String(rate?.from || "").slice(0, 10));
+      if (!date) return;
+      const occupancyPrice = array(rate?.calculatedPrices)
+        .find((entry) => Number(entry?.adults) === Number(adults))?.price;
+      const price = occupancyPrice || rate?.price;
+      const amount = Number(price?.amount);
+      const restrictions = rate?.restrictions || {};
+      if (!Number.isFinite(amount) || amount < 0 || restrictions.closed === true) return;
+      const candidate = {
+        date,
+        price: amount,
+        currency: text(price?.currency || "USD", 3).toUpperCase(),
+        ratePlanId: text(ratePlan?.id, 120),
+        ratePlanName: text(ratePlan?.name?.en || ratePlan?.name, 240),
+        availableForArrival: restrictions.closedOnArrival !== true,
+        availableForDeparture: restrictions.closedOnDeparture !== true,
+        restrictions: {
+          minNights: Math.max(1, Number(restrictions.minLengthOfStay || 1)),
+          maxNights: restrictions.maxLengthOfStay == null
+            ? null
+            : Math.max(1, Number(restrictions.maxLengthOfStay)),
+          closedOnArrival: restrictions.closedOnArrival === true,
+          closedOnDeparture: restrictions.closedOnDeparture === true,
+        },
+      };
+      const current = days[date];
+      if (!current || candidate.price < current.price) days[date] = candidate;
+    });
+  });
+  return days;
+};
+
 export const getUnitGroupCalendarAvailability = async ({
   localPropertyId,
   propertyId,
@@ -293,11 +329,47 @@ export const getUnitGroupCalendarAvailability = async ({
     to: safeTo,
   });
 
+  const ratePlanResponse = await apaleoRequest("/rateplan/v1/rate-plans", {
+    query: {
+      propertyId: target.propertyId,
+      unitGroupIds: [target.unitGroupId],
+      channelCodes: ["Ibe"],
+      timeSliceTemplate: "OverNight",
+      includeArchived: false,
+      pageSize: 500,
+    },
+  });
+  const ratePlans = array(ratePlanResponse?.payload?.ratePlans)
+    .filter((plan) => plan?.isArchived !== true && !array(plan?.promoCodes).length)
+    .slice(0, 20);
+  const rateRangeEnd = new Date(Date.parse(`${safeTo}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const rateResponses = await Promise.all(ratePlans.map(async (ratePlan) => {
+    const rates = await apaleoRequest(`/rateplan/v1/rate-plans/${encodeURIComponent(text(ratePlan?.id, 120))}/rates`, {
+      query: { from: safeFrom, to: rateRangeEnd, pageSize: 500 },
+    });
+    return { ratePlan, payload: rates?.payload };
+  }));
+  const rateDays = normalizeUnitGroupCalendarRates({ rateResponses, adults: safeAdults });
+  const days = Object.keys(availability).map((date) => {
+    const rateDay = rateDays[date] || null;
+    const available = availability[date] === true && Boolean(rateDay?.availableForArrival);
+    return {
+      date,
+      available,
+      price: rateDay?.price ?? null,
+      currency: rateDay?.currency || null,
+      ratePlanId: rateDay?.ratePlanId || null,
+      ratePlanName: rateDay?.ratePlanName || null,
+      restrictions: rateDay?.restrictions || null,
+    };
+  });
+
   return {
     ...target,
     from: safeFrom,
     to: safeTo,
-    availability,
+    availability: Object.fromEntries(days.map((day) => [day.date, day.available])),
+    days,
   };
 };
 

@@ -932,6 +932,7 @@ const DateRangePicker = ({
   dropdownClassName = "",
 }) => {
   const [open, setOpen] = useState(false);
+  const [selectionError, setSelectionError] = useState("");
   const setOpenState = (nextOpen) => {
     setOpen(nextOpen);
     if (onOpenChange) onOpenChange(nextOpen);
@@ -1035,6 +1036,37 @@ const DateRangePicker = ({
     const priceInfo = dayPrices?.get(iso) || null;
     const dayAvailable = getDayAvailability(iso, priceInfo);
     if (dayAvailable === false) return;
+    if (startDate && !endDate && day > startDate) {
+      const nights = diffNights(toISODate(startDate), iso);
+      const startPriceInfo = dayPrices?.get(toISODate(startDate)) || null;
+      const minNights = normalizeMinNights(
+        startPriceInfo?.restrictions?.minNights ?? fallbackMinNights ?? null
+      );
+      const maxNights = Number(startPriceInfo?.restrictions?.maxNights || 0);
+      const blockedNight = new Date(startDate);
+      let blockedDate = "";
+      while (blockedNight < day) {
+        const blockedIso = toISODate(blockedNight);
+        if (getDayAvailability(blockedIso, dayPrices?.get(blockedIso) || null) === false) {
+          blockedDate = blockedIso;
+          break;
+        }
+        blockedNight.setDate(blockedNight.getDate() + 1);
+      }
+      if (blockedDate) {
+        setSelectionError(`This stay crosses an unavailable night (${formatDisplayDate(blockedDate)}). Please choose different dates.`);
+        return;
+      }
+      if (showMinNights && nights < minNights) {
+        setSelectionError(`A minimum stay of ${minNights} nights applies to ${formatDisplayDate(toISODate(startDate))}.`);
+        return;
+      }
+      if (maxNights > 0 && nights > maxNights) {
+        setSelectionError(`A maximum stay of ${maxNights} nights applies to ${formatDisplayDate(toISODate(startDate))}.`);
+        return;
+      }
+    }
+    setSelectionError("");
     let nextStart = startDate;
     let nextEnd = endDate;
     if (!startDate || (startDate && endDate)) {
@@ -1185,6 +1217,11 @@ const DateRangePicker = ({
               </button>
             </div>
           </div>
+          {selectionError && (
+            <div className="la-date-alert" role="alert">
+              {selectionError}
+            </div>
+          )}
           {hasSameDayStay && (
             <div className="la-date-alert" role="alert">
               Please change the check-out date.
@@ -4780,7 +4817,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       calendarAvailabilityRef.current[listingId] = mergedAvailability;
       calendarCacheRef.current[key] = true;
       setCalendarAvailability(mergedAvailability);
-      setCalendarPrices(null);
+      const normalizedDays = Array.isArray(payload?.days)
+        ? payload.days.filter((day) => day?.date)
+        : [];
+      if (!calendarDaysRef.current[listingId]) calendarDaysRef.current[listingId] = {};
+      normalizedDays.forEach((day) => {
+        calendarDaysRef.current[listingId][day.date] = day;
+      });
+      setCalendarPrices(buildCalendarPayload(calendarDaysRef.current[listingId]));
     } catch (error) {
       setCalendarError(error?.message || "Unable to load Apaleo calendar availability.");
     } finally {

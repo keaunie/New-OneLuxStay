@@ -5,6 +5,7 @@ import {
   minorToMajor,
   normalizeOffer,
   normalizeUnitGroupCalendarAvailability,
+  normalizeUnitGroupCalendarRates,
   validateStay,
 } from "../netlify/functions/_shared/apaleoBookingService.js";
 import { normalizeApaleoProperty } from "../netlify/functions/_shared/apaleoService.js";
@@ -57,6 +58,44 @@ test("normalizes Apaleo unit-group calendar availability", () => {
     "2026-10-15": true,
     "2026-10-16": false,
     "2026-10-17": false,
+  });
+});
+
+test("normalizes the lowest Apaleo nightly price and its stay restrictions", () => {
+  const days = normalizeUnitGroupCalendarRates({
+    adults: 2,
+    rateResponses: [{
+      ratePlan: { id: "HWH-FLEX", name: { en: "Flexible" } },
+      payload: {
+        rates: [{
+          from: "2026-08-15T15:00:00-07:00",
+          price: { amount: 190, currency: "USD" },
+          calculatedPrices: [{ adults: 2, price: { amount: 210, currency: "USD" } }],
+          restrictions: {
+            minLengthOfStay: 2,
+            maxLengthOfStay: 10,
+            closed: false,
+            closedOnArrival: false,
+            closedOnDeparture: false,
+          },
+        }],
+      },
+    }],
+  });
+  assert.deepEqual(days["2026-08-15"], {
+    date: "2026-08-15",
+    price: 210,
+    currency: "USD",
+    ratePlanId: "HWH-FLEX",
+    ratePlanName: "Flexible",
+    availableForArrival: true,
+    availableForDeparture: true,
+    restrictions: {
+      minNights: 2,
+      maxNights: 10,
+      closedOnArrival: false,
+      closedOnDeparture: false,
+    },
   });
 });
 

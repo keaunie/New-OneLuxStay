@@ -72,7 +72,7 @@ const getApaleoCredentials = () => {
   const scope = sanitizeString(
     process.env.APALEO_SCOPE ||
       process.env.APALEO_CLIENT_SCOPE ||
-      "reservations.read availability.read setup.read",
+      "reservations.read availability.read rateplans.read rates.read setup.read",
     500,
   );
 
