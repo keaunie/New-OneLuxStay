@@ -26,11 +26,7 @@ const normalizeDate = (value = "") => {
   return parsed.toISOString().slice(0, 10);
 };
 
-export const detectPmsProvider = ({ provider = "" } = {}) => {
-  const explicit = sanitizeString(provider, 40).toLowerCase();
-  if (explicit === PMS_PROVIDERS.APALEO || explicit === PMS_PROVIDERS.GUESTY) return explicit;
-  return PMS_PROVIDERS.APALEO;
-};
+export const detectPmsProvider = () => PMS_PROVIDERS.APALEO;
 
 const request = async (path) => {
   const response = await fetch(`${apiBase}${path}`, {

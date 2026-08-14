@@ -53,14 +53,6 @@ const firstNumber = (...values) => {
   return null;
 };
 
-const normalizeProvider = (value = "") => {
-  const normalized = sanitizeString(value, 40).toLowerCase();
-  if (!normalized) return "";
-  if (["apaleo", "antwerp", "be", "belgium"].includes(normalized)) return PROVIDERS.APALEO;
-  if (["guesty", "us", "usa", "dubai", "uae"].includes(normalized)) return PROVIDERS.GUESTY;
-  return "";
-};
-
 const toQueryString = (query = {}) => {
   const params = new URLSearchParams();
   Object.entries(query || {}).forEach(([key, value]) => {
@@ -88,11 +80,7 @@ const guestyRequestWithQuery = async (path = "", query = {}) => {
   return guestyRequest(fullPath);
 };
 
-export const detectPmsProvider = ({ provider = "" } = {}) => {
-  const explicit = normalizeProvider(provider);
-  if (explicit) return explicit;
-  return normalizeProvider(process.env.PMS_DEFAULT_PROVIDER || "apaleo") || PROVIDERS.APALEO;
-};
+export const detectPmsProvider = () => PROVIDERS.APALEO;
 
 export const normalizeGuestyProperty = (listing = {}) => ({
   id: sanitizeString(listing?._id || listing?.id || listing?.guesty_listing_id, 120),
