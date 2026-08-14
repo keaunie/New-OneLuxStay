@@ -15,6 +15,7 @@ const LosAngelesLandingPage = lazy(routePreloaders.losAngeles);
 const RedondoBeachPrimaryPage = lazy(routePreloaders.redondoBeach);
 const RedondoBeachLegacyPage = lazy(routePreloaders.redondoBeachLegacy);
 const DubaiLandingPage = lazy(routePreloaders.dubai);
+const MiamiBeachLandingPage = lazy(routePreloaders.miamiBeach);
 const HollywoodLandingPage = lazy(() => import("./HollywoodLandingPage"));
 const ListingPage = lazy(routePreloaders.listing);
 const GlobalUnitsPage = lazy(routePreloaders.global);
@@ -163,10 +164,8 @@ function AppRoutes() {
       <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
         <Routes>
           <Route path="/" element={<RootRoute />} />
-          <Route path="/miami" element={<Navigate to="/global" replace />} />
-          <Route path="/miami-beach" element={<Navigate to="/global" replace />} />
-          <Route path="/miami/attractions" element={<Navigate to="/global" replace />} />
-          <Route path="/miami-beach/attractions" element={<Navigate to="/global" replace />} />
+          <Route path="/miami" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami-beach" element={renderLazyRoute(MiamiBeachLandingPage)} />
           <Route path="/:citySlug/attractions" element={renderLazyRoute(CityAttractionsPage)} />
           <Route path="/antwerpen" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp" element={renderLazyRoute(AntwerpLandingPage)} />
@@ -194,16 +193,14 @@ function AppRoutes() {
           <Route path="/losangeles/:areaSlug" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/los-angeles/listing/:listingId" element={renderLazyRoute(LosAngelesLandingPage)} />
           <Route path="/losangeles/listing/:listingId" element={renderLazyRoute(LosAngelesLandingPage)} />
-          <Route path="/miami-beach/:areaSlug/:bookingBundle" element={<Navigate to="/global" replace />} />
-          <Route path="/miami/:areaSlug/:bookingBundle" element={<Navigate to="/global" replace />} />
-          <Route path="/miami-beach/:areaSlug" element={<Navigate to="/global" replace />} />
-          <Route path="/miami/:areaSlug" element={<Navigate to="/global" replace />} />
-          <Route path="/miami-beach/listing/:listingId/:checkIn/:checkOut/:guests" element={<Navigate to="/global" replace />} />
-          <Route path="/miami/listing/:listingId/:checkIn/:checkOut/:guests" element={<Navigate to="/global" replace />} />
-          <Route path="/miami-beach/listing/:listingId" element={<Navigate to="/global" replace />} />
-          <Route path="/miami/listing/:listingId" element={<Navigate to="/global" replace />} />
-          <Route path="/miami-beach/*" element={<Navigate to="/global" replace />} />
-          <Route path="/miami/*" element={<Navigate to="/global" replace />} />
+          <Route path="/miami-beach/:areaSlug/:bookingBundle" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami/:areaSlug/:bookingBundle" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami-beach/:areaSlug" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami/:areaSlug" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami-beach/listing/:listingId/:checkIn/:checkOut/:guests" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami/listing/:listingId/:checkIn/:checkOut/:guests" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami-beach/listing/:listingId" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/miami/listing/:listingId" element={renderLazyRoute(MiamiBeachLandingPage)} />
           <Route path="/redondo-beach" element={renderLazyRoute(RedondoBeachPrimaryPage)} />
           <Route path="/redondo-beach-legacy" element={renderLazyRoute(RedondoBeachLegacyPage)} />
           <Route path="/redondo" element={renderLazyRoute(RedondoBeachLegacyPage)} />

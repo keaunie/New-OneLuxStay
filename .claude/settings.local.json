@@ -23,7 +23,9 @@
       "PowerShell(cmd /c \"rd /s /q node_modules\\\\motion-dom\")",
       "PowerShell(Rename-Item node_modules\\\\motion-dom motion-dom.corrupted-remnant)",
       "PowerShell(npm install --no-audit --no-fund)",
-      "PowerShell(npm run build)"
+      "PowerShell(npm run build)",
+      "Bash(cp .claude/worktrees/agent-adaafccc201286364/src/DubaiLandingPage.jsx src/DubaiLandingPage.jsx)",
+      "Bash(npx --yes esbuild src/DubaiLandingPage.jsx --bundle=false --format=esm --outfile=/tmp/esbuild-check/out.js)"
     ]
   }
 }

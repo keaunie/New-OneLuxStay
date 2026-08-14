@@ -12,6 +12,7 @@ import SimilarUnitsSection from "./components/listing/SimilarUnitsSection";
 import NeighborhoodHighlightsSection from "./components/listing/NeighborhoodHighlightsSection";
 import Stepper, { Step } from "./components/Stepper";
 import LottieInlineHint from "./components/LottieInlineHint";
+import ApaleoCheckoutModal from "./components/apaleo-checkout/ApaleoCheckoutModal";
 import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
@@ -69,6 +70,7 @@ const formatCurrency = (value, currency = "USD") =>
 
 const CHECKOUT_DEFAULT_CURRENCY = "USD";
 const ENABLE_CHECKOUT_VERIFICATION = false;
+const LEGACY_CHECKOUT_ENABLED = false; // Guesty/Stripe checkout retained for rollback, disabled — see docs/apaleo-rollout-other-cities.md
 const resolveCheckoutCurrency = (currency) => {
   const normalized = typeof currency === "string" ? currency.trim().toUpperCase() : "";
   return normalized || CHECKOUT_DEFAULT_CURRENCY;
@@ -2558,6 +2560,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
+  const [isApaleoCheckoutOpen, setIsApaleoCheckoutOpen] = useState(false);
+  const [apaleoCheckoutListing, setApaleoCheckoutListing] = useState(null);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
   const heroCarouselRef = useRef(null);
   const cardSwapRef = useRef(null);
@@ -6318,33 +6322,41 @@ const applyCheckoutPromoCode = () => {
                               setSectionAvailabilityError(stayTooShortMessage);
                               return;
                             }
-                            setPendingCheckout({
-                              listingId,
-                              listingTitle: activeListing.title,
-                              amount: typeof totalPrice === "number" ? totalPrice : null,
-                              currency: resolveCheckoutCurrency(priceCurrency),
-                              breakdown: breakdown || null,
-                              baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                              baseBreakdown: breakdown || null,
-                              promoCode: "",
-                              promoDiscountRate: 0,
-                              promoDiscountAmount: 0,
-                            });
-                            setCheckoutStep(1);
-                            setCheckoutConsentAccepted(false);
-                            setCheckoutConsentSignerName("");
-                            setCheckoutConsentSignatureDataUrl("");
-                            setCheckoutIdentityDocs({
-                              idFront: null,
-                              idBack: null,
-                              idSelfie: null,
-                            });
-                            setCheckoutIdentityError("");
-                            setCheckoutCardPhoto(null);
-                            setCheckoutCardHolderSelfie(null);
-                            setCheckoutCardPhotoError("");
-                            setCheckoutGuestError("");
-                            setIsCheckoutGuestOpen(true);
+                            if (LEGACY_CHECKOUT_ENABLED) {
+                              setPendingCheckout({
+                                listingId,
+                                listingTitle: activeListing.title,
+                                amount: typeof totalPrice === "number" ? totalPrice : null,
+                                currency: resolveCheckoutCurrency(priceCurrency),
+                                breakdown: breakdown || null,
+                                baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                                baseBreakdown: breakdown || null,
+                                promoCode: "",
+                                promoDiscountRate: 0,
+                                promoDiscountAmount: 0,
+                              });
+                              setCheckoutStep(1);
+                              setCheckoutConsentAccepted(false);
+                              setCheckoutConsentSignerName("");
+                              setCheckoutConsentSignatureDataUrl("");
+                              setCheckoutIdentityDocs({
+                                idFront: null,
+                                idBack: null,
+                                idSelfie: null,
+                              });
+                              setCheckoutIdentityError("");
+                              setCheckoutCardPhoto(null);
+                              setCheckoutCardHolderSelfie(null);
+                              setCheckoutCardPhotoError("");
+                              setCheckoutGuestError("");
+                              setIsCheckoutGuestOpen(true);
+                            } else {
+                              setApaleoCheckoutListing({
+                                localPropertyId: listingId,
+                                listingTitle: activeListing.title,
+                              });
+                              setIsApaleoCheckoutOpen(true);
+                            }
                           }}
                         >
                           {isReserving ? "Redirecting..." : "Reserve"}
@@ -7471,6 +7483,16 @@ const applyCheckoutPromoCode = () => {
     </div>
   ) : null;
 
+  const apaleoCheckoutModal = (
+    <ApaleoCheckoutModal
+      open={isApaleoCheckoutOpen}
+      onClose={() => setIsApaleoCheckoutOpen(false)}
+      localPropertyId={apaleoCheckoutListing?.localPropertyId || ""}
+      listingTitle={apaleoCheckoutListing?.listingTitle || ""}
+      defaultAdults={Number(sectionGuests) || 2}
+    />
+  );
+
   const inquiryModal = isInquiryOpen ? (
         <div
           className="antwerp-modal__overlay"
@@ -7536,7 +7558,8 @@ const applyCheckoutPromoCode = () => {
         ) : (
           <ListingLoadingScreen active cityLabel="Miami Beach" />
         )}
-        {checkoutGuestModal}
+        {LEGACY_CHECKOUT_ENABLED && checkoutGuestModal}
+        {apaleoCheckoutModal}
         {inquiryModal}
         {listingMapModal}
         {zoomModal}
@@ -8804,33 +8827,41 @@ const applyCheckoutPromoCode = () => {
                                       setSectionAvailabilityError(rowTooShortMessage);
                                       return;
                                     }
-                                    setPendingCheckout({
-                                      listingId: checkoutListingId,
-                                      listingTitle: listing.title,
-                                      amount: typeof total === "number" ? total : null,
-                                      currency: resolveCheckoutCurrency(priceCurrency),
-                                      breakdown: breakdown || null,
-                                      baseAmount: typeof total === "number" ? total : null,
-                                      baseBreakdown: breakdown || null,
-                                      promoCode: "",
-                                      promoDiscountRate: 0,
-                                      promoDiscountAmount: 0,
-                                    });
-                                    setCheckoutStep(1);
-                                    setCheckoutConsentAccepted(false);
-                                    setCheckoutConsentSignerName("");
-                                    setCheckoutConsentSignatureDataUrl("");
-                                    setCheckoutIdentityDocs({
-                                      idFront: null,
-                                      idBack: null,
-                                      idSelfie: null,
-                                    });
-                                    setCheckoutIdentityError("");
-                                    setCheckoutCardPhoto(null);
-                                    setCheckoutCardHolderSelfie(null);
-                                    setCheckoutCardPhotoError("");
-                                    setCheckoutGuestError("");
-                                    setIsCheckoutGuestOpen(true);
+                                    if (LEGACY_CHECKOUT_ENABLED) {
+                                      setPendingCheckout({
+                                        listingId: checkoutListingId,
+                                        listingTitle: listing.title,
+                                        amount: typeof total === "number" ? total : null,
+                                        currency: resolveCheckoutCurrency(priceCurrency),
+                                        breakdown: breakdown || null,
+                                        baseAmount: typeof total === "number" ? total : null,
+                                        baseBreakdown: breakdown || null,
+                                        promoCode: "",
+                                        promoDiscountRate: 0,
+                                        promoDiscountAmount: 0,
+                                      });
+                                      setCheckoutStep(1);
+                                      setCheckoutConsentAccepted(false);
+                                      setCheckoutConsentSignerName("");
+                                      setCheckoutConsentSignatureDataUrl("");
+                                      setCheckoutIdentityDocs({
+                                        idFront: null,
+                                        idBack: null,
+                                        idSelfie: null,
+                                      });
+                                      setCheckoutIdentityError("");
+                                      setCheckoutCardPhoto(null);
+                                      setCheckoutCardHolderSelfie(null);
+                                      setCheckoutCardPhotoError("");
+                                      setCheckoutGuestError("");
+                                      setIsCheckoutGuestOpen(true);
+                                    } else {
+                                      setApaleoCheckoutListing({
+                                        localPropertyId: checkoutListingId,
+                                        listingTitle: listing.title,
+                                      });
+                                      setIsApaleoCheckoutOpen(true);
+                                    }
                                   }}
                                 >
                                   {isReserving ? "Redirecting..." : "Reserve"}
@@ -8851,7 +8882,8 @@ const applyCheckoutPromoCode = () => {
 
       {inquiryModal}
 
-      {checkoutGuestModal}
+      {LEGACY_CHECKOUT_ENABLED && checkoutGuestModal}
+      {apaleoCheckoutModal}
 
       {activeListing && !isListingRoute && (
         <div
@@ -9243,33 +9275,41 @@ const applyCheckoutPromoCode = () => {
                                     setSectionAvailabilityError(stayTooShortMessage);
                                     return;
                                   }
-                                  setPendingCheckout({
-                                    listingId,
-                                    listingTitle: activeListing.title,
-                                    amount: typeof totalPrice === "number" ? totalPrice : null,
-                                    currency: resolveCheckoutCurrency(priceCurrency),
-                                    breakdown: breakdown || null,
-                                    baseAmount: typeof totalPrice === "number" ? totalPrice : null,
-                                    baseBreakdown: breakdown || null,
-                                    promoCode: "",
-                                    promoDiscountRate: 0,
-                                    promoDiscountAmount: 0,
-                                  });
-                                  setCheckoutStep(1);
-                                  setCheckoutConsentAccepted(false);
-                                  setCheckoutConsentSignerName("");
-                                  setCheckoutConsentSignatureDataUrl("");
-                                  setCheckoutIdentityDocs({
-                                    idFront: null,
-                                    idBack: null,
-                                    idSelfie: null,
-                                  });
-                                  setCheckoutIdentityError("");
-                                  setCheckoutCardPhoto(null);
-                                  setCheckoutCardHolderSelfie(null);
-                                  setCheckoutCardPhotoError("");
-                                  setCheckoutGuestError("");
-                                  setIsCheckoutGuestOpen(true);
+                                  if (LEGACY_CHECKOUT_ENABLED) {
+                                    setPendingCheckout({
+                                      listingId,
+                                      listingTitle: activeListing.title,
+                                      amount: typeof totalPrice === "number" ? totalPrice : null,
+                                      currency: resolveCheckoutCurrency(priceCurrency),
+                                      breakdown: breakdown || null,
+                                      baseAmount: typeof totalPrice === "number" ? totalPrice : null,
+                                      baseBreakdown: breakdown || null,
+                                      promoCode: "",
+                                      promoDiscountRate: 0,
+                                      promoDiscountAmount: 0,
+                                    });
+                                    setCheckoutStep(1);
+                                    setCheckoutConsentAccepted(false);
+                                    setCheckoutConsentSignerName("");
+                                    setCheckoutConsentSignatureDataUrl("");
+                                    setCheckoutIdentityDocs({
+                                      idFront: null,
+                                      idBack: null,
+                                      idSelfie: null,
+                                    });
+                                    setCheckoutIdentityError("");
+                                    setCheckoutCardPhoto(null);
+                                    setCheckoutCardHolderSelfie(null);
+                                    setCheckoutCardPhotoError("");
+                                    setCheckoutGuestError("");
+                                    setIsCheckoutGuestOpen(true);
+                                  } else {
+                                    setApaleoCheckoutListing({
+                                      localPropertyId: listingId,
+                                      listingTitle: activeListing.title,
+                                    });
+                                    setIsApaleoCheckoutOpen(true);
+                                  }
                                 }}
                               >
                                 {isReserving ? "Redirecting..." : "Reserve"}

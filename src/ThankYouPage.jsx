@@ -4,6 +4,7 @@ import "./App.css";
 
 const REDIRECT_URL = "https://oneluxstay.com";
 const REDIRECT_DELAY_SECONDS = 5;
+const LOGO_URL = "https://image.oneluxstay.com/oneluxstay-logo.webp";
 
 const ThankYouPage = () => {
   const [secondsLeft, setSecondsLeft] = useState(REDIRECT_DELAY_SECONDS);
@@ -25,6 +26,12 @@ const ThankYouPage = () => {
     <div className="ack-page">
       <div className="ack-card">
         <header className="ack-card__header">
+          <img
+            src={LOGO_URL}
+            alt="OneLuxStay"
+            className="ack-card__logo"
+            loading="lazy"
+          />
           <p className="ack-card__kicker">OneLuxStay</p>
           <h1>Thank You For Booking With Us</h1>
           <p className="ack-card__sub">
