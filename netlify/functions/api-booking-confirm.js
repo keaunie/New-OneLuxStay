@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody, getPublicWebsiteUrl } from "./_shared/http.js";
 import { apaleoRequest } from "./_shared/apaleoService.js";
-import { getBookingSession, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
+import { getBookingSession, minorToMajor, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import {
   buildConsentPdf,
@@ -30,7 +30,7 @@ const recordConsentAndNotify = async ({ session, bookingId, reservationIds, gues
     const consentSignatureDataUrl = typeof consent?.signatureDataUrl === "string" ? consent.signatureDataUrl : "";
     const consentAcceptedAt = consent?.acceptedAt || new Date().toISOString();
     const consentText = typeof consent?.consentText === "string" ? consent.consentText : "";
-    const amount = Number(session.quoted_total_minor) / 100;
+    const amount = minorToMajor(session.quoted_total_minor, session.currency);
     const currency = session.currency;
 
     await writeConsentProof(session.id, {
@@ -115,7 +115,9 @@ export async function handler(event) {
       channelCode: "Ibe", primaryGuest, guaranteeType: session.guarantee_type,
       timeSlices: Array.from({ length: nightCount(session.arrival, session.departure) }, () => ({ ratePlanId: session.rate_plan_id })),
       ...(session.selected_services?.length ? { services: session.selected_services.map((service) => ({ serviceId: service.serviceId })) } : {}),
-      prePaymentAmount: { amount: Number(session.prepayment_minor) / 100, currency: session.currency },
+      ...(session.guarantee_type === "Prepayment" ? {
+        prePaymentAmount: { amount: minorToMajor(session.prepayment_minor, session.currency), currency: session.currency },
+      } : {}),
     };
     const bookingRequest = {
       booker: primaryGuest, reservations: [reservation],

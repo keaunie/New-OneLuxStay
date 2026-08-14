@@ -15,6 +15,33 @@ export const getAdyenPublicConfig = () => ({
   clientKey: clean(process.env.ADYEN_CLIENT_KEY, 300),
 });
 
+export const getApaleoPayAdditionalData = ({ propertyId, guaranteeType } = {}) => {
+  const accountId = clean(process.env.APALEO_ACCOUNT_ID, 180);
+  const safePropertyId = clean(propertyId, 120);
+  if (!accountId || !safePropertyId) {
+    throw Object.assign(new Error("Apaleo Pay account and property metadata are not configured"), { statusCode: 503, code: "APALEO_PAY_METADATA_MISSING" });
+  }
+  let propertySubMerchants = {};
+  try {
+    propertySubMerchants = JSON.parse(process.env.APALEO_SUB_MERCHANT_IDS_JSON || "{}");
+  } catch {
+    throw Object.assign(new Error("APALEO_SUB_MERCHANT_IDS_JSON must be valid JSON"), { statusCode: 503, code: "APALEO_PAY_METADATA_INVALID" });
+  }
+  const additionalData = {
+    "metadata.accountId": accountId,
+    "metadata.propertyId": safePropertyId,
+  };
+  if (guaranteeType === "Prepayment") {
+    const subMerchantId = clean(propertySubMerchants[safePropertyId] || process.env.APALEO_SUB_MERCHANT_ID, 180);
+    if (!subMerchantId) {
+      throw Object.assign(new Error(`Missing Apaleo Pay sub-merchant ID for property ${safePropertyId}`), { statusCode: 503, code: "APALEO_SUB_MERCHANT_MISSING" });
+    }
+    additionalData["metadata.flowType"] = "CaptureOnly";
+    additionalData.subMerchantID = subMerchantId;
+  }
+  return additionalData;
+};
+
 export const adyenRequest = async (path, body, { idempotencyKey } = {}) => {
   const apiKey = clean(process.env.ADYEN_API_KEY, 500);
   const merchantAccount = clean(process.env.ADYEN_MERCHANT_ACCOUNT, 180);

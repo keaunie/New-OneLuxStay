@@ -357,11 +357,13 @@ class Media {
 
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = this.image;
     img.onload = () => {
       texture.image = img;
       this.program.uniforms.uImageSizes.value = [img.naturalWidth, img.naturalHeight];
     };
+    // Register the handler before assigning src. Cached images can otherwise
+    // complete synchronously and leave the WebGL texture at its black default.
+    img.src = this.image;
   }
 
   createMesh() {

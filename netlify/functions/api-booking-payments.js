@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody, getBaseUrl } from "./_shared/http.js";
 import { getBookingSession, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
-import { adyenRequest } from "./_shared/adyenService.js";
+import { adyenRequest, getApaleoPayAdditionalData } from "./_shared/adyenService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 
 export async function handler(event) {
@@ -16,13 +16,16 @@ export async function handler(event) {
       return jsonResponse(409, { message: "Booking session is not ready for payment", code: "INVALID_SESSION_STATE" });
     }
     const value = session.guarantee_type === "CreditCard" ? 0 : Number(session.prepayment_minor);
+    const additionalData = getApaleoPayAdditionalData({ propertyId: session.property_id, guaranteeType: session.guarantee_type });
     const result = await adyenRequest("/payments", {
       amount: { value, currency: session.currency }, paymentMethod: body.paymentMethod,
       reference: `apaleo-${session.id}`, returnUrl: `${getBaseUrl(event)}/booking-confirmation?bookingSessionId=${session.id}`,
       browserInfo: body.browserInfo, origin: body.origin,
-      shopperInteraction: "Ecommerce", recurringProcessingModel: "CardOnFile",
-      shopperReference: `ols-${session.id}`,
-      storePaymentMethod: session.guarantee_type === "CreditCard",
+      deliveryDate: `${session.arrival}T16:00:00.000Z`,
+      shopperInteraction: "Ecommerce", recurringProcessingModel: "UnscheduledCardOnFile",
+      shopperReference: session.id,
+      storePaymentMethod: true,
+      additionalData,
     }, { idempotencyKey: session.id });
     const authorized = result.resultCode === "Authorised";
     const actionRequired = Boolean(result.action);

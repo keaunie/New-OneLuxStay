@@ -87,6 +87,15 @@ export const majorToMinor = (amount, currency = "EUR") => {
   return Number(BigInt(whole) * (10n ** BigInt(digits)) + BigInt((fraction.slice(0, digits) + "0".repeat(digits)).slice(0, digits) || "0"));
 };
 
+export const minorToMajor = (amount, currency = "EUR") => {
+  const value = BigInt(amount);
+  const zeroDecimal = new Set(["BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"]);
+  const digits = zeroDecimal.has(text(currency, 3).toUpperCase()) ? 0 : 2;
+  if (!digits) return Number(value);
+  const divisor = 10n ** BigInt(digits);
+  return Number(value / divisor) + Number(value % divisor) / Number(divisor);
+};
+
 const money = (value = {}, fallbackCurrency = "EUR") => ({
   amount: String(value?.amount ?? "0"),
   currency: text(value?.currency || fallbackCurrency, 3).toUpperCase(),
@@ -174,8 +183,11 @@ export const createBookingSession = async (input = {}) => {
   const availableServices = selectedIds.size ? await getServiceOffers({ ratePlanId: offer.ratePlanId, ...stay }) : [];
   const selectedServices = availableServices.filter((item) => selectedIds.has(item.serviceId));
   if (selectedServices.length !== selectedIds.size) throw Object.assign(new Error("One or more services are unavailable"), { statusCode: 409, code: "SERVICE_UNAVAILABLE" });
-  const servicePrepayment = selectedServices.reduce((sum, item) => sum + majorToMinor(item.prePaymentGrossAmount.amount, item.prePaymentGrossAmount.currency), 0);
   const currency = offer.totalGrossAmount.currency;
+  if (selectedServices.some((item) => item.prePaymentGrossAmount.currency !== currency)) {
+    throw Object.assign(new Error("Service and stay offer currencies do not match"), { statusCode: 409, code: "CURRENCY_MISMATCH" });
+  }
+  const servicePrepayment = selectedServices.reduce((sum, item) => sum + majorToMinor(item.prePaymentGrossAmount.amount, currency), 0);
   const row = {
     id: crypto.randomUUID(), state: "OFFER_SELECTED", local_property_id: target.localPropertyId, property_id: target.propertyId,
     arrival: stay.arrival, departure: stay.departure, adults: stay.adults,
@@ -206,12 +218,25 @@ export const revalidateBookingSession = async (id) => {
   const offers = await getOffers({ propertyId: session.property_id, unitGroupId: session.unit_group_id, arrival: session.arrival, departure: session.departure, adults: session.adults, childrenAges: session.children_ages });
   const offer = findOffer(offers, session.rate_plan_id, session.unit_group_id);
   if (!offer) throw Object.assign(new Error("Selected offer is no longer available"), { statusCode: 409, code: "OFFER_UNAVAILABLE" });
-  const totalMinor = majorToMinor(offer.totalGrossAmount.amount, offer.totalGrossAmount.currency);
-  const prepaymentMinor = majorToMinor(offer.prePaymentGrossAmount.amount, offer.prePaymentGrossAmount.currency) + array(session.selected_services)
-    .reduce((sum, item) => sum + majorToMinor(item.prePaymentGrossAmount.amount, item.prePaymentGrossAmount.currency), 0);
+  const selectedIds = new Set(array(session.selected_services).map((item) => text(item?.serviceId, 120)).filter(Boolean));
+  const availableServices = selectedIds.size ? await getServiceOffers({
+    ratePlanId: offer.ratePlanId, arrival: session.arrival, departure: session.departure,
+    adults: session.adults, childrenAges: session.children_ages,
+  }) : [];
+  const selectedServices = availableServices.filter((item) => selectedIds.has(item.serviceId));
+  if (selectedServices.length !== selectedIds.size) {
+    throw Object.assign(new Error("One or more selected services are no longer available"), { statusCode: 409, code: "SERVICE_UNAVAILABLE" });
+  }
+  const currency = offer.totalGrossAmount.currency;
+  if (selectedServices.some((item) => item.prePaymentGrossAmount.currency !== currency)) {
+    throw Object.assign(new Error("Service and stay offer currencies do not match"), { statusCode: 409, code: "CURRENCY_MISMATCH" });
+  }
+  const totalMinor = majorToMinor(offer.totalGrossAmount.amount, currency);
+  const prepaymentMinor = majorToMinor(offer.prePaymentGrossAmount.amount, currency) + selectedServices
+    .reduce((sum, item) => sum + majorToMinor(item.prePaymentGrossAmount.amount, currency), 0);
   const changed = totalMinor !== Number(session.quoted_total_minor) || prepaymentMinor !== Number(session.prepayment_minor) || offer.minGuaranteeType !== session.guarantee_type;
   const paymentSatisfied = session.payment_state === "AUTHORIZED" || offer.minGuaranteeType === "PM6Hold";
-  const patch = { quote: offer, quoted_total_minor: totalMinor, prepayment_minor: prepaymentMinor,
+  const patch = { quote: offer, selected_services: selectedServices, quoted_total_minor: totalMinor, prepayment_minor: prepaymentMinor,
     guarantee_type: offer.minGuaranteeType, state: changed ? "PRICE_CHANGED" : (paymentSatisfied ? "READY_TO_BOOK" : "READY_FOR_PAYMENT"), updated_at: new Date().toISOString() };
   const rows = await supabaseRestRequest(`${SESSION_TABLE}?id=eq.${encodeURIComponent(session.id)}`, { method: "PATCH", body: patch, prefer: "return=representation" });
   return { session: array(rows)[0] || { ...session, ...patch }, changed };

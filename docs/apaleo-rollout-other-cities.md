@@ -45,10 +45,11 @@ access to the Apaleo and Adyen dashboards for these accounts.
    apaleo_id: <real Apaleo unit-group id>, enabled: true }`. Without this row,
    `resolveBookingTarget` in `apaleoBookingService.js` returns `409 APALEO_MAPPING_MISSING` for
    any booking attempt on that listing.
-3. **Adyen config** — confirm `ADYEN_API_KEY`, `ADYEN_MERCHANT_ACCOUNT`, `ADYEN_CLIENT_KEY`, and
-   `ADYEN_HMAC_KEY` are set in Netlify. These are account-level and likely already shared with
-   Antwerp's configuration; if these four cities settle on separate Adyen merchant accounts or
-   currencies, this needs revisiting per-property rather than globally.
+3. **Apaleo Pay / Adyen config** — confirm `ADYEN_API_KEY`, `ADYEN_MERCHANT_ACCOUNT`,
+   `ADYEN_CLIENT_KEY`, `ADYEN_HMAC_KEY`, and `APALEO_ACCOUNT_ID` are set in Netlify. Configure
+   the property-level sub-merchant identifier with `APALEO_SUB_MERCHANT_ID`, or use
+   `APALEO_SUB_MERCHANT_IDS_JSON` keyed by Apaleo property ID when they differ. The payment
+   request sends Apaleo's required account, property, flow-type, and sub-merchant metadata.
 4. **Adyen webhook** — in the Adyen Customer Area, add a standard webhook pointed at
    `https://<site>/.netlify/functions/api-webhooks-adyen`, HMAC signing enabled with the same key
    as `ADYEN_HMAC_KEY`, subscribed to at least the `AUTHORISATION` event.

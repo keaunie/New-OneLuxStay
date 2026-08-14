@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { majorToMinor, normalizeOffer, validateStay } from "../netlify/functions/_shared/apaleoBookingService.js";
+import { majorToMinor, minorToMajor, normalizeOffer, validateStay } from "../netlify/functions/_shared/apaleoBookingService.js";
 
 test("converts decimal major amounts without floating point rounding", () => {
   assert.equal(majorToMinor("151.00", "EUR"), 15100);
   assert.equal(majorToMinor("0.29", "EUR"), 29);
   assert.equal(majorToMinor("151", "JPY"), 151);
+  assert.equal(minorToMajor(15100, "EUR"), 151);
+  assert.equal(minorToMajor(151, "JPY"), 151);
 });
 
 test("validates dates, adults, and children ages", () => {

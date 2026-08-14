@@ -12,9 +12,14 @@ export async function handler(event) {
     if (session.state !== "PAYMENT_ACTION_REQUIRED") return jsonResponse(409, { message: "No payment action is pending" });
     const result = await adyenRequest("/payments/details", { details: body.details, paymentData: body.paymentData });
     const authorized = result.resultCode === "Authorised";
+    const paymentMetadata = authorized ? {
+      payerReference: String(result?.additionalData?.["recurring.shopperReference"] || ""),
+      storedPaymentMethodId: String(result?.additionalData?.["recurring.recurringDetailReference"] || ""),
+    } : {};
     await supabaseRestRequest(`apaleo_booking_sessions?id=eq.${encodeURIComponent(session.id)}`, {
       method: "PATCH", body: { state: authorized ? "READY_TO_BOOK" : "PAYMENT_DECLINED",
-        payment_state: authorized ? "AUTHORIZED" : "DECLINED", ...(result.pspReference ? { payment_reference: result.pspReference } : {}), updated_at: new Date().toISOString() }, prefer: "return=minimal",
+        payment_state: authorized ? "AUTHORIZED" : "DECLINED", payment_metadata: paymentMetadata,
+        ...(result.pspReference ? { payment_reference: result.pspReference } : {}), updated_at: new Date().toISOString() }, prefer: "return=minimal",
     });
     return jsonResponse(200, { resultCode: result.resultCode, bookingSessionId: session.id });
   } catch (error) {

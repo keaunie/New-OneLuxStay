@@ -9,6 +9,9 @@ Set secret values in Netlify, never in committed files:
 - `APALEO_CLIENT_ID`, `APALEO_CLIENT_SECRET`, and the minimum scopes in `APALEO_SCOPE`.
 - Enable every migrated property in `apaleo_property_mappings`. `APALEO_PROPERTY_IDS` is an emergency/additive allow-list only. If neither source has IDs, no properties are exposed.
 - `ADYEN_API_KEY`, `ADYEN_MERCHANT_ACCOUNT`, `ADYEN_CLIENT_KEY`, and `ADYEN_ENVIRONMENT=test`.
+- `APALEO_ACCOUNT_ID` and the Apaleo Pay property sub-merchant identifier. Use
+  `APALEO_SUB_MERCHANT_ID` when it is shared, or `APALEO_SUB_MERCHANT_IDS_JSON`
+  (a JSON object keyed by Apaleo property ID) when properties have different identifiers.
 - `ADYEN_LIVE_URL_PREFIX` only when switching to live Adyen.
 - `APALEO_WEBHOOK_SECRET`: a high-entropy value placed in the Apaleo subscription URL as `?token=...`.
 
