@@ -84,11 +84,11 @@ export default function ChromaGrid({ items = DEFAULT_ITEMS }) {
                 <div className="chroma-grid-card__overlay" />
               </div>
               <div className="chroma-grid-card__body">
-                <p className="chroma-grid-card__kicker">One Lux Stay</p>
+                <p className="chroma-grid-card__kicker">{item.kicker || "Apaleo live"}</p>
                 <h3 className="chroma-grid-card__title">{item.title}</h3>
                 <p className="chroma-grid-card__subtitle">{item.subtitle}</p>
                 <span className="chroma-grid-card__cta">
-                  Explore destination <span aria-hidden="true">-&gt;</span>
+                  View property <span aria-hidden="true">-&gt;</span>
                 </span>
               </div>
             </Link>

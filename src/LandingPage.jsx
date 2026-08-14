@@ -40,6 +40,28 @@ const CITY_DISPLAY_LABELS = {
 
 const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach"];
 
+const PROPERTY_FALLBACK_IMAGES = {
+  Antwerp: "https://assets.guesty.com/image/upload/v1747520363/production/666b3af27fc6d5653142b0af/ihcbdtwkdiaq9xyezgrs.jpg",
+  Dubai: "https://assets.guesty.com/image/upload/v1732915502/production/666b3af27fc6d5653142b0af/r4h0yzxzbjsirfh77ygb.jpg",
+  Hollywood: "https://assets.guesty.com/image/upload/v1729697715/production/666b3af27fc6d5653142b0af/t9xacjoibl7vpywhi6jf.jpg",
+  "Los Angeles": "https://assets.guesty.com/image/upload/v1730119087/production/666b3af27fc6d5653142b0af/npeczkhmy9wff4lzuyvr.jpg",
+  "Redondo Beach": "https://assets.guesty.com/image/upload/v1760726898/production/666b3af27fc6d5653142b0af/anjv8iafdjmf6knycd8n.jpg",
+};
+
+const normalizeApaleoCity = (property = {}) => {
+  const city = String(property?.city || property?.location?.city || "").trim();
+  const description = `${property?.title || ""} ${property?.description || ""}`.toLowerCase();
+  if (/antwerp|antwerpen/.test(city.toLowerCase()) || /antwerp/.test(description)) return "Antwerp";
+  if (/redondo/.test(city.toLowerCase()) || /redondo/.test(description)) return "Redondo Beach";
+  if (/hollywood/.test(city.toLowerCase()) || /hollywood/.test(description)) return "Hollywood";
+  if (/dubai/.test(city.toLowerCase()) || /dubai/.test(description)) return "Dubai";
+  if (/los angeles|torrance/.test(city.toLowerCase()) || /los angeles|hwh|la plaza/.test(description)) return "Los Angeles";
+  return city;
+};
+
+const cleanApaleoPropertyName = (value = "") =>
+  String(value || "").replace(/^[A-Z]\d?\.\s*/i, "").trim() || "One Lux Stay";
+
 const BUSINESS_ACCOMMODATION_DEALS = [
   {
     label: "Construction Accommodations",
@@ -844,6 +866,9 @@ function LandingPage() {
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [quotePricing, setQuotePricing] = useState({});
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [apaleoProperties, setApaleoProperties] = useState([]);
+  const [apaleoPropertiesLoading, setApaleoPropertiesLoading] = useState(true);
+  const [apaleoPropertiesError, setApaleoPropertiesError] = useState("");
   const [showGalleryHint, setShowGalleryHint] = useState(true);
   const hasDismissedGalleryHintRef = useRef(false);
   const offersSwipeRef = useRef(null);
@@ -882,6 +907,64 @@ function LandingPage() {
     : [isMobileViewport ? mobileHeroSlide : heroSlides[0]];
   const shouldUseInteractiveOffers = !isMobileViewport;
   const offersToRender = shouldUseInteractiveOffers ? loopedOffers : offers;
+
+  const apaleoCityOptions = useMemo(() => {
+    const cities = [...new Set(apaleoProperties.map(normalizeApaleoCity).filter(Boolean))];
+    return ["All", ...cities.sort((a, b) => a.localeCompare(b))];
+  }, [apaleoProperties]);
+
+  const apaleoPropertyItems = useMemo(() => apaleoProperties
+    .filter((property) => property?.isArchived !== true && property?.status !== "Test")
+    .map((property) => {
+      const city = normalizeApaleoCity(property);
+      const citySlug = citySlugFromName(city);
+      const listingId = property?.localListingId || "";
+      const href = listingId && citySlug
+        ? `/${citySlug}/listing/${encodeURIComponent(listingId)}`
+        : citySlug ? `/${citySlug}` : "/global";
+      const location = [property?.location?.city || property?.city, property?.location?.countryCode || property?.country]
+        .filter(Boolean)
+        .join(", ");
+      return {
+        title: cleanApaleoPropertyName(property?.title || property?.description),
+        subtitle: property?.description || location || "Live Apaleo property",
+        href,
+        image: property?.coverImage || property?.images?.[0] || PROPERTY_FALLBACK_IMAGES[city] || heroSlides[0],
+        propertyId: property?.id,
+        propertyCode: property?.code,
+        kicker: `${property?.code || property?.id} · Apaleo live`,
+        city,
+      };
+    }), [apaleoProperties]);
+
+  const homepageDestinations = useMemo(() =>
+    apaleoCityOptions.filter((city) => city !== "All"), [apaleoCityOptions]);
+  const visibleHomepageDestinations = homepageDestinations.length
+    ? homepageDestinations
+    : HERO_CITY_SHORTCUTS;
+
+  useEffect(() => {
+    let active = true;
+    const loadApaleoProperties = async () => {
+      setApaleoPropertiesLoading(true);
+      setApaleoPropertiesError("");
+      try {
+        const response = await fetch(`${apiBase}/api-booking-properties`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload?.message || "Unable to load Apaleo properties.");
+        if (active) setApaleoProperties(Array.isArray(payload?.properties) ? payload.properties : []);
+      } catch (error) {
+        if (active) {
+          setApaleoProperties([]);
+          setApaleoPropertiesError(error?.message || "Unable to load Apaleo properties.");
+        }
+      } finally {
+        if (active) setApaleoPropertiesLoading(false);
+      }
+    };
+    loadApaleoProperties();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -1563,12 +1646,11 @@ function LandingPage() {
             Experience Timeless Elevated Living
           </h1>
           <p className="landing-hero-lead">
-            Curated penthouses, skyline suites, and oceanfront sanctuaries across Antwerp, Belgium; Dubai, UAE; Hollywood, CA; Los
-            Angeles, CA; and Redondo Beach, CA.
+            Live availability across {visibleHomepageDestinations.map(formatCityLabel).join(", ")}, powered by Apaleo.
           </p>
 
           <div className="landing-chip-row" data-tour-target="destination-shortcuts">
-            {HERO_CITY_SHORTCUTS.map((city) => (
+            {visibleHomepageDestinations.map((city) => (
               <button
                 key={city}
                 type="button"
@@ -1599,7 +1681,7 @@ function LandingPage() {
                   prefetchCityByName(next);
                 }}
               >
-                {["All", "Hollywood", "Los Angeles", "Redondo Beach", "Dubai", "Antwerp"].map((c) => (
+                {(apaleoCityOptions.length > 1 ? apaleoCityOptions : ["All", ...HERO_CITY_SHORTCUTS]).map((c) => (
                   <option key={c} value={c}>
                     {c === "All" ? "All destinations" : formatCityLabel(c)}
                   </option>
@@ -1712,12 +1794,11 @@ function LandingPage() {
                     prefetchCityByName(next);
                   }}
                 >
-                  <option value="All">{mobileDestinationLabel}</option>
-                  <option value="Hollywood">{formatCityLabel("Hollywood")}</option>
-                  <option value="Los Angeles">{formatCityLabel("Los Angeles")}</option>
-                  <option value="Redondo Beach">{formatCityLabel("Redondo Beach")}</option>
-                  <option value="Dubai">{formatCityLabel("Dubai")}</option>
-                  <option value="Antwerp">{formatCityLabel("Antwerp")}</option>
+                  {(apaleoCityOptions.length > 1 ? apaleoCityOptions : ["All", ...HERO_CITY_SHORTCUTS]).map((city) => (
+                    <option key={city} value={city}>
+                      {city === "All" ? mobileDestinationLabel : formatCityLabel(city)}
+                    </option>
+                  ))}
                 </select>
                 {destination !== "All" && (
                   <button
@@ -1907,18 +1988,18 @@ function LandingPage() {
       <section id="collection" className="landing-collection-section landing-animate" ref={collectionRef}>
         <div className="landing-showcase-inner px-6 md:px-10">
           <div className="landing-section-head landing-collection-intro">
-            <p className="landing-kicker landing-collection-kicker">Signature stays</p>
+            <p className="landing-kicker landing-collection-kicker">Live Apaleo portfolio</p>
             <h2 className="landing-display landing-collection-title">
-              Iconic cities, <span className="landing-title-italic">unforgettable stays</span>
+              Live properties, <span className="landing-title-italic">ready to book</span>
             </h2>
             <p className="landing-collection-copy">
-              Explore our destinations and discover relaxed penthouses and skyline suites curated for each city.
+              Properties are loaded directly from Apaleo and enriched with One Lux Stay photography and content.
             </p>
           </div>
         </div>
 
         <div className="landing-destination-panel px-6 md:px-10" data-tour-target="collection">
-          {shouldRenderCollectionGrid ? (
+          {shouldRenderCollectionGrid && !apaleoPropertiesLoading && apaleoPropertyItems.length ? (
             <Suspense
               fallback={
                 <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
@@ -1926,11 +2007,11 @@ function LandingPage() {
                 </div>
               }
             >
-              <ChromaGrid />
+              <ChromaGrid items={apaleoPropertyItems} />
             </Suspense>
           ) : (
             <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-              <span>Loading destinations...</span>
+              <span>{apaleoPropertiesError || "Loading live Apaleo properties..."}</span>
             </div>
           )}
         </div>

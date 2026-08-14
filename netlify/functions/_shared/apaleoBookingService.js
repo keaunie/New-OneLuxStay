@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { apaleoRequest, listApaleoProperties } from "./apaleoService.js";
-import { supabaseRestRequest } from "./supabaseClient.js";
+import { supabaseRestRequest, toSupabaseInFilter } from "./supabaseClient.js";
 
 const SESSION_TABLE = "apaleo_booking_sessions";
 const MAX_ADULTS = 20;
@@ -130,7 +130,57 @@ export const getBookingProperties = async () => {
   const ids = await getAllowedPropertyIds();
   if (!ids.length) return [];
   const properties = await listApaleoProperties();
-  return properties.filter((property) => ids.includes(property.id)).map((property) => ({
+  const allowedProperties = properties.filter((property) => ids.includes(property.id));
+  let websiteByPropertyId = new Map();
+  try {
+    const mappings = await supabaseRestRequest("apaleo_inventory_mappings", {
+      query: {
+        select: "local_id,apaleo_property_id,metadata",
+        mapping_type: "eq.unit_group",
+        enabled: "eq.true",
+        limit: 5000,
+      },
+    });
+    const localIds = [...new Set(array(mappings).map((row) => text(row.local_id, 180)).filter(Boolean))];
+    const listings = localIds.length
+      ? await supabaseRestRequest("listings", {
+          query: {
+            select: "id,title,city,address,pictures,active,listed,metadata",
+            id: `in.${toSupabaseInFilter(localIds)}`,
+            limit: 5000,
+          },
+        })
+      : [];
+    const listingById = new Map(array(listings).map((listing) => [text(listing.id, 180), listing]));
+    const grouped = new Map();
+    array(mappings).forEach((mapping) => {
+      const propertyId = text(mapping.apaleo_property_id, 120);
+      const listing = listingById.get(text(mapping.local_id, 180));
+      if (!propertyId || !listing || listing.active === false || listing.listed === false) return;
+      if (!grouped.has(propertyId)) grouped.set(propertyId, []);
+      grouped.get(propertyId).push({ listing, mapping });
+    });
+    const imageUrl = (listing = {}) => array(listing.pictures)
+      .map((image) => typeof image === "string" ? image : image?.original || image?.large || image?.regular || image?.thumbnail || image?.url)
+      .map((value) => text(value, 1000))
+      .find(Boolean) || "";
+    grouped.forEach((entries, propertyId) => {
+      const representative = entries.find(({ listing, mapping }) => mapping?.metadata?.apaleoUnitId && imageUrl(listing))
+        || entries.find(({ listing }) => imageUrl(listing))
+        || entries[0];
+      websiteByPropertyId.set(propertyId, {
+        localListingCount: entries.length,
+        localListingId: text(representative?.listing?.id, 180),
+        localListingTitle: text(representative?.listing?.title, 240),
+        coverImage: imageUrl(representative?.listing),
+      });
+    });
+  } catch (error) {
+    console.warn("Unable to enrich Apaleo properties with website content", {
+      error: error?.message || String(error),
+    });
+  }
+  return allowedProperties.map((property) => ({
     id: property.id,
     code: property.code,
     title: property.title,
@@ -147,6 +197,12 @@ export const getBookingProperties = async () => {
     provider: property.provider,
     images: property.images,
     amenities: property.amenities,
+    ...(websiteByPropertyId.get(property.id) || {
+      localListingCount: 0,
+      localListingId: "",
+      localListingTitle: "",
+      coverImage: "",
+    }),
   }));
 };
 

@@ -1,6 +1,6 @@
 .chroma-grid {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1240px;
   margin: clamp(34px, 5vw, 64px) auto 0;
 }
 
@@ -8,6 +8,7 @@
   display: grid;
   grid-template-columns: 1.28fr 1fr 1fr;
   grid-template-rows: repeat(2, 290px);
+  grid-auto-rows: 290px;
   gap: 10px;
   margin: 0;
   padding: 0;
