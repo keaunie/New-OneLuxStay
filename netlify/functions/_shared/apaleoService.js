@@ -633,15 +633,37 @@ export const normalizeApaleoProperty = (property = {}) => {
     property?.id || property?.propertyId || property?.code || property?.externalId,
     120,
   );
-  const city = sanitizeString(property?.city || property?.address?.city, 120);
-  const country = sanitizeString(property?.countryCode || property?.country || property?.address?.countryCode, 120);
+  const location = property?.location || property?.address || {};
+  const city = sanitizeString(property?.city || location?.city, 120);
+  const country = sanitizeString(
+    property?.countryCode || property?.country || location?.countryCode || location?.country,
+    120,
+  );
+  const addressLine1 = sanitizeString(location?.addressLine1 || location?.line1, 240);
+  const postalCode = sanitizeString(location?.postalCode || location?.zipCode, 40);
+  const regionCode = sanitizeString(location?.regionCode || location?.stateCode, 40);
+  const status = sanitizeString(property?.status, 40);
 
   return {
     id: propertyId,
+    code: sanitizeString(property?.code || propertyId, 120),
     title: readNested(property?.name || property?.title || property?.description || `Property ${propertyId}`),
+    description: sanitizeString(property?.description, 1200),
     city,
     country,
-    address: readNested(property?.address?.addressLine1 || property?.address?.line1 || property?.address || ""),
+    address: addressLine1,
+    location: {
+      addressLine1,
+      postalCode,
+      city,
+      regionCode,
+      countryCode: country,
+    },
+    currencyCode: sanitizeString(property?.currencyCode, 12).toUpperCase(),
+    timeZone: sanitizeString(property?.timeZone, 80),
+    status,
+    isLive: status.toLowerCase() === "live" && property?.isArchived !== true,
+    isArchived: property?.isArchived === true,
     provider: "apaleo",
     images: mapPropertyImageUrls(property),
     amenities: mapAmenities(property),

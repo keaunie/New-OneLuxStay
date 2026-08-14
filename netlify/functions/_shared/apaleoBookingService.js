@@ -131,8 +131,22 @@ export const getBookingProperties = async () => {
   if (!ids.length) return [];
   const properties = await listApaleoProperties();
   return properties.filter((property) => ids.includes(property.id)).map((property) => ({
-    id: property.id, title: property.title, city: property.city, country: property.country,
-    address: property.address, provider: property.provider, images: property.images, amenities: property.amenities,
+    id: property.id,
+    code: property.code,
+    title: property.title,
+    description: property.description,
+    city: property.city,
+    country: property.country,
+    address: property.address,
+    location: property.location,
+    currencyCode: property.currencyCode,
+    timeZone: property.timeZone,
+    status: property.status,
+    isLive: property.isLive,
+    isArchived: property.isArchived,
+    provider: property.provider,
+    images: property.images,
+    amenities: property.amenities,
   }));
 };
 
