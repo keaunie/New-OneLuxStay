@@ -4789,6 +4789,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const key = `apaleo-${listingId}-${monthKey(monthStart)}-${sectionGuests}`;
     if (!force && calendarCacheRef.current[key]) {
       setCalendarAvailability(calendarAvailabilityRef.current[listingId] || {});
+      setCalendarPrices(buildCalendarPayload(calendarDaysRef.current[listingId] || {}));
       return;
     }
     if (calendarInflightRef.current[key]) return;
