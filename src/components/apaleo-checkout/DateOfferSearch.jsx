@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Apaleo prices a specific stay (arrival/departure/adults) via /booking/v1/offers rather
 // than exposing a day-by-day rate calendar, so this replaces the old Guesty-backed
 // day-grid calendar with a "pick dates, then see live offers" flow for the four cities
 // wired to the Apaleo booking engine.
+//
+// The guest already picked dates/guests on the property page before clicking Reserve
+// (that's where defaultArrival/defaultDeparture/defaultAdults come from), so when those
+// are present this step auto-searches immediately and shows a read-only summary instead
+// of asking again. The editable form is only a fallback for the rare case a caller opens
+// this modal without a pre-selected stay.
 
 const describeGuarantee = (type) => {
   if (type === "PM6Hold") return "Pay at property — no payment required now";
@@ -37,12 +43,48 @@ export default function DateOfferSearch({
   const [departure, setDeparture] = useState(defaultDeparture);
   const [adults, setAdults] = useState(defaultAdults);
   const [formError, setFormError] = useState("");
+  const autoSearchedRef = useRef(false);
+  const autoSelectedRef = useRef(false);
 
   const today = new Date().toISOString().slice(0, 10);
+  const datesLocked = Boolean(defaultArrival && defaultDeparture);
+
+  const runSearch = async (searchArrival, searchDeparture, searchAdults) => {
+    setFormError("");
+    try {
+      await flow.searchOffers({ arrival: searchArrival, departure: searchDeparture, adults: searchAdults });
+    } catch (err) {
+      setFormError(err?.message || "Unable to check availability.");
+    }
+  };
+
+  // Dates/guests were already chosen on the property page — search immediately
+  // instead of making the guest re-enter them here.
+  useEffect(() => {
+    if (datesLocked && !autoSearchedRef.current && !flow.stay) {
+      autoSearchedRef.current = true;
+      runSearch(defaultArrival, defaultDeparture, defaultAdults);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datesLocked, defaultArrival, defaultDeparture, defaultAdults]);
+
+  const handleSelect = async (offer) => {
+    await flow.selectOffer(offer);
+    onOfferSelected?.(offer);
+  };
+
+  // Most listings only have one bookable rate plan — skip the extra click when
+  // there's nothing to actually choose between.
+  useEffect(() => {
+    if (flow.offers.length === 1 && !flow.selectedOffer && !autoSelectedRef.current) {
+      autoSelectedRef.current = true;
+      handleSelect(flow.offers[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow.offers, flow.selectedOffer]);
 
   const handleSearch = async (event) => {
     event.preventDefault();
-    setFormError("");
     if (!arrival || !departure) {
       setFormError("Select check-in and check-out dates.");
       return;
@@ -51,43 +93,44 @@ export default function DateOfferSearch({
       setFormError("Check-out must be after check-in.");
       return;
     }
-    try {
-      await flow.searchOffers({ arrival, departure, adults });
-    } catch (err) {
-      setFormError(err?.message || "Unable to check availability.");
-    }
-  };
-
-  const handleSelect = async (offer) => {
-    await flow.selectOffer(offer);
-    onOfferSelected?.(offer);
+    await runSearch(arrival, departure, adults);
   };
 
   return (
     <div className="apaleo-offer-search">
-      <form className="apaleo-offer-search__form" onSubmit={handleSearch}>
-        <label className="apaleo-offer-search__field">
-          <span>Check-in</span>
-          <input type="date" min={today} value={arrival} onChange={(event) => setArrival(event.target.value)} required />
-        </label>
-        <label className="apaleo-offer-search__field">
-          <span>Check-out</span>
-          <input type="date" min={arrival || today} value={departure} onChange={(event) => setDeparture(event.target.value)} required />
-        </label>
-        <label className="apaleo-offer-search__field apaleo-offer-search__field--guests">
-          <span>Guests</span>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={adults}
-            onChange={(event) => setAdults(Math.max(1, Number(event.target.value) || 1))}
-          />
-        </label>
-        <button type="submit" className="apaleo-offer-search__submit" disabled={flow.loading}>
-          {flow.loading ? "Checking..." : "Check availability"}
-        </button>
-      </form>
+      {datesLocked ? (
+        <p className="apaleo-offer-search__summary">
+          {defaultArrival} – {defaultDeparture} · {defaultAdults} guest{defaultAdults === 1 ? "" : "s"}
+        </p>
+      ) : (
+        <form className="apaleo-offer-search__form" onSubmit={handleSearch}>
+          <label className="apaleo-offer-search__field">
+            <span>Check-in</span>
+            <input type="date" min={today} value={arrival} onChange={(event) => setArrival(event.target.value)} required />
+          </label>
+          <label className="apaleo-offer-search__field">
+            <span>Check-out</span>
+            <input type="date" min={arrival || today} value={departure} onChange={(event) => setDeparture(event.target.value)} required />
+          </label>
+          <label className="apaleo-offer-search__field apaleo-offer-search__field--guests">
+            <span>Guests</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={adults}
+              onChange={(event) => setAdults(Math.max(1, Number(event.target.value) || 1))}
+            />
+          </label>
+          <button type="submit" className="apaleo-offer-search__submit" disabled={flow.loading}>
+            {flow.loading ? "Checking..." : "Check availability"}
+          </button>
+        </form>
+      )}
+
+      {flow.loading && datesLocked && (
+        <p className="apaleo-offer-search__hint">Checking availability…</p>
+      )}
 
       {(formError || flow.error) && (
         <p className="apaleo-offer-search__error">{formError || flow.error?.message}</p>

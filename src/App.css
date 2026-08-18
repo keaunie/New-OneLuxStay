@@ -4281,7 +4281,7 @@ body {
   position: relative;
 }
 
-.antwerp-page > :not(.app-loading-overlay):not(.listing-loading-overlay):not(.antwerp-modal__overlay) {
+.antwerp-page > :not(.app-loading-overlay):not(.listing-loading-overlay):not(.antwerp-modal__overlay):not(.apaleo-checkout-modal__overlay) {
   position: relative;
   z-index: 1;
 }
@@ -19831,6 +19831,18 @@ a[href="#redondo-city-tour"],
   margin-top: 12px;
   color: rgba(47, 33, 22, 0.65);
   font-size: 0.9rem;
+}
+
+.apaleo-offer-search__summary {
+  font-weight: 600;
+  color: #3f3326;
+  margin: 0 0 12px;
+}
+
+.apaleo-offer-search__hint {
+  color: rgba(47, 33, 22, 0.65);
+  font-size: 0.9rem;
+  margin: 0 0 12px;
 }
 
 .apaleo-offer-list {

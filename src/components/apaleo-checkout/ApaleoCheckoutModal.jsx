@@ -58,6 +58,7 @@ export default function ApaleoCheckoutModal({
   const [confirmError, setConfirmError] = useState("");
   const canvasRef = useRef(null);
   const isSigningRef = useRef(false);
+  const sessionStartRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
@@ -68,23 +69,28 @@ export default function ApaleoCheckoutModal({
       setConsentSignerName("");
       setConsentSignatureDataUrl("");
       setConfirmError("");
+      sessionStartRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Dates/guests were already chosen before "Reserve" was clicked, and DateOfferSearch
+  // auto-selects the offer as soon as it's known — so the session starts the moment an
+  // offer exists instead of waiting for the guest to click through a separate step.
+  useEffect(() => {
+    if (flow.selectedOffer && !flow.session && !sessionStartRef.current) {
+      sessionStartRef.current = true;
+      setSessionStarting(true);
+      flow.startSession().catch(() => {
+        // surfaced via flow.error
+      }).finally(() => setSessionStarting(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow.selectedOffer, flow.session]);
+
   const handleStepChange = async (step) => {
     setCurrentStep(step);
-    if (step === 2 && !flow.session && flow.selectedOffer) {
-      setSessionStarting(true);
-      try {
-        await flow.startSession();
-      } catch {
-        // surfaced via flow.error
-      } finally {
-        setSessionStarting(false);
-      }
-    }
-    if (step === 4 && flow.session?.payment_state !== "NOT_REQUIRED" && !flow.paymentMethodsConfig) {
+    if (step === 3 && flow.session?.payment_state !== "NOT_REQUIRED" && !flow.paymentMethodsConfig) {
       try {
         await flow.loadPaymentMethods({ countryCode: guest.countryCode, shopperLocale: navigator.language || "en-US" });
       } catch {
@@ -168,11 +174,34 @@ export default function ApaleoCheckoutModal({
     );
   }
 
+  // Dates/guests are already chosen before this modal opens, so there's nothing for the
+  // guest to do until an offer exists and the rate is held — show that as a plain loading
+  // panel rather than a numbered step the guest has to click "Next" through.
+  if (!flow.session) {
+    return (
+      <div className="apaleo-checkout-modal__overlay" role="dialog" aria-modal="true">
+        <div className="apaleo-checkout-modal">
+          <button type="button" className="apaleo-checkout-modal__close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+          <h3 className="apaleo-checkout-modal__step-title">Choose your stay</h3>
+          {sessionStarting && <p className="apaleo-checkout-modal__hint">Holding your rate…</p>}
+          {flow.error && !sessionStarting && <p className="apaleo-checkout-modal__error">{flow.error.message}</p>}
+          <DateOfferSearch
+            flow={flow}
+            defaultAdults={defaultAdults}
+            defaultArrival={defaultArrival}
+            defaultDeparture={defaultDeparture}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const nextDisabled =
-    (currentStep === 1 && !flow.selectedOffer) ||
-    (currentStep === 2 && (sessionStarting || !flow.session || !isGuestValid)) ||
-    (currentStep === 3 && !isConsentValid) ||
-    currentStep === 4;
+    (currentStep === 1 && !isGuestValid) ||
+    (currentStep === 2 && !isConsentValid) ||
+    currentStep === 3;
 
   return (
     <div className="apaleo-checkout-modal__overlay" role="dialog" aria-modal="true">
@@ -186,16 +215,6 @@ export default function ApaleoCheckoutModal({
           advanceOnFinalStep={false}
           onFinalStepCompleted={() => {}}
         >
-          <Step>
-            <h3 className="apaleo-checkout-modal__step-title">Choose your stay</h3>
-            <DateOfferSearch
-              flow={flow}
-              defaultAdults={defaultAdults}
-              defaultArrival={defaultArrival}
-              defaultDeparture={defaultDeparture}
-            />
-          </Step>
-
           <Step>
             <h3 className="apaleo-checkout-modal__step-title">Guest details</h3>
             {sessionStarting && <p className="apaleo-checkout-modal__hint">Holding your rate…</p>}
