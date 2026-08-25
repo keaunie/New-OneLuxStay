@@ -4976,6 +4976,108 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
   };
 
+  const fetchApaleoSectionCalendarMonth = async (listings, targetDate, { force = false } = {}) => {
+    const apaleoListings = (listings || []).filter(isApaleoListing);
+    if (!apaleoListings.length) return;
+    const uniqueListings = [...new Map(
+      apaleoListings.map((listing) => [
+        toLookupKey(getCalendarListingId(listing, losAngelesListings)),
+        listing,
+      ])
+    ).values()].filter((listing) => getCalendarListingId(listing, losAngelesListings));
+    const listingIds = uniqueListings.map((listing) =>
+      toLookupKey(getCalendarListingId(listing, losAngelesListings))
+    );
+    if (!listingIds.length) return;
+    const primaryId =
+      toLookupKey(getPrimaryListingId(activeSection?.listings?.length ? activeSection.listings : uniqueListings)) ||
+      listingIds[0];
+    const sectionCalendarKey = getSectionCalendarKey(
+      activeSection,
+      activeSection?.listings?.length ? activeSection.listings : uniqueListings
+    );
+    const cacheKeyBase = sectionCalendarKey || primaryId;
+    if (!cacheKeyBase) return;
+
+    const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const rangeEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 2, 0);
+    const key = `apaleo-section-${cacheKeyBase}-${monthKey(monthStart)}-${sectionGuests}`;
+    if (!force && sectionCalendarCacheRef.current[key]) {
+      const cachedDays = sectionCalendarDaysRef.current[cacheKeyBase];
+      if (cachedDays && Object.keys(cachedDays).length) {
+        setSectionCalendarPrices(buildCalendarPayload(cachedDays));
+        setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {});
+        return;
+      }
+      delete sectionCalendarCacheRef.current[key];
+    }
+    if (sectionCalendarInflightRef.current[key]) return;
+    sectionCalendarInflightRef.current[key] = true;
+    setSectionCalendarLoading(true);
+    setSectionCalendarError("");
+    try {
+      const daysByListing = {};
+      await Promise.all(uniqueListings.map(async (listing) => {
+        const localPropertyId = toLookupKey(getCalendarListingId(listing, losAngelesListings));
+        const query = new URLSearchParams({
+          localPropertyId,
+          startDate: toISODate(monthStart),
+          endDate: toISODate(rangeEnd),
+          adults: String(Math.max(1, Number(sectionGuests) || 1)),
+        });
+        const response = await fetch(`${apiBase}/api-booking-calendar?${query}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.message || "Unable to load Apaleo calendar availability.");
+        }
+        daysByListing[localPropertyId] = Array.isArray(payload?.days)
+          ? payload.days.filter((day) => day?.date)
+          : [];
+      }));
+
+      const availabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
+      const pricingDays = Object.values(buildLowestPriceCalendarByDate(daysByListing));
+
+      const existingDayMap = sectionCalendarDaysRef.current[cacheKeyBase] || {};
+      const dayMap = {};
+      pricingDays.forEach((day) => {
+        if (!day?.date) return;
+        dayMap[day.date] = mergeCalendarDay(existingDayMap[day.date], day);
+      });
+      if (Object.keys(dayMap).length) {
+        const mergedDays = { ...existingDayMap, ...dayMap };
+        sectionCalendarDaysRef.current[cacheKeyBase] = mergedDays;
+        if (primaryId && primaryId !== cacheKeyBase) {
+          sectionCalendarDaysRef.current[primaryId] = mergedDays;
+        }
+        setSectionCalendarPrices(buildCalendarPayload(mergedDays));
+        const minNightsOverride = extractMinNightsFromDays(Object.values(mergedDays));
+        if (typeof minNightsOverride === "number") {
+          setSectionCalendarMinNightsOverride(minNightsOverride);
+        }
+      }
+      const mergedAvailability = {
+        ...(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {}),
+        ...availabilityByDate,
+      };
+      sectionCalendarAvailabilityRef.current[cacheKeyBase] = mergedAvailability;
+      if (primaryId && primaryId !== cacheKeyBase) {
+        sectionCalendarAvailabilityRef.current[primaryId] = mergedAvailability;
+      }
+      setSectionCalendarAvailability(mergedAvailability);
+      if (Object.keys(dayMap).length || Object.keys(availabilityByDate).length) {
+        sectionCalendarCacheRef.current[key] = true;
+      }
+    } catch (err) {
+      setSectionCalendarError(err?.message || "Calendar pricing is unavailable.");
+    } finally {
+      sectionCalendarInflightRef.current[key] = false;
+      setSectionCalendarLoading(false);
+    }
+  };
+
   const handleSectionCalendarOpen = (open) => {
     setIsSectionCalendarOpen(open);
     if (!open || !activeSection) return;
@@ -4983,7 +5085,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     baseDate.setDate(1);
     baseDate.setHours(0, 0, 0, 0);
     setSectionCalendarStartDate(baseDate);
-    const listingIds = getCalendarLookupIdsForListings(activeSection.listings || []);
+    const sectionListings = activeSection.listings || [];
+    if (sectionListings.some(isApaleoListing)) {
+      fetchApaleoSectionCalendarMonth(sectionListings, baseDate, { force: true });
+      return;
+    }
+    const listingIds = getCalendarLookupIdsForListings(sectionListings);
     if (!listingIds.length) return;
     fetchSectionCalendarMultiMonth(listingIds, baseDate, { force: true });
   };
@@ -5401,10 +5508,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         setSectionAvailabilityMap(availabilityMap);
         setSectionQuotes(quotes);
         setSectionAvailabilityActive(true);
-        // Apaleo validates the selected stay as a whole. Do not paint future
-        // dates from the legacy Guesty nightly calendar for mapped listings.
-        setSectionCalendarAvailability({});
-        setSectionCalendarPrices(null);
+        // Refresh the calendar grid from Apaleo's own nightly availability/rates
+        // instead of the legacy Guesty nightly calendar.
+        const calendarMonthStart = new Date(sectionCalendarStartDate);
+        calendarMonthStart.setDate(1);
+        calendarMonthStart.setMonth(calendarMonthStart.getMonth() + sectionCalendarMonthIndex);
+        fetchApaleoSectionCalendarMonth(apaleoListings, calendarMonthStart, { force: true });
         return;
       }
       const childIds = listingPool
@@ -10246,7 +10355,12 @@ const applyCheckoutPromoCode = () => {
                 onMonthChange={(month) => {
                   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
                   if (!activeSection) return;
-                  const listingIds = getCalendarLookupIdsForListings(activeSection.listings || []);
+                  const sectionListings = activeSection.listings || [];
+                  if (sectionListings.some(isApaleoListing)) {
+                    fetchApaleoSectionCalendarMonth(sectionListings, monthStart);
+                    return;
+                  }
+                  const listingIds = getCalendarLookupIdsForListings(sectionListings);
                   if (!listingIds.length) return;
                   fetchSectionCalendarMultiMonth(listingIds, monthStart);
                 }}

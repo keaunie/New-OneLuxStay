@@ -25,7 +25,8 @@
       "PowerShell(npm install --no-audit --no-fund)",
       "PowerShell(npm run build)",
       "Bash(cp .claude/worktrees/agent-adaafccc201286364/src/DubaiLandingPage.jsx src/DubaiLandingPage.jsx)",
-      "Bash(npx --yes esbuild src/DubaiLandingPage.jsx --bundle=false --format=esm --outfile=/tmp/esbuild-check/out.js)"
+      "Bash(npx --yes esbuild src/DubaiLandingPage.jsx --bundle=false --format=esm --outfile=/tmp/esbuild-check/out.js)",
+      "Bash(npx babel *)"
     ]
   }
 }
