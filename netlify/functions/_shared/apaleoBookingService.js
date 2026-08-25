@@ -219,8 +219,31 @@ export const getOffers = async ({ localPropertyId, propertyId, unitGroupId, arri
       channelCode: "Ibe",
     },
   });
-  return array(response?.payload?.offers).map(normalizeOffer)
-    .filter((offer) => offer.ratePlanId && offer.unitGroupId && offer.availableUnits > 0 && (!target.unitGroupId || offer.unitGroupId === target.unitGroupId));
+  const rawOffers = array(response?.payload?.offers);
+  const normalized = rawOffers.map(normalizeOffer);
+  const filtered = normalized.filter((offer) => offer.ratePlanId && offer.unitGroupId && offer.availableUnits > 0 && (!target.unitGroupId || offer.unitGroupId === target.unitGroupId));
+  // Apaleo's calendar/rates endpoints show a rate as bookable per-night without applying every
+  // constraint (length-of-stay, occupancy) /booking/v1/offers enforces for the full stay, so a
+  // property can look available while this call legitimately returns nothing. Log the raw
+  // payload whenever that happens so the actual Apaleo-side reason (empty response vs. our own
+  // filter dropping results) is visible in the function logs instead of guessed at.
+  if (!filtered.length) {
+    console.warn("[apaleo-offers] no bookable offers", {
+      propertyId: target.propertyId,
+      unitGroupId: target.unitGroupId,
+      arrival: stay.arrival,
+      departure: stay.departure,
+      adults: stay.adults,
+      rawOfferCount: rawOffers.length,
+      rawOffers: normalized.map((offer) => ({
+        ratePlanId: offer.ratePlanId,
+        unitGroupId: offer.unitGroupId,
+        availableUnits: offer.availableUnits,
+        minGuaranteeType: offer.minGuaranteeType,
+      })),
+    });
+  }
+  return filtered;
 };
 
 export const normalizeUnitGroupCalendarAvailability = ({ payload, unitGroupId, from, to }) => {
