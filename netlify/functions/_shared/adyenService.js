@@ -15,6 +15,25 @@ export const getAdyenPublicConfig = () => ({
   clientKey: clean(process.env.ADYEN_CLIENT_KEY, 300),
 });
 
+// Adyen credentials are account-wide (a single ADYEN_API_KEY/ADYEN_MERCHANT_ACCOUNT), so
+// configuring them makes Adyen payments reachable for every Apaleo-mapped property at once.
+// This is an explicit opt-in allow-list so a region-limited rollout (e.g. EU-only) doesn't
+// silently go live everywhere else the moment credentials are added. Empty/unset fails closed.
+const adyenEnabledPropertyIds = () => new Set(
+  String(process.env.ADYEN_ENABLED_PROPERTY_IDS || "")
+    .split(",").map((value) => clean(value, 120)).filter(Boolean),
+);
+
+export const assertAdyenEnabledForProperty = (propertyId) => {
+  const allowed = adyenEnabledPropertyIds();
+  const safePropertyId = clean(propertyId, 120);
+  if (!allowed.size || !safePropertyId || !allowed.has(safePropertyId)) {
+    throw Object.assign(new Error("Card payments are not yet available for this property"), {
+      statusCode: 403, code: "ADYEN_PROPERTY_NOT_ENABLED",
+    });
+  }
+};
+
 export const getApaleoPayAdditionalData = ({ propertyId, guaranteeType } = {}) => {
   const accountId = clean(process.env.APALEO_ACCOUNT_ID, 180);
   const safePropertyId = clean(propertyId, 120);

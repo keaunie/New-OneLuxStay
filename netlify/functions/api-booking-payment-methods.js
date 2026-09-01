@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody } from "./_shared/http.js";
 import { getBookingSession } from "./_shared/apaleoBookingService.js";
-import { adyenRequest, getAdyenPublicConfig } from "./_shared/adyenService.js";
+import { adyenRequest, getAdyenPublicConfig, assertAdyenEnabledForProperty } from "./_shared/adyenService.js";
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return jsonResponse(200, { ok: true });
@@ -9,6 +9,7 @@ export async function handler(event) {
     const body = readJsonBody(event);
     const session = await getBookingSession(body.bookingSessionId);
     if (session.guarantee_type === "PM6Hold") return jsonResponse(200, { paymentMethods: [], paymentRequired: false });
+    assertAdyenEnabledForProperty(session.property_id);
     const value = session.guarantee_type === "CreditCard" ? 0 : Number(session.prepayment_minor);
     const countryCode = String(body.countryCode || "BE").toUpperCase().slice(0, 2);
     const shopperLocale = String(body.shopperLocale || "en-US").slice(0, 10);

@@ -22,6 +22,7 @@ import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/le
 import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
 import { PROMO_TIERS, isPromoSelectionBlocking, usePromoConfig, validatePromoExtension } from "./utils/promoConfig";
+import ApaleoCheckoutModal from "./components/apaleo-checkout/ApaleoCheckoutModal";
 const mapsApiKey = "leaflet";
 const LOGO_URL = "https://admin.oneluxstay.com/oneluxstay-logo.webp";
 const UNIT_MARKER_ICON =
@@ -61,6 +62,7 @@ const formatCurrency = (value, currency = "USD") =>
 
 const CHECKOUT_DEFAULT_CURRENCY = "EUR";
 const ENABLE_CHECKOUT_VERIFICATION = false;
+const LEGACY_CHECKOUT_ENABLED = false; // Guesty/Stripe checkout retained for rollback, disabled — see docs/apaleo-rollout-other-cities.md
 const resolveCheckoutCurrency = (currency) => {
   const normalized = typeof currency === "string" ? currency.trim().toUpperCase() : "";
   return normalized || CHECKOUT_DEFAULT_CURRENCY;
@@ -3078,6 +3080,8 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [isCheckoutGuestOpen, setIsCheckoutGuestOpen] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState(null);
+  const [isApaleoCheckoutOpen, setIsApaleoCheckoutOpen] = useState(false);
+  const [apaleoCheckoutListing, setApaleoCheckoutListing] = useState(null);
   const checkoutSignatureCanvasRef = useRef(null);
   const isSigningRef = useRef(false);
   const [sectionHeroIndex, setSectionHeroIndex] = useState(0);
@@ -7209,6 +7213,7 @@ const applyCheckoutPromoCode = () => {
                         className="la-unit-modal__booking-cta la-unit-modal__bp-cta"
                         disabled={isReserving || isPromoSelectionBlocking(selectedPlan, cityDateNightCount, promoFeedback[listingId])}
                         onClick={() => {
+                          if (LEGACY_CHECKOUT_ENABLED) {
                           setPendingCheckout({
                             listingId,
                             listingTitle: activeListing.title,
@@ -7236,6 +7241,13 @@ const applyCheckoutPromoCode = () => {
                           setCheckoutCardPhotoError("");
                           setCheckoutGuestError("");
                           setIsCheckoutGuestOpen(true);
+                          } else {
+                            setApaleoCheckoutListing({
+                              localPropertyId: listingId,
+                              listingTitle: activeListing.title,
+                            });
+                            setIsApaleoCheckoutOpen(true);
+                          }
                         }}
                       >
                         {isReserving ? "Redirecting..." : "Reserve"}
@@ -8426,7 +8438,14 @@ const applyCheckoutPromoCode = () => {
           <ListingLoadingScreen active cityLabel="Antwerp" />
         )}
         {inquiryModal}
-        {checkoutGuestModal}
+        {LEGACY_CHECKOUT_ENABLED && checkoutGuestModal}
+        <ApaleoCheckoutModal
+          open={isApaleoCheckoutOpen}
+          onClose={() => setIsApaleoCheckoutOpen(false)}
+          localPropertyId={apaleoCheckoutListing?.localPropertyId || ""}
+          listingTitle={apaleoCheckoutListing?.listingTitle || ""}
+          defaultAdults={Number(sectionGuests) || 2}
+        />
         {listingMapModal}
         {zoomModal}
         {masonryModal}
@@ -9733,6 +9752,7 @@ const applyCheckoutPromoCode = () => {
                                   className="la-booking-table__reserve"
                                   disabled={isLoadingRates || isReserving || rowTooShort || isPromoSelectionBlocking(selectedPlan, sectionStayNights, promoFeedback[listingId])}
                                   onClick={() => {
+                                    if (LEGACY_CHECKOUT_ENABLED) {
                                     if (rowTooShort) {
                                       setSectionAvailabilityError(rowTooShortMessage);
                                       return;
@@ -9786,6 +9806,13 @@ const applyCheckoutPromoCode = () => {
                                       consentSignerName: checkoutConsentSignerName.trim(),
                                       consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
                                     });
+                                    } else {
+                                      setApaleoCheckoutListing({
+                                        localPropertyId: checkoutListingId,
+                                        listingTitle: listing.title,
+                                      });
+                                      setIsApaleoCheckoutOpen(true);
+                                    }
                                   }}
                                 >
                                   {isReserving ? "Redirecting..." : "Reserve"}
@@ -9806,7 +9833,7 @@ const applyCheckoutPromoCode = () => {
 
       {inquiryModal}
 
-      {checkoutGuestModal}
+      {LEGACY_CHECKOUT_ENABLED && checkoutGuestModal}
 
       {activeListing && !isListingRoute && (
         <div
@@ -10199,6 +10226,7 @@ const applyCheckoutPromoCode = () => {
                                 className="la-unit-modal__action-primary"
                                 disabled={sectionAvailabilityLoading || isReserving || isStayTooShort || isPromoSelectionBlocking(selectedPlan, cityDateNightCount, promoFeedback[listingId])}
                                 onClick={() => {
+                                  if (LEGACY_CHECKOUT_ENABLED) {
                                   if (isStayTooShort) {
                                     setSectionAvailabilityError(stayTooShortMessage);
                                     return;
@@ -10252,6 +10280,13 @@ const applyCheckoutPromoCode = () => {
                                     consentSignerName: checkoutConsentSignerName.trim(),
                                     consentSignatureDataUrl: checkoutConsentSignatureDataUrl,
                                   });
+                                  } else {
+                                    setApaleoCheckoutListing({
+                                      localPropertyId: listingId,
+                                      listingTitle: activeListing.title,
+                                    });
+                                    setIsApaleoCheckoutOpen(true);
+                                  }
                                 }}
                               >
                                 {isReserving ? "Redirecting..." : "Reserve"}

@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody, getBaseUrl } from "./_shared/http.js";
 import { getBookingSession, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
-import { adyenRequest, getApaleoPayAdditionalData } from "./_shared/adyenService.js";
+import { adyenRequest, getApaleoPayAdditionalData, assertAdyenEnabledForProperty } from "./_shared/adyenService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 
 export async function handler(event) {
@@ -15,6 +15,7 @@ export async function handler(event) {
     if (!["READY_FOR_PAYMENT", "PAYMENT_DECLINED", "PAYMENT_ACTION_REQUIRED"].includes(session.state)) {
       return jsonResponse(409, { message: "Booking session is not ready for payment", code: "INVALID_SESSION_STATE" });
     }
+    assertAdyenEnabledForProperty(session.property_id);
     const value = session.guarantee_type === "CreditCard" ? 0 : Number(session.prepayment_minor);
     const additionalData = getApaleoPayAdditionalData({ propertyId: session.property_id, guaranteeType: session.guarantee_type });
     const result = await adyenRequest("/payments", {

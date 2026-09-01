@@ -5,11 +5,13 @@ import { useEffect, useRef, useState } from "react";
 // callbacks through useApaleoBookingFlow's submitPayment/submitPaymentDetails, which
 // call api-booking-payments.js / api-booking-payment-details.js.
 //
-// `@adyen/adyen-web` has no other consumer in this codebase yet — this is the first
-// integration, built against its documented v6 Drop-in API. Verify against a real
-// Adyen test merchant once credentials are available (see docs/apaleo-ibe-deployment.md
-// and docs/apaleo-rollout-other-cities.md); this could not be exercised in a browser
-// in this environment.
+// Advanced-flow contract (per node_modules/@adyen/adyen-web's CoreConfiguration types):
+// onSubmit/onAdditionalDetails receive a third `actions` argument and MUST call
+// actions.resolve(response)/actions.reject() with the raw /payments or /payments/details
+// response — Drop-in uses that call to drive its own success/error/3DS-action UI
+// internally. It does not work to skip resolve/reject and call component.setStatus()/
+// handleAction() directly instead; the Pay button's own loading state depends on
+// resolve/reject firing.
 
 export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
   const containerRef = useRef(null);
@@ -32,19 +34,17 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
         ]);
         if (cancelled) return;
 
-        const handleResult = (result, component) => {
-          if (result?.action) {
-            component.handleAction(result.action);
-            return;
-          }
+        // Reports the outcome to our own onAuthorized/onDeclined hooks. Drop-in's own
+        // success/error/3DS-challenge UI is driven separately, by whatever we pass to
+        // actions.resolve()/reject() at each call site below — not by this function.
+        const reportOutcome = (result) => {
+          if (result?.action) return; // Drop-in is about to show a 3DS/redirect challenge; not a final outcome yet.
           if (result?.resultCode === "Authorised") {
-            component.setStatus("success");
             onAuthorized?.(result);
-            return;
+          } else {
+            setErrorMessage("Payment was not authorized. Please try another payment method.");
+            onDeclined?.(result);
           }
-          component.setStatus("error");
-          setErrorMessage("Payment was not authorized. Please try another payment method.");
-          onDeclined?.(result);
         };
 
         const checkoutInstance = await AdyenCheckout({
@@ -53,16 +53,17 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
           locale: config.shopperLocale || navigator.language || "en-US",
           paymentMethodsResponse: config,
           amount: { value: Number(flow.session?.prepayment_minor) || 0, currency: flow.session?.currency },
-          onSubmit: async (state, component) => {
+          onSubmit: async (state, component, actions) => {
             try {
               const result = await flow.submitPayment({
                 paymentMethod: state.data.paymentMethod,
                 browserInfo: state.data.browserInfo,
                 origin: window.location.origin,
               });
-              handleResult(result, component);
+              actions.resolve(result);
+              reportOutcome(result);
             } catch (err) {
-              component.setStatus("error");
+              actions.reject();
               if (err?.code === "PRICE_CHANGED") {
                 setErrorMessage("The price changed — please review the updated total and try again.");
               } else {
@@ -71,15 +72,16 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
               onDeclined?.(err);
             }
           },
-          onAdditionalDetails: async (state, component) => {
+          onAdditionalDetails: async (state, component, actions) => {
             try {
               const result = await flow.submitPaymentDetails({
                 details: state.data.details,
                 paymentData: state.data.paymentData,
               });
-              handleResult(result, component);
+              actions.resolve(result);
+              reportOutcome(result);
             } catch (err) {
-              component.setStatus("error");
+              actions.reject();
               setErrorMessage(err?.message || "Payment verification failed.");
               onDeclined?.(err);
             }
