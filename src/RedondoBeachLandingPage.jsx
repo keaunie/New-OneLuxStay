@@ -8917,6 +8917,8 @@ const applyCheckoutPromoCode = () => {
         localPropertyId={apaleoCheckoutListing?.localPropertyId || ""}
         listingTitle={apaleoCheckoutListing?.listingTitle || ""}
         defaultAdults={Number(sectionGuests) || 2}
+        defaultArrival={sectionCheckIn}
+        defaultDeparture={sectionCheckOut}
       />
 
       {activeListing && !isListingRoute && (
