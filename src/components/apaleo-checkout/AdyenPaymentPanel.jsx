@@ -28,7 +28,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
 
     const mount = async () => {
       try {
-        const [{ AdyenCheckout, Dropin }] = await Promise.all([
+        const [{ AdyenCheckout, Dropin, Card, Bancontact, PayPal, GooglePay, Klarna }] = await Promise.all([
           import("@adyen/adyen-web"),
           import("@adyen/adyen-web/styles/adyen.css"),
         ]);
@@ -94,7 +94,9 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
         });
 
         if (cancelled) return;
-        dropinRef.current = new Dropin(checkoutInstance).mount(containerRef.current);
+        dropinRef.current = new Dropin(checkoutInstance, {
+          paymentMethodComponents: [Card, Bancontact, PayPal, GooglePay, Klarna],
+        }).mount(containerRef.current);
         setStatus("ready");
       } catch (err) {
         if (!cancelled) {
