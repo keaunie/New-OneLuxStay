@@ -3,6 +3,7 @@ import Stepper, { Step } from "../Stepper";
 import useApaleoBookingFlow, { BOOKING_PHASE } from "../../hooks/useApaleoBookingFlow";
 import DateOfferSearch from "./DateOfferSearch";
 import AdyenPaymentPanel from "./AdyenPaymentPanel";
+import { COUNTRIES } from "../../utils/countries";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -249,8 +250,20 @@ export default function ApaleoCheckoutModal({
                 <input value={guest.postalCode} onChange={(e) => setGuest((g) => ({ ...g, postalCode: e.target.value }))} required />
               </label>
               <label>
-                <span>Country code</span>
-                <input value={guest.countryCode} maxLength={2} placeholder="US" onChange={(e) => setGuest((g) => ({ ...g, countryCode: e.target.value.toUpperCase() }))} required />
+                <span>Country</span>
+                <select
+                  value={guest.countryCode}
+                  onChange={(e) => setGuest((g) => ({ ...g, countryCode: e.target.value }))}
+                  required
+                >
+                  <option value="" disabled>Select your country…</option>
+                  {COUNTRIES.map((country) => (
+                    <option key={country.code} value={country.code}>{country.name}</option>
+                  ))}
+                </select>
+                <small className="apaleo-checkout-modal__field-hint">
+                  The country on your billing address — used to verify your payment.
+                </small>
               </label>
             </div>
           </Step>

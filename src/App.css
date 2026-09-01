@@ -19981,11 +19981,20 @@ a[href="#redondo-city-tour"],
 .apaleo-checkout-modal__field-grid label.is-wide { grid-column: 1 / -1; }
 
 .apaleo-checkout-modal__field-grid input,
-.apaleo-checkout-modal__field input {
+.apaleo-checkout-modal__field input,
+.apaleo-checkout-modal__field-grid select,
+.apaleo-checkout-modal__field select {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(60, 48, 33, 0.2);
   font-size: 0.95rem;
+  background: #fff;
+}
+
+.apaleo-checkout-modal__field-hint {
+  font-size: 0.75rem;
+  color: rgba(47, 33, 22, 0.55);
+  font-weight: 400;
 }
 
 .apaleo-checkout-modal__signature-pad {

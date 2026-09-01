@@ -221,7 +221,13 @@ export const getOffers = async ({ localPropertyId, propertyId, unitGroupId, arri
   });
   const rawOffers = array(response?.payload?.offers);
   const normalized = rawOffers.map(normalizeOffer);
-  const filtered = normalized.filter((offer) => offer.ratePlanId && offer.unitGroupId && offer.availableUnits > 0 && (!target.unitGroupId || offer.unitGroupId === target.unitGroupId));
+  const bookable = normalized.filter((offer) => offer.ratePlanId && offer.unitGroupId && offer.availableUnits > 0 && (!target.unitGroupId || offer.unitGroupId === target.unitGroupId));
+  // Rate plans are set up per property with parallel "STD"/"EXT"/"NEW" variants (legacy/
+  // extension/current); guests should only ever see the current one. Falls back to the
+  // unfiltered list for any property that doesn't follow this naming convention, so it
+  // never silently hides every offer.
+  const newOffers = bookable.filter((offer) => /new/i.test(offer.ratePlanId));
+  const filtered = newOffers.length ? newOffers : bookable;
   // Apaleo's calendar/rates endpoints show a rate as bookable per-night without applying every
   // constraint (length-of-stay, occupancy) /booking/v1/offers enforces for the full stay, so a
   // property can look available while this call legitimately returns nothing. Log the raw
