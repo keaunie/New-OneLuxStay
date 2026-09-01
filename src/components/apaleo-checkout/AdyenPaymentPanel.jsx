@@ -28,7 +28,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
 
     const mount = async () => {
       try {
-        const [{ default: AdyenCheckout }] = await Promise.all([
+        const [{ AdyenCheckout }] = await Promise.all([
           import("@adyen/adyen-web"),
           import("@adyen/adyen-web/styles/adyen.css"),
         ]);
