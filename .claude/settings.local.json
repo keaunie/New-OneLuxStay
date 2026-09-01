@@ -28,7 +28,12 @@
       "Bash(npx --yes esbuild src/DubaiLandingPage.jsx --bundle=false --format=esm --outfile=/tmp/esbuild-check/out.js)",
       "Bash(npx babel *)",
       "WebFetch(domain:apaleo.dev)",
-      "WebFetch(domain:docs.adyen.com)"
+      "WebFetch(domain:docs.adyen.com)",
+      "Bash(curl -s -X POST https://admin.oneluxstay.com/.netlify/functions/api-booking-sessions -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(python3 -c ' *)",
+      "Read(//tmp/**)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"https://admin.oneluxstay.com/.netlify/functions/api-booking-offers?localPropertyId=66e468a543cd83001318d31a&arrival=2026-09-27&departure=2026-09-30&adults=2\")"
     ]
   }
 }

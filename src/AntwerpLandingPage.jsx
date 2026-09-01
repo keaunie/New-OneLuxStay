@@ -791,6 +791,46 @@ const isApaleoListing = (listing) =>
   String(listing?.provider || "").toLowerCase() === "apaleo" ||
   Boolean(listing?.apaleoPropertyId || listing?.apaleoUnitGroupId);
 
+const buildApaleoQuote = (offers = [], nights = 0) => {
+  const plans = (Array.isArray(offers) ? offers : []).map((offer) => {
+    const total = Number(offer?.totalGrossAmount?.amount);
+    const currency = offer?.totalGrossAmount?.currency || "EUR";
+    const safeTotal = Number.isFinite(total) ? total : 0;
+    return {
+      id: offer.ratePlanId,
+      providerPlanId: offer.ratePlanId,
+      label: offer.ratePlanName || "Available rate",
+      nightly: nights > 0 ? safeTotal / nights : safeTotal,
+      currency,
+      nights,
+      total: safeTotal,
+      breakdown: {
+        accommodation: safeTotal,
+        discountAmount: 0,
+        discountRate: 0,
+        cleaning: 0,
+        taxes: 0,
+        fees: 0,
+        securityDeposit: 0,
+        subtotal: safeTotal,
+        total: safeTotal,
+        nights,
+      },
+      apaleoOffer: offer,
+    };
+  });
+  if (!plans.length) return null;
+  return {
+    provider: "apaleo",
+    plans,
+    defaultPlanId: plans[0].id,
+    currency: plans[0].currency,
+    nights,
+    total: plans[0].total,
+    breakdown: plans[0].breakdown,
+  };
+};
+
 const formatDisplayDate = (value) => {
   const date = parseDateValue(value);
   if (!date) return "Add date";
@@ -5456,6 +5496,92 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         if (!groupKey) return [activeListing];
         return losAngelesListings.filter((listing) => getListingGroupKey(listing) === groupKey);
       })();
+      const apaleoListings = listingPool.filter(isApaleoListing);
+      if (apaleoListings.length) {
+        const requestedIds = new Set(
+          Array.isArray(listingIds) ? listingIds.map(toLookupKey).filter(Boolean) : []
+        );
+        const targets = requestedIds.size
+          ? apaleoListings.filter((listing) =>
+              getListingLookupKeys(listing).some((key) => requestedIds.has(toLookupKey(key)))
+            )
+          : activeListing && isApaleoListing(activeListing)
+            ? [activeListing]
+            : apaleoListings;
+        const uniqueTargets = [...new Map(
+          targets.map((listing) => [toLookupKey(getListingId(listing)), listing])
+        ).values()].filter(Boolean);
+        const results = await Promise.all(uniqueTargets.map(async (listing) => {
+          const localPropertyId = toLookupKey(getListingId(listing));
+          const params = new URLSearchParams({
+            localPropertyId,
+            arrival: sectionCheckIn,
+            departure: sectionCheckOut,
+            adults: sectionGuests || "1",
+          });
+          const response = await fetch(`${apiBase}/api-booking-offers?${params}`, {
+            cache: "no-store",
+            signal: requestController.signal,
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload?.message || "Unable to check Apaleo availability.");
+          }
+          return { listing, offers: Array.isArray(payload?.offers) ? payload.offers : [] };
+        }));
+        const availabilityMap = {};
+        const quotes = {};
+        const availableListings = [];
+        results.forEach(({ listing, offers }) => {
+          const available = offers.length > 0;
+          if (available) availableListings.push(listing);
+          const quote = available ? buildApaleoQuote(offers, stayNights) : null;
+          getListingLookupKeys(listing).forEach((key) => {
+            availabilityMap[key] = available;
+            if (quote) quotes[key] = quote;
+          });
+        });
+        if (activeListing && isApaleoListing(activeListing)) {
+          const activeListingId = getCalendarListingId(activeListing, losAngelesListings);
+          const activeResult = results.find(({ listing }) =>
+            toLookupKey(getCalendarListingId(listing, losAngelesListings)) === toLookupKey(activeListingId));
+          if (activeListingId && activeResult && activeResult.offers.length === 0) {
+            const rejectedNights = {};
+            const rejectedStart = parseDateValue(sectionCheckIn);
+            const rejectedEnd = parseDateValue(sectionCheckOut);
+            if (rejectedStart && rejectedEnd) {
+              const cursor = new Date(rejectedStart);
+              while (cursor < rejectedEnd) {
+                rejectedNights[toISODate(cursor)] = false;
+                cursor.setDate(cursor.getDate() + 1);
+              }
+            }
+            calendarOfferUnavailableRef.current[activeListingId] = {
+              ...(calendarOfferUnavailableRef.current[activeListingId] || {}),
+              ...rejectedNights,
+            };
+            const mergedCalendarAvailability = {
+              ...(calendarAvailabilityRef.current[activeListingId] || {}),
+              ...calendarOfferUnavailableRef.current[activeListingId],
+            };
+            calendarAvailabilityRef.current[activeListingId] = mergedCalendarAvailability;
+            setCalendarAvailability(mergedCalendarAvailability);
+          }
+        }
+        setSectionAvailability(availableListings);
+        setSectionAvailabilityMap(availabilityMap);
+        setSectionQuotes(quotes);
+        setSectionAvailabilityActive(true);
+        // Refresh the calendar grid from Apaleo's own nightly availability/rates
+        // instead of the legacy Guesty nightly calendar.
+        if (activeListing && isApaleoListing(activeListing)) {
+          const calendarMonthStart = new Date(sectionCalendarStartDate);
+          calendarMonthStart.setDate(1);
+          calendarMonthStart.setMonth(calendarMonthStart.getMonth() + sectionCalendarMonthIndex);
+          fetchApaleoCalendarMonth(activeListing, calendarMonthStart, { force: true });
+        }
+        return;
+      }
       const childIds = listingPool
         .filter((listing) => isChildListing(listing))
         .map((listing) => listing.id || listing._id || listing.unitTypeId)
