@@ -114,7 +114,7 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
     setError(null);
     try {
       const methods = await getApaleoPaymentMethods({ bookingSessionId: session.id, countryCode, shopperLocale });
-      setPaymentMethodsConfig(methods);
+      setPaymentMethodsConfig({ ...methods, countryCode });
       setPhase(BOOKING_PHASE.PAYMENT);
       return methods;
     } catch (err) {

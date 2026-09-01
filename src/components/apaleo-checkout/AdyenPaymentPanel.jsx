@@ -51,6 +51,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
           environment: config.configuration?.environment || "test",
           clientKey: config.configuration?.clientKey,
           locale: config.shopperLocale || navigator.language || "en-US",
+          countryCode: config.countryCode || "BE",
           paymentMethodsResponse: config,
           amount: { value: Number(flow.session?.prepayment_minor) || 0, currency: flow.session?.currency },
           onSubmit: async (state, component, actions) => {
