@@ -28,7 +28,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
 
     const mount = async () => {
       try {
-        const [{ AdyenCheckout }] = await Promise.all([
+        const [{ AdyenCheckout, Dropin }] = await Promise.all([
           import("@adyen/adyen-web"),
           import("@adyen/adyen-web/styles/adyen.css"),
         ]);
@@ -94,7 +94,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
         });
 
         if (cancelled) return;
-        dropinRef.current = checkoutInstance.create("dropin").mount(containerRef.current);
+        dropinRef.current = new Dropin(checkoutInstance).mount(containerRef.current);
         setStatus("ready");
       } catch (err) {
         if (!cancelled) {
