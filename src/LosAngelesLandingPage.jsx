@@ -822,13 +822,16 @@ const buildApaleoQuote = (offers = [], nights = 0) => {
     const total = Number(offer?.totalGrossAmount?.amount);
     const currency = offer?.totalGrossAmount?.currency || "USD";
     const safeTotal = Number.isFinite(total) ? total : 0;
-    const cleaningTotal = (Array.isArray(offer?.mandatoryServices) ? offer.mandatoryServices : []).reduce(
-      (sum, entry) => {
+    const cleaningTotal = (Array.isArray(offer?.mandatoryServices) ? offer.mandatoryServices : [])
+      // Pet fees ride along as a mandatory service on some listings even without a pet;
+      // since the guest can't opt out of it, folding it into "Cleaning" would misrepresent
+      // that line, so it stays out of this sum (and out of the checkout's mandatory-services
+      // list — see DateOfferSearch.jsx) while still counting toward the offer's real total.
+      .filter((entry) => !/\bpet\b/i.test(entry?.service?.name || entry?.name || ""))
+      .reduce((sum, entry) => {
         const amount = Number(entry?.totalAmount?.grossAmount ?? entry?.service?.defaultGrossPrice?.amount);
         return sum + (Number.isFinite(amount) ? amount : 0);
-      },
-      0,
-    );
+      }, 0);
     const safeCleaning = Math.min(cleaningTotal, safeTotal);
     const accommodation = safeTotal - safeCleaning;
     return {

@@ -32,6 +32,12 @@ const formatMoney = (money, fallbackCurrency = "") => {
 
 const serviceName = (entry) => entry?.service?.name || entry?.name || entry?.serviceId || "Included service";
 
+// Pet fees are sometimes configured as a mandatory service even on listings where the
+// guest has no pet — since it's mandatory (not a checkbox they can opt out of), showing
+// it here just reads as an unexplained charge. Hide it from the guest-facing list; it's
+// still included in the offer's totalGrossAmount either way.
+const isHiddenMandatoryService = (entry) => /\bpet\b/i.test(serviceName(entry));
+
 export default function DateOfferSearch({
   flow,
   defaultAdults = 2,
@@ -171,12 +177,17 @@ export default function DateOfferSearch({
             <dd>{formatMoney(flow.selectedOffer.prePaymentGrossAmount, flow.selectedOffer.totalGrossAmount?.currency)}</dd>
             {flow.selectedOffer.cityTax && <><dt>City tax</dt><dd>{formatMoney(flow.selectedOffer.cityTax, flow.selectedOffer.totalGrossAmount?.currency) || "Calculated by Apaleo"}</dd></>}
           </dl>
-          {flow.selectedOffer.mandatoryServices?.length > 0 && (
-            <div className="apaleo-offer-services">
-              <strong>Included mandatory services</strong>
-              <ul>{flow.selectedOffer.mandatoryServices.map((service, index) => <li key={service?.service?.id || service?.id || index}>{serviceName(service)}</li>)}</ul>
-            </div>
-          )}
+          {(() => {
+            const visibleMandatoryServices = (flow.selectedOffer.mandatoryServices || []).filter(
+              (service) => !isHiddenMandatoryService(service),
+            );
+            return visibleMandatoryServices.length > 0 ? (
+              <div className="apaleo-offer-services">
+                <strong>Included mandatory services</strong>
+                <ul>{visibleMandatoryServices.map((service, index) => <li key={service?.service?.id || service?.id || index}>{serviceName(service)}</li>)}</ul>
+              </div>
+            ) : null;
+          })()}
           {flow.serviceOffers.length > 0 && (
             <fieldset className="apaleo-offer-services">
               <legend>Optional extras</legend>
