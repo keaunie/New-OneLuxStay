@@ -796,6 +796,15 @@ const buildApaleoQuote = (offers = [], nights = 0) => {
     const total = Number(offer?.totalGrossAmount?.amount);
     const currency = offer?.totalGrossAmount?.currency || "EUR";
     const safeTotal = Number.isFinite(total) ? total : 0;
+    const cleaningTotal = (Array.isArray(offer?.mandatoryServices) ? offer.mandatoryServices : []).reduce(
+      (sum, entry) => {
+        const amount = Number(entry?.totalAmount?.grossAmount ?? entry?.service?.defaultGrossPrice?.amount);
+        return sum + (Number.isFinite(amount) ? amount : 0);
+      },
+      0,
+    );
+    const safeCleaning = Math.min(cleaningTotal, safeTotal);
+    const accommodation = safeTotal - safeCleaning;
     return {
       id: offer.ratePlanId,
       providerPlanId: offer.ratePlanId,
@@ -805,11 +814,12 @@ const buildApaleoQuote = (offers = [], nights = 0) => {
       nights,
       total: safeTotal,
       breakdown: {
-        accommodation: safeTotal,
+        accommodation,
         discountAmount: 0,
         discountRate: 0,
-        cleaning: 0,
+        cleaning: safeCleaning,
         taxes: 0,
+        taxesNote: "Local city tax — collected at check-in, not shown here",
         fees: 0,
         securityDeposit: 0,
         subtotal: safeTotal,
@@ -7239,6 +7249,9 @@ const applyCheckoutPromoCode = () => {
                         <span>Taxes</span>
                         <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                       </div>
+                      {breakdown.taxesNote && (
+                        <p className="la-unit-modal__inquiry-note">{breakdown.taxesNote}</p>
+                      )}
                       <div>
                         <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                         <strong>
@@ -9805,6 +9818,9 @@ const applyCheckoutPromoCode = () => {
                                             <span>Taxes</span>
                                             <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                                           </div>
+                                          {breakdown.taxesNote && (
+                                            <p className="la-unit-modal__inquiry-note">{breakdown.taxesNote}</p>
+                                          )}
                                           <div>
                                             <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                                             <strong>
@@ -10301,6 +10317,9 @@ const applyCheckoutPromoCode = () => {
                               <span>Taxes</span>
                               <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
                             </div>
+                            {breakdown.taxesNote && (
+                              <p className="la-unit-modal__inquiry-note">{breakdown.taxesNote}</p>
+                            )}
                             <div>
                               <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
                               <strong>
