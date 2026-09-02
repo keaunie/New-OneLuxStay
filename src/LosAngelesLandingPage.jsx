@@ -7199,22 +7199,26 @@ const applyCheckoutPromoCode = () => {
                         <span>Cleaning</span>
                         <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
                       </div>
-                      <div>
-                        <span>Taxes</span>
-                        <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                      </div>
+                      {Number(breakdown.taxes) > 0 && (
+                        <div>
+                          <span>Taxes</span>
+                          <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                        </div>
+                      )}
                       {breakdown.taxesNote && (
                         <p className="la-unit-modal__inquiry-note">{breakdown.taxesNote}</p>
                       )}
-                      <div>
-                        <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                        <strong>
-                          {formatCurrency(
-                            Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
-                            priceCurrency,
-                          )}
-                        </strong>
-                      </div>
+                      {Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0) > 0 && (
+                        <div>
+                          <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
+                          <strong>
+                            {formatCurrency(
+                              Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
+                              priceCurrency,
+                            )}
+                          </strong>
+                        </div>
+                      )}
                       <div className="la-unit-modal__total">
                         <span>Total</span>
                         <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
@@ -9742,26 +9746,33 @@ const applyCheckoutPromoCode = () => {
                                             <span>Cleaning</span>
                                             <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
                                           </div>
-                                          <div>
-                                            <span>Taxes</span>
-                                            <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                                          </div>
+                                          {Number(breakdown.taxes) > 0 && (
+                                            <div>
+                                              <span>Taxes</span>
+                                              <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                                            </div>
+                                          )}
                                           {breakdown.taxesNote && (
                                             <p className="la-unit-modal__inquiry-note">{breakdown.taxesNote}</p>
                                           )}
-                                          <div>
-                                            <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                                            <strong>
-                                              {formatCurrency(
-                                                Math.max(
-                                                  (Number(breakdown.fees) || 0) -
-                                                    (Number(breakdown.securityDeposit) || 0),
-                                                  0,
-                                                ),
-                                                priceCurrency,
-                                              )}
-                                            </strong>
-                                          </div>
+                                          {Math.max(
+                                            (Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0),
+                                            0,
+                                          ) > 0 && (
+                                            <div>
+                                              <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
+                                              <strong>
+                                                {formatCurrency(
+                                                  Math.max(
+                                                    (Number(breakdown.fees) || 0) -
+                                                      (Number(breakdown.securityDeposit) || 0),
+                                                    0,
+                                                  ),
+                                                  priceCurrency,
+                                                )}
+                                              </strong>
+                                            </div>
+                                          )}
                                           <div className="la-booking-table__total">
                                             <span>Total</span>
                                             <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
@@ -10232,22 +10243,26 @@ const applyCheckoutPromoCode = () => {
                               <span>Cleaning</span>
                               <strong>{formatCurrency(breakdown.cleaning, priceCurrency)}</strong>
                             </div>
-                            <div>
-                              <span>Taxes</span>
-                              <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
-                            </div>
+                            {Number(breakdown.taxes) > 0 && (
+                              <div>
+                                <span>Taxes</span>
+                                <strong>{formatCurrency(breakdown.taxes, priceCurrency)}</strong>
+                              </div>
+                            )}
                             {breakdown.taxesNote && (
                               <p className="la-unit-modal__inquiry-note">{breakdown.taxesNote}</p>
                             )}
-                            <div>
-                              <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
-                              <strong>
-                                {formatCurrency(
-                                  Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
-                                  priceCurrency,
-                                )}
-                              </strong>
-                            </div>
+                            {Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0) > 0 && (
+                              <div>
+                                <span>Admin fee ({Math.round(STRIPE_ADMIN_FEE_RATE * 100)}%)</span>
+                                <strong>
+                                  {formatCurrency(
+                                    Math.max((Number(breakdown.fees) || 0) - (Number(breakdown.securityDeposit) || 0), 0),
+                                    priceCurrency,
+                                  )}
+                                </strong>
+                              </div>
+                            )}
                             <div className="la-unit-modal__total">
                               <span>Total</span>
                               <strong>{formatCurrency(Math.max((Number(breakdown.total) || 0) - (Number(breakdown.securityDeposit) || 0), 0), priceCurrency)}</strong>
