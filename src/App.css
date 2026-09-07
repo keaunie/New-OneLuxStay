@@ -9562,6 +9562,38 @@ body {
   font-weight: 600;
 }
 
+.maint-page {
+  text-align: center;
+}
+
+.maint-card {
+  display: grid;
+  justify-items: center;
+}
+
+.maint-quote {
+  margin: 8px 0 22px;
+  padding: 18px 22px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(201, 181, 156, 0.4);
+  border-radius: 16px;
+  max-width: 480px;
+}
+
+.maint-quote p {
+  margin: 0;
+  font-family: var(--landing-font-display);
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.5;
+  color: #6b5636;
+}
+
+.maint-contact {
+  justify-items: center;
+  text-align: center;
+}
+
 .rb-stepper {
   width: 100%;
 }

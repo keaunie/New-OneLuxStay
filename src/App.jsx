@@ -46,6 +46,7 @@ const BlogPage              = lazy(routePreloaders.blog);
 const BlogArticlePage       = lazy(routePreloaders.blogArticle);
 const AdminBlogPage         = lazy(routePreloaders.adminBlog);
 const AdminPropertiesPage   = lazy(() => import("./pages/AdminPropertiesPage"));
+const MaintenancePage       = lazy(routePreloaders.maintenance);
 
 const CITY_ROOT_PATHS = new Set([
   "/antwerp",
@@ -274,6 +275,8 @@ function AppRoutes() {
           <Route path="/executive-ols/blog" element={renderLazyRoute(AdminBlogPage)} />
           <Route path="/admin/properties" element={renderLazyRoute(AdminPropertiesPage)} />
           <Route path="/admin/properties/:propertyId" element={renderLazyRoute(AdminPropertiesPage)} />
+          <Route path="/maintenance" element={renderLazyRoute(MaintenancePage)} />
+          <Route path="/under-maintenance" element={renderLazyRoute(MaintenancePage)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}

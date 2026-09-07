@@ -34,6 +34,7 @@ const preloadGuestReservationPage  = () => import("../pages/GuestReservationPage
 const preloadBlogPage = () => import("../pages/BlogPage");
 const preloadBlogArticlePage = () => import("../pages/BlogArticlePage");
 const preloadAdminBlogPage = () => import("../pages/AdminBlogPage");
+const preloadMaintenancePage = () => import("../MaintenancePage");
 const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 
 export const routePreloaders = {
@@ -73,6 +74,7 @@ export const routePreloaders = {
   blog: preloadBlogPage,
   blogArticle: preloadBlogArticlePage,
   adminBlog: preloadAdminBlogPage,
+  maintenance: preloadMaintenancePage,
   executiveOlsAuth: preloadExecutiveOlsAuthPage,
 };
 
@@ -201,6 +203,9 @@ export const prefetchRouteByPath = (value = "") => {
   }
   if (normalized === "/apaleo-test") {
     return routePreloaders.apaleoTest().then(() => undefined);
+  }
+  if (normalized === "/maintenance" || normalized === "/under-maintenance") {
+    return routePreloaders.maintenance().then(() => undefined);
   }
   return prefetchCityRoute(normalized);
 };
