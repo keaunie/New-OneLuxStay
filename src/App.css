@@ -19979,6 +19979,43 @@ a[href="#redondo-city-tour"],
   padding: 32px 24px 24px;
 }
 
+.apaleo-checkout-modal__paused {
+  text-align: center;
+  padding-top: 40px;
+}
+
+.apaleo-checkout-modal__paused-kicker {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+  color: rgba(63, 51, 38, 0.6);
+}
+
+.apaleo-checkout-modal__paused-copy {
+  margin: 0 0 20px;
+  color: rgba(47, 33, 22, 0.75);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.apaleo-checkout-modal__paused-contact {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(201, 181, 156, 0.4);
+  border-radius: 16px;
+}
+
+.apaleo-checkout-modal__paused-contact a {
+  color: #7a5d3a;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
 .apaleo-checkout-modal__close {
   position: absolute;
   top: 12px;

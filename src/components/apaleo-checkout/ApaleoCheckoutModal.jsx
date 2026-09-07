@@ -4,6 +4,7 @@ import useApaleoBookingFlow, { BOOKING_PHASE } from "../../hooks/useApaleoBookin
 import DateOfferSearch from "./DateOfferSearch";
 import AdyenPaymentPanel from "./AdyenPaymentPanel";
 import { COUNTRIES } from "../../utils/countries";
+import { PAYMENTS_DISABLED, PAYMENTS_DISABLED_CONTACT } from "../../config/paymentsConfig";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -164,6 +165,31 @@ export default function ApaleoCheckoutModal({
   };
 
   if (!open) return null;
+
+  // Kill-switch while the Apaleo/Adyen checkout is being finished — skip starting
+  // a booking session entirely and send guests straight to a human instead.
+  if (PAYMENTS_DISABLED) {
+    return (
+      <div className="apaleo-checkout-modal__overlay" role="dialog" aria-modal="true">
+        <div className="apaleo-checkout-modal apaleo-checkout-modal__paused">
+          <button type="button" className="apaleo-checkout-modal__close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+          <p className="apaleo-checkout-modal__paused-kicker">OneLuxStay</p>
+          <h3 className="apaleo-checkout-modal__step-title">Booking by phone, for now</h3>
+          <p className="apaleo-checkout-modal__paused-copy">
+            {listingTitle ? `Online payment for ${listingTitle} is` : "Online payment is"} temporarily
+            unavailable while we upgrade our booking system. Reach out and our team will secure your
+            reservation directly.
+          </p>
+          <div className="apaleo-checkout-modal__paused-contact">
+            <a href={PAYMENTS_DISABLED_CONTACT.phoneHref}>{PAYMENTS_DISABLED_CONTACT.phone}</a>
+            <a href={`mailto:${PAYMENTS_DISABLED_CONTACT.email}`}>{PAYMENTS_DISABLED_CONTACT.email}</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (flow.phase === BOOKING_PHASE.CONFIRMED) {
     return (
