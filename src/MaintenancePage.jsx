@@ -38,7 +38,7 @@ const MaintenancePage = () => {
 
         <div className="ack-success maint-contact">
           <p>Need immediate assistance?</p>
-          <a href="mailto:concierge@oneluxstay.com">concierge@oneluxstay.com</a>
+          <a href="mailto:reservations@oneluxstay.com">reservations@oneluxstay.com</a>
         </div>
       </div>
     </div>
