@@ -1,4 +1,5 @@
 import { useState } from "react";
+import apiBase from "../../utils/apiBase";
 
 const INITIAL_FORM = { name: "", email: "", phone: "", notes: "" };
 
@@ -52,7 +53,7 @@ export default function ReservationRequestForm({
     setSubmitting(true);
 
     try {
-      const res = await fetch("/.netlify/functions/apaleo-create-reservation", {
+      const res = await fetch(`${apiBase}/apaleo-create-reservation`, {
         method: "POST",
         credentials: "omit",
         headers: { "Content-Type": "application/json" },

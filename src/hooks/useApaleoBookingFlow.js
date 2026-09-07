@@ -8,6 +8,7 @@ import {
   submitApaleoPayment,
   submitApaleoPaymentDetails,
   confirmApaleoBooking,
+  submitApaleoManualRequest,
   getApaleoBookingConfirmation,
 } from "../services/apaleoBookingApi";
 
@@ -184,6 +185,26 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
     }
   }, [session]);
 
+  // Used while the payment gateway is paused (src/config/paymentsConfig.js): records the
+  // guest's signed consent and emails the reservations team instead of calling Apaleo's
+  // live booking endpoint, which requires an authorized payment or PM6Hold guarantee.
+  const submitManualRequest = useCallback(async ({ guest, listingTitle, consent }) => {
+    if (!session?.id) throw asApiError(new Error("No active booking session."));
+    setPhase(BOOKING_PHASE.CONFIRMING);
+    setError(null);
+    try {
+      const result = await submitApaleoManualRequest({ bookingSessionId: session.id, guest, listingTitle, consent });
+      setConfirmation({ ...result, manual: true });
+      setPhase(BOOKING_PHASE.CONFIRMED);
+      return result;
+    } catch (err) {
+      const apiError = asApiError(err);
+      setError(apiError);
+      setPhase(BOOKING_PHASE.GUEST_DETAILS);
+      throw apiError;
+    }
+  }, [session]);
+
   const pollConfirmation = useCallback(async (bookingSessionId, { timeoutMs = 20_000, intervalMs = 1500 } = {}) => {
     const id = bookingSessionId || session?.id;
     if (!id) return null;
@@ -215,6 +236,6 @@ export default function useApaleoBookingFlow({ localPropertyId = "", propertyId 
     stay, offers, selectedOffer, serviceOffers, selectedServiceIds,
     session, paymentMethodsConfig, confirmation, loading, error, setError,
     searchOffers, selectOffer, toggleService, startSession, loadPaymentMethods, revalidate,
-    submitPayment, submitPaymentDetails, confirmBooking, pollConfirmation, reset,
+    submitPayment, submitPaymentDetails, confirmBooking, submitManualRequest, pollConfirmation, reset,
   };
 }

@@ -11,6 +11,33 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/;
 const emptyGuest = { firstName: "", lastName: "", email: "", phone: "", addressLine1: "", postalCode: "", city: "", countryCode: "" };
 
 function ConfirmationPanel({ confirmation, listingTitle, onClose }) {
+  if (confirmation?.manual) {
+    return (
+      <div className="apaleo-checkout-modal__confirmation">
+        <h2>Request sent</h2>
+        <p>
+          {listingTitle ? `Your details and signature for ${listingTitle} were sent to our reservations team.` : "Your details and signature were sent to our reservations team."}{" "}
+          We&rsquo;ll call or email you shortly to take payment and confirm your stay.
+        </p>
+        <p>
+          Need us sooner? Call{" "}
+          <a href={PAYMENTS_DISABLED_CONTACT.phoneHref}>{PAYMENTS_DISABLED_CONTACT.phone}</a> or email{" "}
+          <a href={`mailto:${PAYMENTS_DISABLED_CONTACT.email}`}>{PAYMENTS_DISABLED_CONTACT.email}</a>.
+        </p>
+        {confirmation?.consentPdfUrl && (
+          <p>
+            <a href={confirmation.consentPdfUrl} target="_blank" rel="noreferrer">
+              Download your signed consent record
+            </a>
+          </p>
+        )}
+        <button type="button" className="apaleo-checkout-modal__submit" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="apaleo-checkout-modal__confirmation">
       <h2>Booking confirmed</h2>
@@ -92,6 +119,7 @@ export default function ApaleoCheckoutModal({
 
   const handleStepChange = async (step) => {
     setCurrentStep(step);
+    if (PAYMENTS_DISABLED) return;
     if (step === 3 && flow.session?.payment_state !== "NOT_REQUIRED" && !flow.paymentMethodsConfig) {
       try {
         await flow.loadPaymentMethods({ countryCode: guest.countryCode, shopperLocale: navigator.language || "en-US" });
@@ -164,32 +192,19 @@ export default function ApaleoCheckoutModal({
     }
   };
 
-  if (!open) return null;
+  // Kill-switch while the Apaleo/Adyen checkout is being finished: guest details and
+  // consent/signature are still collected as normal, but instead of an Adyen payment
+  // this sends the signed request straight to the reservations team to finish by phone.
+  const handleManualRequest = async () => {
+    setConfirmError("");
+    try {
+      await flow.submitManualRequest({ guest, listingTitle, consent: buildConsentPayload() });
+    } catch (err) {
+      setConfirmError(err?.message || "Unable to send your request. Please try again or contact us directly.");
+    }
+  };
 
-  // Kill-switch while the Apaleo/Adyen checkout is being finished — skip starting
-  // a booking session entirely and send guests straight to a human instead.
-  if (PAYMENTS_DISABLED) {
-    return (
-      <div className="apaleo-checkout-modal__overlay" role="dialog" aria-modal="true">
-        <div className="apaleo-checkout-modal apaleo-checkout-modal__paused">
-          <button type="button" className="apaleo-checkout-modal__close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-          <p className="apaleo-checkout-modal__paused-kicker">OneLuxStay</p>
-          <h3 className="apaleo-checkout-modal__step-title">Booking by phone, for now</h3>
-          <p className="apaleo-checkout-modal__paused-copy">
-            {listingTitle ? `Online payment for ${listingTitle} is` : "Online payment is"} temporarily
-            unavailable while we upgrade our booking system. Reach out and our team will secure your
-            reservation directly.
-          </p>
-          <div className="apaleo-checkout-modal__paused-contact">
-            <a href={PAYMENTS_DISABLED_CONTACT.phoneHref}>{PAYMENTS_DISABLED_CONTACT.phone}</a>
-            <a href={`mailto:${PAYMENTS_DISABLED_CONTACT.email}`}>{PAYMENTS_DISABLED_CONTACT.email}</a>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!open) return null;
 
   if (flow.phase === BOOKING_PHASE.CONFIRMED) {
     return (
@@ -326,8 +341,27 @@ export default function ApaleoCheckoutModal({
           </Step>
 
           <Step>
-            <h3 className="apaleo-checkout-modal__step-title">Payment</h3>
-            {flow.session?.payment_state === "NOT_REQUIRED" ? (
+            <h3 className="apaleo-checkout-modal__step-title">
+              {PAYMENTS_DISABLED ? "Send your request" : "Payment"}
+            </h3>
+            {PAYMENTS_DISABLED ? (
+              <div className="apaleo-checkout-modal__no-payment">
+                <p>
+                  Online payment is temporarily unavailable while we upgrade our booking system. Send us
+                  your signed details below and our reservations team will call or email you at{" "}
+                  {guest.phone || guest.email || "the contact info you provided"} to take payment and
+                  confirm your stay.
+                </p>
+                <button type="button" className="apaleo-checkout-modal__submit" onClick={handleManualRequest} disabled={flow.phase === BOOKING_PHASE.CONFIRMING}>
+                  {flow.phase === BOOKING_PHASE.CONFIRMING ? "Sending…" : "Send my request"}
+                </button>
+                <p className="apaleo-checkout-modal__field-hint">
+                  Prefer to book by phone right now? Call{" "}
+                  <a href={PAYMENTS_DISABLED_CONTACT.phoneHref}>{PAYMENTS_DISABLED_CONTACT.phone}</a> or
+                  email <a href={`mailto:${PAYMENTS_DISABLED_CONTACT.email}`}>{PAYMENTS_DISABLED_CONTACT.email}</a>.
+                </p>
+              </div>
+            ) : flow.session?.payment_state === "NOT_REQUIRED" ? (
               <div className="apaleo-checkout-modal__no-payment">
                 <p>No payment is required now — you&rsquo;ll pay at the property.</p>
                 <button type="button" className="apaleo-checkout-modal__submit" onClick={handleNoPaymentConfirm} disabled={flow.phase === BOOKING_PHASE.CONFIRMING}>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import apiBase from "../utils/apiBase";
 import ReservationHero from "../components/reservations/ReservationHero.jsx";
 import ReservationFilters from "../components/reservations/ReservationFilters.jsx";
 import ReservationGrid from "../components/reservations/ReservationGrid.jsx";
@@ -93,8 +94,8 @@ export default function GuestReservationPage() {
       };
 
       const [propRes, ugRes] = await Promise.all([
-        fetchOrThrow("/.netlify/functions/apaleo-properties"),
-        fetchOrThrow("/.netlify/functions/apaleo-unit-groups"),
+        fetchOrThrow(`${apiBase}/apaleo-properties`),
+        fetchOrThrow(`${apiBase}/apaleo-unit-groups`),
       ]);
 
       if (!propRes.ok) {
