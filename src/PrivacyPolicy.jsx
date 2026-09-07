@@ -69,10 +69,14 @@ function PrivacyPolicy() {
         </section>
 
         <section className="policy-section">
-          <h2>Cookies</h2>
+          <h2>Cookies &amp; Similar Technologies</h2>
           <p>
-            Our Website uses cookies to improve your browsing experience. You can disable cookies in your browser, but
-            some features may not function properly.
+            We use two categories of browser storage. <strong>Necessary:</strong> remembers your cookie preference
+            and lets features like our chat concierge work — these are required for the site to function and are not
+            optional. <strong>Analytics:</strong> a first-party session identifier and page-view data that help us
+            understand how the site is used; these are only set after you accept them in the cookie banner shown on
+            your first visit. You can change your choice at any time by clearing your browser's site data for this
+            domain, which will show the banner again. We do not use third-party advertising cookies.
           </p>
         </section>
 
@@ -127,6 +131,17 @@ function PrivacyPolicy() {
         <section className="policy-section">
           <h2>Legal Disclosure</h2>
           <p>We may disclose data to comply with legal obligations or business transitions.</p>
+        </section>
+
+        <section className="policy-section">
+          <h2>International Data Transfers</h2>
+          <p>
+            We operate stays in the United States, Belgium, and the United Arab Emirates. If you book a stay in the
+            UAE, your personal information may be processed and stored outside the UAE by our service providers
+            (booking, payments, and IT infrastructure). Where required by applicable law, we rely on your consent or
+            other appropriate safeguards for these transfers. Guests booking in the EU/Belgium benefit from
+            protections under the General Data Protection Regulation regardless of where data is processed.
+          </p>
         </section>
 
         <section className="policy-section">

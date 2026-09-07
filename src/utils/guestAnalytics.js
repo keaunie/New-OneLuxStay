@@ -1,4 +1,5 @@
 import apiBase from "./apiBase";
+import { hasAnalyticsConsent } from "./cookieConsent";
 import {
   trackAvailabilitySearch,
   trackCityView,
@@ -196,6 +197,7 @@ export const trackGuestJourneyEvent = async ({
 } = {}) => {
   const normalizedEventType = sanitizeString(eventType, 80).toLowerCase();
   if (!normalizedEventType) return;
+  if (!hasAnalyticsConsent()) return;
 
   const normalizedCity = sanitizeString(city || pageContext?.city, 120);
   const normalizedListingId = sanitizeString(listingId || pageContext?.listingId, 120);
@@ -317,6 +319,7 @@ export const trackGuestListingClick = async ({
 
 export const trackGuestPageView = async () => {
   if (typeof window === "undefined") return;
+  if (!hasAnalyticsConsent()) return;
 
   const pathname = sanitizeString(window.location.pathname, 240) || "/";
   const search = sanitizeString(window.location.search, 240);

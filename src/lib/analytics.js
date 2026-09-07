@@ -3,6 +3,7 @@ import {
   ANALYTICS_EVENTS,
   FUNNEL_STAGES,
 } from "./analyticsEvents";
+import { hasAnalyticsConsent } from "../utils/cookieConsent";
 
 const GA_MEASUREMENT_ID = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "").trim();
 const ENABLE_IN_DEV = String(import.meta.env.VITE_GA_ENABLE_IN_DEV || "").trim().toLowerCase() === "true";
@@ -49,6 +50,7 @@ const isTrackEnabled = () => {
   if (!canUseDom()) return false;
   if (!GA_MEASUREMENT_ID) return false;
   if (IS_DEV && !ENABLE_IN_DEV) return false;
+  if (!hasAnalyticsConsent()) return false;
   return true;
 };
 
@@ -118,6 +120,7 @@ export const getPageContext = (pathOverride = "") => {
 
 export const captureUtmAttribution = (searchValue = "") => {
   if (!canUseDom()) return {};
+  if (!hasAnalyticsConsent()) return {};
   const params = new URLSearchParams(String(searchValue || window.location.search || ""));
   let hasAny = false;
   const next = {};

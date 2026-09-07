@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useState } from "r
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
+import CookieConsentBanner from "./components/CookieConsentBanner";
 import ScrollToTop from "./components/ScrollToTop";
 import AnalyticsTracker from "./components/AnalyticsTracker";
 import ProtectedSuperAdminRoute from "./components/ProtectedSuperAdminRoute";
@@ -280,6 +281,7 @@ function AppRoutes() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}
+        {!hideChatConcierge && <CookieConsentBanner />}
       </div>
     </>
   ); 
