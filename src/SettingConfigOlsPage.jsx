@@ -82,7 +82,7 @@ const SettingConfigOlsPage = () => {
   const devConfig = {
     env: "development",
     version: "2.4.0-dev",
-    apiEndpoint: import.meta.env.VITE_SUPABASE_URL || "https://xjyjupxhvprbwiravysf.supabase.co",
+    apiEndpoint: import.meta.env.VITE_SUPABASE_URL || "https://mbnstabssoocoqtbdjgc.supabase.co",
     netlifySite: "https://oneluxstay.com",
     lastSync: new Date().toLocaleString(),
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? "Configured" : "Missing",

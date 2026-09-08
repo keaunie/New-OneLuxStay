@@ -5,7 +5,10 @@ import {
 } from "./analyticsEvents";
 import { hasAnalyticsConsent } from "../utils/cookieConsent";
 
-const GA_MEASUREMENT_ID = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "").trim();
+// Falls back to the production measurement ID directly: this isn't a secret (it's shipped
+// in the public JS bundle either way) and keeping it out of Netlify's env vars avoids the
+// per-function AWS Lambda 4KB environment size limit (see docs/netlify-lambda-env-limit-fix.md).
+const GA_MEASUREMENT_ID = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "G-CX3CPMWTJT").trim();
 const ENABLE_IN_DEV = String(import.meta.env.VITE_GA_ENABLE_IN_DEV || "").trim().toLowerCase() === "true";
 const DEBUG = String(import.meta.env.VITE_ANALYTICS_DEBUG || "").trim().toLowerCase() === "true";
 const IS_DEV = Boolean(import.meta.env.DEV);
