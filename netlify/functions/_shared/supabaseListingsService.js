@@ -366,6 +366,89 @@ const mapPropertyRowToListing = (property = {}) => {
   };
 };
 
+const PROPERTIES_STATUS_SELECT = "id,guesty_id,guesty_listing_id,status,website_status";
+
+// The `listings` table is a cache populated by scripts/supabase-sync-listings.mjs and is
+// only refreshed manually, so it can go stale relative to `properties.status` /
+// `website_status`, which the admin panel writes to directly. Cross-check against
+// `properties` here so an admin inactive/hidden toggle takes effect immediately instead
+// of waiting on the next manual sync. Best-effort: on failure, leave rows untouched.
+const fetchPropertiesStatusMap = async (ids = []) => {
+  const uniqueIds = [...new Set(ids.map((id) => normalizeString(id)).filter(Boolean))];
+  const map = new Map();
+  if (!uniqueIds.length) return map;
+
+  const addRows = (rows) => {
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      [row?.id, row?.guesty_id, row?.guesty_listing_id]
+        .map((value) => normalizeString(value))
+        .filter(Boolean)
+        .forEach((key) => map.set(key, row));
+    });
+  };
+
+  try {
+    addRows(
+      await supabaseRestRequest(PROPERTIES_TABLE_NAME, {
+        query: {
+          select: PROPERTIES_STATUS_SELECT,
+          guesty_listing_id: `in.${toSupabaseInFilter(uniqueIds)}`,
+          limit: String(uniqueIds.length),
+        },
+      }),
+    );
+  } catch {
+    // Ignore; overrides simply won't apply for these ids.
+  }
+
+  const stillMissing = uniqueIds.filter((id) => !map.has(id));
+  if (stillMissing.length) {
+    try {
+      addRows(
+        await supabaseRestRequest(PROPERTIES_TABLE_NAME, {
+          query: {
+            select: PROPERTIES_STATUS_SELECT,
+            id: `in.${toSupabaseInFilter(stillMissing)}`,
+            limit: String(stillMissing.length),
+          },
+        }),
+      );
+    } catch {
+      // Ignore; overrides simply won't apply for these ids.
+    }
+  }
+
+  return map;
+};
+
+const applyPropertiesStatusOverrides = async (results = []) => {
+  const rows = Array.isArray(results) ? results : [];
+  if (!rows.length) return rows;
+
+  const statusMap = await fetchPropertiesStatusMap(rows.flatMap((row) => readListingIds(row)));
+  if (!statusMap.size) return rows;
+
+  return rows.map((row) => {
+    const match = readListingIds(row)
+      .map((id) => statusMap.get(id))
+      .find(Boolean);
+    if (!match) return row;
+
+    const activeOverride = normalizeStatusFlag(match.status);
+    const visibleOverride = normalizeStatusFlag(match.website_status);
+    if (activeOverride && visibleOverride) return row;
+
+    const rawActive = getBooleanValue(row, "active", "is_active") ?? true;
+    const rawListed = getBooleanValue(row, "listed", "is_listed") ?? true;
+
+    return {
+      ...row,
+      active: rawActive && activeOverride,
+      listed: rawListed && activeOverride && visibleOverride,
+    };
+  });
+};
+
 const querySupabaseListings = async ({ query, propertiesMode }) => {
   if (!propertiesMode) {
     return supabaseRestRequest(SUPABASE_LISTINGS_TABLE, { query });
@@ -455,6 +538,8 @@ export const fetchListingsFromSupabase = async ({ queryParams = {} } = {}) => {
     results = results
       .map((property) => mapPropertyRowToListing(property))
       .filter(Boolean);
+  } else {
+    results = await applyPropertiesStatusOverrides(results);
   }
 
   if (requestedIds.length) {
