@@ -15,9 +15,14 @@ export const getAdyenPublicConfig = () => ({
   clientKey: clean(process.env.ADYEN_CLIENT_KEY, 300),
 });
 
-// Adyen credentials are account-wide (a single ADYEN_API_KEY/ADYEN_MERCHANT_ACCOUNT), so
-// configuring them makes Adyen payments reachable for every Apaleo-mapped property at once.
-// This is an explicit opt-in allow-list so a region-limited rollout (e.g. EU-only) doesn't
+// The Adyen API key is account-wide, but each property settles under one of two distinct
+// merchant accounts tied to a different legal entity/bank account (OneLuxStayUSCOM for the
+// US properties, OneLuxStayAntwerpenCOM for the Antwerp ones — confirmed against Apaleo's own
+// per-property Payment settings). Sending the wrong merchantAccount would authorize the payment
+// but settle it to the wrong entity's bank account, so this is resolved per property rather than
+// defaulting to one shared value.
+//
+// This allow-list is an explicit opt-in so a region-limited rollout (e.g. EU-only) doesn't
 // silently go live everywhere else the moment credentials are added. Empty/unset fails closed.
 const adyenEnabledPropertyIds = () => new Set(
   String(process.env.ADYEN_ENABLED_PROPERTY_IDS || "")
@@ -32,6 +37,28 @@ export const assertAdyenEnabledForProperty = (propertyId) => {
       statusCode: 403, code: "ADYEN_PROPERTY_NOT_ENABLED",
     });
   }
+};
+
+export const resolveAdyenMerchantAccount = (propertyId) => {
+  const safePropertyId = clean(propertyId, 120);
+  let perPropertyMap = {};
+  try {
+    perPropertyMap = JSON.parse(process.env.ADYEN_MERCHANT_ACCOUNT_IDS_JSON || "{}");
+  } catch {
+    throw Object.assign(new Error("ADYEN_MERCHANT_ACCOUNT_IDS_JSON must be valid JSON"), {
+      statusCode: 503, code: "ADYEN_MERCHANT_ACCOUNT_CONFIG_INVALID",
+    });
+  }
+  const merchantAccount = clean(
+    perPropertyMap[safePropertyId] || process.env.ADYEN_MERCHANT_ACCOUNT,
+    180,
+  );
+  if (!merchantAccount) {
+    throw Object.assign(new Error(`No Adyen merchant account configured for property ${safePropertyId}`), {
+      statusCode: 503, code: "ADYEN_MERCHANT_ACCOUNT_MISSING",
+    });
+  }
+  return merchantAccount;
 };
 
 export const getApaleoPayAdditionalData = ({ propertyId, guaranteeType } = {}) => {
@@ -61,9 +88,9 @@ export const getApaleoPayAdditionalData = ({ propertyId, guaranteeType } = {}) =
   return additionalData;
 };
 
-export const adyenRequest = async (path, body, { idempotencyKey } = {}) => {
+export const adyenRequest = async (path, body, { idempotencyKey, merchantAccount: merchantAccountOverride } = {}) => {
   const apiKey = clean(process.env.ADYEN_API_KEY, 500);
-  const merchantAccount = clean(process.env.ADYEN_MERCHANT_ACCOUNT, 180);
+  const merchantAccount = clean(merchantAccountOverride, 180) || clean(process.env.ADYEN_MERCHANT_ACCOUNT, 180);
   if (!apiKey || !merchantAccount) throw Object.assign(new Error("Adyen is not configured"), { statusCode: 503 });
   const response = await fetchWithTimeout(`${baseUrl()}${path}`, {
     method: "POST",

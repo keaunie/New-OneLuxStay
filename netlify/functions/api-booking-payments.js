@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody, getBaseUrl } from "./_shared/http.js";
 import { getBookingSession, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
-import { adyenRequest, getApaleoPayAdditionalData, assertAdyenEnabledForProperty } from "./_shared/adyenService.js";
+import { adyenRequest, getApaleoPayAdditionalData, assertAdyenEnabledForProperty, resolveAdyenMerchantAccount } from "./_shared/adyenService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 
 export async function handler(event) {
@@ -27,7 +27,7 @@ export async function handler(event) {
       shopperReference: session.id,
       storePaymentMethod: true,
       additionalData,
-    }, { idempotencyKey: session.id });
+    }, { idempotencyKey: session.id, merchantAccount: resolveAdyenMerchantAccount(session.property_id) });
     const authorized = result.resultCode === "Authorised";
     const actionRequired = Boolean(result.action);
     const state = authorized ? "READY_TO_BOOK" : actionRequired ? "PAYMENT_ACTION_REQUIRED" : "PAYMENT_DECLINED";

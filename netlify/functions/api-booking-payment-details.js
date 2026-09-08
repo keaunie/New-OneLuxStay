@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody } from "./_shared/http.js";
 import { getBookingSession } from "./_shared/apaleoBookingService.js";
-import { adyenRequest } from "./_shared/adyenService.js";
+import { adyenRequest, resolveAdyenMerchantAccount } from "./_shared/adyenService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 
 export async function handler(event) {
@@ -10,7 +10,9 @@ export async function handler(event) {
     const body = readJsonBody(event);
     const session = await getBookingSession(body.bookingSessionId);
     if (session.state !== "PAYMENT_ACTION_REQUIRED") return jsonResponse(409, { message: "No payment action is pending" });
-    const result = await adyenRequest("/payments/details", { details: body.details, paymentData: body.paymentData });
+    const result = await adyenRequest("/payments/details", { details: body.details, paymentData: body.paymentData }, {
+      merchantAccount: resolveAdyenMerchantAccount(session.property_id),
+    });
     const authorized = result.resultCode === "Authorised";
     const paymentMetadata = authorized ? {
       payerReference: String(result?.additionalData?.["recurring.shopperReference"] || ""),

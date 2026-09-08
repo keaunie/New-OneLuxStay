@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody } from "./_shared/http.js";
 import { getBookingSession } from "./_shared/apaleoBookingService.js";
-import { adyenRequest, getAdyenPublicConfig, assertAdyenEnabledForProperty } from "./_shared/adyenService.js";
+import { adyenRequest, getAdyenPublicConfig, assertAdyenEnabledForProperty, resolveAdyenMerchantAccount } from "./_shared/adyenService.js";
 
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") return jsonResponse(200, { ok: true });
@@ -18,7 +18,7 @@ export async function handler(event) {
       countryCode,
       shopperLocale,
       channel: "Web",
-    });
+    }, { merchantAccount: resolveAdyenMerchantAccount(session.property_id) });
     return jsonResponse(200, { ...paymentMethods, configuration: getAdyenPublicConfig(), shopperLocale, paymentRequired: true });
   } catch (error) {
     return jsonResponse(Number(error.statusCode) || 502, { message: error.message, code: error.code || "PAYMENT_METHODS_FAILED" });
