@@ -17,6 +17,7 @@ import LottieInlineHint from "./components/LottieInlineHint";
 import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
+import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
 import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHref } from "./utils/contactConfig";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
@@ -3233,7 +3234,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         const json = await res.json();
         if (!active) return;
         const results = Array.isArray(json.results)
-          ? json.results.map((listing) => normalizeListingPricing(listing))
+          ? json.results
+              .filter((listing) => isListingActiveForShowcase(listing))
+              .filter((listing) => !isHiddenUnit(listing))
+              .map((listing) => normalizeListingPricing(listing))
           : [];
         setListings(results);
       } catch (err) {

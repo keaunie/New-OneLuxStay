@@ -4,6 +4,7 @@ import "./App.css";
 import CitySearchLoadingOverlay from "./components/CitySearchLoadingOverlay";
 import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
+import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { buildStaticMapUrl, buildEmbedMapUrl } from "./utils/leafletMapsAdapter";
 import { getAverageNightlyFromTotal } from "./utils/pricingDisplay";
@@ -600,6 +601,8 @@ export default function HollywoodLandingPage() {
         if (!active) return;
         const all = Array.isArray(json?.results) ? json.results : [];
         const hollywoodUnits = all
+          .filter((l) => isListingActiveForShowcase(l))
+          .filter((l) => !isHiddenUnit(l))
           .filter((l) => !isChildListing(l))
           .filter(isHollywoodListing)
           .map((l) => ({
@@ -962,6 +965,8 @@ export default function HollywoodLandingPage() {
                             : [];
                           setListings(
                             all
+                              .filter((l) => isListingActiveForShowcase(l))
+                              .filter((l) => !isHiddenUnit(l))
                               .filter((l) => !isChildListing(l))
                               .filter(isHollywoodListing),
                           );

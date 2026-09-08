@@ -15,6 +15,7 @@ import LottieInlineHint from "./components/LottieInlineHint";
 import useInlineListingMap from "./hooks/useInlineListingMap";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
+import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
 import {
   PRIMARY_US_CONTACT,
@@ -3357,7 +3358,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           throw lastError || new Error("Listings failed: 500");
         }
         const results = Array.isArray(json.results)
-          ? json.results.map((listing) => normalizeListingPricing(listing))
+          ? json.results
+              .filter((listing) => isListingActiveForShowcase(listing))
+              .filter((listing) => !isHiddenUnit(listing))
+              .map((listing) => normalizeListingPricing(listing))
           : [];
         setListings(results);
         writeCachedListings(results);

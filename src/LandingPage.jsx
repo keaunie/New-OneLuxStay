@@ -6,7 +6,7 @@ import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
 import { trackGuestCityClick, trackGuestListingClick, trackGuestJourneyEvent } from "./utils/guestAnalytics";
-import { isHiddenUnit } from "./config/hiddenUnits";
+import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
 import {
   trackAvailabilityOpened,
   trackAvailabilitySearch,
@@ -151,27 +151,6 @@ const isChildListing = (listing) => {
   const listingId = listing?.id || listing?._id || null;
   if (listing?.unitTypeId && listingId && String(listing.unitTypeId) !== String(listingId)) return true;
   return false;
-};
-
-const parseBooleanFlag = (value) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return null;
-    if (["true", "1", "yes", "active", "enabled"].includes(normalized)) return true;
-    if (["false", "0", "no", "inactive", "disabled", "archived"].includes(normalized)) return false;
-  }
-  return null;
-};
-
-const isListingActiveForShowcase = (listing) => {
-  if (!listing) return false;
-  const activeFlag = parseBooleanFlag(listing?.active ?? listing?.isActive);
-  const pmsActiveFlag = parseBooleanFlag(listing?.pmsActive ?? listing?.isPmsActive);
-  const statusFlag = parseBooleanFlag(listing?.status);
-  if (activeFlag === false || pmsActiveFlag === false || statusFlag === false) return false;
-  return true;
 };
 
 const extractImageUrl = (value) => {

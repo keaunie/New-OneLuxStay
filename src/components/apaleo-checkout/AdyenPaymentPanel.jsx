@@ -28,7 +28,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
 
     const mount = async () => {
       try {
-        const [{ AdyenCheckout, Dropin, Card, Bancontact, PayPal, GooglePay, Klarna }] = await Promise.all([
+        const [{ AdyenCheckout, Dropin, Card, PayPal, GooglePay, Klarna }] = await Promise.all([
           import("@adyen/adyen-web"),
           import("@adyen/adyen-web/styles/adyen.css"),
         ]);
@@ -94,8 +94,11 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
         });
 
         if (cancelled) return;
+        // Bancontact is intentionally excluded: it's a full-page-redirect method, and per
+        // docs/apaleo-rollout-other-cities.md the guest/consent data collected earlier in
+        // this modal does not survive that redirect until session-side persistence exists.
         dropinRef.current = new Dropin(checkoutInstance, {
-          paymentMethodComponents: [Card, Bancontact, PayPal, GooglePay, Klarna],
+          paymentMethodComponents: [Card, PayPal, GooglePay, Klarna],
         }).mount(containerRef.current);
         setStatus("ready");
       } catch (err) {

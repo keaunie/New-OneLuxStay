@@ -84,3 +84,28 @@ export const filterVisibleUnits = (units = []) =>
   (Array.isArray(units) ? units : []).filter((unit) => {
     return !isHiddenUnit(unit);
   });
+
+const parseBooleanFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (["true", "1", "yes", "active", "enabled"].includes(normalized)) return true;
+    if (["false", "0", "no", "inactive", "disabled", "archived"].includes(normalized)) return false;
+  }
+  return null;
+};
+
+// Reflects the admin panel's "operational status" / "website status" toggles
+// (properties.status / properties.website_status, surfaced by the listings API
+// as listing.active / listing.pmsActive / listing.status). A listing hidden or
+// marked inactive there must not appear on any public city page.
+export const isListingActiveForShowcase = (listing) => {
+  if (!listing) return false;
+  const activeFlag = parseBooleanFlag(listing?.active ?? listing?.isActive);
+  const pmsActiveFlag = parseBooleanFlag(listing?.pmsActive ?? listing?.isPmsActive);
+  const statusFlag = parseBooleanFlag(listing?.status);
+  if (activeFlag === false || pmsActiveFlag === false || statusFlag === false) return false;
+  return true;
+};
