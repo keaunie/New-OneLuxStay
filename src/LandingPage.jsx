@@ -63,9 +63,6 @@ const normalizeApaleoCity = (property = {}) => {
   return city;
 };
 
-const cleanApaleoPropertyName = (value = "") =>
-  String(value || "").replace(/^[A-Z]\d?\.\s*/i, "").trim() || "One Lux Stay";
-
 const BUSINESS_ACCOMMODATION_DEALS = [
   {
     label: "Construction Accommodations",
@@ -850,8 +847,12 @@ function LandingPage() {
   const [quotePricing, setQuotePricing] = useState({});
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [apaleoProperties, setApaleoProperties] = useState([]);
-  const [apaleoPropertiesLoading, setApaleoPropertiesLoading] = useState(true);
-  const [apaleoPropertiesError, setApaleoPropertiesError] = useState("");
+  // Homepage "featured stays" grid — unlike apaleoProperties above (a raw, unfiltered
+  // feed straight from Apaleo used only for the hero's destination chips), this respects
+  // the same admin show/hide + active toggles every other city page already honors.
+  const [featuredListings, setFeaturedListings] = useState([]);
+  const [featuredListingsLoading, setFeaturedListingsLoading] = useState(true);
+  const [featuredListingsError, setFeaturedListingsError] = useState("");
   const [showGalleryHint, setShowGalleryHint] = useState(true);
   const hasDismissedGalleryHintRef = useRef(false);
   const offersSwipeRef = useRef(null);
@@ -897,30 +898,6 @@ function LandingPage() {
     return ["All", ...cities.sort((a, b) => a.localeCompare(b))];
   }, [apaleoProperties]);
 
-  const apaleoPropertyItems = useMemo(() => apaleoProperties
-    .filter((property) => property?.isArchived !== true && property?.status !== "Test")
-    .map((property) => {
-      const city = normalizeApaleoCity(property);
-      const citySlug = citySlugFromName(city);
-      const listingId = property?.localListingId || "";
-      const href = listingId && citySlug
-        ? `/${citySlug}/listing/${encodeURIComponent(listingId)}`
-        : citySlug ? `/${citySlug}` : "/global";
-      const location = [property?.location?.city || property?.city, property?.location?.countryCode || property?.country]
-        .filter(Boolean)
-        .join(", ");
-      return {
-        title: cleanApaleoPropertyName(property?.title || property?.description),
-        subtitle: property?.description || location || "Live Apaleo property",
-        href,
-        image: property?.coverImage || property?.images?.[0] || PROPERTY_FALLBACK_IMAGES[city] || heroSlides[0],
-        propertyId: property?.id,
-        propertyCode: property?.code,
-        kicker: `${property?.code || property?.id} · Apaleo live`,
-        city,
-      };
-    }), [apaleoProperties]);
-
   const homepageDestinations = useMemo(() =>
     apaleoCityOptions.filter((city) => city !== "All"), [apaleoCityOptions]);
   const visibleHomepageDestinations = homepageDestinations.length
@@ -929,21 +906,17 @@ function LandingPage() {
 
   useEffect(() => {
     let active = true;
+    // Raw, unfiltered Apaleo feed — used only to populate the hero's destination
+    // chips/city shortcuts below, never rendered as property cards directly (that's
+    // featuredListings above, which respects admin show/hide toggles).
     const loadApaleoProperties = async () => {
-      setApaleoPropertiesLoading(true);
-      setApaleoPropertiesError("");
       try {
         const response = await fetch(`${apiBase}/api-booking-properties`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload?.message || "Unable to load Apaleo properties.");
         if (active) setApaleoProperties(Array.isArray(payload?.properties) ? payload.properties : []);
-      } catch (error) {
-        if (active) {
-          setApaleoProperties([]);
-          setApaleoPropertiesError(error?.message || "Unable to load Apaleo properties.");
-        }
-      } finally {
-        if (active) setApaleoPropertiesLoading(false);
+      } catch {
+        if (active) setApaleoProperties([]);
       }
     };
     loadApaleoProperties();
@@ -1160,6 +1133,55 @@ function LandingPage() {
       active = false;
     };
   }, [shouldLoadHeroGallery]);
+
+  useEffect(() => {
+    let active = true;
+    const loadFeaturedListings = async () => {
+      setFeaturedListingsLoading(true);
+      setFeaturedListingsError("");
+      try {
+        const res = await fetch(`${apiBase}/listings`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Unable to load featured stays.");
+        const json = await res.json();
+        const results = Array.isArray(json?.results) ? json.results : [];
+        const curated = results
+          .filter((listing) => isListingActiveForShowcase(listing))
+          .filter((listing) => !isHiddenUnit(listing))
+          .filter((listing) => !isChildListing(listing));
+        const seen = new Set();
+        const items = [];
+        curated.forEach((listing) => {
+          const id = getListingId(listing);
+          const image = getListingImage(listing);
+          if (!id || !image || seen.has(id)) return;
+          seen.add(id);
+          const city = normalizeListingCity(listing);
+          const citySlug = citySlugFromName(city);
+          items.push({
+            title: (typeof listing?.title === "string" && listing.title.trim()) || "One Lux Stay",
+            subtitle: city || "One Lux Stay",
+            href: citySlug ? `/${citySlug}/listing/${encodeURIComponent(id)}` : "/global",
+            image: image || PROPERTY_FALLBACK_IMAGES[city] || heroSlides[0],
+            kicker: city ? `${city} · Available now` : "Available now",
+          });
+        });
+        items.sort((a, b) => a.subtitle.localeCompare(b.subtitle) || a.title.localeCompare(b.title));
+        if (active) setFeaturedListings(items);
+      } catch (err) {
+        if (active) {
+          setFeaturedListings([]);
+          setFeaturedListingsError(err?.message || "Unable to load featured stays.");
+        }
+      } finally {
+        if (active) setFeaturedListingsLoading(false);
+      }
+    };
+
+    loadFeaturedListings();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const normalizeOffersX = useCallback((value) => {
     const base = offersBaseWidthRef.current;
@@ -1972,18 +1994,18 @@ function LandingPage() {
       <section id="collection" className="landing-collection-section landing-animate" ref={collectionRef}>
         <div className="landing-showcase-inner px-6 md:px-10">
           <div className="landing-section-head landing-collection-intro">
-            <p className="landing-kicker landing-collection-kicker">Live Apaleo portfolio</p>
+            <p className="landing-kicker landing-collection-kicker">Featured stays</p>
             <h2 className="landing-display landing-collection-title">
-              Live properties, <span className="landing-title-italic">ready to book</span>
+              Handpicked stays, <span className="landing-title-italic">ready to book</span>
             </h2>
             <p className="landing-collection-copy">
-              Properties are loaded directly from Apaleo and enriched with One Lux Stay photography and content.
+              Curated by our team and kept in sync with live availability.
             </p>
           </div>
         </div>
 
         <div className="landing-destination-panel px-6 md:px-10" data-tour-target="collection">
-          {shouldRenderCollectionGrid && !apaleoPropertiesLoading && apaleoPropertyItems.length ? (
+          {shouldRenderCollectionGrid && !featuredListingsLoading && featuredListings.length ? (
             <Suspense
               fallback={
                 <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
@@ -1991,11 +2013,11 @@ function LandingPage() {
                 </div>
               }
             >
-              <ChromaGrid items={apaleoPropertyItems} />
+              <ChromaGrid items={featuredListings} />
             </Suspense>
           ) : (
             <div className="landing-circular-gallery__loading" role="status" aria-live="polite">
-              <span>{apaleoPropertiesError || "Loading live Apaleo properties..."}</span>
+              <span>{featuredListingsError || "Loading featured stays..."}</span>
             </div>
           )}
         </div>

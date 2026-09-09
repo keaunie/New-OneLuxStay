@@ -4,7 +4,7 @@ import SiteFooter from "./components/SiteFooter";
 import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
 import apiBase from "./utils/apiBase";
 import { trackGuestListingClick } from "./utils/guestAnalytics";
-import { isHiddenUnit } from "./config/hiddenUnits";
+import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
 import {
   trackAvailabilityOpened,
   trackAvailabilitySearch,
@@ -557,7 +557,9 @@ function GlobalUnitsPage() {
         if (!res.ok) throw new Error("Unable to load One Lux Stay Global units.");
         const data = await res.json();
         const results = Array.isArray(data?.results) ? data.results : [];
-        const parentOnly = results.filter((listing) => !isChildListing(listing) && !isHiddenUnit(listing));
+        const parentOnly = results.filter(
+          (listing) => !isChildListing(listing) && !isHiddenUnit(listing) && isListingActiveForShowcase(listing)
+        );
         const unique = [];
         const seen = new Set();
         parentOnly.forEach((listing) => {
