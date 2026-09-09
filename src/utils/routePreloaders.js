@@ -1,5 +1,6 @@
 const preloadLandingPage = () => import("../LandingPage");
 const preloadAntwerpLandingPage = () => import("../AntwerpLandingPage");
+const preloadPropertyStoryPage = () => import("../PropertyStoryPage");
 const preloadLosAngelesLandingPage = () => import("../LosAngelesLandingPage");
 const preloadHollywoodLandingPage = () => import("../HollywoodLandingPage");
 const preloadRedondoBeachPrimaryPage = () => import("../RedondoBeachPrimaryPage");
@@ -40,6 +41,7 @@ const preloadExecutiveOlsAuthPage = preloadAdminsOlsAuthPage;
 export const routePreloaders = {
   landing: preloadLandingPage,
   antwerp: preloadAntwerpLandingPage,
+  propertyStory: preloadPropertyStoryPage,
   hollywood: preloadHollywoodLandingPage,
   losAngeles: preloadLosAngelesLandingPage,
   redondoBeach: preloadRedondoBeachPrimaryPage,
@@ -94,7 +96,7 @@ export const prefetchCityRoute = (value = "") => {
   const normalized = normalizePathname(value);
   if (!normalized) return Promise.resolve();
   if (normalized === "/antwerp" || normalized === "/antwerpen" || normalized.startsWith("/antwerp/") || normalized.startsWith("/antwerpen/")) {
-    return Promise.all([routePreloaders.antwerp(), routePreloaders.listing()]).then(() => undefined);
+    return Promise.all([routePreloaders.antwerp(), routePreloaders.listing(), routePreloaders.propertyStory()]).then(() => undefined);
   }
   if (normalized === "/hollywood" || normalized.startsWith("/hollywood/")) {
     return Promise.all([routePreloaders.hollywood(), routePreloaders.listing()]).then(() => undefined);

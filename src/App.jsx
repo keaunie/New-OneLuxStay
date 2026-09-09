@@ -12,6 +12,7 @@ import "./App.css";
 const LoadingScreen = lazy(() => import("./components/LoadingScreen"));
 const LandingPage = lazy(routePreloaders.landing);
 const AntwerpLandingPage = lazy(routePreloaders.antwerp);
+const PropertyStoryPage = lazy(routePreloaders.propertyStory);
 const LosAngelesLandingPage = lazy(routePreloaders.losAngeles);
 const RedondoBeachPrimaryPage = lazy(routePreloaders.redondoBeach);
 const RedondoBeachLegacyPage = lazy(routePreloaders.redondoBeachLegacy);
@@ -171,10 +172,10 @@ function AppRoutes() {
           <Route path="/:citySlug/attractions" element={renderLazyRoute(CityAttractionsPage)} />
           <Route path="/antwerpen" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp" element={renderLazyRoute(AntwerpLandingPage)} />
-          <Route path="/antwerpen/:areaSlug/:bookingBundle" element={renderLazyRoute(AntwerpLandingPage)} />
-          <Route path="/antwerp/:areaSlug/:bookingBundle" element={renderLazyRoute(AntwerpLandingPage)} />
-          <Route path="/antwerpen/:areaSlug" element={renderLazyRoute(AntwerpLandingPage)} />
-          <Route path="/antwerp/:areaSlug" element={renderLazyRoute(AntwerpLandingPage)} />
+          <Route path="/antwerpen/:areaSlug/:bookingBundle" element={renderLazyRoute(PropertyStoryPage)} />
+          <Route path="/antwerp/:areaSlug/:bookingBundle" element={renderLazyRoute(PropertyStoryPage)} />
+          <Route path="/antwerpen/:areaSlug" element={renderLazyRoute(PropertyStoryPage)} />
+          <Route path="/antwerp/:areaSlug" element={renderLazyRoute(PropertyStoryPage)} />
           <Route
             path="/antwerpen/listing/:listingId/:checkIn/:checkOut/:guests"
             element={renderLazyRoute(AntwerpLandingPage)}

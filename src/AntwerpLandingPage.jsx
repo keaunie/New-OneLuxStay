@@ -13,7 +13,6 @@ import SharedNeighborhoodHighlightsSection from "./components/listing/Neighborho
 import Stepper, { Step } from "./components/Stepper";
 import LottieInlineHint from "./components/LottieInlineHint";
 import useInlineListingMap from "./hooks/useInlineListingMap";
-import useDocumentMeta from "./hooks/useDocumentMeta";
 import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
@@ -1681,19 +1680,6 @@ const SECTION_SLUG_BY_KEY = {
   "antwerp-city-centre": "citycentre",
   "antwerp-near-central": "nearcentral",
   other: "citycentre",
-};
-// Preferred, human-readable slug for canonical URLs / shareable links, e.g.
-// oneluxstay.com/antwerp/fashion-district. Distinct from SECTION_SLUG_BY_KEY
-// (used for in-app nav) so the canonical URL stays stable even if that
-// changes; resolveSectionKeyFromSlug() strips hyphens, so both work as
-// incoming routes.
-const CANONICAL_SLUG_BY_KEY = {
-  "antwerp-fashion": "fashion-district",
-  "antwerp-diamond": "diamond-district",
-  "antwerp-central": "antwerp-central",
-  "antwerp-city-centre": "city-centre",
-  "antwerp-near-central": "near-central-station",
-  other: "city-centre",
 };
 const parseRouteBookingBundle = (value = "") => {
   if (!value) return { checkIn: "", checkOut: "", guests: "" };
@@ -4632,17 +4618,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [routeAreaSlug, sectionsByKey]);
 
   const activeSection = activeSectionKey ? sectionsByKey[activeSectionKey] : null;
-  const activeSectionStory = activeSection ? SECTION_STORIES[activeSection.key] : null;
-  const propertySeo = useMemo(() => {
-    if (!activeSection || !activeSectionStory) return null;
-    const canonicalSlug = CANONICAL_SLUG_BY_KEY[activeSection.key] || SECTION_SLUG_BY_KEY[activeSection.key];
-    return {
-      title: `${activeSectionStory.title} Furnished Suites in Antwerp | One Lux Stay`,
-      description: `${activeSectionStory.tagline} ${activeSectionStory.copy}`.trim(),
-      canonicalUrl: `https://oneluxstay.com/antwerp/${canonicalSlug}`,
-    };
-  }, [activeSection, activeSectionStory]);
-  useDocumentMeta({ ...propertySeo, active: Boolean(propertySeo) });
   const handleListingTabClick = (next) => {
     setListingTab(next);
     const el = document.getElementById(`la-${next}`);
