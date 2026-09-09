@@ -1148,17 +1148,50 @@ function LandingPage() {
           .filter((listing) => isListingActiveForShowcase(listing))
           .filter((listing) => !isHiddenUnit(listing))
           .filter((listing) => !isChildListing(listing));
-        const seen = new Set();
-        const items = [];
+
+        // Several unit types (different bedroom counts, floor plans, etc.) can share one
+        // physical building — group by building so the grid shows one card per address
+        // instead of one per bookable unit. Building addresses aren't formatted
+        // consistently across sources ("354 S Spring St" vs "South Spring Street 354"),
+        // so the group key is the digits found in the address (house number + zip) rather
+        // than the raw string — stable across formatting variants, still distinct for
+        // different buildings on the same street (e.g. Torrance's several Anza Ave units).
+        const buildingGroupKey = (listing) => {
+          const city = normalizeListingCity(listing).toLowerCase();
+          const full = String(listing?.address?.full || "").toLowerCase();
+          const digits = (full.match(/\d+/g) || []).join("-");
+          return `${city}|${digits || full}`;
+        };
+
+        const groups = new Map();
         curated.forEach((listing) => {
           const id = getListingId(listing);
           const image = getListingImage(listing);
-          if (!id || !image || seen.has(id)) return;
-          seen.add(id);
-          const city = normalizeListingCity(listing);
+          if (!id || !image) return;
+          const key = buildingGroupKey(listing);
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(listing);
+        });
+
+        const items = [];
+        groups.forEach((groupListings) => {
+          // Show whichever unit in the building is cheapest, as a representative card.
+          const representative = groupListings.reduce((cheapest, listing) => {
+            const price = typeof listing?.basePrice === "number" ? listing.basePrice : null;
+            const cheapestPrice = typeof cheapest?.basePrice === "number" ? cheapest.basePrice : null;
+            if (price === null) return cheapest;
+            if (cheapestPrice === null || price < cheapestPrice) return listing;
+            return cheapest;
+          }, groupListings[0]);
+          const id = getListingId(representative);
+          const image = getListingImage(representative);
+          const city = normalizeListingCity(representative);
           const citySlug = citySlugFromName(city);
+          const title =
+            (typeof representative?.title === "string" && representative.title.trim().replace(/\s*by\s*one\s*lux\s*stay\s*$/i, "")) ||
+            "One Lux Stay";
           items.push({
-            title: (typeof listing?.title === "string" && listing.title.trim()) || "One Lux Stay",
+            title,
             subtitle: city || "One Lux Stay",
             href: citySlug ? `/${citySlug}/listing/${encodeURIComponent(id)}` : "/global",
             image: image || PROPERTY_FALLBACK_IMAGES[city] || heroSlides[0],
