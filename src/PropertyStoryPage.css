@@ -515,6 +515,17 @@
   margin: 0;
 }
 
+.pstory-room__count {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--landing-amber-soft, rgba(201, 181, 156, 0.18));
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
 .pstory-room__price {
   text-align: right;
   display: flex;

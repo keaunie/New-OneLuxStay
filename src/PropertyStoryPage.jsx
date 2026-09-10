@@ -381,6 +381,28 @@ export default function PropertyStoryPage() {
     [sectionListings]
   );
 
+  // Several identical floor plans (same title) can exist as separate bookable
+  // units within one building — group them into one row with a unit count
+  // instead of repeating the same listing card N times.
+  const roomGroups = useMemo(() => {
+    const groups = new Map();
+    roomListings.forEach((listing) => {
+      const key = sanitizeText(listing?.title || "").trim().toLowerCase() || getListingId(listing);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(listing);
+    });
+    return Array.from(groups.values()).map((group) => {
+      const representative = group.reduce((cheapest, listing) => {
+        const price = firstNumber(listing?.basePrice, listing?.prices?.basePrice);
+        const cheapestPrice = cheapest ? firstNumber(cheapest?.basePrice, cheapest?.prices?.basePrice) : null;
+        if (price === null) return cheapest;
+        if (cheapestPrice === null || price < cheapestPrice) return listing;
+        return cheapest;
+      }, group[0]);
+      return { listing: representative, count: group.length };
+    });
+  }, [roomListings]);
+
   const galleryImages = useMemo(() => {
     const urls = [];
     const seen = new Set();
@@ -649,7 +671,7 @@ export default function PropertyStoryPage() {
           )}
 
           <div className="pstory-rooms">
-            {roomListings.map((listing) => {
+            {roomGroups.map(({ listing, count }) => {
               const id = getListingId(listing);
               const images = getListingImageUrls(listing);
               const img = getImageUrl(images[0]);
@@ -676,6 +698,7 @@ export default function PropertyStoryPage() {
                     <p className="pstory-room__addr">{formatAddress(listing, sectionKey)}</p>
                     <h3>{title}</h3>
                     {specs && <p className="pstory-room__specs">{specs}</p>}
+                    {count > 1 && <p className="pstory-room__count">{count} units available</p>}
                   </div>
                   <div className="pstory-room__price">
                     {price !== null ? (
