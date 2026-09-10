@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, useMemo, useId } from "react";
 import "./App.css";
+import "./LandingPage.css";
 import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
 import { filterLowQualityImages } from "./utils/imageQuality";
@@ -1640,7 +1641,7 @@ function LandingPage() {
       <div className="landing-silk" aria-hidden="true">
         {shouldUseHeroEnhancements ? (
           <Suspense fallback={<div className="silk-background silk-background--fallback" />}>
-            <Silk speed={4.5} scale={1.1} color="#b5a291" noiseIntensity={1.2} rotation={0.15} />
+            <Silk speed={4.5} scale={1.1} color="#8fb8ae" noiseIntensity={1.2} rotation={0.15} />
           </Suspense>
         ) : (
           <div className="silk-background silk-background--fallback" />

@@ -144,7 +144,20 @@ const extractImageUrl = (value) => {
   if (!value) return "";
   if (typeof value === "string") return value.trim();
   if (typeof value === "object") {
-    return value.url || value.src || value.href || value.secure_url || value.secureUrl || "";
+    return (
+      value.original ||
+      value.large ||
+      value.regular ||
+      value.thumbnail ||
+      value.medium ||
+      value.preview ||
+      value.url ||
+      value.src ||
+      value.href ||
+      value.secure_url ||
+      value.secureUrl ||
+      ""
+    );
   }
   return "";
 };

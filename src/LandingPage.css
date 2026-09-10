@@ -1,0 +1,468 @@
+/* ============================================================================
+   Landing page redesign — "bright resort-modern"
+   ============================================================================
+   Every rule below is scoped under the `.landing-page` root (the homepage's
+   own wrapper — see LandingPage.jsx). This file is imported AFTER App.css,
+   and every selector here carries at least one extra ancestor class beyond
+   what App.css uses for the same element, so it wins on specificity
+   regardless of source order — without editing App.css (whose landing-*
+   prefixed classes, button-color tokens, and date-picker classes are shared
+   with other pages) or ChromaGrid.css (landing-only today, but scoped here
+   anyway for safety).
+
+   No JSX structure, refs, event handlers, or class *names* are touched —
+   only how those classes look. The few places JS reads live CSS (the offers
+   carousel's flex `gap`, its cards' rendered width, the business cards'
+   `--card-parallax`) keep the same layout mechanism; only color/spacing
+   VALUES change.
+   ============================================================================ */
+
+.landing-page {
+  /* ---- Palette: sand base + a new lagoon/coral accent pair, instead of the
+     amber/gold accent the rest of the site uses — this is the actual "new
+     look" lever. Ink stays a warm charcoal so body text still reads as part
+     of the same brand family. ---- */
+  --lp-bg: #fdfbf5;
+  --lp-surface: #ffffff;
+  --lp-surface-tint: #f6efe2;
+  --lp-ink: #23302c;
+  --lp-ink-soft: #5c6b64;
+  --lp-line: rgba(35, 48, 44, 0.12);
+
+  --lp-lagoon: #3d8c84;
+  --lp-lagoon-dark: #2c6a63;
+  --lp-lagoon-tint: #e3f1ee;
+  --lp-coral: #ec8a61;
+  --lp-coral-dark: #d66f45;
+  --lp-coral-tint: #fdece1;
+  --lp-sun: #f4c069;
+
+  --lp-radius-sm: 14px;
+  --lp-radius-md: 20px;
+  --lp-radius-lg: 30px;
+  --lp-radius-pill: 999px;
+
+  --lp-shadow-sm: 0 6px 18px rgba(31, 46, 43, 0.08);
+  --lp-shadow-md: 0 16px 36px rgba(31, 46, 43, 0.12);
+  --lp-shadow-lg: 0 28px 60px rgba(31, 46, 43, 0.16);
+  --lp-shadow-pop: 0 22px 48px rgba(61, 140, 132, 0.22);
+
+  background: var(--lp-bg);
+}
+
+/* ---------------------------- Page background --------------------------- */
+
+.landing-page .silk-background--fallback {
+  background:
+    radial-gradient(ellipse 200% 55% at 50% -6%, rgba(255, 253, 246, 0.9), transparent 52%),
+    radial-gradient(ellipse 70% 60% at 3% 115%, rgba(227, 241, 238, 0.55), transparent 52%),
+    radial-gradient(ellipse 55% 45% at 97% 108%, rgba(253, 236, 225, 0.4), transparent 52%),
+    radial-gradient(circle at 82% 8%, rgba(224, 236, 233, 0.4), transparent 44%),
+    linear-gradient(172deg, #fdfbf5 0%, #f6efe2 46%, #eee3d0 70%, #f6efe2 100%);
+}
+
+.landing-page .landing-hero {
+  background: linear-gradient(150deg, rgba(253, 251, 245, 0.96), rgba(230, 240, 238, 0.9)),
+    radial-gradient(circle at 76% 6%, rgba(61, 140, 132, 0.14), transparent 42%),
+    radial-gradient(circle at 4% 92%, rgba(236, 138, 97, 0.12), transparent 40%),
+    #fdfbf5;
+  border-bottom-color: var(--lp-line);
+}
+
+.landing-page .landing-hero::after {
+  background: radial-gradient(circle at 20% 20%, rgba(253, 251, 245, 0.4), transparent 50%),
+    linear-gradient(180deg, rgba(253, 251, 245, 0.92), rgba(246, 239, 226, 0.94));
+}
+
+.landing-page .landing-glow-one {
+  background: radial-gradient(circle, rgba(61, 140, 132, 0.3), transparent 50%);
+}
+
+.landing-page .landing-glow-two {
+  background: radial-gradient(circle, rgba(236, 138, 97, 0.22), transparent 55%);
+}
+
+.landing-page .landing-showcase-section {
+  background: radial-gradient(circle at 20% 10%, rgba(61, 140, 132, 0.1), transparent 45%),
+    linear-gradient(180deg, rgba(253, 251, 245, 0.96), rgba(246, 239, 226, 0.96));
+}
+
+/* -------------------------------- Type ----------------------------------- */
+
+.landing-page .landing-kicker,
+.landing-page .landing-hero-kicker,
+.landing-page .landing-collection-kicker,
+.landing-page .landing-offers-inner .landing-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: var(--lp-lagoon-dark);
+  background: var(--lp-lagoon-tint);
+  border-radius: var(--lp-radius-pill);
+  padding: 0.32em 0.9em;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.landing-page .landing-hero-title,
+.landing-page .landing-collection-title {
+  color: var(--lp-ink);
+  font-weight: 500;
+}
+
+.landing-page .landing-hero-lead {
+  color: var(--lp-ink-soft);
+}
+
+.landing-page .landing-title-italic {
+  color: var(--lp-coral-dark);
+  font-style: italic;
+}
+
+/* ------------------------------- Buttons ---------------------------------- */
+
+.landing-page .landing-cta-primary {
+  background: linear-gradient(135deg, var(--lp-lagoon), var(--lp-lagoon-dark));
+  color: #fdfbf5;
+  border-color: transparent;
+  box-shadow: var(--lp-shadow-pop);
+}
+
+.landing-page .landing-cta-primary:hover {
+  background: linear-gradient(135deg, var(--lp-lagoon-dark), var(--lp-lagoon-dark));
+  box-shadow: 0 26px 54px rgba(61, 140, 132, 0.3);
+  filter: none;
+}
+
+.landing-page .landing-hero-form .landing-cta-primary:focus-visible,
+.landing-page .ols-booking-shell button.landing-cta-primary:focus-visible {
+  outline-color: var(--lp-lagoon);
+  box-shadow: 0 0 0 4px var(--lp-lagoon-tint);
+}
+
+.landing-page .landing-cta-secondary {
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-ink);
+}
+
+.landing-page .landing-cta-secondary:hover {
+  border-color: var(--lp-lagoon);
+  color: var(--lp-lagoon-dark);
+}
+
+/* --------------------------------- Chips ---------------------------------- */
+
+.landing-page .landing-chip {
+  border: 1px solid var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-ink);
+  box-shadow: var(--lp-shadow-sm);
+  border-radius: var(--lp-radius-pill);
+}
+
+.landing-page .landing-chip:hover {
+  border-color: var(--lp-lagoon);
+  color: var(--lp-lagoon-dark);
+  box-shadow: var(--lp-shadow-md);
+}
+
+.landing-page .landing-chip--disabled,
+.landing-page .landing-chip--disabled:hover {
+  box-shadow: var(--lp-shadow-sm);
+}
+
+.landing-page .landing-chip-notice {
+  background: var(--lp-coral-tint);
+  border-color: rgba(214, 111, 69, 0.3);
+  color: var(--lp-coral-dark);
+  box-shadow: var(--lp-shadow-sm);
+}
+
+/* ----------------------------- Hero booking form (desktop) ---------------- */
+
+.landing-page .landing-hero-form {
+  border-radius: var(--lp-radius-lg);
+  border: 1px solid var(--lp-line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 239, 226, 0.92));
+  box-shadow: var(--lp-shadow-lg);
+}
+
+.landing-page .landing-hero-form::before {
+  background: linear-gradient(90deg, rgba(61, 140, 132, 0), rgba(61, 140, 132, 0.55), rgba(61, 140, 132, 0));
+}
+
+.landing-page .landing-form-field label {
+  color: var(--lp-ink-soft);
+}
+
+.landing-page .landing-hero-usage-tip {
+  border-radius: var(--lp-radius-pill);
+  border-color: rgba(61, 140, 132, 0.3);
+  background: var(--lp-lagoon-tint);
+  color: var(--lp-lagoon-dark);
+}
+
+/* Select/input chrome inside the hero form and the picker it opens */
+.landing-page .landing-hero-form select,
+.landing-page .landing-hero-form .la-date-input {
+  border-radius: var(--lp-radius-sm);
+}
+
+.landing-page .landing-date-picker .listing-date-dropdown {
+  border-radius: var(--lp-radius-md);
+  border-color: var(--lp-line);
+  box-shadow: var(--lp-shadow-lg);
+}
+
+.landing-page .listing-date-cell.is-selected,
+.landing-page .listing-date-cell.is-default {
+  background: var(--lp-lagoon);
+  color: #fdfbf5;
+}
+
+.landing-page .listing-date-cell.is-between {
+  background: var(--lp-lagoon-tint);
+  color: var(--lp-lagoon-dark);
+}
+
+/* ----------------------------- Mobile booking widget ----------------------- */
+
+.landing-page .ols-booking-headline,
+.landing-page .ols-booking-label,
+.landing-page .ols-booking-value,
+.landing-page .ols-booking-stepper-value,
+.landing-page .ols-booking-guest-field select,
+.landing-page .ols-booking-input-wrap input,
+.landing-page .ols-booking-destination-select {
+  color: var(--lp-ink);
+}
+
+.landing-page .ols-booking-topbar .landing-logo-mark {
+  color: var(--lp-ink);
+}
+
+.landing-page .ols-booking-icon-btn,
+.landing-page .ols-booking-menu-btn {
+  border-radius: var(--lp-radius-sm);
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-ink);
+  box-shadow: var(--lp-shadow-sm);
+}
+
+.landing-page .ols-booking-tab {
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-ink-soft);
+}
+
+.landing-page .ols-booking-tab.is-active {
+  border-color: var(--lp-lagoon);
+  background: var(--lp-lagoon-tint);
+  color: var(--lp-lagoon-dark);
+  box-shadow: none;
+}
+
+.landing-page .ols-booking-card {
+  border-radius: var(--lp-radius-lg);
+  border: 3px solid var(--lp-lagoon);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 239, 226, 0.9));
+  box-shadow: var(--lp-shadow-lg);
+}
+
+.landing-page .ols-booking-input-wrap,
+.landing-page .ols-booking-occupancy,
+.landing-page .ols-booking-stepper-btn {
+  border-radius: var(--lp-radius-sm);
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+}
+
+.landing-page .ols-booking-search-icon {
+  color: var(--lp-lagoon-dark);
+}
+
+.landing-page .ols-booking-search-btn {
+  border-radius: var(--lp-radius-sm);
+  background: linear-gradient(180deg, var(--lp-lagoon), var(--lp-lagoon-dark));
+  box-shadow: var(--lp-shadow-pop);
+}
+
+.landing-page .ols-booking-note {
+  border-radius: var(--lp-radius-pill);
+  border-color: var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-ink-soft);
+  box-shadow: var(--lp-shadow-sm);
+}
+
+.landing-page .ols-booking-promo {
+  border-radius: var(--lp-radius-lg);
+  background: radial-gradient(circle at 82% 22%, rgba(244, 192, 105, 0.25), transparent 44%),
+    linear-gradient(150deg, var(--lp-lagoon-dark), #1f4d48);
+  border-color: rgba(244, 192, 105, 0.3);
+  color: #fdfbf5;
+  box-shadow: var(--lp-shadow-lg);
+}
+
+.landing-page .ols-booking-promo p {
+  color: rgba(253, 251, 245, 0.82);
+}
+
+.landing-page .ols-booking-promo__cta {
+  border-radius: var(--lp-radius-sm);
+  border-color: rgba(244, 192, 105, 0.5);
+  background: rgba(244, 192, 105, 0.18);
+  color: var(--lp-sun);
+}
+
+/* --------------------------------------------------------------------------
+   Business accommodations — keep it dark for rhythm, but retint from
+   amber/gold to the new lagoon + sun accent pair.
+   -------------------------------------------------------------------------- */
+
+.landing-page .landing-business-section {
+  border-top-color: var(--lp-line);
+  border-bottom-color: var(--lp-line);
+  background: radial-gradient(120% 90% at 50% 0%, rgba(61, 140, 132, 0.22), transparent 55%),
+    linear-gradient(180deg, #1c2b28 0%, #14201e 100%);
+}
+
+.landing-page .landing-business-deal__eyebrow {
+  color: var(--lp-sun);
+}
+
+.landing-page .landing-business-card {
+  border-radius: var(--lp-radius-md);
+  box-shadow: var(--lp-shadow-md);
+}
+
+.landing-page .landing-business-card::after {
+  background: linear-gradient(90deg, var(--lp-sun), var(--lp-coral));
+}
+
+.landing-page .landing-business-card__go {
+  color: var(--lp-sun);
+}
+
+.landing-page .landing-business-deal__cta {
+  border-radius: var(--lp-radius-pill);
+  border-color: rgba(244, 192, 105, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   Offers carousel — same flex/gap drag mechanics, new surface treatment.
+   -------------------------------------------------------------------------- */
+
+.landing-page .landing-offers-section {
+  background: linear-gradient(180deg, #fdfbf5 0%, #f6efe2 55%, #fdfbf5 100%);
+  border-top-color: var(--lp-line);
+  border-bottom-color: var(--lp-line);
+}
+
+.landing-page .landing-offers-swipe {
+  border-radius: var(--lp-radius-pill);
+  background: var(--lp-surface);
+  border-color: var(--lp-line);
+  color: var(--lp-ink-soft);
+  box-shadow: var(--lp-shadow-sm);
+}
+
+.landing-page .landing-offer-card {
+  border-radius: var(--lp-radius-lg);
+  border-color: var(--lp-line);
+  box-shadow: var(--lp-shadow-md);
+}
+
+.landing-page .landing-offers-section.is-visible .landing-offer-card:hover {
+  box-shadow: var(--lp-shadow-lg);
+}
+
+.landing-page .landing-offer-card::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(61, 140, 132, 0.35));
+  box-shadow: inset 0 0 0 1px rgba(35, 48, 44, 0.1);
+}
+
+.landing-page .offer-dark {
+  background: linear-gradient(135deg, var(--lp-lagoon-dark), #1f4d48);
+  color: #fdfbf5;
+  border-color: rgba(253, 251, 245, 0.14);
+}
+
+.landing-page .offer-dark .landing-offer-cta {
+  color: #fdfbf5;
+}
+
+.landing-page .offer-sand {
+  background: linear-gradient(135deg, var(--lp-surface-tint), var(--lp-surface));
+  color: var(--lp-ink);
+}
+
+.landing-page .offer-clay {
+  background: linear-gradient(135deg, var(--lp-coral), var(--lp-sun));
+  color: #33200f;
+}
+
+/* --------------------------------------------------------------------------
+   Featured stays (ChromaGrid) — scrim + accent retint, softer corners.
+   -------------------------------------------------------------------------- */
+
+.landing-page .landing-collection-section {
+  border-top-color: var(--lp-line);
+  background: var(--lp-bg);
+}
+
+.landing-page .landing-collection-copy {
+  color: var(--lp-ink-soft);
+}
+
+.landing-page .chroma-grid-card {
+  border-radius: var(--lp-radius-md);
+  background: var(--lp-surface-tint);
+  box-shadow: var(--lp-shadow-sm);
+}
+
+.landing-page .chroma-grid-card__overlay {
+  background: linear-gradient(
+    to top,
+    var(--lp-bg) 0%,
+    var(--lp-bg) 30%,
+    rgba(253, 251, 245, 0.92) 46%,
+    rgba(253, 251, 245, 0.55) 62%,
+    rgba(253, 251, 245, 0.15) 80%,
+    transparent 96%
+  );
+}
+
+.landing-page .chroma-grid-card__kicker {
+  color: var(--lp-coral-dark);
+}
+
+.landing-page .chroma-grid-card__title {
+  color: var(--lp-ink);
+}
+
+.landing-page .chroma-grid-card__subtitle {
+  color: var(--lp-ink-soft);
+}
+
+.landing-page .chroma-grid-card__cta {
+  color: var(--lp-lagoon-dark);
+}
+
+.landing-page .chroma-grid-card:hover,
+.landing-page .chroma-grid-card:focus-visible {
+  border-color: rgba(61, 140, 132, 0.4);
+  box-shadow: var(--lp-shadow-md);
+}
+
+.landing-page .chroma-grid-card:hover .chroma-grid-card__kicker::after,
+.landing-page .chroma-grid-card:focus-visible .chroma-grid-card__kicker::after {
+  opacity: 0.8;
+}
+
+.landing-page .chroma-grid-card:focus-visible {
+  outline-color: rgba(61, 140, 132, 0.75);
+}
