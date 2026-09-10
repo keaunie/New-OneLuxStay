@@ -14,9 +14,9 @@ export const PRIMARY_US_WHATSAPP_CONTACT = Object.freeze({
 export const PRIMARY_US_WHATSAPP_LABEL = `WhatsApp ${PRIMARY_US_WHATSAPP_CONTACT.display}`;
 
 export const BELGIUM_CONTACT = Object.freeze({
-  display: "+32 460 25 4886",
-  digits: "32460254886",
-  telHref: "tel:+32460254886",
+  display: "+1 213 866 3589",
+  digits: "12138663589",
+  telHref: "tel:+12138663589",
   whatsappFrom: "whatsapp:+32460254886",
 });
 
