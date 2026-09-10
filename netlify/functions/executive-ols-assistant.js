@@ -3,6 +3,7 @@ import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
 import { fetchWithTimeout, getBaseUrl } from "./_shared/http.js";
 import { guestyRequest } from "./_shared/guestyService.js";
 import { verifyAdminsOlsAccess } from "./_shared/adminsOlsAuth.js";
+import { propertyProfiles } from "../../src/data/propertyProfiles.js";
 
 dotenv.config();
 
@@ -317,6 +318,35 @@ const buildSnapshot = async ({ event, rangeKey = "this_week", propertyId = "" })
   };
 };
 
+// Building-level facts (address, floor plans, amenities) compiled from the
+// live listings table — see src/data/propertyProfiles.js. Distinct from the
+// Guesty reservations/listings snapshot above: that's booking activity,
+// this is static inventory facts, so admins can ask "does the Fashion
+// District have parking" without it being mistaken for a booking question.
+const buildPropertyDirectoryText = () =>
+  propertyProfiles
+    .map((property) => {
+      const floorPlanLines = (property.floorPlans || [])
+        .map((plan) => {
+          const specs = [
+            Number.isFinite(plan.bedrooms) && `${plan.bedrooms}bd`,
+            Number.isFinite(plan.bathrooms) && `${plan.bathrooms}ba`,
+            Number.isFinite(plan.accommodates) && `sleeps ${plan.accommodates}`,
+          ]
+            .filter(Boolean)
+            .join("/");
+          return `${plan.title} (${specs}${Number.isFinite(plan.units) ? `, ${plan.units} units` : ""})`;
+        })
+        .join("; ");
+      return [
+        `${property.areaLabel}, ${property.city} — ${property.address}`,
+        `  Units: ${property.totalUnits} across ${(property.floorPlans || []).length} floor plans`,
+        `  Floor plans: ${floorPlanLines || "none listed"}`,
+        `  Amenities: ${(property.amenities || []).join(", ") || "none listed"}`,
+      ].join("\n");
+    })
+    .join("\n\n");
+
 const buildSnapshotText = (snapshot = {}) => {
   const stats = snapshot?.stats || {};
   const reservations = Array.isArray(snapshot?.reservations) ? snapshot.reservations : [];
@@ -351,8 +381,21 @@ const buildSnapshotText = (snapshot = {}) => {
           )
           .join("\n")
       : "- No listings available.",
+    "",
+    "Property directory — address, floor plans, and amenities for every building (not booking data):",
+    buildPropertyDirectoryText(),
   ].join("\n");
 };
+
+const AMENITY_KEYWORDS = [
+  { label: "parking", pattern: /\bparking\b/i, valuePattern: /\bparking\b/ },
+  { label: "a pool", pattern: /\bpool\b/i, valuePattern: /\bpool\b/ },
+  { label: "a gym", pattern: /\b(gym|fitness)\b/i, valuePattern: /\b(gym|fitness)\b/ },
+  { label: "a washer", pattern: /\bwasher\b/i, valuePattern: /\bwasher\b/ },
+  { label: "a dryer", pattern: /\bdryer\b/i, valuePattern: /\bdryer\b/ },
+  { label: "pets allowed", pattern: /\bpets?\b/i, valuePattern: /\bpets? allowed\b/ },
+  { label: "air conditioning", pattern: /\b(air conditioning|a\/c|ac)\b/i, valuePattern: /\bair conditioning\b/ },
+];
 
 const formatHistory = (messages = []) =>
   messages.map((item) => `${item.role === "assistant" ? "Assistant" : "User"}: ${item.content}`).join("\n");
@@ -396,10 +439,25 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistant
     ? ` The AI reply layer is currently unavailable: ${sanitizeString(assistantError, 220)}.`
     : "";
 
+  const amenityMatch = AMENITY_KEYWORDS.find((entry) => entry.pattern.test(normalizedQuery));
+  if (amenityMatch) {
+    const withIt = propertyProfiles.filter((property) =>
+      (property.amenities || []).some((amenity) => amenityMatch.valuePattern.test(amenity.toLowerCase())),
+    );
+    if (!withIt.length) {
+      return `None of the buildings in the property directory list "${amenityMatch.label}" as an amenity.${helperNote}`;
+    }
+    return (
+      `Buildings with ${amenityMatch.label}: ` +
+      withIt.map((property) => `${property.areaLabel} (${property.city})`).join(", ") +
+      `.${helperNote}`
+    );
+  }
+
   if (/(wifi|wi-fi|password|internet)/i.test(normalizedQuery)) {
     return (
-      "I do not see Wi-Fi or access-code details in the current executive snapshot. " +
-      "This dashboard currently has reservation and listing summary data, not property guide instructions." +
+      "I don't have guest Wi-Fi passwords here — those live per-property, not in this directory. " +
+      "Every building in the property directory lists Wi-Fi/Internet as a standard amenity though." +
       helperNote
     );
   }
@@ -449,7 +507,9 @@ const createAssistantReply = async ({ query, messages, snapshot }) => {
 You are the OneLuxStay Executive Assistant.
 
 Rules:
-- Answer using only the supplied Guesty-backed snapshot.
+- Answer using only the supplied Guesty-backed snapshot and the property directory below it.
+- The Guesty snapshot covers booking activity (reservations, revenue, check-ins) for the selected time range.
+- The property directory covers static building facts (address, floor plans, amenities) across all cities — use it for questions like "what amenities does the Fashion District have" or "how many units do we have in Los Angeles," regardless of the selected time range or property filter.
 - Be concise, direct, and useful for leadership.
 - If the data is missing or sync is unavailable, say that clearly.
 - When useful, provide short recommendations or next steps.

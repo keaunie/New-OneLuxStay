@@ -15,6 +15,8 @@ const QUICK_PROMPTS = [
   "Which property needs attention right now?",
   "Summarize current booking performance.",
   "Draft a professional reply to a guest complaint.",
+  "What amenities does the Fashion District building have?",
+  "How many units do we have across Los Angeles?",
 ];
 
 const VIEW_OPTIONS = [
@@ -1322,7 +1324,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                       <div>
                         <p className="executive-ols-eyebrow">AI Assistant</p>
                         <h3>Chat with the assistant</h3>
-                        <p>Ask about the business, draft messages, or request a fast executive readout.</p>
+                        <p>Ask about bookings and revenue, or about any property directly — addresses, floor plans, amenities — across every city.</p>
                       </div>
                     </div>
 
@@ -1349,7 +1351,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                       {submitting && (
                         <article className="executive-ols-message executive-ols-message--assistant">
                           <span className="executive-ols-message-role">Assistant</span>
-                          <p>Reviewing Guesty context...</p>
+                          <p>Reviewing booking and property data...</p>
                         </article>
                       )}
                     </div>
@@ -1365,7 +1367,7 @@ function ExecutiveOlsPage({ forceView = null }) {
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
                         rows={4}
-                        placeholder="Ask anything about bookings, listings, revenue, or operational issues..."
+                        placeholder="Ask about bookings, revenue, or a property's address, floor plans, amenities..."
                       />
                       <div className="executive-ols-composer-actions">
                         <button type="button" className="executive-ols-ghost-btn" onClick={() => setMessages(messages.slice(0, 1))}>
