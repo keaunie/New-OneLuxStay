@@ -103,6 +103,11 @@
   letter-spacing: 0.14em;
   font-weight: 700;
   font-size: 0.72rem;
+  /* .landing-hero-desktop is `display: grid` (App.css), which stretches
+     grid items to fill their column by default — without this the pill's
+     background stretches edge-to-edge even though the text stays put. */
+  width: fit-content;
+  justify-self: center;
 }
 
 .landing-page .landing-hero-title,
