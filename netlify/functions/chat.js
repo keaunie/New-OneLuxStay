@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import defaultConciergeKnowledge from "../../src/data/conciergeKnowledge.js";
+import { propertyProfiles, getPropertyProfileByKey } from "../../src/data/propertyProfiles.js";
 import { logAdminsOlsActivity } from "./_shared/adminsOlsActivity.js";
 import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
@@ -70,8 +71,30 @@ const getSupportedCities = (knowledge) =>
     .map((city) => String(city?.name || "").trim())
     .filter(Boolean);
 
+// One compact line per building, e.g. "Antwerp — Fashion District (16
+// residences, 0-2BR)". Kept short deliberately — this rides in every system
+// prompt, not just property-page conversations, so guests can ask "what
+// properties do you have in Antwerp" from anywhere on the site. Full
+// per-property detail (amenities, exact floor plans) is looked up on
+// demand via buildPropertyProfileReply when the guest is on that page.
+const buildPropertyDirectorySummary = () =>
+  propertyProfiles
+    .map((property) => {
+      const floorPlans = Array.isArray(property.floorPlans) ? property.floorPlans : [];
+      const bedroomValues = floorPlans.map((plan) => plan.bedrooms ?? 0);
+      const minBed = bedroomValues.length ? Math.min(...bedroomValues) : null;
+      const maxBed = bedroomValues.length ? Math.max(...bedroomValues) : null;
+      const bedRange =
+        minBed === null ? "" : minBed === maxBed ? `${minBed}BR` : `${minBed}-${maxBed}BR`;
+      return `${property.city} — ${property.areaLabel} (${property.totalUnits} residences${bedRange ? `, ${bedRange}` : ""})`;
+    })
+    .join("\n");
+
 const buildSiteContext = (supportedCities = []) => `
 You are Lucy, the personal concierge for One Lux Stay — a curated luxury short-term rental brand with properties in ${supportedCities.join(", ") || "Antwerp, Los Angeles, Redondo Beach, Dubai"}.
+
+## Property directory (real buildings, for reference — exact pricing/availability is always live, never assume it from this list)
+${buildPropertyDirectorySummary()}
 
 Your primary role is to help guests discover the perfect stay AND guide them confidently toward booking. You are the brand's most important sales asset.
 
@@ -182,6 +205,7 @@ const sanitizePageContext = (pageContext) => {
     pageType: sanitizeString(pageContext.pageType, 80),
     city: sanitizeString(pageContext.city, 120),
     listingId: sanitizeString(pageContext.listingId, 120),
+    propertyKey: sanitizeIdentifier(pageContext.propertyKey, 80),
     title: sanitizeString(pageContext.title, 180),
   };
 };
@@ -4289,6 +4313,89 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null }) => {
   return lines.join("\n");
 };
 
+// Answers questions about a whole building (e.g. a guest on one of the
+// Antwerp per-address story pages, which represent several floor plans at
+// one address rather than a single bookable unit — see propertyKey in
+// ChatConcierge.jsx / PropertyStoryPage.jsx). Property-level data only:
+// address, floor plans, aggregated amenities. No guest, reservation, or
+// pricing data — pricing is live/per-date and stays out of this reply.
+const buildPropertyProfileReply = ({ property, question = "" }) => {
+  if (!property) return "";
+
+  const q = String(question || "").toLowerCase();
+  const wantsAmenities =
+    /\b(amenit(?:y|ies)|features?|what does it have|parking|wifi|pool|gym|kitchen|laundry|washer|dryer|washing machine)\b/.test(
+      q,
+    );
+  const wantsFloorPlans =
+    /\b(floor ?plans?|room types?|layouts?|bedroom options?|unit types?|how many (units|bedrooms|rooms)|what (units|rooms) (do you have|are available))\b/.test(
+      q,
+    );
+
+  const amenities = Array.isArray(property.amenities) ? property.amenities : [];
+  const amenityText = amenities.join(" ").toLowerCase();
+  const hasAmenity = (pattern) => pattern.test(amenityText);
+  const amenityChecks = [
+    { key: "washer", label: "Washer", questionPattern: /\b(washer|washing machine)\b/, valuePattern: /\b(washer|washing machine)\b/ },
+    { key: "dryer", label: "Dryer", questionPattern: /\b(dryer|tumble dryer)\b/, valuePattern: /\b(dryer|tumble dryer)\b/ },
+    { key: "wifi", label: "Wi-Fi", questionPattern: /\b(wifi|wi-fi|internet)\b/, valuePattern: /\b(wifi|wi-fi|internet)\b/ },
+    { key: "parking", label: "Parking", questionPattern: /\bparking\b/, valuePattern: /\bparking\b/ },
+    { key: "pool", label: "Pool", questionPattern: /\bpool\b/, valuePattern: /\bpool\b/ },
+    { key: "gym", label: "Gym", questionPattern: /\b(gym|fitness)\b/, valuePattern: /\b(gym|fitness)\b/ },
+    { key: "kitchen", label: "Kitchen", questionPattern: /\bkitchen\b/, valuePattern: /\bkitchen\b/ },
+    { key: "pets", label: "Pets allowed", questionPattern: /\bpets?\b/, valuePattern: /\bpets? allowed\b/ },
+  ];
+  const askedAmenityChecks = amenityChecks.filter((entry) => entry.questionPattern.test(q));
+
+  const floorPlans = Array.isArray(property.floorPlans) ? property.floorPlans : [];
+  const bedroomRange = floorPlans.length
+    ? [Math.min(...floorPlans.map((f) => f.bedrooms ?? 0)), Math.max(...floorPlans.map((f) => f.bedrooms ?? 0))]
+    : null;
+
+  const lines = [];
+  const overview = [
+    property.areaLabel && `${property.areaLabel}, ${property.city}`,
+    property.address,
+    Number.isFinite(property.totalUnits) && `${property.totalUnits} residences across ${floorPlans.length} floor plan${floorPlans.length === 1 ? "" : "s"}`,
+  ].filter(Boolean);
+  if (overview.length) lines.push(overview.join(" | "));
+
+  if (wantsAmenities) {
+    if (askedAmenityChecks.length) {
+      lines.push("Amenity check for this building:");
+      askedAmenityChecks.forEach((entry) => {
+        lines.push(`- ${entry.label}: ${hasAmenity(entry.valuePattern) ? "Yes" : "No"}`);
+      });
+    } else if (amenities.length) {
+      lines.push(`Amenities across this building: ${amenities.join(", ")}.`);
+    } else {
+      lines.push("I don’t have a complete amenities list for this building right now.");
+    }
+  }
+
+  if (wantsFloorPlans || (!wantsAmenities && floorPlans.length)) {
+    lines.push("Floor plans at this address:");
+    floorPlans.forEach((plan) => {
+      const specs = [
+        Number.isFinite(plan.bedrooms) && `${plan.bedrooms} bd`,
+        Number.isFinite(plan.bathrooms) && `${plan.bathrooms} ba`,
+        Number.isFinite(plan.accommodates) && `sleeps ${plan.accommodates}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const unitCount = Number.isFinite(plan.units) ? ` (${plan.units} unit${plan.units === 1 ? "" : "s"})` : "";
+      lines.push(`- ${plan.title}${specs ? ` — ${specs}` : ""}${unitCount}`);
+    });
+  } else if (bedroomRange && !wantsAmenities) {
+    lines.push(`Bedroom counts here range from ${bedroomRange[0]} to ${bedroomRange[1]}.`);
+  }
+
+  lines.push(
+    "Exact pricing depends on your dates — tell me when you'd like to stay and I can check live availability and guide you to checkout.",
+  );
+  return lines.join("\n");
+};
+
 const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -5202,6 +5309,24 @@ export async function handler(event) {
       } catch (listingError) {
         console.warn("Listing info retrieval failed for chat", {
           message: listingError?.message || String(listingError),
+        });
+      }
+    }
+
+    if (detectedIntent === CHAT_INTENTS.unit_info && !pageContext?.listingId && pageContext?.propertyKey) {
+      const property = getPropertyProfileByKey(pageContext.propertyKey);
+      const propertyReply = buildPropertyProfileReply({ property, question: latestPrompt });
+      if (propertyReply) {
+        return respondWithIntentPayload({
+          event,
+          apiKey,
+          model,
+          latestUserMessage,
+          languageProfile,
+          intent: detectedIntent,
+          tool: CHAT_TOOLS.listing_details_lookup,
+          reply: propertyReply,
+          smarten: true,
         });
       }
     }

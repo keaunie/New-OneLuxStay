@@ -196,6 +196,38 @@ const extractListingId = (pathname = "") => {
   return match?.[1] || "";
 };
 
+// Antwerp's per-address story pages (/antwerp/fashion-district, etc. — see
+// PropertyStoryPage.jsx) don't carry a listingId, so extractListingId()
+// can't find one there. This mirrors that page's own slug resolution so
+// Lucy can still tell which building a guest is asking about; keep the
+// alias list and propertyProfiles.js keys in sync with PropertyStoryPage.jsx
+// if either changes.
+const PROPERTY_SLUG_ALIASES = {
+  fashiondistrict: "antwerp-fashion-district",
+  fashion: "antwerp-fashion-district",
+  diamonddistrict: "antwerp-diamond-district",
+  diamondquarter: "antwerp-diamond-district",
+  diamond: "antwerp-diamond-district",
+  antwerpcentral: "antwerp-central",
+  centralstation: "antwerp-central",
+  central: "antwerp-central",
+  citycentre: "antwerp-city-centre",
+  citycenter: "antwerp-city-centre",
+  citycentrum: "antwerp-city-centre",
+  nearcentralstation: "antwerp-near-central-station",
+  nearcentral: "antwerp-near-central-station",
+};
+const NON_PROPERTY_CITY_SUBPATHS = new Set(["listing", "attractions"]);
+
+const extractPropertyKey = (pathname = "") => {
+  const match = pathname.match(/^\/(antwerp|antwerpen)\/([^/]+)/i);
+  if (!match) return "";
+  const rawSlug = match[2] || "";
+  const normalized = rawSlug.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (!normalized || NON_PROPERTY_CITY_SUBPATHS.has(normalized)) return "";
+  return PROPERTY_SLUG_ALIASES[normalized] || "";
+};
+
 const getPageContext = (location) => {
   const pathname = location?.pathname || "/";
   return {
@@ -204,6 +236,7 @@ const getPageContext = (location) => {
     pageType: detectPageType(pathname),
     city: cityLabelFromPath(pathname),
     listingId: extractListingId(pathname),
+    propertyKey: extractPropertyKey(pathname),
     title: typeof document !== "undefined" ? document.title : "",
   };
 };
