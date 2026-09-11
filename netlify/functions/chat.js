@@ -4125,7 +4125,10 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null }) => {
 
   const q = String(question || "").toLowerCase();
   const wantsSize = /\b(size|square|sqft|square feet|square meter|sqm)\b/.test(q);
-  const wantsLandmarks = /\b(near|nearby|landmark|landmarks|what is near|nearest)\b/.test(q);
+  const wantsLandmarks =
+    /\b(near|nearby|landmark|landmarks|what is near|nearest|address|located|location|where is|directions?)\b/.test(
+      q,
+    );
   const wantsAmenities =
     /\b(amenit(?:y|ies)|features?|what does it have|parking|wifi|pool|gym|kitchen|laundry|washer|dryer|washing machine)\b/.test(
       q,
