@@ -629,6 +629,14 @@ Rules:
 
   const payload = parseJson(await response.text());
   if (!response.ok) {
+    // Masked prefix only (never the full key) so the real cause is visible
+    // in Netlify function logs without exposing the secret.
+    console.error("[executive-ols-assistant] OpenAI request failed", {
+      status: response.status,
+      model,
+      apiKeyPrefix: apiKey ? `${apiKey.slice(0, 7)}...${apiKey.slice(-4)} (len ${apiKey.length})` : "MISSING",
+      error: payload?.error,
+    });
     throw new Error(payload?.error?.message || `OpenAI request failed (${response.status})`);
   }
 
