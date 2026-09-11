@@ -411,23 +411,45 @@ const AMENITY_KEYWORDS = [
 const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|keypad|access code|gate code|entry code)\b/i;
 const ACCESS_SECRETS_SELECT = "room_label,wifi_network,wifi_password,door_lock_type,door_code,notes";
 
+const resolvePropertyRowId = async (guestyListingId) => {
+  const id = sanitizeString(guestyListingId, 120);
+  if (!id) return "";
+  const listingRows = await supabaseRestRequest("listings", {
+    query: { select: "property_id", id: `eq.${id}`, limit: 1 },
+  });
+  return listingRows?.[0]?.property_id || "";
+};
+
 // A listing can map to several physical rooms pooled under one Guesty
 // record (see property-admin.js) — room_label "" is the single-room case,
 // anything else names one of several rooms sharing this listing.
 const fetchAccessSecretsForListing = async (guestyListingId) => {
-  const id = sanitizeString(guestyListingId, 120);
-  if (!id) return [];
-
-  const listingRows = await supabaseRestRequest("listings", {
-    query: { select: "property_id", id: `eq.${id}`, limit: 1 },
-  });
-  const propertyRowId = listingRows?.[0]?.property_id;
+  const propertyRowId = await resolvePropertyRowId(guestyListingId);
   if (!propertyRowId) return [];
 
   const secretRows = await supabaseRestRequest("property_access_secrets", {
     query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${propertyRowId}`, order: "room_label.asc", limit: 50 },
   });
   return Array.isArray(secretRows) ? secretRows : [];
+};
+
+const ADDRESS_QUESTION_PATTERN = /\b(address|located|location|where is|directions?)\b/i;
+
+const fetchPropertyAddressForListing = async (guestyListingId) => {
+  const propertyRowId = await resolvePropertyRowId(guestyListingId);
+  if (!propertyRowId) return null;
+
+  const rows = await supabaseRestRequest("properties", {
+    query: { select: "name,address,city,country", id: `eq.${propertyRowId}`, limit: 1 },
+  });
+  return rows?.[0] || null;
+};
+
+const buildAddressText = (property, listingTitle = "") => {
+  const label = listingTitle || "the selected property";
+  if (!property?.address) return `No address is on file for ${label}.`;
+  const parts = [property.address, property.city, property.country].filter(Boolean);
+  return `Address for ${property.name || label}: ${parts.join(", ")}.`;
 };
 
 const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -521,7 +543,7 @@ const extractOutputText = (payload) => {
 // Mirrors the guest chatbot's fallback behavior: if the AI layer is down,
 // answer from data silently rather than surfacing a technical error to
 // whoever's reading the chat.
-const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, accessSecretsText = "" }) => {
+const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, accessSecretsText = "", addressText = "" }) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
   const rangeLabel = sanitizeString(snapshot?.filters?.rangeLabel || "the selected range", 80);
@@ -548,6 +570,10 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, accessSec
 
   if (ACCESS_QUESTION_PATTERN.test(normalizedQuery)) {
     return accessSecretsText || "No Wi-Fi/door-lock details are available for this request — select a specific property first.";
+  }
+
+  if (ADDRESS_QUESTION_PATTERN.test(normalizedQuery)) {
+    return addressText || "No address is available for this request — select a specific property first.";
   }
 
   if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
@@ -679,8 +705,12 @@ export async function handler(event) {
 
     const messages = sanitizeMessages(payload?.messages);
 
+    const needsAccessDetails = ACCESS_QUESTION_PATTERN.test(query);
+    const needsAddress = ADDRESS_QUESTION_PATTERN.test(query);
+
     let accessSecretsText = "";
-    if (ACCESS_QUESTION_PATTERN.test(query)) {
+    let addressText = "";
+    if (needsAccessDetails || needsAddress) {
       let resolvedPropertyId = propertyId;
       let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
 
@@ -693,15 +723,27 @@ export async function handler(event) {
       }
 
       if (resolvedPropertyId) {
-        try {
-          const secrets = await fetchAccessSecretsForListing(resolvedPropertyId);
-          accessSecretsText = buildAccessSecretsText(secrets, resolvedLabel);
-        } catch {
-          accessSecretsText = "Access details lookup failed for the selected property.";
+        if (needsAccessDetails) {
+          try {
+            const secrets = await fetchAccessSecretsForListing(resolvedPropertyId);
+            accessSecretsText = buildAccessSecretsText(secrets, resolvedLabel);
+          } catch {
+            accessSecretsText = "Access details lookup failed for the selected property.";
+          }
+        }
+        if (needsAddress) {
+          try {
+            const property = await fetchPropertyAddressForListing(resolvedPropertyId);
+            addressText = buildAddressText(property, resolvedLabel);
+          } catch {
+            addressText = "Address lookup failed for the selected property.";
+          }
         }
       } else {
-        accessSecretsText =
+        const notFoundNotice =
           'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
+        if (needsAccessDetails) accessSecretsText = notFoundNotice;
+        if (needsAddress) addressText = notFoundNotice;
       }
     }
 
@@ -727,6 +769,7 @@ export async function handler(event) {
         query,
         snapshot,
         accessSecretsText,
+        addressText,
       });
     }
 
