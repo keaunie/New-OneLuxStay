@@ -63,6 +63,7 @@ export default function AdminAiBubble() {
   const dragStateRef = useRef(null);
   const didDragRef = useRef(false);
   const messagesEndRef = useRef(null);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const handleResize = () => setPosition((current) => clampPosition(current));
@@ -157,20 +158,26 @@ export default function AdminAiBubble() {
   const submitQuery = async (event) => {
     event?.preventDefault?.();
     const prompt = draft.trim();
-    if (!prompt || submitting) return;
-    const current = await ensureSession();
-    if (!current) {
-      setError("Your session has expired. Reload the page and sign in again.");
-      return;
-    }
-
-    const optimisticMessages = [...messages, { role: "user", content: prompt }];
-    setMessages(optimisticMessages);
-    setDraft("");
+    // Guard synchronously with a ref, not just the `submitting` state — a
+    // fast double-click/double-Enter can fire a second call before the
+    // await below yields and React commits the state update, which was
+    // sending the same question twice.
+    if (!prompt || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError("");
 
     try {
+      const current = await ensureSession();
+      if (!current) {
+        setError("Your session has expired. Reload the page and sign in again.");
+        return;
+      }
+
+      const optimisticMessages = [...messages, { role: "user", content: prompt }];
+      setMessages(optimisticMessages);
+      setDraft("");
+
       const response = await fetch(`${apiBase}/executive-ols-assistant`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getExecutiveOlsAuthHeaders(current) },
@@ -200,6 +207,7 @@ export default function AdminAiBubble() {
       setError(String(requestError?.message || "Executive assistant request failed."));
       setMessages((current) => current.slice(0, -1));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
