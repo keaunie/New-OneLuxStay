@@ -616,7 +616,7 @@ const isPolicyQuestion = (text = "") =>
   );
 
 const isUnitInfoQuestion = (text = "") =>
-  /\b(unit|listing|property|apartment|villa|suite|room|rooms|bedroom|bathroom|bath|beds?|size|square|sqft|amenit(?:y|ies)|feature|features|parking|pool|wifi|wi-fi|internet|gym|fitness|kitchen|laundry|washer|dryer|washing machine|hot tub|jacuzzi|pet|pets|near|nearby|landmark|landmarks|neighborhood|neighbourhood|location|house rules?|quiet hours?|quiet time|noise|smoking|parties?|minimum age|children|infants)\b/i.test(
+  /\b(units?|listings?|propert(?:y|ies)|apartments?|villas?|suites?|rooms?|bedrooms?|bathrooms?|baths?|beds?|size|square|sqft|amenit(?:y|ies)|features?|parking|pool|wifi|wi-fi|internet|gym|fitness|kitchens?|laundry|washers?|dryers?|washing machines?|hot tubs?|jacuzz(?:i|is)|pets?|near|nearby|landmarks?|neighborhood|neighbourhood|address|located|location(?:s)?|directions?|house rules?|quiet hours?|quiet time|noise|smoking|parties?|minimum age|children|infants?)\b/i.test(
     String(text || ""),
   );
 
