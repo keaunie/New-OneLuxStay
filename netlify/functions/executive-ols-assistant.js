@@ -445,6 +445,40 @@ const fetchPropertyAddressForListing = async (guestyListingId) => {
   return rows?.[0] || null;
 };
 
+const CAPACITY_QUESTION_PATTERN =
+  /\b(accommodate|accommodates|capacity|how many (guests?|people|persons?)|sleeps?|bedrooms?|bathrooms?|baths?|beds?|max guests?|guest count)\b/i;
+
+const fetchListingSpecsForListing = async (guestyListingId) => {
+  const id = sanitizeString(guestyListingId, 120);
+  if (!id) return null;
+
+  const rows = await supabaseRestRequest("listings", {
+    query: { select: "title,accommodates,bedrooms,bathrooms,beds", id: `eq.${id}`, limit: 1 },
+  });
+  return rows?.[0] || null;
+};
+
+const buildSpecsText = (listing, listingTitle = "") => {
+  const label = listingTitle || "the selected property";
+  if (!listing) return `No unit specs are on file for ${label}.`;
+
+  // PostgREST returns Postgres numeric columns (bathrooms) as strings to
+  // avoid float precision loss — coerce everything before comparing.
+  const accommodates = Number(listing.accommodates);
+  const bedrooms = Number(listing.bedrooms);
+  const bathrooms = Number(listing.bathrooms);
+  const beds = Number(listing.beds);
+
+  const parts = [
+    `Unit: ${listing.title || label}`,
+    Number.isFinite(accommodates) && accommodates > 0 && `Guest capacity: ${accommodates}`,
+    Number.isFinite(bedrooms) && bedrooms > 0 && `Bedrooms: ${bedrooms}`,
+    Number.isFinite(bathrooms) && bathrooms > 0 && `Bathrooms: ${bathrooms}`,
+    Number.isFinite(beds) && beds > 0 && `Beds: ${beds}`,
+  ].filter(Boolean);
+  return parts.join(" | ");
+};
+
 const buildAddressText = (property, listingTitle = "") => {
   const label = listingTitle || "the selected property";
   if (!property?.address) return `No address is on file for ${label}.`;
@@ -569,7 +603,13 @@ const extractOutputText = (payload) => {
 // Mirrors the guest chatbot's fallback behavior: if the AI layer is down,
 // answer from data silently rather than surfacing a technical error to
 // whoever's reading the chat.
-const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, accessSecretsText = "", addressText = "" }) => {
+const buildDeterministicFallbackAnswer = ({
+  query = "",
+  snapshot = {},
+  accessSecretsText = "",
+  addressText = "",
+  specsText = "",
+}) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
   const rangeLabel = sanitizeString(snapshot?.filters?.rangeLabel || "the selected range", 80);
@@ -600,6 +640,10 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, accessSec
 
   if (ADDRESS_QUESTION_PATTERN.test(normalizedQuery)) {
     return addressText || "No address is available for this request — select a specific property first.";
+  }
+
+  if (CAPACITY_QUESTION_PATTERN.test(normalizedQuery)) {
+    return specsText || "No unit specs are available for this request — select a specific property first.";
   }
 
   if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
@@ -733,10 +777,12 @@ export async function handler(event) {
 
     const needsAccessDetails = ACCESS_QUESTION_PATTERN.test(query);
     const needsAddress = ADDRESS_QUESTION_PATTERN.test(query);
+    const needsSpecs = CAPACITY_QUESTION_PATTERN.test(query);
 
     let accessSecretsText = "";
     let addressText = "";
-    if (needsAccessDetails || needsAddress) {
+    let specsText = "";
+    if (needsAccessDetails || needsAddress || needsSpecs) {
       let resolvedPropertyId = propertyId;
       let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
 
@@ -765,11 +811,20 @@ export async function handler(event) {
             addressText = "Address lookup failed for the selected property.";
           }
         }
+        if (needsSpecs) {
+          try {
+            const listing = await fetchListingSpecsForListing(resolvedPropertyId);
+            specsText = buildSpecsText(listing, resolvedLabel);
+          } catch {
+            specsText = "Unit specs lookup failed for the selected property.";
+          }
+        }
       } else {
         const notFoundNotice =
           'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
         if (needsAccessDetails) accessSecretsText = notFoundNotice;
         if (needsAddress) addressText = notFoundNotice;
+        if (needsSpecs) specsText = notFoundNotice;
       }
     }
 
@@ -796,6 +851,7 @@ export async function handler(event) {
         snapshot,
         accessSecretsText,
         addressText,
+        specsText,
       });
     }
 
