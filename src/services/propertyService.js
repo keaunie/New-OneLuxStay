@@ -56,9 +56,12 @@ export const createPropertyService = ({ apiBase, session }) => {
     replacePropertyBeds: (propertyId, beds) => action("replace-beds", { propertyId, beds }),
     updatePropertyPricing: (propertyId, pricing) => action("update-pricing", { propertyId, pricing }),
     // Sensitive — fetched only when the Access tab is opened, never bundled
-    // with the rest of the property payload (see property-admin.js).
-    getPropertyAccessSecrets: async (propertyId) => (await request({ query: { accessSecretsFor: propertyId } })).secrets || null,
+    // with the rest of the property payload (see property-admin.js). Returns
+    // an array: one row per physical room when several rooms share a
+    // listing, otherwise a single row with an empty room_label.
+    getPropertyAccessSecrets: async (propertyId) => (await request({ query: { accessSecretsFor: propertyId } })).secrets || [],
     updatePropertyAccessSecrets: (propertyId, secrets) => action("update-access-secrets", { propertyId, secrets }),
+    deletePropertyAccessSecrets: (propertyId, roomLabel) => action("delete-access-secrets", { propertyId, roomLabel }),
     getPropertySourceHistory: async (propertyId) => (await request({ query: { propertyId } })).property?.property_source_snapshots || [],
     signPropertyImageUpload: (values) => action("sign-upload", values),
   };

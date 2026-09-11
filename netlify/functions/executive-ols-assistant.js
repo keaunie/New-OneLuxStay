@@ -404,38 +404,53 @@ const AMENITY_KEYWORDS = [
 // admin has selected in the property filter, only when the question asks
 // for them.
 const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|keypad|access code|gate code|entry code)\b/i;
-const ACCESS_SECRETS_SELECT = "wifi_network,wifi_password,door_lock_type,door_code,notes";
+const ACCESS_SECRETS_SELECT = "room_label,wifi_network,wifi_password,door_lock_type,door_code,notes";
 
+// A listing can map to several physical rooms pooled under one Guesty
+// record (see property-admin.js) — room_label "" is the single-room case,
+// anything else names one of several rooms sharing this listing.
 const fetchAccessSecretsForListing = async (guestyListingId) => {
   const id = sanitizeString(guestyListingId, 120);
-  if (!id) return null;
+  if (!id) return [];
 
   const listingRows = await supabaseRestRequest("listings", {
     query: { select: "property_id", id: `eq.${id}`, limit: 1 },
   });
   const propertyRowId = listingRows?.[0]?.property_id;
-  if (!propertyRowId) return null;
+  if (!propertyRowId) return [];
 
   const secretRows = await supabaseRestRequest("property_access_secrets", {
-    query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${propertyRowId}`, limit: 1 },
+    query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${propertyRowId}`, order: "room_label.asc", limit: 50 },
   });
-  return secretRows?.[0] || null;
+  return Array.isArray(secretRows) ? secretRows : [];
 };
 
-const buildAccessSecretsText = (secrets, listingTitle = "") => {
+const buildAccessSecretsText = (secretsRows, listingTitle = "") => {
   const label = listingTitle || "the selected property";
-  if (!secrets) return `No Wi-Fi/door-lock access details are on file for ${label}.`;
+  const rows = Array.isArray(secretsRows) ? secretsRows : [];
+  if (!rows.length) return `No Wi-Fi/door-lock access details are on file for ${label}.`;
 
-  const lines = [`Access details for ${label} (admin-only — never share with guests over unverified channels):`];
-  if (secrets.wifi_network || secrets.wifi_password) {
-    lines.push(`  Wi-Fi: ${secrets.wifi_network || "(network name not set)"} / ${secrets.wifi_password || "(password not set)"}`);
+  const formatRoom = (secrets) => {
+    const lines = [];
+    if (secrets.wifi_network || secrets.wifi_password) {
+      lines.push(`  Wi-Fi: ${secrets.wifi_network || "(network name not set)"} / ${secrets.wifi_password || "(password not set)"}`);
+    }
+    if (secrets.door_lock_type || secrets.door_code) {
+      lines.push(`  Door lock: ${secrets.door_lock_type || "(lock type not set)"} — code ${secrets.door_code || "(not set)"}`);
+    }
+    if (secrets.notes) lines.push(`  Notes: ${sanitizeString(secrets.notes, 600)}`);
+    if (!lines.length) lines.push("  No Wi-Fi or door-lock fields have been filled in yet.");
+    return lines.join("\n");
+  };
+
+  if (rows.length === 1 && !rows[0].room_label) {
+    return [`Access details for ${label} (admin-only — never share with guests over unverified channels):`, formatRoom(rows[0])].join("\n");
   }
-  if (secrets.door_lock_type || secrets.door_code) {
-    lines.push(`  Door lock: ${secrets.door_lock_type || "(lock type not set)"} — code ${secrets.door_code || "(not set)"}`);
-  }
-  if (secrets.notes) lines.push(`  Notes: ${sanitizeString(secrets.notes, 600)}`);
-  if (lines.length === 1) lines.push("  No Wi-Fi or door-lock fields have been filled in yet.");
-  return lines.join("\n");
+
+  return [
+    `Access details for ${label} — this listing covers ${rows.length} rooms (admin-only — never share with guests over unverified channels):`,
+    ...rows.map((secrets) => [`Room ${secrets.room_label || "(unlabeled)"}:`, formatRoom(secrets)].join("\n")),
+  ].join("\n\n");
 };
 
 const formatHistory = (messages = []) =>

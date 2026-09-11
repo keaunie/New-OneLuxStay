@@ -214,20 +214,28 @@ const updatePricing = async (propertyId, payload = {}) => {
 
 // Sensitive: Wi-Fi/door-lock credentials. Deliberately kept out of
 // PROPERTY_SELECT/getProperty() so it's never bundled into the general
-// property payload — callers must explicitly request it via these two
+// property payload — callers must explicitly request it via these
 // actions. The table itself has RLS enabled with no policies, so this
 // service-role query is the only access path in the whole app.
-const ACCESS_SECRETS_SELECT = "id,property_id,wifi_network,wifi_password,door_lock_type,door_code,notes,updated_at,updated_by";
+//
+// One property can have several rows: room_label "" means the property
+// is a single room/unit; a non-empty room_label is one of several
+// physical rooms pooled under one Guesty listing (e.g. the HWH deluxe
+// rooms 401/403/404/501/504 sharing one listing record), each with its
+// own Wi-Fi/lock credentials.
+const ACCESS_SECRETS_SELECT = "id,property_id,room_label,wifi_network,wifi_password,door_lock_type,door_code,notes,updated_at,updated_by";
 const getAccessSecrets = async (propertyId) => {
   const id = requireUuid(propertyId);
   const rows = await supabaseRestRequest("property_access_secrets", {
-    query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${id}`, limit: 1 },
+    query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${id}`, order: "room_label.asc", limit: 50 },
   });
-  return { secrets: rows?.[0] || null };
+  return { secrets: rows || [] };
 };
 const updateAccessSecrets = async (propertyId, payload = {}, actorEmail = "") => {
   const id = requireUuid(propertyId);
+  const roomLabel = clean(payload.room_label, 80);
   const body = {
+    room_label: roomLabel,
     wifi_network: nullable(payload.wifi_network, 200),
     wifi_password: nullable(payload.wifi_password, 200),
     door_lock_type: nullable(payload.door_lock_type, 120),
@@ -237,12 +245,21 @@ const updateAccessSecrets = async (propertyId, payload = {}, actorEmail = "") =>
     updated_by: nullable(actorEmail, 320),
   };
   const existing = await supabaseRestRequest("property_access_secrets", {
-    query: { select: "id", property_id: `eq.${id}`, limit: 1 },
+    query: { select: "id", property_id: `eq.${id}`, room_label: `eq.${roomLabel}`, limit: 1 },
   });
   const rows = existing?.[0]
     ? await supabaseRestRequest("property_access_secrets", { method: "PATCH", query: { id: `eq.${existing[0].id}` }, body, prefer: "return=representation" })
     : await supabaseRestRequest("property_access_secrets", { method: "POST", body: [{ property_id: id, ...body }], prefer: "return=representation" });
   return { secrets: rows?.[0] };
+};
+const deleteAccessSecrets = async (propertyId, roomLabel = "") => {
+  const id = requireUuid(propertyId);
+  const label = clean(roomLabel, 80);
+  await supabaseRestRequest("property_access_secrets", {
+    method: "DELETE",
+    query: { property_id: `eq.${id}`, room_label: `eq.${label}` },
+  });
+  return { ok: true };
 };
 
 const signUpload = async (payload = {}) => {
@@ -383,6 +400,7 @@ const route = async (event, access) => {
   if (action === "update-pricing") return updatePricing(body.propertyId, body.pricing);
   if (action === "get-access-secrets") return getAccessSecrets(body.propertyId);
   if (action === "update-access-secrets") return updateAccessSecrets(body.propertyId, body.secrets, access?.user?.email);
+  if (action === "delete-access-secrets") return deleteAccessSecrets(body.propertyId, body.roomLabel);
   if (action === "sign-upload") return signUpload(body);
   if (action === "add-image") return addImage(body.propertyId, body.input);
   if (action === "migrate-guesty-image") return migrateGuestyImage(body.propertyId, body.imageId);

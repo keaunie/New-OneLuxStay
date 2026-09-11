@@ -5,10 +5,18 @@ import "./PropertyManager.css";
 
 const PAGE_SIZE = 25;
 const TABS = ["Overview", "Location", "Descriptions", "Amenities", "Beds & capacity", "Pricing", "Access", "Images", "Integration", "Source history"];
-const accessForm = (secrets = null) => ({
-  wifi_network: text(secrets?.wifi_network), wifi_password: text(secrets?.wifi_password),
-  door_lock_type: text(secrets?.door_lock_type), door_code: text(secrets?.door_code), notes: text(secrets?.notes),
-});
+// A property normally has one access-secrets row (room_label ""). When
+// several physical rooms are pooled under one Guesty listing (e.g. the HWH
+// deluxe rooms sharing one listing), it has several rows, one per room.
+const emptyAccessRoom = () => ({ room_label: "", wifi_network: "", wifi_password: "", door_lock_type: "", door_code: "", notes: "", _persisted: false });
+const accessForm = (secrets = []) => {
+  const rows = Array.isArray(secrets) ? secrets : [];
+  if (!rows.length) return [emptyAccessRoom()];
+  return rows.map((row) => ({
+    room_label: text(row.room_label), wifi_network: text(row.wifi_network), wifi_password: text(row.wifi_password),
+    door_lock_type: text(row.door_lock_type), door_code: text(row.door_code), notes: text(row.notes), _persisted: true,
+  }));
+};
 const text = (value) => String(value ?? "");
 const first = (rows) => (Array.isArray(rows) ? rows[0] : null) || {};
 const date = (value) => value ? new Date(value).toLocaleString() : "—";
@@ -98,7 +106,23 @@ export default function PropertyManager({ apiBase, session, standalone = false }
   }, [service, selectedId, accessLoaded, accessLoading]);
   useEffect(() => { if (tab === "Access") loadAccessSecrets(); }, [tab, loadAccessSecrets]);
 
-  const saveAccess = () => run(() => service.updatePropertyAccessSecrets(selectedId, access), "Access details saved.");
+  const mutateAccessRoom = (index, key, value) => {
+    setAccess((current) => current.map((room, i) => (i === index ? { ...room, [key]: value } : room)));
+    setDirty(true);
+  };
+  const saveAccessRoom = (index) => run(() => service.updatePropertyAccessSecrets(selectedId, access[index]), "Access details saved.");
+  const addAccessRoom = () => {
+    const label = window.prompt('Room label for this room (e.g. "401 Med"). Only needed when several physical rooms share this listing.');
+    if (label == null) return;
+    setAccess((current) => [...current, { ...emptyAccessRoom(), room_label: label.trim() }]);
+    setDirty(true);
+  };
+  const removeAccessRoom = (index) => {
+    const room = access[index];
+    if (!room._persisted) { setAccess((current) => current.filter((_, i) => i !== index)); return; }
+    if (!window.confirm(`Remove access details for ${room.room_label || "this property"}?`)) return;
+    run(() => service.deletePropertyAccessSecrets(selectedId, room.room_label), "Access details removed.");
+  };
   useEffect(() => { const id = params.propertyId || selectedId; if (id) { setSelectedId(id); loadDetail(id); } }, [params.propertyId, selectedId, loadDetail]);
 
   const choose = (id) => {
@@ -209,14 +233,22 @@ export default function PropertyManager({ apiBase, session, standalone = false }
             <div className="pm-alert is-warning">Sensitive: Wi-Fi and door-lock credentials for this property. Visible only to authenticated admins — never shown to guests or synced anywhere public.</div>
             {accessLoading && <p>Loading access details…</p>}
             {!accessLoading && access && <>
-              <div className="pm-fields">
-                <label>Wi-Fi network name<input value={access.wifi_network} onChange={(e) => { setAccess({ ...access, wifi_network: e.target.value }); setDirty(true); }} /></label>
-                <label>Wi-Fi password<input value={access.wifi_password} onChange={(e) => { setAccess({ ...access, wifi_password: e.target.value }); setDirty(true); }} /></label>
-                <label>Door lock type<input value={access.door_lock_type} placeholder="e.g. keypad, smart lock, lockbox" onChange={(e) => { setAccess({ ...access, door_lock_type: e.target.value }); setDirty(true); }} /></label>
-                <label>Door code<input value={access.door_code} onChange={(e) => { setAccess({ ...access, door_code: e.target.value }); setDirty(true); }} /></label>
-                <label className="is-wide">Notes<textarea rows="3" value={access.notes} placeholder="Gate codes, alarm codes, anything else check-in staff need" onChange={(e) => { setAccess({ ...access, notes: e.target.value }); setDirty(true); }} /></label>
-              </div>
-              <button disabled={saving} onClick={saveAccess}>{saving ? "Saving…" : "Save access details"}</button>
+              {access.length > 1 && <p className="pm-help">This listing pools several physical rooms — each has its own Wi-Fi/lock credentials below.</p>}
+              {access.map((room, index) => <div className="pm-access-room" key={room._persisted ? room.room_label : `new-${index}`}>
+                {access.length > 1 && <h3>{room.room_label || "Untitled room"}</h3>}
+                <div className="pm-fields">
+                  <label>Wi-Fi network name<input value={room.wifi_network} onChange={(e) => mutateAccessRoom(index, "wifi_network", e.target.value)} /></label>
+                  <label>Wi-Fi password<input value={room.wifi_password} onChange={(e) => mutateAccessRoom(index, "wifi_password", e.target.value)} /></label>
+                  <label>Door lock type<input value={room.door_lock_type} placeholder="e.g. keypad, smart lock, lockbox" onChange={(e) => mutateAccessRoom(index, "door_lock_type", e.target.value)} /></label>
+                  <label>Door code<input value={room.door_code} onChange={(e) => mutateAccessRoom(index, "door_code", e.target.value)} /></label>
+                  <label className="is-wide">Notes<textarea rows="3" value={room.notes} placeholder="Gate codes, alarm codes, anything else check-in staff need" onChange={(e) => mutateAccessRoom(index, "notes", e.target.value)} /></label>
+                </div>
+                <div className="pm-actions">
+                  <button disabled={saving} onClick={() => saveAccessRoom(index)}>{saving ? "Saving…" : "Save"}</button>
+                  {(access.length > 1 || room._persisted) && <button className="is-danger" disabled={saving} onClick={() => removeAccessRoom(index)}>Remove room</button>}
+                </div>
+              </div>)}
+              <button type="button" onClick={addAccessRoom}>Add another room to this listing</button>
             </>}
           </>}
           {tab === "Images" && <><div className="pm-section-head"><div><h3>Images ({images.length})</h3><p>Select all pending or failed Guesty images, then copy them to R2. New objects are stored directly under the property folder.</p></div><div className="pm-actions"><button type="button" disabled={migrating} onClick={() => setSelectedMigrationIds(images.filter((image) => ["pending", "failed"].includes(image.migration_status)).map((image) => image.id))}>Select all</button><button type="button" disabled={migrating || !selectedMigrationIds.length} onClick={migrateSelectedGuestyImages}>{migrating ? "Copying…" : `Migrate selected (${selectedMigrationIds.length})`}</button><label className="pm-upload">Upload new images<input type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/avif" onChange={upload} /></label></div></div><div className="pm-gallery">{shownImages.map((image, index) => { const selectable = ["pending", "failed"].includes(image.migration_status); return <article key={image.id}>{selectable && <label className="pm-migration-select"><input type="checkbox" checked={selectedMigrationIds.includes(image.id)} disabled={migrating} onChange={() => toggleMigrationSelection(image.id)} /> Select for migration</label>}<div className="pm-image">{imageUrl(image) ? <img src={imageUrl(image)} alt={image.alt_text || "Property"} loading="lazy" /> : <span>No image</span>}<em className={`is-${image.migration_status}`}>{image.migration_status}</em>{image.is_primary && <strong>Primary</strong>}</div><input placeholder="Alt text" value={image.alt_text || ""} onChange={(e) => setImages(images.map((item) => item.id === image.id ? { ...item, alt_text: e.target.value } : item))} onBlur={(e) => run(() => service.updatePropertyImage(selectedId, image.id, { alt_text: e.target.value }), "Image text saved.")} /><small>{image.width && image.height ? `${image.width}×${image.height}` : "Dimensions unknown"} · {image.mime_type || "Unknown type"}</small>{image.migration_error && <small className="is-error">{image.migration_error}</small>}<div className="pm-actions"><button disabled={index === 0} onClick={() => moveImage(index, -1)}>←</button><button disabled={index === images.length - 1} onClick={() => moveImage(index, 1)}>→</button><button disabled={image.is_primary} onClick={() => run(() => service.setPrimaryPropertyImage(selectedId, image.id), "Primary image updated.")}>Primary</button><button className="is-danger" onClick={() => removeImage(image)}>Remove</button></div></article>; })}</div>{shownImages.length < images.length && <button onClick={() => setImagePage(imagePage + 1)}>Show 24 more</button>}{!images.length && <p className="pm-empty">No images for this property.</p>}</>}
