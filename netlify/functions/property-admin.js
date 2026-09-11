@@ -212,6 +212,39 @@ const updatePricing = async (propertyId, payload = {}) => {
   return { pricing: rows?.[0] };
 };
 
+// Sensitive: Wi-Fi/door-lock credentials. Deliberately kept out of
+// PROPERTY_SELECT/getProperty() so it's never bundled into the general
+// property payload — callers must explicitly request it via these two
+// actions. The table itself has RLS enabled with no policies, so this
+// service-role query is the only access path in the whole app.
+const ACCESS_SECRETS_SELECT = "id,property_id,wifi_network,wifi_password,door_lock_type,door_code,notes,updated_at,updated_by";
+const getAccessSecrets = async (propertyId) => {
+  const id = requireUuid(propertyId);
+  const rows = await supabaseRestRequest("property_access_secrets", {
+    query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${id}`, limit: 1 },
+  });
+  return { secrets: rows?.[0] || null };
+};
+const updateAccessSecrets = async (propertyId, payload = {}, actorEmail = "") => {
+  const id = requireUuid(propertyId);
+  const body = {
+    wifi_network: nullable(payload.wifi_network, 200),
+    wifi_password: nullable(payload.wifi_password, 200),
+    door_lock_type: nullable(payload.door_lock_type, 120),
+    door_code: nullable(payload.door_code, 120),
+    notes: nullable(payload.notes, 2000),
+    updated_at: now(),
+    updated_by: nullable(actorEmail, 320),
+  };
+  const existing = await supabaseRestRequest("property_access_secrets", {
+    query: { select: "id", property_id: `eq.${id}`, limit: 1 },
+  });
+  const rows = existing?.[0]
+    ? await supabaseRestRequest("property_access_secrets", { method: "PATCH", query: { id: `eq.${existing[0].id}` }, body, prefer: "return=representation" })
+    : await supabaseRestRequest("property_access_secrets", { method: "POST", body: [{ property_id: id, ...body }], prefer: "return=representation" });
+  return { secrets: rows?.[0] };
+};
+
 const signUpload = async (payload = {}) => {
   const propertyId = requireUuid(payload.propertyId); const fileName = clean(payload.fileName, 240);
   const contentType = clean(payload.contentType, 120).toLowerCase(); const size = Number(payload.size || 0);
@@ -330,9 +363,10 @@ const setPrimaryImage = async (propertyId, imageId) => {
   return { ok: true };
 };
 
-const route = async (event) => {
+const route = async (event, access) => {
   if (event.httpMethod === "GET") {
     const params = event.queryStringParameters || {};
+    if (params.accessSecretsFor) return getAccessSecrets(params.accessSecretsFor);
     if (params.propertyId) return getProperty(params.propertyId);
     return listProperties(params);
   }
@@ -347,6 +381,8 @@ const route = async (event) => {
   if (action === "remove-tag") return removeRelated("property_tags", body.propertyId, body.tagId);
   if (action === "replace-beds") return replaceBeds(body.propertyId, body.beds);
   if (action === "update-pricing") return updatePricing(body.propertyId, body.pricing);
+  if (action === "get-access-secrets") return getAccessSecrets(body.propertyId);
+  if (action === "update-access-secrets") return updateAccessSecrets(body.propertyId, body.secrets, access?.user?.email);
   if (action === "sign-upload") return signUpload(body);
   if (action === "add-image") return addImage(body.propertyId, body.input);
   if (action === "migrate-guesty-image") return migrateGuestyImage(body.propertyId, body.imageId);
@@ -362,8 +398,8 @@ export const handler = async (event) => {
     return { statusCode: 204, headers: getCorsHeaders(event), body: "" };
   }
   try {
-    await verifyAdminsOlsAccess(event);
-    return json(200, await route(event), event);
+    const access = await verifyAdminsOlsAccess(event);
+    return json(200, await route(event, access), event);
   } catch (error) {
     console.error("[property-admin]", { message: error?.message, code: error?.code, statusCode: error?.statusCode });
     const statusCode = Number(error?.statusCode) || (/duplicate key|unique constraint/i.test(error?.message || "") ? 409 : 500);

@@ -55,6 +55,10 @@ export const createPropertyService = ({ apiBase, session }) => {
     removePropertyTag: (propertyId, tagId) => action("remove-tag", { propertyId, tagId }),
     replacePropertyBeds: (propertyId, beds) => action("replace-beds", { propertyId, beds }),
     updatePropertyPricing: (propertyId, pricing) => action("update-pricing", { propertyId, pricing }),
+    // Sensitive — fetched only when the Access tab is opened, never bundled
+    // with the rest of the property payload (see property-admin.js).
+    getPropertyAccessSecrets: async (propertyId) => (await request({ query: { accessSecretsFor: propertyId } })).secrets || null,
+    updatePropertyAccessSecrets: (propertyId, secrets) => action("update-access-secrets", { propertyId, secrets }),
     getPropertySourceHistory: async (propertyId) => (await request({ query: { propertyId } })).property?.property_source_snapshots || [],
     signPropertyImageUpload: (values) => action("sign-upload", values),
   };

@@ -17,6 +17,7 @@ const QUICK_PROMPTS = [
   "Draft a professional reply to a guest complaint.",
   "What amenities does the Fashion District building have?",
   "How many units do we have across Los Angeles?",
+  "What's the Wi-Fi password and door code for the selected property?",
 ];
 
 const VIEW_OPTIONS = [

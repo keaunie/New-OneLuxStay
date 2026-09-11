@@ -3,6 +3,7 @@ import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
 import { fetchWithTimeout, getBaseUrl } from "./_shared/http.js";
 import { guestyRequest } from "./_shared/guestyService.js";
 import { verifyAdminsOlsAccess } from "./_shared/adminsOlsAuth.js";
+import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { propertyProfiles } from "../../src/data/propertyProfiles.js";
 
 dotenv.config();
@@ -397,6 +398,46 @@ const AMENITY_KEYWORDS = [
   { label: "air conditioning", pattern: /\b(air conditioning|a\/c|ac)\b/i, valuePattern: /\bair conditioning\b/ },
 ];
 
+// Wi-Fi/door-lock credentials live in property_access_secrets, keyed off
+// properties.id — never bulk-loaded into the prompt like the public property
+// directory above. Fetched on demand, scoped to the one Guesty listing the
+// admin has selected in the property filter, only when the question asks
+// for them.
+const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|keypad|access code|gate code|entry code)\b/i;
+const ACCESS_SECRETS_SELECT = "wifi_network,wifi_password,door_lock_type,door_code,notes";
+
+const fetchAccessSecretsForListing = async (guestyListingId) => {
+  const id = sanitizeString(guestyListingId, 120);
+  if (!id) return null;
+
+  const listingRows = await supabaseRestRequest("listings", {
+    query: { select: "property_id", id: `eq.${id}`, limit: 1 },
+  });
+  const propertyRowId = listingRows?.[0]?.property_id;
+  if (!propertyRowId) return null;
+
+  const secretRows = await supabaseRestRequest("property_access_secrets", {
+    query: { select: ACCESS_SECRETS_SELECT, property_id: `eq.${propertyRowId}`, limit: 1 },
+  });
+  return secretRows?.[0] || null;
+};
+
+const buildAccessSecretsText = (secrets, listingTitle = "") => {
+  const label = listingTitle || "the selected property";
+  if (!secrets) return `No Wi-Fi/door-lock access details are on file for ${label}.`;
+
+  const lines = [`Access details for ${label} (admin-only — never share with guests over unverified channels):`];
+  if (secrets.wifi_network || secrets.wifi_password) {
+    lines.push(`  Wi-Fi: ${secrets.wifi_network || "(network name not set)"} / ${secrets.wifi_password || "(password not set)"}`);
+  }
+  if (secrets.door_lock_type || secrets.door_code) {
+    lines.push(`  Door lock: ${secrets.door_lock_type || "(lock type not set)"} — code ${secrets.door_code || "(not set)"}`);
+  }
+  if (secrets.notes) lines.push(`  Notes: ${sanitizeString(secrets.notes, 600)}`);
+  if (lines.length === 1) lines.push("  No Wi-Fi or door-lock fields have been filled in yet.");
+  return lines.join("\n");
+};
+
 const formatHistory = (messages = []) =>
   messages.map((item) => `${item.role === "assistant" ? "Assistant" : "User"}: ${item.content}`).join("\n");
 
@@ -426,7 +467,7 @@ const extractOutputText = (payload) => {
   return parts.join("\n").trim();
 };
 
-const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistantError = "" }) => {
+const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistantError = "", accessSecretsText = "" }) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
   const rangeLabel = sanitizeString(snapshot?.filters?.rangeLabel || "the selected range", 80);
@@ -454,12 +495,8 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistant
     );
   }
 
-  if (/(wifi|wi-fi|password|internet)/i.test(normalizedQuery)) {
-    return (
-      "I don't have guest Wi-Fi passwords here — those live per-property, not in this directory. " +
-      "Every building in the property directory lists Wi-Fi/Internet as a standard amenity though." +
-      helperNote
-    );
+  if (ACCESS_QUESTION_PATTERN.test(normalizedQuery)) {
+    return `${accessSecretsText || "No Wi-Fi/door-lock details are available for this request — select a specific property first."}${helperNote}`;
   }
 
   if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
@@ -485,7 +522,7 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistant
   );
 };
 
-const createAssistantReply = async ({ query, messages, snapshot }) => {
+const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "" }) => {
   const apiKey = sanitizeString(process.env.OPENAI_API_KEY, 500);
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is missing");
@@ -501,6 +538,7 @@ const createAssistantReply = async ({ query, messages, snapshot }) => {
     "",
     "Guesty-backed snapshot:",
     buildSnapshotText(snapshot),
+    ...(accessSecretsText ? ["", "Access details (Wi-Fi/door-lock — only reveal if explicitly asked):", accessSecretsText] : []),
   ].join("\n");
 
   const instructions = `
@@ -515,6 +553,7 @@ Rules:
 - When useful, provide short recommendations or next steps.
 - You may draft professional guest or internal messages when asked.
 - Never invent figures, reservations, or property facts.
+- Only reveal Wi-Fi passwords or door codes when an "Access details" section is supplied above and the question asks for them. Never guess or fabricate a password or code. If the admin asks for access details but no "Access details" section is supplied, tell them to select a specific property in the property filter first.
 `.trim();
 
   const response = await fetchWithTimeout(
@@ -583,6 +622,22 @@ export async function handler(event) {
     }
 
     const messages = sanitizeMessages(payload?.messages);
+
+    let accessSecretsText = "";
+    if (ACCESS_QUESTION_PATTERN.test(query)) {
+      if (propertyId) {
+        try {
+          const secrets = await fetchAccessSecretsForListing(propertyId);
+          const listingTitle = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
+          accessSecretsText = buildAccessSecretsText(secrets, listingTitle);
+        } catch {
+          accessSecretsText = "Access details lookup failed for the selected property.";
+        }
+      } else {
+        accessSecretsText = "No property is selected. Ask the admin to pick a specific property from the property filter before sharing Wi-Fi or door-lock details.";
+      }
+    }
+
     let answer = "";
     let assistantError = "";
 
@@ -591,6 +646,7 @@ export async function handler(event) {
         query,
         messages,
         snapshot,
+        accessSecretsText,
       });
     } catch (error) {
       assistantError = normalizeAssistantErrorMessage(error);
@@ -601,6 +657,7 @@ export async function handler(event) {
         query,
         snapshot,
         assistantError,
+        accessSecretsText,
       });
     }
 
