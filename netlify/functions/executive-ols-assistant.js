@@ -448,39 +448,65 @@ const fetchPropertyAddressForListing = async (guestyListingId) => {
 const buildAddressText = (property, listingTitle = "") => {
   const label = listingTitle || "the selected property";
   if (!property?.address) return `No address is on file for ${label}.`;
-  const parts = [property.address, property.city, property.country].filter(Boolean);
-  return `Address for ${property.name || label}: ${parts.join(", ")}.`;
+  // Guesty-sourced addresses already read as complete ("123 Main St, 90013
+  // Los Angeles, United States"), so don't re-append city/country on top.
+  return `Address for ${property.name || label}: ${property.address}.`;
 };
 
 const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 // Admins naturally type the internal nickname ("A & B 311") rather than pick
-// from the property filter first. Resolves a Guesty listing id from that
-// free text by matching against listings.metadata->>nickname — still scoped
-// to a single property, same as picking from the filter would be.
-const resolvePropertyFromQuery = async (query) => {
-  const normalizedQuery = normalizeForMatch(query);
-  if (!normalizedQuery) return null;
-
+// from the property filter first, and follow-up questions ("what's the
+// wifi for that unit") naturally omit the name entirely once it's already
+// been established earlier in the conversation. fetchListingNicknames +
+// matchPropertyInText separate the one Supabase fetch from the matching so
+// resolvePropertyFromConversation can check the current question AND recent
+// chat history without re-querying per message.
+const fetchListingNicknames = async () => {
   try {
     const rows = await supabaseRestRequest("listings", {
       query: { select: "id,nickname:metadata->>nickname", limit: 500 },
     });
-
-    let best = null;
-    let bestLength = 0;
-    (Array.isArray(rows) ? rows : []).forEach((row) => {
-      const normalizedNickname = normalizeForMatch(row?.nickname);
-      if (normalizedNickname.length < 3) return;
-      if (normalizedQuery.includes(normalizedNickname) && normalizedNickname.length > bestLength) {
-        best = { id: sanitizeString(row.id, 120), label: sanitizeString(row.nickname, 220) };
-        bestLength = normalizedNickname.length;
-      }
-    });
-    return best;
+    return Array.isArray(rows) ? rows : [];
   } catch {
-    return null;
+    return [];
   }
+};
+
+const matchPropertyInText = (text, nicknameRows) => {
+  const normalizedQuery = normalizeForMatch(text);
+  if (!normalizedQuery) return null;
+
+  let best = null;
+  let bestLength = 0;
+  nicknameRows.forEach((row) => {
+    const normalizedNickname = normalizeForMatch(row?.nickname);
+    if (normalizedNickname.length < 3) return;
+    if (normalizedQuery.includes(normalizedNickname) && normalizedNickname.length > bestLength) {
+      best = { id: sanitizeString(row.id, 120), label: sanitizeString(row.nickname, 220) };
+      bestLength = normalizedNickname.length;
+    }
+  });
+  return best;
+};
+
+// Checks the current question first, then walks recent chat history
+// (newest first, either role) so a follow-up like "what's the wifi for
+// that unit" resolves to whichever property was named earlier in the
+// same conversation.
+const resolvePropertyFromConversation = async (query, messages = []) => {
+  const nicknameRows = await fetchListingNicknames();
+  if (!nicknameRows.length) return null;
+
+  const direct = matchPropertyInText(query, nicknameRows);
+  if (direct) return direct;
+
+  const priorTexts = [...messages].reverse().map((message) => message?.content);
+  for (const text of priorTexts) {
+    const match = matchPropertyInText(text, nicknameRows);
+    if (match) return match;
+  }
+  return null;
 };
 
 const buildAccessSecretsText = (secretsRows, listingTitle = "") => {
@@ -715,7 +741,7 @@ export async function handler(event) {
       let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
 
       if (!resolvedPropertyId) {
-        const match = await resolvePropertyFromQuery(query);
+        const match = await resolvePropertyFromConversation(query, messages);
         if (match) {
           resolvedPropertyId = match.id;
           resolvedLabel = match.label;
