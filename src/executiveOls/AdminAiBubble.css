@@ -1,0 +1,19 @@
+.admin-ai-bubble{position:fixed;z-index:2147483000;width:56px;height:56px;border-radius:999px;border:2px solid rgba(255,255,255,.18);background:linear-gradient(145deg,#c2a877,#9d8760);color:#1c1710;font:700 .78rem/1 "Inter",system-ui,sans-serif;letter-spacing:.04em;cursor:grab;box-shadow:0 10px 30px rgba(0,0,0,.4);display:grid;place-items:center;touch-action:none;user-select:none}
+.admin-ai-bubble:active{cursor:grabbing}
+.admin-ai-panel{position:fixed;z-index:2147483000;width:min(360px,92vw);max-height:min(520px,70vh);display:flex;flex-direction:column;background:#14201b;color:#f3f1ea;border:1px solid #3a3226;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.5);overflow:hidden}
+.admin-ai-panel.is-right{transform:translate(calc(56px + 12px),-40px)}
+.admin-ai-panel.is-left{transform:translate(calc(-100% - 12px),-40px)}
+.admin-ai-panel header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid #2c2620;background:#1b2621}
+.admin-ai-panel header strong{font-size:.95rem}
+.admin-ai-panel header button{background:transparent;border:0;color:#cfc6b2;font-size:1.3rem;line-height:1;cursor:pointer}
+.admin-ai-panel select{margin:.6rem 1rem 0;border-radius:8px;border:1px solid #3a3226;background:#0f1713;color:#f3f1ea;padding:.5rem;font:inherit}
+.admin-ai-panel-messages{flex:1;overflow:auto;padding:.8rem 1rem;display:flex;flex-direction:column;gap:.6rem}
+.admin-ai-message{padding:.6rem .75rem;border-radius:10px;font-size:.86rem;line-height:1.45;white-space:pre-wrap;max-width:88%}
+.admin-ai-message.is-assistant{background:#1f2b25;align-self:flex-start}
+.admin-ai-message.is-user{background:#9d8760;color:#1c1710;align-self:flex-end}
+.admin-ai-panel-error{margin:0 1rem;color:#e8a6a6;font-size:.82rem}
+.admin-ai-panel-form{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid #2c2620}
+.admin-ai-panel-form input{flex:1;min-width:0;border-radius:8px;border:1px solid #3a3226;background:#0f1713;color:#f3f1ea;padding:.55rem .7rem;font:inherit}
+.admin-ai-panel-form button{border:0;border-radius:8px;background:#9d8760;color:#1c1710;padding:.55rem .9rem;font-weight:700;cursor:pointer}
+.admin-ai-panel-form button:disabled{opacity:.5;cursor:default}
+@media(max-width:480px){.admin-ai-panel{left:12px!important;right:12px;bottom:88px;top:auto!important;width:auto;max-height:60vh;transform:none!important}}

@@ -48,6 +48,7 @@ const BlogPage              = lazy(routePreloaders.blog);
 const BlogArticlePage       = lazy(routePreloaders.blogArticle);
 const AdminBlogPage         = lazy(routePreloaders.adminBlog);
 const AdminPropertiesPage   = lazy(() => import("./pages/AdminPropertiesPage"));
+const AdminAiBubble         = lazy(() => import("./executiveOls/AdminAiBubble"));
 const MaintenancePage       = lazy(routePreloaders.maintenance);
 
 const CITY_ROOT_PATHS = new Set([
@@ -124,6 +125,21 @@ function AppRoutes() {
     pathname.startsWith("/admin-reservations") ||
     pathname.startsWith("/private/") ||
     pathname.startsWith("/blog");
+  const isAdminAuthPath =
+    pathname === "/executive-ols/login" ||
+    pathname === "/executive-ols/accept" ||
+    pathname.startsWith("/admins-ols/login") ||
+    pathname.startsWith("/admins-ols/accept");
+  // Full-page assistant views already show the same chat inline, so skip the
+  // floating launcher there to avoid stacking two copies of the same tool.
+  const isFullPageAssistant = pathname === "/executive-ols/assistant" || pathname === "/executive-ols/whatsapp";
+  const showAdminAiBubble =
+    !isAdminAuthPath &&
+    !isFullPageAssistant &&
+    (pathname.startsWith("/admins-ols") ||
+      pathname.startsWith("/executive-ols") ||
+      pathname.startsWith("/admin/properties") ||
+      pathname.startsWith("/admin-reservations"));
   const renderLazyRoute = (Component, props = {}) => (
     <Suspense fallback={null}>
       <Component {...props} />
@@ -284,6 +300,11 @@ function AppRoutes() {
         </Routes>
         {!hideChatConcierge && <ChatConcierge />}
         {!hideChatConcierge && <CookieConsentBanner />}
+        {showAdminAiBubble && (
+          <Suspense fallback={null}>
+            <AdminAiBubble />
+          </Suspense>
+        )}
       </div>
     </>
   ); 
