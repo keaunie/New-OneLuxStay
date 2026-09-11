@@ -518,7 +518,10 @@ const extractOutputText = (payload) => {
   return parts.join("\n").trim();
 };
 
-const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistantError = "", accessSecretsText = "" }) => {
+// Mirrors the guest chatbot's fallback behavior: if the AI layer is down,
+// answer from data silently rather than surfacing a technical error to
+// whoever's reading the chat.
+const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, accessSecretsText = "" }) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
   const rangeLabel = sanitizeString(snapshot?.filters?.rangeLabel || "the selected range", 80);
@@ -527,9 +530,6 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistant
   const confirmed = Number(stats.confirmedReservations || 0);
   const checkIns = Number(stats.upcomingCheckIns || 0);
   const syncMessage = sanitizeString(snapshot?.syncStatus?.message || "", 240);
-  const helperNote = assistantError
-    ? ` The AI reply layer is currently unavailable: ${sanitizeString(assistantError, 220)}.`
-    : "";
 
   const amenityMatch = AMENITY_KEYWORDS.find((entry) => entry.pattern.test(normalizedQuery));
   if (amenityMatch) {
@@ -537,39 +537,36 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistant
       (property.amenities || []).some((amenity) => amenityMatch.valuePattern.test(amenity.toLowerCase())),
     );
     if (!withIt.length) {
-      return `None of the buildings in the property directory list "${amenityMatch.label}" as an amenity.${helperNote}`;
+      return `None of the buildings in the property directory list "${amenityMatch.label}" as an amenity.`;
     }
     return (
       `Buildings with ${amenityMatch.label}: ` +
       withIt.map((property) => `${property.areaLabel} (${property.city})`).join(", ") +
-      `.${helperNote}`
+      "."
     );
   }
 
   if (ACCESS_QUESTION_PATTERN.test(normalizedQuery)) {
-    return `${accessSecretsText || "No Wi-Fi/door-lock details are available for this request — select a specific property first."}${helperNote}`;
+    return accessSecretsText || "No Wi-Fi/door-lock details are available for this request — select a specific property first.";
   }
 
   if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
     return (
       `For ${rangeLabel}, projected revenue is ${revenue} across ${reservations} reservations.` +
-      (syncMessage ? ` ${syncMessage}` : "") +
-      helperNote
+      (syncMessage ? ` ${syncMessage}` : "")
     );
   }
 
   if (/(booking|bookings|reservation|reservations)/i.test(normalizedQuery)) {
     return (
       `For ${rangeLabel}, there are ${reservations} reservations, ${confirmed} confirmed bookings, and ${checkIns} upcoming check-ins.` +
-      (syncMessage ? ` ${syncMessage}` : "") +
-      helperNote
+      (syncMessage ? ` ${syncMessage}` : "")
     );
   }
 
   return (
     "I could not complete a full AI reply right now, but the current executive snapshot is still available in the panel." +
-    (syncMessage ? ` ${syncMessage}` : "") +
-    helperNote
+    (syncMessage ? ` ${syncMessage}` : "")
   );
 };
 
@@ -709,7 +706,6 @@ export async function handler(event) {
     }
 
     let answer = "";
-    let assistantError = "";
 
     try {
       answer = await createAssistantReply({
@@ -719,14 +715,17 @@ export async function handler(event) {
         accessSecretsText,
       });
     } catch (error) {
-      assistantError = normalizeAssistantErrorMessage(error);
+      // Logged server-side only (see createAssistantReply) — never shown to
+      // whoever's reading the chat, matching the guest chatbot's behavior.
+      console.warn("[executive-ols-assistant] Falling back to deterministic answer", {
+        reason: normalizeAssistantErrorMessage(error),
+      });
     }
 
     if (!answer) {
       answer = buildDeterministicFallbackAnswer({
         query,
         snapshot,
-        assistantError,
         accessSecretsText,
       });
     }
