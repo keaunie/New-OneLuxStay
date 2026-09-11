@@ -11,6 +11,11 @@ dotenv.config();
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_HISTORY_MESSAGES = 8;
 
+// process.env doesn't reliably carry every Netlify-configured variable in
+// this function's runtime; the rest of the codebase (chat.js, admins-ols.js,
+// property-admin.js) reads through Netlify's own accessor as a fallback.
+const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name) || "";
+
 const sanitizeString = (value = "", maxLength = 4000) =>
   String(value || "")
     .replace(/\s+/g, " ")
@@ -21,7 +26,7 @@ const normalizeEmail = (value = "") => sanitizeString(value, 320).toLowerCase();
 
 const parseAllowedExecutiveEmails = () =>
   new Set(
-    String(process.env.EXECUTIVE_OLS_ALLOWED_EMAILS || "")
+    String(getEnv("EXECUTIVE_OLS_ALLOWED_EMAILS") || "")
       .split(",")
       .map((value) => normalizeEmail(value))
       .filter(Boolean),
@@ -425,6 +430,37 @@ const fetchAccessSecretsForListing = async (guestyListingId) => {
   return Array.isArray(secretRows) ? secretRows : [];
 };
 
+const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+// Admins naturally type the internal nickname ("A & B 311") rather than pick
+// from the property filter first. Resolves a Guesty listing id from that
+// free text by matching against listings.metadata->>nickname — still scoped
+// to a single property, same as picking from the filter would be.
+const resolvePropertyFromQuery = async (query) => {
+  const normalizedQuery = normalizeForMatch(query);
+  if (!normalizedQuery) return null;
+
+  try {
+    const rows = await supabaseRestRequest("listings", {
+      query: { select: "id,nickname:metadata->>nickname", limit: 500 },
+    });
+
+    let best = null;
+    let bestLength = 0;
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const normalizedNickname = normalizeForMatch(row?.nickname);
+      if (normalizedNickname.length < 3) return;
+      if (normalizedQuery.includes(normalizedNickname) && normalizedNickname.length > bestLength) {
+        best = { id: sanitizeString(row.id, 120), label: sanitizeString(row.nickname, 220) };
+        bestLength = normalizedNickname.length;
+      }
+    });
+    return best;
+  } catch {
+    return null;
+  }
+};
+
 const buildAccessSecretsText = (secretsRows, listingTitle = "") => {
   const label = listingTitle || "the selected property";
   const rows = Array.isArray(secretsRows) ? secretsRows : [];
@@ -538,12 +574,12 @@ const buildDeterministicFallbackAnswer = ({ query = "", snapshot = {}, assistant
 };
 
 const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "" }) => {
-  const apiKey = sanitizeString(process.env.OPENAI_API_KEY, 500);
+  const apiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is missing");
   }
 
-  const model = sanitizeString(process.env.OPENAI_EXECUTIVE_OLS_MODEL || "gpt-5-mini", 120);
+  const model = sanitizeString(getEnv("OPENAI_EXECUTIVE_OLS_MODEL") || "gpt-5-mini", 120);
   const input = [
     "Executive question:",
     sanitizeString(query, 1200),
@@ -640,16 +676,27 @@ export async function handler(event) {
 
     let accessSecretsText = "";
     if (ACCESS_QUESTION_PATTERN.test(query)) {
-      if (propertyId) {
+      let resolvedPropertyId = propertyId;
+      let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
+
+      if (!resolvedPropertyId) {
+        const match = await resolvePropertyFromQuery(query);
+        if (match) {
+          resolvedPropertyId = match.id;
+          resolvedLabel = match.label;
+        }
+      }
+
+      if (resolvedPropertyId) {
         try {
-          const secrets = await fetchAccessSecretsForListing(propertyId);
-          const listingTitle = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
-          accessSecretsText = buildAccessSecretsText(secrets, listingTitle);
+          const secrets = await fetchAccessSecretsForListing(resolvedPropertyId);
+          accessSecretsText = buildAccessSecretsText(secrets, resolvedLabel);
         } catch {
           accessSecretsText = "Access details lookup failed for the selected property.";
         }
       } else {
-        accessSecretsText = "No property is selected. Ask the admin to pick a specific property from the property filter before sharing Wi-Fi or door-lock details.";
+        accessSecretsText =
+          'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
       }
     }
 
