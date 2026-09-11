@@ -63,26 +63,16 @@ const parseJson = (text) => {
   }
 };
 
-// TEMPORARY: surfaces a masked-key debug tag straight into the user-facing
-// error text (never the real key) so it can be read from a screenshot of
-// the chat panel without needing access to Netlify's function logs. Remove
-// once the "Invalid OPENAI_API_KEY" mismatch between this function and
-// chat.js (which reads the same secret successfully) is understood.
 const normalizeAssistantErrorMessage = (error) => {
-  const raw = sanitizeString(error?.message || "Unknown assistant error.", 600);
+  const raw = sanitizeString(error?.message || "Unknown assistant error.", 320);
   if (!raw) return "Unknown assistant error.";
-
-  const debugMatch = raw.match(/\[debug:[^\]]*\]$/);
-  const debugSuffix = debugMatch ? ` ${debugMatch[0]}` : "";
-  const withoutDebug = debugMatch ? raw.slice(0, debugMatch.index).trim() : raw;
-
-  if (/incorrect api key provided/i.test(withoutDebug) || /invalid api key/i.test(withoutDebug)) {
-    return `Invalid OPENAI_API_KEY in the server environment.${debugSuffix}`;
+  if (/incorrect api key provided/i.test(raw) || /invalid api key/i.test(raw)) {
+    return "Invalid OPENAI_API_KEY in the server environment.";
   }
-  if (/openai_api_key is missing/i.test(withoutDebug) || /api key is missing/i.test(withoutDebug)) {
-    return `OPENAI_API_KEY is missing in the server environment.${debugSuffix}`;
+  if (/openai_api_key is missing/i.test(raw) || /api key is missing/i.test(raw)) {
+    return "OPENAI_API_KEY is missing in the server environment.";
   }
-  return withoutDebug.replace(/sk-[a-z0-9_-]+/gi, "[redacted-key]") + debugSuffix;
+  return raw.replace(/sk-[a-z0-9_-]+/gi, "[redacted-key]");
 };
 
 const firstNumber = (...values) => {
@@ -639,19 +629,15 @@ Rules:
 
   const payload = parseJson(await response.text());
   if (!response.ok) {
-    // Masked prefix only (never the full key). Logged to Netlify AND
-    // attached to the thrown error so normalizeAssistantErrorMessage can
-    // surface it in the chat reply itself — see the TEMPORARY note there.
-    const maskedKey = apiKey ? `${apiKey.slice(0, 7)}...${apiKey.slice(-4)} (len ${apiKey.length})` : "MISSING";
+    // Masked prefix only (never the full key) so the real cause is visible
+    // in Netlify function logs without exposing the secret.
     console.error("[executive-ols-assistant] OpenAI request failed", {
       status: response.status,
       model,
-      apiKeyPrefix: maskedKey,
+      apiKeyPrefix: apiKey ? `${apiKey.slice(0, 7)}...${apiKey.slice(-4)} (len ${apiKey.length})` : "MISSING",
       error: payload?.error,
     });
-    const rawMessage = payload?.error?.message || `OpenAI request failed (${response.status})`;
-    const debugTag = `[debug: status=${response.status}, model=${model}, key=${maskedKey}, type=${payload?.error?.type || "n/a"}, code=${payload?.error?.code || "n/a"}]`;
-    throw new Error(`${rawMessage} ${debugTag}`);
+    throw new Error(payload?.error?.message || `OpenAI request failed (${response.status})`);
   }
 
   return sanitizeString(extractOutputText(payload), 6000);
