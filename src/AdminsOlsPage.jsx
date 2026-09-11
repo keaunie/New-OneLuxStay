@@ -2539,6 +2539,10 @@ function AdminsOlsPage() {
                   >
                     Account Settings
                   </button>
+                  <Link className="admins-ols-profile-action" to="/executive-ols/assistant">
+                    <span>AI Assistant</span>
+                    <span className="admins-ols-side-nav-count">Ask</span>
+                  </Link>
                   {isSuperAdmin && (
                     <Link className="admins-ols-profile-action" to="/executive-ols/audit">
                       <span>Superadmin Audit Log</span>

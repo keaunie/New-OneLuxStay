@@ -264,6 +264,7 @@ function AppRoutes() {
             path="/executive-ols/admin-presence"
             element={<ProtectedSuperAdminRoute>{renderLazyRoute(AdminPresencePage)}</ProtectedSuperAdminRoute>}
           />
+          <Route path="/executive-ols/assistant" element={renderLazyRoute(ExecutiveOlsPage)} />
           <Route path="/executive-ols/whatsapp" element={renderLazyRoute(ExecutiveOlsPage)} />
           <Route path="/executive-ols/calls" element={renderLazyRoute(CallsPage)} />
           {isAiAgentConsoleEnabled && <Route path="/ai-agent" element={renderLazyRoute(AiAgentPage)} />}

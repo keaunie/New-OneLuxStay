@@ -197,7 +197,11 @@ export const prefetchRouteByPath = (value = "") => {
   if (normalized === "/admin-presence" || normalized === "/executive-ols/admin-presence") {
     return routePreloaders.adminPresence().then(() => undefined);
   }
-  if (normalized === "/admins-ols/whatsapp" || normalized === "/executive-ols/whatsapp") {
+  if (
+    normalized === "/admins-ols/whatsapp" ||
+    normalized === "/executive-ols/whatsapp" ||
+    normalized === "/executive-ols/assistant"
+  ) {
     return routePreloaders.executiveOls().then(() => undefined);
   }
   if (normalized === "/dev-ols/config") {
