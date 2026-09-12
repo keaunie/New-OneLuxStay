@@ -1395,7 +1395,6 @@ body {
 .landing-page {
   position: relative;
   font-family: var(--landing-font-body);
-  --date-dropdown-push: 0px;
   background:
     radial-gradient(ellipse 200% 55% at 50% -6%, rgba(255, 252, 244, 0.84), transparent 52%),
     radial-gradient(ellipse 70% 60% at 3% 115%, rgba(252, 241, 222, 0.3), transparent 52%),
@@ -1468,20 +1467,6 @@ body {
   position: relative;
   z-index: 20;
 }
-.landing-hero::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(-1 * var(--date-dropdown-push));
-  height: var(--date-dropdown-push);
-  background: radial-gradient(circle at 20% 20%, rgba(248, 243, 234, 0.35), transparent 50%),
-    linear-gradient(180deg, rgba(248, 243, 234, 0.9), rgba(240, 232, 218, 0.92));
-  z-index: 1;
-  pointer-events: none;
-  transition: height 240ms ease;
-}
-
 .landing-glow {
   position: absolute;
   filter: blur(60px);
@@ -2289,14 +2274,6 @@ body {
   margin-top: 0;
   transition: margin-top 240ms ease;
   will-change: margin-top;
-}
-
-.landing-page.has-date-dropdown .landing-showcase-section {
-  margin-top: var(--date-dropdown-push);
-}
-
-.landing-page.has-date-dropdown .landing-business-section {
-  margin-top: var(--date-dropdown-push);
 }
 
 .landing-showcase-inner {
@@ -15124,10 +15101,6 @@ video {
 }
 
 @media (max-width: 640px) {
-  .landing-page.has-date-dropdown {
-    --date-dropdown-push: 0px;
-  }
-
   .landing-date-picker .listing-date-dropdown {
     position: static;
     left: auto;
@@ -16315,9 +16288,6 @@ video {
 .landing-business-section {
   position: relative;
   z-index: 4;
-  margin-top: 0;
-  transition: margin-top 240ms ease;
-  will-change: margin-top;
   padding: clamp(56px, 7vw, 104px) 0;
   border-top: 1px solid rgba(146, 122, 96, 0.24);
   border-bottom: 1px solid rgba(146, 122, 96, 0.2);
