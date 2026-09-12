@@ -231,6 +231,40 @@ const getListingIdentityIds = (listing) =>
     .filter(Boolean)
     .map((value) => String(value));
 
+// Some properties have several near-identical physical units (same building, same
+// floorplan) that each come back as their own listing. Group those so guests see one
+// card per property instead of one per physical unit.
+const getListingGroupKey = (listing) => {
+  const title = String(listing?.title || listing?.nickname || "").trim().toLowerCase();
+  if (!title) return "";
+  const address = String(listing?.address?.full || "").trim().toLowerCase();
+  const city = normalizeCity(listing).trim().toLowerCase();
+  return `${title}|${address || city}`;
+};
+
+const groupListingsByProperty = (items) => {
+  const groups = [];
+  const groupsByKey = new Map();
+  items.forEach((listing) => {
+    const key = getListingGroupKey(listing);
+    if (!key) {
+      groups.push({ listing, unitCount: 1, unitIds: [getListingId(listing)].filter(Boolean) });
+      return;
+    }
+    const existing = groupsByKey.get(key);
+    if (!existing) {
+      const group = { listing, unitCount: 1, unitIds: [getListingId(listing)].filter(Boolean) };
+      groupsByKey.set(key, group);
+      groups.push(group);
+      return;
+    }
+    existing.unitCount += 1;
+    const id = getListingId(listing);
+    if (id) existing.unitIds.push(id);
+  });
+  return groups;
+};
+
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
   const hasOpenedRef = useRef(false);
@@ -806,6 +840,16 @@ function GlobalUnitsPage() {
     );
   }, [cityAndSearchFilteredListings, stayDates.checkIn, stayDates.checkOut, availableListingIds]);
 
+  const groupedListings = useMemo(
+    () => groupListingsByProperty(filteredListings),
+    [filteredListings]
+  );
+
+  const groupedListingsTotal = useMemo(
+    () => groupListingsByProperty(listings).length,
+    [listings]
+  );
+
   const getImageIndex = (listingId, totalImages) => {
     if (!listingId || totalImages <= 0) return 0;
     const rawIndex = imageIndexes[listingId] ?? 0;
@@ -972,7 +1016,7 @@ function GlobalUnitsPage() {
             </div>
           </div>
           <p className="mt-2 text-sm text-[var(--ink-soft)]">
-            Showing {filteredListings.length} of {listings.length} units.
+            Showing {groupedListings.length} of {groupedListingsTotal} properties.
           </p>
           {stayDates.checkIn && stayDates.checkOut && (
             <p className="mt-2 text-sm text-[var(--ink-soft)]">
@@ -997,15 +1041,15 @@ function GlobalUnitsPage() {
           </div>
         )}
 
-        {!loading && !error && filteredListings.length === 0 && (
+        {!loading && !error && groupedListings.length === 0 && (
           <div className="rounded-2xl border border-[rgba(201,181,156,0.5)] bg-white/70 p-6 text-[var(--ink-soft)]">
             No units match your filters.
           </div>
         )}
 
-        {!loading && !error && filteredListings.length > 0 && (
+        {!loading && !error && groupedListings.length > 0 && (
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredListings.map((listing) => {
+            {groupedListings.map(({ listing, unitCount }) => {
               const id = getListingId(listing);
               const city = normalizeCity(listing) || "Unknown city";
               const images = getListingImages(listing);
@@ -1118,6 +1162,11 @@ function GlobalUnitsPage() {
                       <h2 className="text-lg font-semibold text-[var(--ink)]">
                         {listingTitle}
                       </h2>
+                      {unitCount > 1 && (
+                        <p className="mt-1 text-xs font-medium text-[var(--ink-soft)]">
+                          {unitCount} identical units available
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-[var(--ink-soft)]">
                       <span className="rounded-full bg-[rgba(239,233,227,0.85)] px-2 py-1">
