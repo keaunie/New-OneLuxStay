@@ -695,6 +695,13 @@ function GlobalUnitsPage() {
       source_page: window.location.pathname + window.location.search,
       source_location: "global_units_availability_query",
     });
+    if (loading) {
+      // The catalog itself hasn't loaded yet - wait for it rather than treating an
+      // empty (not-yet-fetched) listings array as "nothing is available".
+      setAvailabilityLoading(true);
+      return;
+    }
+
     const listingIds = [...new Set(listings.map(getListingId).filter(Boolean).map(String))];
     if (!listingIds.length) {
       setAvailabilityLoading(false);
@@ -760,7 +767,7 @@ function GlobalUnitsPage() {
     return () => {
       active = false;
     };
-  }, [listings, stayDates.checkIn, stayDates.checkOut]);
+  }, [listings, loading, stayDates.checkIn, stayDates.checkOut]);
 
   const visibleListings = useMemo(
     () =>
@@ -1041,13 +1048,43 @@ function GlobalUnitsPage() {
           </div>
         )}
 
-        {!loading && !error && groupedListings.length === 0 && (
+        {!loading && !error && availabilityLoading && (
+          <section
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            aria-busy="true"
+            aria-label="Checking availability for your selected dates"
+          >
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="animate-pulse overflow-hidden rounded-2xl border border-[rgba(201,181,156,0.55)] bg-white"
+              >
+                <div className="aspect-[16/10] w-full bg-[rgba(239,233,227,0.9)]" />
+                <div className="space-y-3 p-4">
+                  <div className="h-3 w-1/3 rounded bg-[rgba(239,233,227,0.9)]" />
+                  <div className="h-4 w-2/3 rounded bg-[rgba(239,233,227,0.9)]" />
+                  <div className="flex gap-2">
+                    <div className="h-5 w-14 rounded-full bg-[rgba(239,233,227,0.9)]" />
+                    <div className="h-5 w-14 rounded-full bg-[rgba(239,233,227,0.9)]" />
+                    <div className="h-5 w-14 rounded-full bg-[rgba(239,233,227,0.9)]" />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="h-4 w-24 rounded bg-[rgba(239,233,227,0.9)]" />
+                    <div className="h-8 w-20 rounded-lg bg-[rgba(239,233,227,0.9)]" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {!loading && !error && !availabilityLoading && groupedListings.length === 0 && (
           <div className="rounded-2xl border border-[rgba(201,181,156,0.5)] bg-white/70 p-6 text-[var(--ink-soft)]">
             No units match your filters.
           </div>
         )}
 
-        {!loading && !error && groupedListings.length > 0 && (
+        {!loading && !error && !availabilityLoading && groupedListings.length > 0 && (
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {groupedListings.map(({ listing, unitCount }) => {
               const id = getListingId(listing);
