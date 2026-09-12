@@ -4,6 +4,7 @@ import { propertyProfiles, getPropertyProfileByKey } from "../../src/data/proper
 import { logAdminsOlsActivity } from "./_shared/adminsOlsActivity.js";
 import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
+import { getApaleoMappingsByLocalId, getUnitGroupCalendarAvailability } from "./_shared/apaleoBookingService.js";
 import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
 import { calculateNights, roundMoney } from "./_shared/pricingService.js";
 import { PUBLIC_WEBSITE_URL } from "./_shared/http.js";
@@ -3057,11 +3058,70 @@ const fetchAvailableListingsForDates = async ({
     .filter(Boolean);
   if (!ids.length) return { results: [], searched: 0 };
   const minOccupancy = String(Math.max(1, Math.round(Number(guests) || 1)));
-  const chunks = [];
-  for (let index = 0; index < ids.length; index += 60) {
-    chunks.push(ids.slice(index, index + 60));
-  }
   const availableIds = new Set();
+
+  // Listings migrated to Apaleo (e.g. Dubai) have a stale/frozen Guesty calendar —
+  // resolve those against Apaleo's live availability instead, grouped by unit
+  // group so listings sharing the same physical inventory only cost one call.
+  const apaleoMappingByLocalId = await getApaleoMappingsByLocalId(ids).catch((error) => {
+    console.warn("Apaleo mapping lookup failed for date-range availability", {
+      message: error?.message || String(error),
+    });
+    return new Map();
+  });
+
+  const guestyIds = ids.filter((id) => !apaleoMappingByLocalId.has(id));
+  const apaleoGroups = new Map();
+  ids.forEach((id) => {
+    const mapping = apaleoMappingByLocalId.get(id);
+    if (!mapping) return;
+    const key = `${mapping.propertyId}::${mapping.unitGroupId}`;
+    if (!apaleoGroups.has(key)) {
+      apaleoGroups.set(key, { propertyId: mapping.propertyId, unitGroupId: mapping.unitGroupId, localIds: [] });
+    }
+    apaleoGroups.get(key).localIds.push(id);
+  });
+
+  await Promise.all(
+    [...apaleoGroups.values()].map(async ({ propertyId, unitGroupId, localIds: groupLocalIds }) => {
+      try {
+        const calendar = await getUnitGroupCalendarAvailability({
+          propertyId,
+          unitGroupId,
+          from: checkIn,
+          to: checkOut,
+          adults: Math.max(1, Math.round(Number(guests) || 1)),
+        });
+        const availability = calendar?.availability || {};
+        let stayIsOpen = true;
+        for (
+          let cursor = toUtcDateFromIso(checkIn);
+          cursor && cursor.getTime() < toUtcDateFromIso(checkOut).getTime();
+          cursor.setUTCDate(cursor.getUTCDate() + 1)
+        ) {
+          const isoDate = toIsoDate(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, cursor.getUTCDate());
+          if (!availability[isoDate]) {
+            stayIsOpen = false;
+            break;
+          }
+        }
+        if (stayIsOpen) {
+          groupLocalIds.forEach((id) => availableIds.add(id));
+        }
+      } catch (error) {
+        console.warn("Apaleo date-range availability lookup failed", {
+          message: error?.message || String(error),
+          propertyId,
+          unitGroupId,
+        });
+      }
+    }),
+  );
+
+  const chunks = [];
+  for (let index = 0; index < guestyIds.length; index += 60) {
+    chunks.push(guestyIds.slice(index, index + 60));
+  }
 
   for (const chunk of chunks) {
     const availabilityQs = new URLSearchParams({
@@ -3302,12 +3362,62 @@ const fetchAvailableDatesForMonth = async ({
     return { results: [], searched: 0 };
   }
 
+  const openDatesByListingId = new Map();
+  const todayIsoForMonth = toIsoFromLocalDate(new Date());
+
+  // Listings migrated to Apaleo (e.g. Dubai) have a stale/frozen Guesty calendar —
+  // resolve those against Apaleo's live availability instead, grouped by unit
+  // group so listings sharing the same physical inventory only cost one call.
+  const apaleoMappingByLocalId = await getApaleoMappingsByLocalId(ids).catch((error) => {
+    console.warn("Apaleo mapping lookup failed for monthly availability", {
+      message: error?.message || String(error),
+    });
+    return new Map();
+  });
+
+  const guestyIds = ids.filter((id) => !apaleoMappingByLocalId.has(id));
+  const apaleoGroups = new Map();
+  ids.forEach((id) => {
+    const mapping = apaleoMappingByLocalId.get(id);
+    if (!mapping) return;
+    const key = `${mapping.propertyId}::${mapping.unitGroupId}`;
+    if (!apaleoGroups.has(key)) {
+      apaleoGroups.set(key, { propertyId: mapping.propertyId, unitGroupId: mapping.unitGroupId, localIds: [] });
+    }
+    apaleoGroups.get(key).localIds.push(id);
+  });
+
+  await Promise.all(
+    [...apaleoGroups.values()].map(async ({ propertyId, unitGroupId, localIds: groupLocalIds }) => {
+      try {
+        const calendar = await getUnitGroupCalendarAvailability({
+          propertyId,
+          unitGroupId,
+          from: monthRange.startDate,
+          to: monthRange.endDate,
+          adults: requiredGuests,
+        });
+        const dateSet = new Set(
+          Object.entries(calendar?.availability || {})
+            .filter(([isoDate, available]) => available && (!todayIsoForMonth || isoDate >= todayIsoForMonth))
+            .map(([isoDate]) => isoDate),
+        );
+        groupLocalIds.forEach((id) => openDatesByListingId.set(id, dateSet));
+      } catch (error) {
+        console.warn("Apaleo monthly availability lookup failed", {
+          message: error?.message || String(error),
+          propertyId,
+          unitGroupId,
+        });
+      }
+    }),
+  );
+
   const chunks = [];
-  for (let index = 0; index < ids.length; index += 60) {
-    chunks.push(ids.slice(index, index + 60));
+  for (let index = 0; index < guestyIds.length; index += 60) {
+    chunks.push(guestyIds.slice(index, index + 60));
   }
 
-  const openDatesByListingId = new Map();
   const chunkRange = {
     startDate: monthRange.startDate,
     // Fetch extra trailing days so min-night checks near month-end are still accurate.

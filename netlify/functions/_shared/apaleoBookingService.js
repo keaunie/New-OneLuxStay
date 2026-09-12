@@ -59,6 +59,33 @@ export const resolveBookingTarget = async ({ localPropertyId = "", propertyId = 
   return { localPropertyId: safePropertyId, propertyId: safePropertyId, unitGroupId: text(unitGroupId, 120) };
 };
 
+// Batch version of resolveBookingTarget's local_id lookup, for callers that need to
+// know which of many local listing ids are Apaleo-backed (e.g. the chatbot's
+// multi-listing availability search) without one Supabase round-trip per id.
+export const getApaleoMappingsByLocalId = async (localIds = []) => {
+  const ids = [...new Set(array(localIds).map((value) => text(value, 180)).filter(Boolean))];
+  const result = new Map();
+  if (!ids.length) return result;
+  const rows = await supabaseRestRequest("apaleo_inventory_mappings", {
+    query: {
+      select: "local_id,apaleo_property_id,apaleo_id",
+      mapping_type: "eq.unit_group",
+      enabled: "eq.true",
+      local_id: `in.${toSupabaseInFilter(ids)}`,
+      limit: 5000,
+    },
+  });
+  array(rows).forEach((row) => {
+    const localId = text(row.local_id, 180);
+    const propertyId = text(row.apaleo_property_id, 120);
+    const unitGroupId = text(row.apaleo_id, 120);
+    if (localId && propertyId && unitGroupId) {
+      result.set(localId, { propertyId, unitGroupId });
+    }
+  });
+  return result;
+};
+
 export const validateStay = ({ arrival, departure, adults = 1, childrenAges = [] }) => {
   const safeArrival = isoDate(arrival);
   const safeDeparture = isoDate(departure);
