@@ -4651,8 +4651,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   // no reliable client-side flag for this (isApaleoListing above never gets
   // set on real listing data), so this tries the Apaleo-backed endpoint —
   // which itself checks apaleo_inventory_mappings, the actual source of
-  // truth — and returns false (not thrown) specifically when the listing
-  // has no enabled Apaleo mapping, so the caller can fall back to Guesty.
+  // truth — and returns false whenever it can't produce data (missing
+  // mapping, or any other failure), so the caller always has a Guesty
+  // fallback to reach for instead of showing a dead end.
   const fetchSectionApaleoCalendarMonth = async (listingId, targetDate, cacheKeyBase, primaryId, { force = false } = {}) => {
     if (!listingId) return false;
     const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
@@ -4705,8 +4706,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       sectionCalendarCacheRef.current[key] = true;
       return true;
     } catch (err) {
-      setSectionCalendarError(err?.message || "Unable to load Apaleo calendar availability.");
-      return true;
+      // Any real failure here (network error, 5xx, unexpected payload) falls back
+      // to Guesty rather than getting stuck — only a genuinely empty calendar
+      // (both providers come back with nothing) should ever reach the user as
+      // an error state, and the Guesty path clears this before it runs.
+      return false;
     } finally {
       setSectionCalendarLoading(false);
     }
