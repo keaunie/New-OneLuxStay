@@ -4646,6 +4646,72 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
   };
 
+  // Some listings (e.g. Dubai) have been migrated to Apaleo as the live PMS —
+  // Guesty's calendar for those is stale/frozen and must not be used. There's
+  // no reliable client-side flag for this (isApaleoListing above never gets
+  // set on real listing data), so this tries the Apaleo-backed endpoint —
+  // which itself checks apaleo_inventory_mappings, the actual source of
+  // truth — and returns false (not thrown) specifically when the listing
+  // has no enabled Apaleo mapping, so the caller can fall back to Guesty.
+  const fetchSectionApaleoCalendarMonth = async (listingId, targetDate, cacheKeyBase, primaryId, { force = false } = {}) => {
+    if (!listingId) return false;
+    const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const rangeEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 2, 0);
+    const key = `apaleo-section-${listingId}-${monthKey(monthStart)}-${sectionGuests}`;
+    if (!force && sectionCalendarCacheRef.current[key]) {
+      const cachedDays = sectionCalendarDaysRef.current[cacheKeyBase];
+      if (cachedDays && Object.keys(cachedDays).length) {
+        setSectionCalendarPrices(buildCalendarPayload(cachedDays));
+        setSectionCalendarAvailability(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {});
+        return true;
+      }
+    }
+    setSectionCalendarLoading(true);
+    setSectionCalendarError("");
+    try {
+      const query = new URLSearchParams({
+        localPropertyId: listingId,
+        startDate: toISODate(monthStart),
+        endDate: toISODate(rangeEnd),
+        adults: String(Math.max(1, Number(sectionGuests) || 1)),
+      });
+      const response = await fetch(`${apiBase}/api-booking-calendar?${query}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (payload?.code === "APALEO_MAPPING_MISSING") return false;
+        throw new Error(payload?.message || "Unable to load Apaleo calendar availability.");
+      }
+
+      const mergedAvailability = {
+        ...(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {}),
+        ...(payload?.availability || {}),
+      };
+      sectionCalendarAvailabilityRef.current[cacheKeyBase] = mergedAvailability;
+      if (primaryId && primaryId !== cacheKeyBase) {
+        sectionCalendarAvailabilityRef.current[primaryId] = mergedAvailability;
+      }
+      setSectionCalendarAvailability(mergedAvailability);
+
+      const normalizedDays = Array.isArray(payload?.days) ? payload.days.filter((day) => day?.date) : [];
+      const dayMap = { ...(sectionCalendarDaysRef.current[cacheKeyBase] || {}) };
+      normalizedDays.forEach((day) => {
+        dayMap[day.date] = day;
+      });
+      sectionCalendarDaysRef.current[cacheKeyBase] = dayMap;
+      if (primaryId && primaryId !== cacheKeyBase) {
+        sectionCalendarDaysRef.current[primaryId] = dayMap;
+      }
+      setSectionCalendarPrices(buildCalendarPayload(dayMap));
+      sectionCalendarCacheRef.current[key] = true;
+      return true;
+    } catch (err) {
+      setSectionCalendarError(err?.message || "Unable to load Apaleo calendar availability.");
+      return true;
+    } finally {
+      setSectionCalendarLoading(false);
+    }
+  };
+
   const fetchSectionCalendarMultiMonth = async (listingIds, targetDate, { force = false } = {}) => {
     const normalizedListingIds = [...new Set((listingIds || []).map(toLookupKey).filter(Boolean))];
     if (!normalizedListingIds.length) return;
@@ -4654,6 +4720,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const sectionCalendarKey = getSectionCalendarKey(activeSection, activeSection?.listings || []);
     const cacheKeyBase = sectionCalendarKey || primaryId;
     if (!cacheKeyBase) return;
+
+    const apaleoHandled = await fetchSectionApaleoCalendarMonth(primaryId, targetDate, cacheKeyBase, primaryId, { force });
+    if (apaleoHandled) return;
+
     const key = `${cacheKeyBase}-${monthKey(targetDate)}`;
     if (!force && sectionCalendarCacheRef.current[key]) {
       const cachedDays = sectionCalendarDaysRef.current[cacheKeyBase];
