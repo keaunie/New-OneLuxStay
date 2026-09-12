@@ -1410,10 +1410,6 @@ body {
   background: transparent;
 }
 
-.landing-page.has-date-dropdown {
-  --date-dropdown-push: 0px;
-}
-
 .landing-silk {
   position: fixed;
   inset: 0;

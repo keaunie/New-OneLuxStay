@@ -452,6 +452,7 @@ const DateRangePicker = ({ value, onChange }) => {
   }, []);
   const [view, setView] = useState(() => parseDate(value.checkIn) || today);
   const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const startDate = useMemo(() => parseDate(value.checkIn), [value.checkIn]);
   const endDate = useMemo(() => parseDate(value.checkOut), [value.checkOut]);
@@ -476,13 +477,36 @@ const DateRangePicker = ({ value, onChange }) => {
   useEffect(() => {
     const page = containerRef.current?.closest(".landing-page");
     if (!page) return;
-    if (open) {
-      page.classList.add("has-date-dropdown");
-    } else {
+
+    if (!open) {
       page.classList.remove("has-date-dropdown");
+      page.style.removeProperty("--date-dropdown-push");
+      return;
     }
+
+    page.classList.add("has-date-dropdown");
+    const updatePush = () => {
+      // Below 640px the dropdown is position:static (in normal flow), so it
+      // already pushes following content down on its own — no extra push needed.
+      if (window.innerWidth <= 640) {
+        page.style.removeProperty("--date-dropdown-push");
+        return;
+      }
+      if (dropdownRef.current) {
+        page.style.setProperty("--date-dropdown-push", `${dropdownRef.current.offsetHeight + 24}px`);
+      }
+    };
+    updatePush();
+
+    const observer = new ResizeObserver(updatePush);
+    if (dropdownRef.current) observer.observe(dropdownRef.current);
+    window.addEventListener("resize", updatePush);
+
     return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updatePush);
       page.classList.remove("has-date-dropdown");
+      page.style.removeProperty("--date-dropdown-push");
     };
   }, [open]);
 
@@ -620,6 +644,7 @@ const DateRangePicker = ({ value, onChange }) => {
 
       {open && (
         <div
+          ref={dropdownRef}
           id={dialogId}
           role="dialog"
           aria-modal="true"
