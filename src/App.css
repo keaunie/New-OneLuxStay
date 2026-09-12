@@ -1425,12 +1425,13 @@ body {
   background: rgba(248, 243, 234, 0.5);
 }
 
-.landing-page.has-silk > :not(.landing-silk):not(.landing-silk-overlay) {
+.landing-page.has-silk > :not(.landing-silk):not(.landing-silk-overlay):not(.landing-hero) {
   position: relative;
   z-index: 1;
 }
 
 .landing-page.has-silk > .landing-hero {
+  position: relative;
   z-index: 5;
 }
 
@@ -2291,6 +2292,10 @@ body {
 }
 
 .landing-page.has-date-dropdown .landing-showcase-section {
+  margin-top: var(--date-dropdown-push);
+}
+
+.landing-page.has-date-dropdown .landing-business-section {
   margin-top: var(--date-dropdown-push);
 }
 
@@ -16310,6 +16315,9 @@ video {
 .landing-business-section {
   position: relative;
   z-index: 4;
+  margin-top: 0;
+  transition: margin-top 240ms ease;
+  will-change: margin-top;
   padding: clamp(56px, 7vw, 104px) 0;
   border-top: 1px solid rgba(146, 122, 96, 0.24);
   border-bottom: 1px solid rgba(146, 122, 96, 0.2);
