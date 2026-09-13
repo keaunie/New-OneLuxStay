@@ -5068,6 +5068,14 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, [cityCalendarListingIds, isCityCalendarOpen, fetchCityCalendarAvailability]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      console.info("[dubai-city-grid-debug] effect start", {
+        hasAvailabilityDateRange,
+        sectionCheckIn,
+        sectionCheckOut,
+        filteredListingsCount: filteredListings.length,
+      });
+    }
     if (!hasAvailabilityDateRange) {
       setCityAvailabilityMap({});
       setCityAvailabilityActive(false);
@@ -5162,10 +5170,22 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
           });
         });
 
+        if (typeof window !== "undefined") {
+          console.info("[dubai-city-grid-debug] load resolved", {
+            listingIds,
+            apaleoAvailableIds: [...apaleoAvailableIds],
+            unresolvedIds,
+            nextMapTrueCount: Object.values(nextMap).filter(Boolean).length,
+            nextMapKeys: Object.keys(nextMap).length,
+          });
+        }
         if (cancelled) return;
         setCityAvailabilityMap(nextMap);
         setCityAvailabilityActive(true);
-      } catch {
+      } catch (err) {
+        if (typeof window !== "undefined") {
+          console.info("[dubai-city-grid-debug] load threw", err?.message || err);
+        }
         if (cancelled) return;
         setCityAvailabilityMap({});
         setCityAvailabilityActive(false);
