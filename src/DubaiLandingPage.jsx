@@ -916,6 +916,60 @@ const getApaleoAvailableIdSet = async (listingIds, { checkIn, checkOut, guests, 
   return { available, unresolvedIds };
 };
 
+// Apaleo's calendar endpoint caps a single request at 93 days, so a request for the
+// full year the city-wide date picker wants has to be clamped per Apaleo call - the
+// picker re-fetches on month navigation anyway, so this window is refreshed as the
+// visitor browses forward. Same Apaleo-first, Guesty-fallback-per-id shape as
+// getApaleoAvailableIdSet above, but merging day-level availability instead of a
+// single range boolean, and OR-ing across listings so the city calendar shows a date
+// as open as soon as any one property has room.
+const MAX_APALEO_CALENDAR_DAYS = 90;
+
+const getApaleoCityCalendarAvailability = async (listingIds, { startDate, endDate, guests } = {}) => {
+  const uniqueIds = [...new Set((listingIds || []).map(toLookupKey).filter(Boolean))];
+  const availabilityByDate = {};
+  const unresolvedIds = [];
+  if (!startDate || !endDate || !uniqueIds.length) {
+    return { availabilityByDate, unresolvedIds: uniqueIds };
+  }
+  const cappedEndMs = Math.min(
+    new Date(endDate).getTime(),
+    new Date(startDate).getTime() + MAX_APALEO_CALENDAR_DAYS * 86_400_000
+  );
+  const cappedEndIso = toISODate(new Date(cappedEndMs));
+  await Promise.all(
+    uniqueIds.map(async (id) => {
+      try {
+        const params = new URLSearchParams({
+          localPropertyId: id,
+          startDate,
+          endDate: cappedEndIso,
+          adults: String(Math.max(1, Number(guests) || 1)),
+        });
+        const response = await fetch(`${apiBase}/api-booking-calendar?${params}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          unresolvedIds.push(id);
+          return;
+        }
+        const availability = payload?.availability || {};
+        Object.entries(availability).forEach(([date, isAvailable]) => {
+          if (isAvailable) {
+            availabilityByDate[date] = true;
+          } else if (!(date in availabilityByDate)) {
+            availabilityByDate[date] = false;
+          }
+        });
+      } catch {
+        unresolvedIds.push(id);
+      }
+    })
+  );
+  return { availabilityByDate, unresolvedIds };
+};
+
 const getLowestPriceListing = (listings = []) => {
   let best = null;
   let bestPrice = null;
@@ -4889,23 +4943,44 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       setCityCalendarLoading(true);
       try {
         const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 12, 1);
-        const qs = new URLSearchParams({
-          listingIds: listingIds.join(","),
-          startDate: toISODate(monthStart),
-          endDate: toISODate(monthEnd),
-          includeAllotment: "true",
-        }).toString();
-        const res = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
-          cache: "no-store",
+        const startDateIso = toISODate(monthStart);
+        const endDateIso = toISODate(monthEnd);
+
+        const { availabilityByDate: apaleoAvailabilityByDate, unresolvedIds } =
+          await getApaleoCityCalendarAvailability(listingIds, {
+            startDate: startDateIso,
+            endDate: endDateIso,
+            guests: sectionGuests,
+          });
+
+        let guestyAvailabilityByDate = {};
+        if (unresolvedIds.length) {
+          const qs = new URLSearchParams({
+            listingIds: unresolvedIds.join(","),
+            startDate: startDateIso,
+            endDate: endDateIso,
+            includeAllotment: "true",
+          }).toString();
+          const res = await fetch(`${apiBase}/check-units/listings/calendar-multi?${qs}`, {
+            cache: "no-store",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const daysByListing = buildNormalizedCalendarDaysByListing(
+              data,
+              unresolvedIds,
+              cityCalendarCurrencyByListingId
+            );
+            guestyAvailabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
+          }
+        }
+
+        const availabilityByDate = { ...guestyAvailabilityByDate };
+        Object.entries(apaleoAvailabilityByDate).forEach(([date, isAvailable]) => {
+          if (isAvailable || !(date in availabilityByDate)) {
+            availabilityByDate[date] = isAvailable;
+          }
         });
-        if (!res.ok) return;
-        const data = await res.json();
-        const daysByListing = buildNormalizedCalendarDaysByListing(
-          data,
-          listingIds,
-          cityCalendarCurrencyByListingId
-        );
-        const availabilityByDate = buildDateAvailabilityMapFromCalendars(daysByListing);
         cityCalendarCacheRef.current[key] = availabilityByDate;
         setCityCalendarAvailability(availabilityByDate);
       } catch {
@@ -4915,7 +4990,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         setCityCalendarLoading(false);
       }
     },
-    [cityCalendarListingIds, cityCalendarCurrencyByListingId]
+    [cityCalendarListingIds, cityCalendarCurrencyByListingId, sectionGuests]
   );
 
   const handleSectionCalendarOpen = (open) => {
