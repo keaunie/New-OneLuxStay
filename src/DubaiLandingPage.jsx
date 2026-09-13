@@ -8768,10 +8768,32 @@ const applyCheckoutPromoCode = () => {
                 </div>
               )}
 
-              {!loading && !error && losAngelesParentListings.length > 0 && filteredParentListings.length === 0 && (
-                <div className="antwerp-empty">
-                  No units match your filters.
-                </div>
+              {!loading &&
+                !error &&
+                losAngelesParentListings.length > 0 &&
+                filteredParentListings.length === 0 &&
+                hasAvailabilityDateRange &&
+                cityAvailabilityActive && (
+                  <div className="antwerp-empty la-empty-inquire">
+                    <p>No units are available for {formatDisplayDate(sectionCheckIn)} - {formatDisplayDate(sectionCheckOut)}.</p>
+                    <button
+                      type="button"
+                      className="la-unit-modal__booking-cta"
+                      onClick={() => openInquiry({ title: "Dubai" })}
+                    >
+                      Inquire
+                    </button>
+                  </div>
+              )}
+
+              {!loading &&
+                !error &&
+                losAngelesParentListings.length > 0 &&
+                filteredParentListings.length === 0 &&
+                !(hasAvailabilityDateRange && cityAvailabilityActive) && (
+                  <div className="antwerp-empty">
+                    No units match your filters.
+                  </div>
               )}
 
               {!loading &&
