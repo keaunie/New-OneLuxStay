@@ -873,6 +873,49 @@ const isApaleoListing = (listing) =>
   String(listing?.provider || "").toLowerCase() === "apaleo" ||
   Boolean(listing?.apaleoPropertyId || listing?.apaleoUnitGroupId);
 
+// Dubai's units are live on Apaleo, but isApaleoListing above never gets set on real
+// listing data here (see fetchSectionApaleoCalendarMonth), so range-availability checks
+// can't gate on that flag either. Instead, try Apaleo's real offers endpoint per listing
+// id - the same source of truth the calendar fix uses - and only hand ids it can't
+// resolve (not Apaleo-mapped, or any failure) back to the caller for a Guesty fallback.
+// This mirrors why the calendar dots can show open days while a Guesty-only range check
+// says "unavailable": Guesty's data for these units is stale, so it must not be treated
+// as authoritative once Apaleo can answer.
+const getApaleoAvailableIdSet = async (listingIds, { checkIn, checkOut, guests, signal } = {}) => {
+  const uniqueIds = [...new Set((listingIds || []).map(toLookupKey).filter(Boolean))];
+  const available = new Set();
+  const unresolvedIds = [];
+  if (!checkIn || !checkOut || !uniqueIds.length) {
+    return { available, unresolvedIds: uniqueIds };
+  }
+  await Promise.all(
+    uniqueIds.map(async (id) => {
+      try {
+        const params = new URLSearchParams({
+          localPropertyId: id,
+          arrival: checkIn,
+          departure: checkOut,
+          adults: String(Math.max(1, Number(guests) || 1)),
+        });
+        const response = await fetch(`${apiBase}/api-booking-offers?${params}`, {
+          cache: "no-store",
+          signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          unresolvedIds.push(id);
+          return;
+        }
+        const offers = Array.isArray(payload?.offers) ? payload.offers : [];
+        if (offers.length > 0) available.add(id);
+      } catch {
+        unresolvedIds.push(id);
+      }
+    })
+  );
+  return { available, unresolvedIds };
+};
+
 const getLowestPriceListing = (listings = []) => {
   let best = null;
   let bestPrice = null;
@@ -5008,24 +5051,34 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
     const load = async () => {
       try {
-        const qs = new URLSearchParams({
-          ids: listingIds.join(","),
-          checkIn: sectionCheckIn,
-          checkOut: sectionCheckOut,
-          minOccupancy: sectionGuests || "1",
-        }).toString();
-        const res = await fetch(
-          `${apiBase}/check-units/listings/availability-query?${qs}`,
-          { cache: "no-store" }
+        const { available: apaleoAvailableIds, unresolvedIds } = await getApaleoAvailableIdSet(
+          listingIds,
+          { checkIn: sectionCheckIn, checkOut: sectionCheckOut, guests: sectionGuests }
         );
-        if (!res.ok) throw new Error("Availability request failed");
 
-        const data = await res.json();
-        const availableIds = new Set(
-          (Array.isArray(data?.results) ? data.results : [])
-            .map((item) => toLookupKey(item?.id))
-            .filter(Boolean)
-        );
+        let guestyAvailableIds = new Set();
+        if (unresolvedIds.length) {
+          const qs = new URLSearchParams({
+            ids: unresolvedIds.join(","),
+            checkIn: sectionCheckIn,
+            checkOut: sectionCheckOut,
+            minOccupancy: sectionGuests || "1",
+          }).toString();
+          const res = await fetch(
+            `${apiBase}/check-units/listings/availability-query?${qs}`,
+            { cache: "no-store" }
+          );
+          if (!res.ok) throw new Error("Availability request failed");
+
+          const data = await res.json();
+          guestyAvailableIds = new Set(
+            (Array.isArray(data?.results) ? data.results : [])
+              .map((item) => toLookupKey(item?.id))
+              .filter(Boolean)
+          );
+        }
+
+        const availableIds = new Set([...apaleoAvailableIds, ...guestyAvailableIds]);
 
         const grouped = groupListingsByParent(filteredListings);
         const nextMap = {};
@@ -5388,28 +5441,36 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         endDate: sectionCheckOut,
         minOccupancy: sectionGuests || "1",
       }).toString();
-      const availabilityQs = new URLSearchParams({
-        ids: items.join(","),
-        checkIn: sectionCheckIn,
-        checkOut: sectionCheckOut,
-        minOccupancy: sectionGuests || "1",
-      }).toString();
-      const availabilityRes = await fetch(
-        `${apiBase}/check-units/listings/availability-query?${availabilityQs}`,
-        { cache: "no-store", signal: requestController.signal }
-      );
-      if (!availabilityRes.ok) {
-        const errText = await availabilityRes.text().catch(() => "");
-        throw new Error(errText || "Availability failed");
-      }
-      const availabilityJson = await availabilityRes.json();
-      const availabilityResults = Array.isArray(availabilityJson?.results)
-        ? availabilityJson.results
-        : [];
       const toKey = (value) => (value ? String(value) : null);
-      const availableIds = new Set(
-        availabilityResults.map((item) => toKey(item.id)).filter(Boolean)
+      const { available: apaleoAvailableIds, unresolvedIds } = await getApaleoAvailableIdSet(
+        items,
+        { checkIn: sectionCheckIn, checkOut: sectionCheckOut, guests: sectionGuests, signal: requestController.signal }
       );
+      let guestyAvailableIds = new Set();
+      if (unresolvedIds.length) {
+        const availabilityQs = new URLSearchParams({
+          ids: unresolvedIds.join(","),
+          checkIn: sectionCheckIn,
+          checkOut: sectionCheckOut,
+          minOccupancy: sectionGuests || "1",
+        }).toString();
+        const availabilityRes = await fetch(
+          `${apiBase}/check-units/listings/availability-query?${availabilityQs}`,
+          { cache: "no-store", signal: requestController.signal }
+        );
+        if (!availabilityRes.ok) {
+          const errText = await availabilityRes.text().catch(() => "");
+          throw new Error(errText || "Availability failed");
+        }
+        const availabilityJson = await availabilityRes.json();
+        const availabilityResults = Array.isArray(availabilityJson?.results)
+          ? availabilityJson.results
+          : [];
+        guestyAvailableIds = new Set(
+          availabilityResults.map((item) => toKey(item.id)).filter(Boolean)
+        );
+      }
+      const availableIds = new Set([...apaleoAvailableIds, ...guestyAvailableIds]);
       const availabilityMap = {};
       const getListingIds = (listing) =>
         [listing?._id, listing?.id, listing?.unitTypeId]
