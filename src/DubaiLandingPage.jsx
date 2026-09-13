@@ -5069,7 +5069,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      console.info("[dubai-city-grid-debug] effect start", {
+      console.warn("[dubai-city-grid-debug] effect start", {
         hasAvailabilityDateRange,
         sectionCheckIn,
         sectionCheckOut,
@@ -5171,7 +5171,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         });
 
         if (typeof window !== "undefined") {
-          console.info("[dubai-city-grid-debug] load resolved", {
+          console.warn("[dubai-city-grid-debug] load resolved", {
             listingIds,
             apaleoAvailableIds: [...apaleoAvailableIds],
             unresolvedIds,
@@ -5184,7 +5184,7 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         setCityAvailabilityActive(true);
       } catch (err) {
         if (typeof window !== "undefined") {
-          console.info("[dubai-city-grid-debug] load threw", err?.message || err);
+          console.warn("[dubai-city-grid-debug] load threw", err?.message || err);
         }
         if (cancelled) return;
         setCityAvailabilityMap({});
