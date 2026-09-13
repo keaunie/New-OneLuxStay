@@ -5522,31 +5522,11 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         })
         .filter(Boolean);
 
-      const finalAvailabilityMap = {
+      setSectionAvailability(availableParents);
+      setSectionAvailabilityMap({
         ...availabilityMap,
         ...parentAvailabilityMap,
-      };
-      // TEMP DEBUG (remove once the Dubai "shows unavailable" report is confirmed fixed):
-      // surfaces exactly what this fetch resolved, so a real browser console can tell us
-      // where the mismatch is instead of guessing further from source alone.
-      if (typeof window !== "undefined") {
-        const debugListingId = activeListing
-          ? (activeListing.unitTypeId || activeListing.id || activeListing._id)
-          : null;
-        console.info("[dubai-availability-debug]", {
-          activeListingId: activeListing ? (activeListing.id || activeListing._id) : null,
-          debugListingKey: debugListingId,
-          items,
-          apaleoAvailableIds: [...apaleoAvailableIds],
-          unresolvedIds,
-          resolvedAvailabilityForActiveListing: debugListingId ? finalAvailabilityMap[debugListingId] : null,
-          sectionCheckIn,
-          sectionCheckOut,
-          sectionGuests,
-        });
-      }
-      setSectionAvailability(availableParents);
-      setSectionAvailabilityMap(finalAvailabilityMap);
+      });
       setSectionAvailabilityActive(true);
 
       const calendarListingId = toLookupKey(listingId || getPrimaryListingId(listingPool));
