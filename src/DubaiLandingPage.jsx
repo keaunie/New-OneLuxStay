@@ -3486,17 +3486,6 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   }, []);
 
   useEffect(() => {
-    if (!listings.length) return;
-    const targetId = "66e1e3875a1f6300d736f28e";
-    const match = listings.find((listing) => (listing.id || listing._id) === targetId);
-    if (match) {
-      console.log("[Dubai debug] listing match", match);
-    } else {
-      console.log("[Dubai debug] listing not found for id", targetId);
-    }
-  }, [listings]);
-
-  useEffect(() => {
     if (isListingRoute) return;
     if (!isMapEnabled) return;
     if (!mapsApiKey) {
