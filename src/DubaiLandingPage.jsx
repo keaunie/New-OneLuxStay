@@ -5421,9 +5421,18 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         .filter((listing) => isChildListing(listing))
         .map((listing) => listing.id || listing._id || listing.unitTypeId)
         .filter(Boolean);
-      if (!childIds.length && activeListing) {
-        const fallbackId = activeListing.unitTypeId || activeListing.id || activeListing._id;
-        if (fallbackId) childIds.push(fallbackId);
+      // Always check the listing actually being viewed directly, regardless of whether
+      // isChildListing classifies it as a parent or child. Otherwise, when activeListing
+      // is treated as a "parent" whose own id was never queried, its availability silently
+      // defaults to false (see the listingPool.forEach below) even though a sibling child
+      // in the same group is genuinely available - the exact mismatch that showed the
+      // sidebar booking card as "Unavailable" for a unit Apaleo confirms is bookable.
+      if (activeListing) {
+        [activeListing.id, activeListing._id, activeListing.unitTypeId]
+          .filter(Boolean)
+          .forEach((id) => {
+            if (!childIds.includes(id)) childIds.push(id);
+          });
       }
       const itemsFromArg = Array.isArray(listingIds)
         ? listingIds.filter((id) => childIds.includes(id))
