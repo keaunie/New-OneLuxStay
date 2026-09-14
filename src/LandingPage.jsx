@@ -882,6 +882,7 @@ function LandingPage() {
   const offersBaseWidthRef = useRef(0);
   const offersTargetXRef = useRef(null);
   const offersRafRef = useRef(null);
+  const offersRafStartedAtRef = useRef(0);
   const patienceQuotes = [
     "We are working on this. ?Greatest things come to those who wait.?",
     "We are working on this. ?Patience is not the ability to wait, but the ability to keep a good attitude while waiting.?",
@@ -1235,6 +1236,14 @@ function LandingPage() {
 
   const applyOffersTranslate = useCallback((value) => {
     const next = normalizeOffersX(value);
+    // Wrapping mid-animation shifts the track by a multiple of `base`; shift any
+    // in-flight target by the same amount so the eased diff stays small and the
+    // animation can't keep re-discovering a "new" large distance to travel every
+    // time it crosses the loop boundary.
+    const wrapDelta = value - next;
+    if (wrapDelta && offersTargetXRef.current !== null) {
+      offersTargetXRef.current -= wrapDelta;
+    }
     offersTrackXRef.current = next;
     if (offersTrackRef.current) {
       offersTrackRef.current.style.transform = `translate3d(${next}px, 0, 0)`;
@@ -1278,19 +1287,33 @@ function LandingPage() {
     if (!shouldUseInteractiveOffers) return;
     if (offersRafRef.current) return;
     offersLastTimeRef.current = performance.now();
+    offersRafStartedAtRef.current = offersLastTimeRef.current;
     const tick = (now) => {
       const dt = now - offersLastTimeRef.current || 16;
       offersLastTimeRef.current = now;
       const friction = Math.pow(0.92, dt / 16);
+      // Hard safety net: the settle animation should always finish in well
+      // under a second. If it's still going after 1.5s (e.g. a runaway
+      // caused by repeatedly crossing the loop's wrap boundary), snap to the
+      // target immediately instead of continuing to animate.
+      const overBudget = now - offersRafStartedAtRef.current > 1500;
 
       if (!isOffersDraggingRef.current) {
         if (offersTargetXRef.current !== null) {
-          const diff = offersTargetXRef.current - offersTrackXRef.current;
-          const step = diff * 0.12;
-          applyOffersTranslate(offersTrackXRef.current + step);
-          if (Math.abs(diff) < 0.5) {
+          if (overBudget) {
+            applyOffersTranslate(offersTargetXRef.current);
             offersTargetXRef.current = null;
+            offersVelocityRef.current = 0;
+          } else {
+            const diff = offersTargetXRef.current - offersTrackXRef.current;
+            const step = diff * 0.12;
+            applyOffersTranslate(offersTrackXRef.current + step);
+            if (Math.abs(diff) < 0.5) {
+              offersTargetXRef.current = null;
+            }
           }
+        } else if (overBudget) {
+          offersVelocityRef.current = 0;
         } else {
           offersVelocityRef.current *= friction;
           if (Math.abs(offersVelocityRef.current) < 0.0005) offersVelocityRef.current = 0;
@@ -1515,9 +1538,11 @@ function LandingPage() {
     if (Math.abs(delta) > 6) offersDragMovedRef.current = true;
     applyOffersTranslate(offersDragStartTranslateRef.current + delta);
     const now = performance.now();
-    const dt = now - offersLastTimeRef.current || 1;
+    const dt = Math.max(now - offersLastTimeRef.current, 4);
     const dx = event.clientX - offersLastXRef.current;
-    offersVelocityRef.current = dx / dt;
+    // Clamp: a near-zero dt between two touch/pointer samples can otherwise
+    // produce an absurd px/ms velocity that takes far too long to decay.
+    offersVelocityRef.current = Math.max(-3, Math.min(3, dx / dt));
     offersLastXRef.current = event.clientX;
     offersLastTimeRef.current = now;
   };
@@ -1533,10 +1558,10 @@ function LandingPage() {
     const velocity = offersVelocityRef.current;
     const bias = Math.abs(velocity) > 0.35 ? (velocity < 0 ? 1 : -1) : 0;
     const target = getOffersSnapTarget(bias);
-    if (target !== null) {
-      offersTargetXRef.current = target;
-      offersVelocityRef.current = 0;
-    }
+    // Always clear velocity on release: this carousel always snaps to a card,
+    // so nothing should ever be left coasting freely off `velocity` alone.
+    offersVelocityRef.current = 0;
+    offersTargetXRef.current = target !== null ? target : offersTrackXRef.current;
     startOffersRaf();
   };
 
