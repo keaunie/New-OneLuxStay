@@ -419,6 +419,9 @@ const offers = [
     body: "For flexible trips booked close to arrival.",
     cta: "View last-minute stays",
     tone: "sand",
+    // Nearest possible arrival, short stay - matches what "last-minute" means.
+    leadDays: 1,
+    nights: 2,
   },
   {
     kicker: "Weekly",
@@ -426,6 +429,8 @@ const offers = [
     body: "Available on stays of 7 nights or more.",
     cta: "View weekly stays",
     tone: "sand",
+    leadDays: 7,
+    nights: 7,
   },
   {
     kicker: "Monthly",
@@ -433,6 +438,8 @@ const offers = [
     body: "Available on stays of 30 nights or more.",
     cta: "View monthly stays",
     tone: "clay",
+    leadDays: 14,
+    nights: 30,
   },
 ];
 
@@ -1542,6 +1549,14 @@ function LandingPage() {
     }
   };
 
+  const handleOffersBrowseClick = useCallback(() => {
+    if (!shouldUseInteractiveOffers) return;
+    const target = getOffersSnapTarget(1);
+    if (target === null) return;
+    offersTargetXRef.current = target;
+    startOffersRaf();
+  }, [shouldUseInteractiveOffers, getOffersSnapTarget]);
+
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll(".landing-animate"));
     const observer = new IntersectionObserver(
@@ -1560,6 +1575,30 @@ function LandingPage() {
     const target = document.getElementById("collection");
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  const handleOfferSelect = useCallback(
+    (offer) => {
+      const start = addDays(new Date(), offer.leadDays);
+      const end = addDays(start, offer.nights);
+      const nextCheckIn = toISODate(start);
+      const nextCheckOut = toISODate(end);
+      setCheckIn(nextCheckIn);
+      setCheckOut(nextCheckOut);
+      trackCtaClick({
+        ctaText: offer.cta,
+        location: "landing_offers",
+        sourcePage: window.location.pathname + window.location.search,
+      });
+      trackGuestJourneyEvent({
+        eventType: "cta_click",
+        destinationPath: "#collection",
+        sourceSection: "landing_offers",
+        sourceLabel: offer.kicker,
+      });
+      scrollToCollection();
+    },
+    [scrollToCollection],
+  );
 
   const handleBusinessDealExplore = useCallback(() => {
     trackCtaClick({
@@ -1991,13 +2030,22 @@ function LandingPage() {
           </div>
         </div>
 
-        <div className="landing-offers-controls landing-offers-controls--center" aria-hidden="true">
-          <div className="landing-offers-swipe">
-            <span className="landing-offers-swipe__label">{shouldUseInteractiveOffers ? "Browse offers" : "Swipe offers"}</span>
-            {shouldUseInteractiveOffers && !prefersReducedMotion && (
-              <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />
-            )}
-          </div>
+        <div className="landing-offers-controls landing-offers-controls--center">
+          {shouldUseInteractiveOffers ? (
+            <button
+              type="button"
+              className="landing-offers-swipe landing-offers-swipe--button"
+              onClick={handleOffersBrowseClick}
+              aria-label="Browse to the next offer"
+            >
+              <span className="landing-offers-swipe__label">Browse offers</span>
+              {!prefersReducedMotion && <span className="landing-offers-swipe__lottie" ref={offersSwipeRef} />}
+            </button>
+          ) : (
+            <div className="landing-offers-swipe" aria-hidden="true">
+              <span className="landing-offers-swipe__label">Swipe offers</span>
+            </div>
+          )}
         </div>
 
         <div
@@ -2016,7 +2064,7 @@ function LandingPage() {
                 <p className="landing-offer-kicker">{offer.kicker}</p>
                 <h3 className="landing-offer-title">{offer.headline}</h3>
                 <p className="landing-offer-body">{offer.body}</p>
-                <button type="button" className="landing-offer-cta" onClick={scrollToCollection}>
+                <button type="button" className="landing-offer-cta" onClick={() => handleOfferSelect(offer)}>
                   {offer.cta}
                 </button>
               </article>
