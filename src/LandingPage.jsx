@@ -1576,30 +1576,6 @@ function LandingPage() {
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const handleOfferSelect = useCallback(
-    (offer) => {
-      const start = addDays(new Date(), offer.leadDays);
-      const end = addDays(start, offer.nights);
-      const nextCheckIn = toISODate(start);
-      const nextCheckOut = toISODate(end);
-      setCheckIn(nextCheckIn);
-      setCheckOut(nextCheckOut);
-      trackCtaClick({
-        ctaText: offer.cta,
-        location: "landing_offers",
-        sourcePage: window.location.pathname + window.location.search,
-      });
-      trackGuestJourneyEvent({
-        eventType: "cta_click",
-        destinationPath: "#collection",
-        sourceSection: "landing_offers",
-        sourceLabel: offer.kicker,
-      });
-      scrollToCollection();
-    },
-    [scrollToCollection],
-  );
-
   const handleBusinessDealExplore = useCallback(() => {
     trackCtaClick({
       ctaText: "explore business-ready stays",
@@ -2064,9 +2040,6 @@ function LandingPage() {
                 <p className="landing-offer-kicker">{offer.kicker}</p>
                 <h3 className="landing-offer-title">{offer.headline}</h3>
                 <p className="landing-offer-body">{offer.body}</p>
-                <button type="button" className="landing-offer-cta" onClick={() => handleOfferSelect(offer)}>
-                  {offer.cta}
-                </button>
               </article>
             ))}
           </div>

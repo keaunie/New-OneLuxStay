@@ -3020,7 +3020,7 @@ body {
   flex: 0 0 min(600px, 82vw);
   border-radius: 28px;
   padding: 32px;
-  min-height: 380px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -3235,7 +3235,7 @@ body {
 
   .landing-offer-card {
     flex: 0 0 calc(100vw - 56px);
-    min-height: 312px;
+    min-height: 200px;
     border-radius: 24px;
     padding: 24px;
   }
