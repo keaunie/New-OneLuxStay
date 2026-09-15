@@ -13,6 +13,7 @@
 
 import { apaleoRequest } from "./_shared/apaleoService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
+import { assertAllowedProperty, getOffers } from "./_shared/apaleoBookingService.js";
 
 const TABLE            = "reservation_requests";
 const BOOKINGS_ENDPOINT = process.env.APALEO_BOOKINGS_ENDPOINT || "/booking/v1/bookings";
@@ -95,6 +96,36 @@ export const handler = async (event) => {
   const adults      = Math.max(1, num(guests, 1));
   const nights      = computeNights(checkIn, checkOut);
   const unitGroupId = str(listingId);
+
+  // ── 2b. This endpoint predates the Apaleo/Adyen booking-session flow (see
+  // ApaleoCheckoutModal.jsx / api-booking-payments.js) and creates a booking directly
+  // with no payment or guarantee step whatsoever. Guard it so it can only ever be used
+  // for offers Apaleo itself says require no payment (PM6Hold, i.e. pay-at-property) —
+  // anything requiring a card-on-file or prepayment must go through the Adyen checkout
+  // instead, never through this endpoint.
+  try {
+    await assertAllowedProperty(propertyId);
+    const offers = await getOffers({ propertyId: str(propertyId), unitGroupId, arrival: checkIn, departure: checkOut, adults });
+    const matchingOffer = offers.find((offer) => offer.unitGroupId === unitGroupId)
+      || (ratePlanId ? offers.find((offer) => offer.ratePlanId === str(ratePlanId)) : null);
+    if (!matchingOffer) {
+      return jsonResponse(409, {
+        ok: false, error: "Selected offer is no longer available.", code: "OFFER_UNAVAILABLE",
+      });
+    }
+    if (matchingOffer.minGuaranteeType !== "PM6Hold") {
+      return jsonResponse(402, {
+        ok: false,
+        error: "This stay requires a card on file or prepayment. Please book through the secure checkout instead of this form.",
+        code: "PAYMENT_REQUIRED",
+      });
+    }
+  } catch (err) {
+    return jsonResponse(Number(err.statusCode) || 502, {
+      ok: false, error: err.message || "Unable to verify this property is available for online booking.",
+      code: err.code || "AVAILABILITY_CHECK_FAILED",
+    });
+  }
 
   // ── 3a. Resolve ratePlanId ───────────────────────────────────────────────────
   // Priority: request body → env var → dynamic lookup via /booking/v1/rate-plans

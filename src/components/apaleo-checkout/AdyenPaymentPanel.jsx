@@ -28,7 +28,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
 
     const mount = async () => {
       try {
-        const [{ AdyenCheckout, Dropin, Card, PayPal, GooglePay, Klarna }] = await Promise.all([
+        const [{ AdyenCheckout, Dropin, Card, PayPal, GooglePay }] = await Promise.all([
           import("@adyen/adyen-web"),
           import("@adyen/adyen-web/styles/adyen.css"),
         ]);
@@ -97,8 +97,18 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
         // Bancontact is intentionally excluded: it's a full-page-redirect method, and per
         // docs/apaleo-rollout-other-cities.md the guest/consent data collected earlier in
         // this modal does not survive that redirect until session-side persistence exists.
+        //
+        // Deferred/BNPL methods are excluded per apaleo.dev's Pay Integration guide
+        // ("Hotel bookings should not offer deferred payment methods"), even if Adyen's
+        // /paymentMethods response includes them for this merchant account/country.
         dropinRef.current = new Dropin(checkoutInstance, {
-          paymentMethodComponents: [Card, PayPal, GooglePay, Klarna],
+          paymentMethodComponents: [Card, PayPal, GooglePay],
+          removePaymentMethods: [
+            "klarna_paynow", "klarna", "klarna_b2b", "klarna_account",
+            "ratepay", "ratepay_directdebit",
+            "afterpaytouch", "afterpay_default", "afterpay_directdebit", "afterpay_b2b",
+            "facilypay_3x", "facilypay_4x", "facilypay_6x", "facilypay_10x", "facilypay_12x",
+          ],
         }).mount(containerRef.current);
         setStatus("ready");
       } catch (err) {

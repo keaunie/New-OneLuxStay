@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import ReservationCalendar from "./ReservationCalendar.jsx";
-import ReservationPricing from "./ReservationPricing.jsx";
-import ReservationRequestForm from "./ReservationRequestForm.jsx";
+import ApaleoCheckoutModal from "../apaleo-checkout/ApaleoCheckoutModal.jsx";
 
+// Renders the property preview + date/guest picker, then hands off to
+// ApaleoCheckoutModal for the actual booking — the same booking-session +
+// Adyen payment flow the city landing pages use. This used to POST straight
+// to netlify/functions/apaleo-create-reservation.js, which created a
+// "confirmed" Apaleo booking with no payment/guarantee step at all; that
+// bypassed the payment gateway entirely and has been replaced.
 export default function ReservationModal({ property, onClose }) {
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
-  const [guests, setGuests] = useState(1);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -23,20 +25,12 @@ export default function ReservationModal({ property, onClose }) {
   if (!property) return null;
 
   const img = property.pictures?.[0]?.original || property.picture?.original || null;
-  const nightly = property.prices?.nightly?.amount ?? null;
-  const currency = property.prices?.currency || "USD";
-  const cleaningFee = property.prices?.cleaningFee ?? 0;
   const city = property.address?.city || property.city || "";
-  const maxGuests = property.accommodates || 10;
   const amenities = Array.isArray(property.amenities) ? property.amenities.slice(0, 14) : [];
   const description = property.publicDescription?.summary || property.description || "";
 
-  const nights =
-    checkIn && checkOut && checkOut > checkIn
-      ? Math.round(
-          (Date.parse(checkOut + "T00:00:00") - Date.parse(checkIn + "T00:00:00")) / 86_400_000,
-        )
-      : 0;
+  const apaleoPropertyId = property._apaleoPropertyId || property.propertyId || property.id || "";
+  const apaleoUnitGroupId = property._apaleoUnitGroupId || "";
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) onClose();
@@ -101,72 +95,33 @@ export default function ReservationModal({ property, onClose }) {
           {/* Right — booking panel */}
           <div className="grp-modal-right">
             <div className="grp-right-section">
-              <p className="grp-modal-section-title">Select Dates</p>
-              <ReservationCalendar
-                checkIn={checkIn}
-                checkOut={checkOut}
-                onCheckInChange={setCheckIn}
-                onCheckOutChange={setCheckOut}
-              />
-            </div>
-
-            <div className="grp-right-section">
-              <p className="grp-modal-section-title">Guests</p>
-              <div className="grp-guests-ctrl">
-                <button
-                  type="button"
-                  className="grp-guests-btn"
-                  onClick={() => setGuests((g) => Math.max(1, g - 1))}
-                  disabled={guests <= 1}
-                  aria-label="Decrease guests"
-                >
-                  −
-                </button>
-                <span className="grp-guests-count">{guests}</span>
-                <button
-                  type="button"
-                  className="grp-guests-btn"
-                  onClick={() => setGuests((g) => Math.min(maxGuests, g + 1))}
-                  disabled={guests >= maxGuests}
-                  aria-label="Increase guests"
-                >
-                  +
-                </button>
-                <span className="grp-guests-max">of {maxGuests} max</span>
-              </div>
-            </div>
-
-            {nightly != null && nights > 0 && (
-              <div className="grp-right-section">
-                <p className="grp-modal-section-title">Price Estimate</p>
-                <ReservationPricing
-                  nightly={nightly}
-                  nights={nights}
-                  cleaningFee={cleaningFee}
-                  currency={currency}
-                />
-              </div>
-            )}
-
-            <div className="grp-divider" />
-
-            <div className="grp-right-section">
-              <p className="grp-modal-section-title">Your Information</p>
-              <ReservationRequestForm
-                listingId={property._apaleoUnitGroupId || property._id || property.id || ""}
-                listingTitle={property.title || ""}
-                imageUrl={img || ""}
-                propertyId={property._apaleoPropertyId || property.propertyId || property.id || ""}
-                propertyName={property.propertyTitle || property.title || ""}
-                city={city}
-                checkIn={checkIn}
-                checkOut={checkOut}
-                guests={guests}
-              />
+              <p className="grp-modal-section-title">Book this stay</p>
+              <p className="grp-modal-description">
+                Choose your dates, confirm availability, and pay securely — powered by Apaleo &amp; Adyen.
+              </p>
+              <button
+                type="button"
+                className="grp-submit-btn"
+                onClick={() => setCheckoutOpen(true)}
+                disabled={!apaleoPropertyId}
+              >
+                Reserve
+              </button>
+              {!apaleoPropertyId && (
+                <p className="grp-form-error">This property is not available for online booking.</p>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      <ApaleoCheckoutModal
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        propertyId={apaleoPropertyId}
+        unitGroupId={apaleoUnitGroupId}
+        listingTitle={property.title || ""}
+      />
     </div>
   );
 }
