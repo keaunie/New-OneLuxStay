@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useId, useCallback } from "react"
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
+import { LA_BUILDING_GROUPS, resolveLaBuildingGroupKey, getLaBuildingGuestLabel } from "./data/buildingGroups";
 import reviewsHwh from "./data/reviews-hwh.json";
 import reviewsHollywood from "./data/reviews-hollywood.json";
 import reviewsDodger from "./data/reviews-dodger.json";
@@ -2325,15 +2326,7 @@ const SECTION_STORIES = {
   },
 };
 
-const BUILDING_GROUPS = [
-  { key: "la-hwh", label: "Downtown Los Angeles", match: /\bhwh\b|west hollywood|weho/ },
-  {
-    key: "la-downtown",
-    label: "Downtown Los Angeles",
-    match: /downtown|dtla|la plaza|broadway|chinatown|union station/,
-  },
-  { key: "la-hollywood", label: "Hollywood", match: /hollywood/ },
-];
+const BUILDING_GROUPS = LA_BUILDING_GROUPS;
 const SECTION_SLUG_BY_KEY = {
   "la-hwh": "hwh",
   "la-downtown": "downtownla",
@@ -2436,20 +2429,7 @@ const getListingCityRoute = (listing) => {
   return "/los-angeles";
 };
 
-const getBuildingKey = (listing) => {
-  const text = getListingText(listing);
-  const hwh = BUILDING_GROUPS.find((group) => group.key === "la-hwh");
-  if (hwh && hwh.match.test(text)) return hwh.key;
-  const downtown = BUILDING_GROUPS.find((group) => group.key === "la-downtown");
-  if (downtown && downtown.match.test(text) && !/\bhwh\b|west hollywood|weho/.test(text)) {
-    return downtown.key;
-  }
-  for (const group of BUILDING_GROUPS) {
-    if (group.key === "la-hwh" || group.key === "la-downtown") continue;
-    if (group.match.test(text)) return group.key;
-  }
-  return "other";
-};
+const getBuildingKey = (listing) => resolveLaBuildingGroupKey(getListingText(listing));
 
 const isNoParkingProperty = (listing) => {
   if (getBuildingKey(listing) === "la-hollywood") return true;
@@ -2458,17 +2438,7 @@ const isNoParkingProperty = (listing) => {
 };
 
 const resolveGroupTitle = (listing) => {
-  const key = getBuildingKey(listing);
-  switch (key) {
-    case "la-hwh":
-      return "One Lux Stay HWH Downtown Los Angeles";
-    case "la-downtown":
-      return "One Lux Stay LA Plaza Village";
-    case "la-hollywood":
-      return "One Lux Stay Hollywood View LA Suites";
-    default:
-      return "One Lux Stay Near Dodger Stadium Downtown LA";
-  }
+  return getLaBuildingGuestLabel(getBuildingKey(listing));
 };
 
 const getGroupStats = (listings) => {

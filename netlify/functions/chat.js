@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import defaultConciergeKnowledge from "../../src/data/conciergeKnowledge.js";
 import { propertyProfiles, getPropertyProfileByKey } from "../../src/data/propertyProfiles.js";
+import { LA_BUILDING_GROUPS, resolveLaBuildingGroupKey } from "../../src/data/buildingGroups.js";
 import { logAdminsOlsActivity } from "./_shared/adminsOlsActivity.js";
 import { getConciergeKnowledgeFromSupabase } from "./_shared/supabaseContentService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
@@ -131,6 +132,10 @@ Your primary role is to help guests discover the perfect stay AND guide them con
 - Kitchen: all units have a fully-equipped kitchen.
 - If you don't know a specific detail, say so honestly and offer to connect them with the team via WhatsApp or email.
 - Never turn a simple question into a booking funnel. Answer the question first. Only mention booking naturally at the end if it's genuinely relevant.
+
+## Live agent / human handoff
+- If a guest asks to talk to a live agent, a human, a real person, or a representative, or asks how to call/reach the team directly, give them the phone number from the knowledge context and mention it works for both a phone call and WhatsApp, in one natural sentence — e.g. "Of course — you can reach our team directly at +1 213 866 3589, either by phone or WhatsApp, whichever's easier for you."
+- Don't wait for a guest to explicitly say "phone number" — "can I talk to someone," "is there a human I can talk to," and similar all count.
 
 ## Booking assistance
 - Once you have city + dates + guest count, go straight to available options. No extra questions unless needed.
@@ -1581,6 +1586,48 @@ const extractCityHintFromPrompt = (prompt = "", supportedCities = []) => {
   return bestMatch.label;
 };
 
+// Several LA buildings have a guest-facing marketing name that never appears
+// in the listing's public title (Guesty title for the La Plaza Village units
+// is generic, e.g. "Stylish 1BR Family Apartment by DTLA" — the name only
+// shows up, inconsistently, in the internal nickname: some say "LA PLAZA",
+// others just "LP 423"). A guest asking for that name by city alone (e.g.
+// "at La plaza village") used to silently get an unrelated set of city-wide
+// listings (e.g. Hollywood) with no indication the named building wasn't
+// actually what was searched.
+//
+// LA_BUILDING_GROUPS (src/data/buildingGroups.js) is the site's own existing,
+// canonical answer to "which listings belong to which named LA building" —
+// it's what LosAngelesLandingPage.jsx already uses to group listing cards
+// into their HWH / La Plaza Village / Hollywood sections. Reusing it here
+// (instead of a narrower one-off nickname check) means every building that
+// already has a marketing identity on the site is covered, matched the same
+// way the rest of the site already treats it, and one edit to that shared
+// file keeps both in sync going forward.
+const extractPropertyNameHint = (prompt = "") => {
+  const source = String(prompt || "");
+  if (!source) return null;
+  const key = resolveLaBuildingGroupKey(source);
+  if (key === "other") return null;
+  const group = LA_BUILDING_GROUPS.find((entry) => entry.key === key);
+  return group ? { key: group.key, label: group.guestLabel } : null;
+};
+
+// Narrows a listing pool to one named building (see extractPropertyNameHint)
+// using the same classification the building-group sections use. Returns the
+// narrowed list plus whether the hint actually matched anything, so a caller
+// can tell "these are La Plaza units" apart from "no La Plaza units matched,
+// these are the wider city results".
+const applyPropertyNameHint = (listings, propertyNameHint) => {
+  if (!propertyNameHint) return { listings, matched: false };
+  const matches = (listings || []).filter((listing) => {
+    const text = [listing?.title, listing?.nickname, listing?.address?.full, listing?.address?.city]
+      .filter(Boolean)
+      .join(" ");
+    return resolveLaBuildingGroupKey(text) === propertyNameHint.key;
+  });
+  return matches.length ? { listings: matches, matched: true } : { listings, matched: false };
+};
+
 const normalizeCityLabel = (value = "") => {
   const source = sanitizeString(value, 120);
   if (!source) return "";
@@ -1779,6 +1826,12 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
     return conciergeKnowledge.brand.bookingSummary
       ? `${conciergeKnowledge.brand.bookingSummary} If you are still deciding, I can help narrow down which city page to start from.`
       : "You can book by choosing a city or listing, selecting your dates and guest count, reviewing the stay details, and continuing through checkout on the site. If you are still deciding, I can help narrow down which city page to start from.";
+  }
+
+  if (/\b(human|live agent|real person|representative|talk to (someone|somebody)|speak to (someone|somebody|a person)|call (you|us)|phone number|call directly)\b/.test(prompt)) {
+    return conciergeKnowledge.brand.contactPhone
+      ? `Of course — you can reach our team directly at ${conciergeKnowledge.brand.contactPhone}, by phone call or WhatsApp, whichever's easier for you.`
+      : "I can connect you with our team — reach out via WhatsApp or email and someone will get right back to you.";
   }
 
   if (/\b(property|properties|stay|stays|listing|choose)\b/.test(prompt)) {
@@ -2977,10 +3030,11 @@ const fetchAvailableListingsForDates = async ({
   checkOut,
   guests = 1,
   bedroomPreference = null,
+  propertyNameHint = null,
   maxLinks = 5,
 }) => {
   if (!isValidIsoDate(checkIn) || !isValidIsoDate(checkOut) || checkIn >= checkOut) {
-    return { results: [], searched: 0 };
+    return { results: [], searched: 0, propertyNameMatched: false };
   }
 
   const listingsLookup = await fetchFunctionJson({
@@ -3009,7 +3063,9 @@ const fetchAvailableListingsForDates = async ({
         return listingCity.includes(normalizedRequestedCity);
       })
     : allListings;
-  const candidateListings = cityScopedListings.filter((listing) =>
+  const { listings: propertyScopedListings, matched: propertyNameMatched } =
+    applyPropertyNameHint(cityScopedListings, propertyNameHint);
+  const candidateListings = propertyScopedListings.filter((listing) =>
     listingMatchesBedroomPreference(listing, bedroomPreference),
   );
 
@@ -3056,7 +3112,7 @@ const fetchAvailableListingsForDates = async ({
   const ids = scopedListings
     .map((listing) => getListingIdForChat(listing))
     .filter(Boolean);
-  if (!ids.length) return { results: [], searched: 0 };
+  if (!ids.length) return { results: [], searched: 0, propertyNameMatched };
   const minOccupancy = String(Math.max(1, Math.round(Number(guests) || 1)));
   const availableIds = new Set();
 
@@ -3191,7 +3247,7 @@ const fetchAvailableListingsForDates = async ({
     return { id: parentId || listingId, title, city, url, imageUrls };
   });
 
-  return { results, searched: ids.length };
+  return { results, searched: ids.length, propertyNameMatched };
 };
 
 const getChatListingCapacity = (listing = {}) => {
@@ -3279,10 +3335,11 @@ const fetchAvailableDatesForMonth = async ({
   cityHint = "",
   monthRange = null,
   guests = 1,
+  propertyNameHint = null,
   maxLinks = 5,
 }) => {
   if (!monthRange || !isValidIsoDate(monthRange.startDate) || !isValidIsoDate(monthRange.endDate)) {
-    return { results: [], searched: 0 };
+    return { results: [], searched: 0, propertyNameMatched: false };
   }
 
   const listingsLookup = await fetchFunctionJson({
@@ -3302,7 +3359,7 @@ const fetchAvailableDatesForMonth = async ({
       ? "miami"
       : requestedCity;
 
-  const candidateListings = (normalizedRequestedCity && normalizedRequestedCity !== "global"
+  const cityScopedListings = normalizedRequestedCity && normalizedRequestedCity !== "global"
     ? allListings.filter((listing) => {
         const listingCityRaw = sanitizeString(listing?.city || listing?.address?.city, 120).toLowerCase();
         const listingCity = listingCityRaw.includes("antwerpen")
@@ -3312,11 +3369,14 @@ const fetchAvailableDatesForMonth = async ({
             : listingCityRaw;
         return listingCity.includes(normalizedRequestedCity);
       })
-    : allListings).filter((listing) => {
-      const capacity = getChatListingCapacity(listing);
-      if (!Number.isFinite(capacity)) return true;
-      return capacity >= requiredGuests;
-    });
+    : allListings;
+  const { listings: propertyScopedListings, matched: propertyNameMatched } =
+    applyPropertyNameHint(cityScopedListings, propertyNameHint);
+  const candidateListings = propertyScopedListings.filter((listing) => {
+    const capacity = getChatListingCapacity(listing);
+    if (!Number.isFinite(capacity)) return true;
+    return capacity >= requiredGuests;
+  });
 
   const listingById = new Map();
   const parentByListingId = new Map();
@@ -3359,7 +3419,7 @@ const fetchAvailableDatesForMonth = async ({
 
   const ids = scopedListings.map((listing) => getListingIdForChat(listing)).filter(Boolean);
   if (!ids.length) {
-    return { results: [], searched: 0 };
+    return { results: [], searched: 0, propertyNameMatched };
   }
 
   const openDatesByListingId = new Map();
@@ -3542,6 +3602,7 @@ const fetchAvailableDatesForMonth = async ({
   return {
     results,
     searched: ids.length,
+    propertyNameMatched,
   };
 };
 
@@ -3550,16 +3611,24 @@ const buildMonthAvailabilityReply = ({
   guests = 1,
   matches = [],
   searched = 0,
+  propertyNameHint = null,
+  propertyNameMatched = false,
 }) => {
   const label = sanitizeString(monthLabel, 60) || "the selected month";
   const safeGuests = Math.max(1, Math.round(Number(guests) || 1));
+  // A guest named a specific property (e.g. "La Plaza") but none of the
+  // matched/unmatched results below are actually from it — say so instead of
+  // silently presenting unrelated units as if they were what was asked for.
+  const propertyMismatchNotice = propertyNameHint && !propertyNameMatched
+    ? `I couldn't find live availability specifically at ${propertyNameHint.label} for that search — here's what's open elsewhere nearby instead. `
+    : "";
   if (!Array.isArray(matches) || !matches.length) {
-    return `I checked available check-in dates in ${label} (${safeGuests} guest${safeGuests > 1 ? "s" : ""}) and could not find open units in the current search scope. If you want, I can try a different month or guest count.`;
+    return `${propertyMismatchNotice}I checked available check-in dates in ${label} (${safeGuests} guest${safeGuests > 1 ? "s" : ""}) and could not find open units in the current search scope. If you want, I can try a different month or guest count.`;
   }
 
   const preview = matches.slice(0, 3);
   const lines = [
-    `I checked available check-in dates in ${label} for ${safeGuests} guest${safeGuests > 1 ? "s" : ""}.`,
+    `${propertyMismatchNotice}I checked available check-in dates in ${label} for ${safeGuests} guest${safeGuests > 1 ? "s" : ""}.`,
     `I found ${matches.length} unit${matches.length > 1 ? "s" : ""} with open dates.`,
     "",
   ];
@@ -3586,18 +3655,33 @@ const buildMonthAvailabilityReply = ({
   return lines.join("\n");
 };
 
-const buildAvailabilityLinksReply = ({ checkIn, checkOut, guests, bedroomPreference = null, matches = [], searched = 0 }) => {
+const buildAvailabilityLinksReply = ({
+  checkIn,
+  checkOut,
+  guests,
+  bedroomPreference = null,
+  matches = [],
+  searched = 0,
+  propertyNameHint = null,
+  propertyNameMatched = false,
+}) => {
   const roomLabel =
     bedroomPreference && bedroomPreference.kind !== "any" && bedroomPreference.label
       ? `${bedroomPreference.label} `
       : "";
+  // A guest named a specific property (e.g. "La Plaza") but none of the
+  // matched/unmatched results below are actually from it — say so instead of
+  // silently presenting unrelated units as if they were what was asked for.
+  const propertyMismatchNotice = propertyNameHint && !propertyNameMatched
+    ? `I couldn't find live availability specifically at ${propertyNameHint.label} for those dates — here's what's open elsewhere nearby instead. `
+    : "";
   if (!Array.isArray(matches) || !matches.length) {
-    return `I checked ${roomLabel}availability for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}) and I could not find a match right now. If you want, I can try another date range or show the best options with no room preference.`;
+    return `${propertyMismatchNotice}I checked ${roomLabel}availability for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}) and I could not find a match right now. If you want, I can try another date range or show the best options with no room preference.`;
   }
 
   const preview = matches.slice(0, 3);
   const lines = [
-    `Great news. I found ${matches.length} available ${roomLabel}unit${matches.length > 1 ? "s" : ""} for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}).`,
+    `${propertyMismatchNotice}${propertyMismatchNotice ? "" : "Great news. "}I found ${matches.length} available ${roomLabel}unit${matches.length > 1 ? "s" : ""} for ${checkIn} to ${checkOut} (${guests} guest${guests > 1 ? "s" : ""}).`,
   ];
 
   lines.push("");
@@ -4659,6 +4743,7 @@ export async function handler(event) {
       userMessagesNewestFirst.map((message) => extractStrictReservationCode(message)).find(Boolean) || "";
     const assistantReservationCode = extractStrictReservationCode(latestAssistantText);
     const promptCityHint = extractCityHintFromPrompt(latestPromptForIntent, supportedCities);
+    const propertyNameHint = extractPropertyNameHint(latestPromptForIntent);
     const normalizedPromptCity = normalizeCityLabel(promptCityHint);
     const conversationCityHint =
       userMessagesNewestFirst
@@ -5204,6 +5289,7 @@ export async function handler(event) {
             cityHint: availabilityCityHint,
             monthRange: effectiveMonthRange,
             guests,
+            propertyNameHint,
             maxLinks: 5,
           });
           return respondWithIntentPayload({
@@ -5219,6 +5305,8 @@ export async function handler(event) {
               guests,
               matches: monthMatches.results,
               searched: monthMatches.searched,
+              propertyNameHint,
+              propertyNameMatched: monthMatches.propertyNameMatched,
             }),
             cards: (Array.isArray(monthMatches.results) ? monthMatches.results : []).map((item) => ({
               id: sanitizeString(item?.id, 120),
@@ -5259,6 +5347,7 @@ export async function handler(event) {
           checkOut: availabilityDateRange.checkOut,
           guests,
           bedroomPreference,
+          propertyNameHint,
           maxLinks: 5,
         });
         return respondWithIntentPayload({
@@ -5276,6 +5365,8 @@ export async function handler(event) {
             bedroomPreference,
             matches: availabilityMatches.results,
             searched: availabilityMatches.searched,
+            propertyNameHint,
+            propertyNameMatched: availabilityMatches.propertyNameMatched,
           }),
           cards: (Array.isArray(availabilityMatches.results) ? availabilityMatches.results : []).map((item) => ({
             id: sanitizeString(item?.id, 120),

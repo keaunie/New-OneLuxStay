@@ -4,12 +4,12 @@ export const conciergeKnowledge = {
     description:
       "One Lux Stay offers fully furnished apartments in convenient city locations — the privacy and space of your own home combined with responsive guest service. Every property is professionally managed and stocked with practical amenities for a seamless stay.",
     contactEmail: "reservations@oneluxstay.com",
-    contactPhone: "",
-    contactWhatsApp: "+1 618 881 2613 (US + Dubai) | +32 460 25 4886 (Antwerp)",
+    contactPhone: "+1 213 866 3589",
+    contactWhatsApp: "+1 213 866 3589 (US — same number as phone) | +1 618 881 2613 (US + Dubai) | +32 460 25 4886 (Antwerp)",
     bookingSummary:
       "Booking is simple: choose a city or listing, select dates and guest count, review the stay details, and complete checkout securely on the website. The whole process takes just a few minutes.",
     humanEscalation:
-      "For anything sensitive, urgent, or policy-specific, direct guests to the One Lux Stay team via WhatsApp or email. The team is responsive and can handle special requests, group bookings, and extended stays.",
+      "For anything sensitive, urgent, or policy-specific — or whenever a guest asks to talk to a live agent, a human, or a real person — give them the US number +1 213 866 3589: they can call it directly or message it on WhatsApp, whichever they prefer. Email (reservations@oneluxstay.com) also reaches the team. The team is responsive and can handle special requests, group bookings, and extended stays.",
     valueProps: [
       "Full furnished apartments — not just a room, but your own private space",
       "Prime locations in each city, steps from top restaurants, culture, and transport",
