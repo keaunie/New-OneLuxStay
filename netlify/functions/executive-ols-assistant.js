@@ -408,7 +408,7 @@ const AMENITY_KEYWORDS = [
 // directory above. Fetched on demand, scoped to the one Guesty listing the
 // admin has selected in the property filter, only when the question asks
 // for them.
-const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|keypad|access code|gate code|entry code)\b/i;
+const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|lock\s*box|keypad|access code|gate code|entry code|pass\s*code|pin\s*code)\b/i;
 const ACCESS_SECRETS_SELECT = "room_label,wifi_network,wifi_password,door_lock_type,door_code,notes";
 
 const resolvePropertyRowId = async (guestyListingId) => {
@@ -489,6 +489,49 @@ const buildAddressText = (property, listingTitle = "") => {
 
 const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 
+// Generic connector/domain words that must never count as a property-identifying
+// token, even when one happens to appear literally inside a nickname (e.g.
+// "KRIBB UNIT 402 SEPT" contains the word "unit", which would otherwise let it
+// steal a point from every other Kribb nickname on any question phrased "...
+// unit 502" — see matchPropertyInText). Kept in sync with the domain words
+// ACCESS_QUESTION_PATTERN/ADDRESS_QUESTION_PATTERN/CAPACITY_QUESTION_PATTERN
+// look for, plus common English filler.
+const MATCH_STOPWORDS = new Set([
+  "the", "is", "are", "for", "of", "to", "at", "in", "on", "and", "or", "what", "whats",
+  "tell", "me", "please", "can", "you", "give", "get", "unit", "units", "room", "rooms",
+  "code", "codes", "door", "doors", "lock", "locks", "box", "boxes", "passcode", "password",
+  "wifi", "wireless", "network", "pin", "access", "gate", "entry", "keypad",
+]);
+
+// Fully splits into atomic alnum runs — both on non-alnum separators and on
+// letter/digit boundaries ("KIEV4" -> "kiev", "4"; "LANGE103" -> "lange",
+// "103") — so a nickname's own internal identity (building prefix, unit
+// number) is available as separate tokens regardless of how it's punctuated
+// or concatenated. Alpha runs under 2 chars are noise ("a"/"b" from "A & B")
+// and dropped; digit runs are kept even at 1 char since a lone digit can be a
+// real building suffix ("LANGE5" -> "5").
+const tokensForMatch = (value = "") => {
+  const words = String(value || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const tokens = new Set();
+  words.forEach((word) => {
+    word.split(/(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])/).forEach((part) => {
+      if (MATCH_STOPWORDS.has(part)) return;
+      if (/^[0-9]+$/.test(part) || part.length >= 2) tokens.add(part);
+    });
+  });
+  return [...tokens];
+};
+
+// A nickname token counts as satisfied by the question either verbatim, or
+// via a prefix relationship (3+ chars) in either direction — this is what
+// lets an internal abbreviation like "kiev" (from nickname "KIEV4") match a
+// question that spells the street out in full ("Kievitstraat"), without
+// letting short/noisy prefixes ("an" vs "antwerpen") count.
+const isTokenSatisfied = (token, queryTokenList) =>
+  queryTokenList.some((queryToken) => queryToken === token
+    || (token.length >= 3 && queryToken.startsWith(token))
+    || (queryToken.length >= 3 && token.startsWith(queryToken)));
+
 // Admins naturally type the internal nickname ("A & B 311") rather than pick
 // from the property filter first, and follow-up questions ("what's the
 // wifi for that unit") naturally omit the name entirely once it's already
@@ -507,21 +550,71 @@ const fetchListingNicknames = async () => {
   }
 };
 
+// Several buildings share a "Lange..." prefix (LANGE, LANGE5, LANGE KIEV4),
+// so a naive "some/enough nickname tokens appear somewhere in the query"
+// check is unsafe here: it would let a short, generic nickname like
+// "LANGE 101" win against a question that actually named a different, more
+// specific building ("Lange Kievitstraat 4 unit 101") just because "lange"
+// and "101" both happen to appear in both. Since this feeds door/lock codes,
+// a wrong silent match is worse than no match — so a candidate only counts
+// as matched once EVERY one of its own tokens is accounted for in the
+// question (an exact/contiguous match always outranks that), and among
+// candidates that fully match, the one with the most tokens (most specific)
+// wins; a tie is treated as ambiguous (no match) rather than guessed.
+const CONTIGUOUS_MATCH_SCORE_BONUS = 1000;
+
+// Marketing/colloquial building names admins may use instead of the internal
+// nickname prefix — e.g. Lange Leemstraat 5's listings are internally
+// "LANGE5 ...", but staff know the building as "Near Antwerp Central". Maps
+// a phrase to the extra token(s) it should contribute to the query's token
+// list, so it can help satisfy a LANGE5-prefixed nickname's own coverage
+// requirement without letting it match anything else (each candidate still
+// needs its own specific unit-number token to actually be present).
+const BUILDING_NAME_ALIASES = [
+  { pattern: /near\s+antwerp\s+central/i, tokens: ["lange", "5"] },
+];
+
 const matchPropertyInText = (text, nicknameRows) => {
   const normalizedQuery = normalizeForMatch(text);
   if (!normalizedQuery) return null;
+  const queryTokenList = tokensForMatch(text);
+  BUILDING_NAME_ALIASES.forEach(({ pattern, tokens }) => {
+    if (pattern.test(text)) queryTokenList.push(...tokens);
+  });
 
   let best = null;
-  let bestLength = 0;
+  let bestScore = 0;
+  let bestScoreIsTied = false;
   nicknameRows.forEach((row) => {
     const normalizedNickname = normalizeForMatch(row?.nickname);
     if (normalizedNickname.length < 3) return;
-    if (normalizedQuery.includes(normalizedNickname) && normalizedNickname.length > bestLength) {
+
+    let score;
+    if (normalizedQuery.includes(normalizedNickname)) {
+      // Fast path: nickname appears verbatim ("A&B 311", "KRIBB502") — always
+      // wins over a fuzzy token match; longer/more specific nickname wins ties.
+      score = CONTIGUOUS_MATCH_SCORE_BONUS + normalizedNickname.length;
+    } else {
+      // Fallback: every one of the nickname's own tokens must be satisfied
+      // somewhere in the question (exact or prefix), even with other words in
+      // between — e.g. nickname "KRIBB 502" against "passcode for Kribb unit
+      // 502", where "unit" breaks the contiguous match above.
+      const nicknameTokens = tokensForMatch(row?.nickname);
+      const fullyCovered = nicknameTokens.length >= 2
+        && nicknameTokens.every((token) => isTokenSatisfied(token, queryTokenList));
+      if (!fullyCovered) return;
+      score = nicknameTokens.length;
+    }
+
+    if (score > bestScore) {
       best = { id: sanitizeString(row.id, 120), label: sanitizeString(row.nickname, 220) };
-      bestLength = normalizedNickname.length;
+      bestScore = score;
+      bestScoreIsTied = false;
+    } else if (score === bestScore) {
+      bestScoreIsTied = true;
     }
   });
-  return best;
+  return bestScoreIsTied ? null : best;
 };
 
 // Checks the current question first, then walks recent chat history
@@ -698,6 +791,7 @@ Rules:
 - You may draft professional guest or internal messages when asked.
 - Never invent figures, reservations, or property facts.
 - Only reveal Wi-Fi passwords or door codes when an "Access details" section is supplied above and the question asks for them. Never guess or fabricate a password or code. If the admin asks for access details but no "Access details" section is supplied, tell them to select a specific property in the property filter first.
+- If an "Access details" section includes a "Notes" line for the property, always state it in the same reply as the lock/door code, every time — it is operational usage guidance (e.g. what to do if the code is mistyped), not optional context. Never give a door/lock code without also giving its notes when notes are present.
 `.trim();
 
   const response = await fetchWithTimeout(
