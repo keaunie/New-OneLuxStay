@@ -838,17 +838,109 @@ const hasPotentialPropertyMention = (text) =>
     (token) => /^[a-z]+$/.test(token) && token.length >= 3 && !FIELD_KEYWORD_WORDS.has(token),
   );
 
-const resolvePropertyFromConversation = async (query, messages = []) => {
-  const nicknameRows = await fetchListingNicknames();
-  if (!nicknameRows.length) return null;
+// Several buildings (HWH's deluxe categories, the LLEW-style room-pooled
+// listings) sell one bookable "type" — nicknamed something like "E1. OLS HWH
+// 1 BR DELUXE LARGE" — across several interchangeable PHYSICAL rooms, each
+// with its own property_access_secrets row (room_label "501 Med", "403 Lg",
+// etc). An admin asking about "HWH 501" is naming the physical room, which
+// never appears in listings.nickname at all — matchPropertyInText alone can
+// never resolve it, no matter how loose its token rules are. This is a
+// second, independent pass over a different table.
+const fetchRoomLabelCandidates = async () => {
+  try {
+    const secretRows = await supabaseRestRequest("property_access_secrets", {
+      query: { select: "property_id,room_label", limit: 1000 },
+    });
+    const withLabels = (Array.isArray(secretRows) ? secretRows : []).filter((row) =>
+      sanitizeString(row?.room_label, 80),
+    );
+    if (!withLabels.length) return [];
 
-  const direct = matchPropertyInText(query, nicknameRows);
+    const propertyIds = [...new Set(withLabels.map((row) => row.property_id).filter(Boolean))];
+    if (!propertyIds.length) return [];
+
+    const listingRows = await supabaseRestRequest("listings", {
+      query: {
+        select: "id,property_id,title,nickname:metadata->>nickname",
+        property_id: `in.(${propertyIds.join(",")})`,
+        limit: 1000,
+      },
+    });
+    const listingByPropertyId = new Map();
+    (Array.isArray(listingRows) ? listingRows : []).forEach((row) => {
+      if (row?.property_id && !listingByPropertyId.has(row.property_id)) {
+        listingByPropertyId.set(row.property_id, row);
+      }
+    });
+
+    return withLabels
+      .map((row) => {
+        const listing = listingByPropertyId.get(row.property_id);
+        if (!listing?.id) return null;
+        return {
+          listingId: sanitizeString(listing.id, 120),
+          roomLabel: sanitizeString(row.room_label, 80),
+          nickname: sanitizeString(listing.nickname, 220),
+          title: sanitizeString(listing.title, 220),
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+// A bare room number ("106") is ambiguous across properties on its own, so
+// this requires BOTH the room-label tokens to be covered (the specific
+// detail) AND at least one token from the parent listing's own
+// nickname/title to also appear in the question (the building context) —
+// e.g. "hwh" — before trusting a room-label match.
+const matchRoomLabelInText = (text, roomRows) => {
+  const queryTokenList = tokensForMatch(text);
+  if (!queryTokenList.length) return null;
+
+  let best = null;
+  let bestScore = 0;
+  let bestScoreIsTied = false;
+  roomRows.forEach((row) => {
+    const roomTokens = tokensForMatch(row.roomLabel);
+    if (!roomTokens.length) return;
+    const requiredRoomTokens = roomTokens.filter((token) => !OPTIONAL_NICKNAME_QUALIFIERS.has(token));
+    const tokensToRequire = requiredRoomTokens.length ? requiredRoomTokens : roomTokens;
+    const roomCovered = tokensToRequire.every((token) => isTokenSatisfied(token, queryTokenList));
+    if (!roomCovered) return;
+
+    const contextTokens = tokensForMatch(`${row.nickname} ${row.title}`);
+    const hasContextOverlap = contextTokens.some(
+      (token) => token.length >= 3 && isTokenSatisfied(token, queryTokenList),
+    );
+    if (!hasContextOverlap) return;
+
+    const score = roomTokens.filter((token) => isTokenSatisfied(token, queryTokenList)).length + 1;
+    if (score > bestScore) {
+      best = { id: row.listingId, label: row.title || row.nickname || `Room ${row.roomLabel}` };
+      bestScore = score;
+      bestScoreIsTied = false;
+    } else if (score === bestScore) {
+      bestScoreIsTied = true;
+    }
+  });
+  return bestScoreIsTied ? null : best;
+};
+
+const resolvePropertyFromConversation = async (query, messages = []) => {
+  const [nicknameRows, roomRows] = await Promise.all([fetchListingNicknames(), fetchRoomLabelCandidates()]);
+  if (!nicknameRows.length && !roomRows.length) return null;
+
+  const matchEither = (text) => matchPropertyInText(text, nicknameRows) || matchRoomLabelInText(text, roomRows);
+
+  const direct = matchEither(query);
   if (direct) return direct;
   if (hasPotentialPropertyMention(query)) return null;
 
   const priorTexts = [...messages].reverse().map((message) => message?.content);
   for (const text of priorTexts) {
-    const match = matchPropertyInText(text, nicknameRows);
+    const match = matchEither(text);
     if (match) return match;
   }
   return null;
