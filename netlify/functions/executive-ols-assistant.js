@@ -632,6 +632,39 @@ const buildParkingText = (parking, listingTitle = "") => {
     : `${label} has parking, but no specific space/level instructions are on file.`;
 };
 
+// General "tell me about X" fallback for a resolved property when the
+// question didn't name a specific field (wifi/deposit/address/etc). Only
+// pulls non-sensitive facts (address, specs, whether parking exists at all)
+// so this never has to guess whether it's safe to reveal a code or deposit —
+// those stay behind their own explicit-question gates above. Runs the three
+// lookups in parallel and degrades quietly: a failed one is just omitted
+// rather than failing the whole overview.
+const fetchPropertyOverview = async (guestyListingId) => {
+  const [addressResult, specsResult, parkingResult] = await Promise.allSettled([
+    fetchPropertyAddressForListing(guestyListingId),
+    fetchListingSpecsForListing(guestyListingId),
+    fetchParkingForListing(guestyListingId),
+  ]);
+  return {
+    property: addressResult.status === "fulfilled" ? addressResult.value : null,
+    listing: specsResult.status === "fulfilled" ? specsResult.value : null,
+    parking: parkingResult.status === "fulfilled" ? parkingResult.value : null,
+  };
+};
+
+const buildOverviewText = (overview, listingTitle = "") => {
+  const label = listingTitle || "the selected property";
+  if (!overview) return `I don't have data on file for ${label}.`;
+  const lines = [`Quick facts for ${label}:`];
+  if (overview.property?.address) lines.push(`- Address: ${overview.property.address}`);
+  const specsLine = overview.listing ? buildSpecsText(overview.listing, "").replace(/^Unit: [^|]*\|?\s*/, "") : "";
+  if (specsLine) lines.push(`- Specs: ${specsLine}`);
+  if (overview.parking) lines.push(`- Parking: ${overview.parking.hasParking ? "Yes" : "No"}`);
+  if (lines.length === 1) return `I don't have address, specs, or parking data on file for ${label} yet. Ask about a specific detail (Wi-Fi, door code, deposit) if you know it's set.`;
+  lines.push("Ask about Wi-Fi, door code, deposit, or exact parking instructions for more.");
+  return lines.join("\n");
+};
+
 const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 // Generic connector/domain words that must never count as a property-identifying
@@ -646,6 +679,19 @@ const MATCH_STOPWORDS = new Set([
   "tell", "me", "please", "can", "you", "give", "get", "unit", "units", "room", "rooms",
   "code", "codes", "door", "doors", "lock", "locks", "box", "boxes", "passcode", "password",
   "wifi", "wireless", "network", "pin", "access", "gate", "entry", "keypad",
+  "that", "this", "it", "its", "does", "do", "have", "has", "about", "with", "there",
+  "was", "were", "been", "be",
+]);
+
+// Size/room-variant suffixes admins routinely drop when naming a unit
+// informally ("HWH 501" for the nickname "HWH 501 Med") — optional for a
+// match (still counted toward the score, so a query that DOES include one
+// still prefers the more specific candidate) but never required, so leaving
+// one out doesn't reject an otherwise-exact match and fall through to the
+// conversation-history guess below.
+const OPTIONAL_NICKNAME_QUALIFIERS = new Set([
+  "med", "medium", "lg", "large", "sm", "small", "jr", "junior",
+  "dlx", "deluxe", "ph", "penthouse", "sep", "bsmt",
 ]);
 
 // Fully splits into atomic alnum runs — both on non-alnum separators and on
@@ -740,15 +786,20 @@ const matchPropertyInText = (text, nicknameRows) => {
       // wins over a fuzzy token match; longer/more specific nickname wins ties.
       score = CONTIGUOUS_MATCH_SCORE_BONUS + normalizedNickname.length;
     } else {
-      // Fallback: every one of the nickname's own tokens must be satisfied
-      // somewhere in the question (exact or prefix), even with other words in
-      // between — e.g. nickname "KRIBB 502" against "passcode for Kribb unit
-      // 502", where "unit" breaks the contiguous match above.
+      // Fallback: every one of the nickname's own REQUIRED tokens must be
+      // satisfied somewhere in the question (exact or prefix), even with
+      // other words in between — e.g. nickname "KRIBB 502" against "passcode
+      // for Kribb unit 502", where "unit" breaks the contiguous match above.
+      // Optional qualifier tokens (size/room-variant suffixes) don't have to
+      // be present to count as covered, but still add to the score below so
+      // a query that does name them still prefers the more specific unit.
       const nicknameTokens = tokensForMatch(row?.nickname);
-      const fullyCovered = nicknameTokens.length >= 2
-        && nicknameTokens.every((token) => isTokenSatisfied(token, queryTokenList));
+      const requiredTokens = nicknameTokens.filter((token) => !OPTIONAL_NICKNAME_QUALIFIERS.has(token));
+      const tokensToRequire = requiredTokens.length >= 2 ? requiredTokens : nicknameTokens;
+      const fullyCovered = tokensToRequire.length >= 2
+        && tokensToRequire.every((token) => isTokenSatisfied(token, queryTokenList));
       if (!fullyCovered) return;
-      score = nicknameTokens.length;
+      score = nicknameTokens.filter((token) => isTokenSatisfied(token, queryTokenList)).length;
     }
 
     if (score > bestScore) {
@@ -765,13 +816,35 @@ const matchPropertyInText = (text, nicknameRows) => {
 // Checks the current question first, then walks recent chat history
 // (newest first, either role) so a follow-up like "what's the wifi for
 // that unit" resolves to whichever property was named earlier in the
-// same conversation.
+// same conversation. Guarded: the history walk only runs when the CURRENT
+// message has no property-identifying word of its own (a true follow-up).
+// If the current message names something ("HWH 501?") that just didn't
+// fully match — rather than naming nothing at all — silently answering from
+// an unrelated property mentioned earlier in the chat is worse than saying
+// nothing, so this returns no match instead of guessing.
+// Field-keyword words (what's being asked about) must not count as a
+// property mention on their own — "and the deposit?" names no property and
+// should still be allowed to fall back to history, same as "what about the
+// wifi for that unit."
+const FIELD_KEYWORD_WORDS = new Set([
+  "deposit", "security", "damage", "refundable",
+  "parking", "park", "garage",
+  "address", "located", "location", "directions",
+  "capacity", "bedroom", "bedrooms", "bathroom", "bathrooms",
+  "accommodate", "accommodates", "guest", "guests", "sleep", "sleeps",
+]);
+const hasPotentialPropertyMention = (text) =>
+  tokensForMatch(text).some(
+    (token) => /^[a-z]+$/.test(token) && token.length >= 3 && !FIELD_KEYWORD_WORDS.has(token),
+  );
+
 const resolvePropertyFromConversation = async (query, messages = []) => {
   const nicknameRows = await fetchListingNicknames();
   if (!nicknameRows.length) return null;
 
   const direct = matchPropertyInText(query, nicknameRows);
   if (direct) return direct;
+  if (hasPotentialPropertyMention(query)) return null;
 
   const priorTexts = [...messages].reverse().map((message) => message?.content);
   for (const text of priorTexts) {
@@ -849,6 +922,7 @@ const buildDeterministicFallbackAnswer = ({
   specsText = "",
   depositText = "",
   parkingText = "",
+  overviewText = "",
 }) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
@@ -908,8 +982,24 @@ const buildDeterministicFallbackAnswer = ({
     );
   }
 
+  // A property was resolved (named in this question or a recent one) but no
+  // specific field keyword matched — give general facts instead of nothing.
+  if (overviewText) return overviewText;
+
+  // Nothing deterministic matched at all — empty, not a message, so the
+  // caller knows to try the AI next rather than treating this as a real
+  // answer. buildFinalFallbackMessage below is what shows if that also fails.
+  return "";
+};
+
+// True last resort: neither a deterministic pattern nor the AI produced an
+// answer (e.g. AI credits/API are unavailable and the question was too
+// open-ended for any data lookup above to help).
+const buildFinalFallbackMessage = (snapshot = {}) => {
+  const syncMessage = sanitizeString(snapshot?.syncStatus?.message || "", 240);
   return (
-    "I could not complete a full AI reply right now, but the current executive snapshot is still available in the panel." +
+    "I don't have a specific data lookup for that question, and the AI assistant is currently unavailable. " +
+    "Try asking about a property's Wi-Fi, door code, address, unit specs, deposit, or parking — or bookings/revenue for the selected range." +
     (syncMessage ? ` ${syncMessage}` : "")
   );
 };
@@ -1033,105 +1123,127 @@ export async function handler(event) {
     const needsSpecs = CAPACITY_QUESTION_PATTERN.test(query);
     const needsDeposit = DEPOSIT_QUESTION_PATTERN.test(query);
     const needsParking = PARKING_QUESTION_PATTERN.test(query);
+    const needsSpecificField = needsAccessDetails || needsAddress || needsSpecs || needsDeposit || needsParking;
 
     let accessSecretsText = "";
     let addressText = "";
     let specsText = "";
     let depositText = "";
     let parkingText = "";
-    if (needsAccessDetails || needsAddress || needsSpecs || needsDeposit || needsParking) {
-      let resolvedPropertyId = propertyId;
-      let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
+    let overviewText = "";
 
-      if (!resolvedPropertyId) {
-        const match = await resolvePropertyFromConversation(query, messages);
-        if (match) {
-          resolvedPropertyId = match.id;
-          resolvedLabel = match.label;
-        }
-      }
+    // Property resolution always runs (not gated behind a specific keyword)
+    // so a bare mention like "HWH 501?" still resolves to something useful
+    // via the overview branch below — this whole deterministic path is
+    // meant to work without the AI, so it needs to try as hard as the
+    // keyword-specific lookups do.
+    let resolvedPropertyId = propertyId;
+    let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
 
-      if (resolvedPropertyId) {
-        if (needsAccessDetails) {
-          try {
-            const secrets = await fetchAccessSecretsForListing(resolvedPropertyId);
-            accessSecretsText = buildAccessSecretsText(secrets, resolvedLabel);
-          } catch {
-            accessSecretsText = "Access details lookup failed for the selected property.";
-          }
-        }
-        if (needsAddress) {
-          try {
-            const property = await fetchPropertyAddressForListing(resolvedPropertyId);
-            addressText = buildAddressText(property, resolvedLabel);
-          } catch {
-            addressText = "Address lookup failed for the selected property.";
-          }
-        }
-        if (needsSpecs) {
-          try {
-            const listing = await fetchListingSpecsForListing(resolvedPropertyId);
-            specsText = buildSpecsText(listing, resolvedLabel);
-          } catch {
-            specsText = "Unit specs lookup failed for the selected property.";
-          }
-        }
-        if (needsDeposit) {
-          try {
-            const deposit = await fetchDepositForListing(resolvedPropertyId);
-            depositText = buildDepositText(deposit, resolvedLabel);
-          } catch {
-            depositText = "Deposit lookup failed for the selected property.";
-          }
-        }
-        if (needsParking) {
-          try {
-            const parking = await fetchParkingForListing(resolvedPropertyId);
-            parkingText = buildParkingText(parking, resolvedLabel);
-          } catch {
-            parkingText = "Parking lookup failed for the selected property.";
-          }
-        }
-      } else {
-        const notFoundNotice =
-          'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
-        if (needsAccessDetails) accessSecretsText = notFoundNotice;
-        if (needsAddress) addressText = notFoundNotice;
-        if (needsSpecs) specsText = notFoundNotice;
-        if (needsDeposit) depositText = notFoundNotice;
-        if (needsParking) parkingText = notFoundNotice;
+    if (!resolvedPropertyId) {
+      const match = await resolvePropertyFromConversation(query, messages);
+      if (match) {
+        resolvedPropertyId = match.id;
+        resolvedLabel = match.label;
       }
     }
 
-    let answer = "";
+    if (resolvedPropertyId) {
+      if (needsAccessDetails) {
+        try {
+          const secrets = await fetchAccessSecretsForListing(resolvedPropertyId);
+          accessSecretsText = buildAccessSecretsText(secrets, resolvedLabel);
+        } catch {
+          accessSecretsText = "Access details lookup failed for the selected property.";
+        }
+      }
+      if (needsAddress) {
+        try {
+          const property = await fetchPropertyAddressForListing(resolvedPropertyId);
+          addressText = buildAddressText(property, resolvedLabel);
+        } catch {
+          addressText = "Address lookup failed for the selected property.";
+        }
+      }
+      if (needsSpecs) {
+        try {
+          const listing = await fetchListingSpecsForListing(resolvedPropertyId);
+          specsText = buildSpecsText(listing, resolvedLabel);
+        } catch {
+          specsText = "Unit specs lookup failed for the selected property.";
+        }
+      }
+      if (needsDeposit) {
+        try {
+          const deposit = await fetchDepositForListing(resolvedPropertyId);
+          depositText = buildDepositText(deposit, resolvedLabel);
+        } catch {
+          depositText = "Deposit lookup failed for the selected property.";
+        }
+      }
+      if (needsParking) {
+        try {
+          const parking = await fetchParkingForListing(resolvedPropertyId);
+          parkingText = buildParkingText(parking, resolvedLabel);
+        } catch {
+          parkingText = "Parking lookup failed for the selected property.";
+        }
+      }
+      if (!needsSpecificField) {
+        try {
+          const overview = await fetchPropertyOverview(resolvedPropertyId);
+          overviewText = buildOverviewText(overview, resolvedLabel);
+        } catch {
+          overviewText = "";
+        }
+      }
+    } else if (needsSpecificField) {
+      const notFoundNotice =
+        'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
+      if (needsAccessDetails) accessSecretsText = notFoundNotice;
+      if (needsAddress) addressText = notFoundNotice;
+      if (needsSpecs) specsText = notFoundNotice;
+      if (needsDeposit) depositText = notFoundNotice;
+      if (needsParking) parkingText = notFoundNotice;
+    }
 
-    try {
-      answer = await createAssistantReply({
-        query,
-        messages,
-        snapshot,
-        accessSecretsText,
-        depositText,
-        parkingText,
-      });
-    } catch (error) {
-      // Logged server-side only (see createAssistantReply) — never shown to
-      // whoever's reading the chat, matching the guest chatbot's behavior.
-      console.warn("[executive-ols-assistant] Falling back to deterministic answer", {
-        reason: normalizeAssistantErrorMessage(error),
-      });
+    // Deterministic first: every one of these data lookups is exact and
+    // free, so there's no reason to spend an OpenAI call confirming what a
+    // regex + a Supabase row already answered. The AI is reserved for
+    // queries this can't handle at all — drafting messages, open-ended
+    // analysis, anything with no keyword/pattern match above.
+    let answer = buildDeterministicFallbackAnswer({
+      query,
+      snapshot,
+      accessSecretsText,
+      addressText,
+      specsText,
+      depositText,
+      parkingText,
+      overviewText,
+    });
+
+    if (!answer) {
+      try {
+        answer = await createAssistantReply({
+          query,
+          messages,
+          snapshot,
+          accessSecretsText,
+          depositText,
+          parkingText,
+        });
+      } catch (error) {
+        // Logged server-side only (see createAssistantReply) — never shown to
+        // whoever's reading the chat, matching the guest chatbot's behavior.
+        console.warn("[executive-ols-assistant] AI reply unavailable, no deterministic match either", {
+          reason: normalizeAssistantErrorMessage(error),
+        });
+      }
     }
 
     if (!answer) {
-      answer = buildDeterministicFallbackAnswer({
-        query,
-        snapshot,
-        accessSecretsText,
-        addressText,
-        specsText,
-        depositText,
-        parkingText,
-      });
+      answer = buildFinalFallbackMessage(snapshot);
     }
 
     return jsonResponse(
