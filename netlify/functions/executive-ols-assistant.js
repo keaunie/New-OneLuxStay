@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { buildAiCorsHeaders } from "./_shared/aiProtection.js";
 import { fetchWithTimeout, getBaseUrl } from "./_shared/http.js";
 import { guestyRequest } from "./_shared/guestyService.js";
+import { listApaleoReservationsWithDebug } from "./_shared/apaleoService.js";
 import { verifyAdminsOlsAccess } from "./_shared/adminsOlsAuth.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { propertyProfiles } from "../../src/data/propertyProfiles.js";
@@ -230,7 +231,11 @@ const sanitizeReservation = (reservation = {}, listingsById = new Map()) => {
   };
 };
 
-const fetchReservationsSnapshot = async ({ range, propertyId, listingsById }) => {
+// LA Plaza is the one property that intentionally stays on Guesty; every
+// other live property has migrated to Apaleo. Both PMS's reservations are
+// fetched and merged so the snapshot covers the whole portfolio instead of
+// just whichever system happens to match.
+const fetchGuestyReservationsSnapshot = async ({ range, propertyId, listingsById }) => {
   const filters = [
     {
       operator: "$gte",
@@ -266,6 +271,78 @@ const fetchReservationsSnapshot = async ({ range, propertyId, listingsById }) =>
   return results.map((item) => sanitizeReservation(item, listingsById));
 };
 
+const getApaleoReservationTotal = (raw = {}) =>
+  firstNumber(
+    raw?.totalGrossAmount?.amount,
+    raw?.financeInformation?.totalGrossAmount?.amount,
+    raw?.balance?.grossAmount,
+  ) || 0;
+
+const getApaleoReservationCurrency = (raw = {}) =>
+  sanitizeString(
+    raw?.totalGrossAmount?.currency || raw?.financeInformation?.totalGrossAmount?.currency || "EUR",
+    10,
+  ).toUpperCase();
+
+const sanitizeApaleoReservation = (reservation = {}, listingsById = new Map()) => {
+  const propertyFallback = listingsById.get(reservation.propertyId);
+  return {
+    id: sanitizeString(reservation.id, 120),
+    confirmationCode: sanitizeString(reservation.confirmationNumber || reservation.id, 120),
+    status: sanitizeString(reservation.status, 80),
+    guestName: sanitizeString(reservation.guestName, 220),
+    propertyId: sanitizeString(reservation.propertyId, 120),
+    propertyName: sanitizeString(reservation.unitGroupName || propertyFallback?.title, 220),
+    checkIn: sanitizeString(reservation.checkIn, 40),
+    checkOut: sanitizeString(reservation.checkOut, 40),
+    total: getApaleoReservationTotal(reservation.raw),
+    currency: getApaleoReservationCurrency(reservation.raw),
+    provider: "apaleo",
+  };
+};
+
+const fetchApaleoReservationsSnapshot = async ({ range, propertyId, listingsById }) => {
+  const upstreamQuery = {
+    from: `${toIsoDate(range.start)}T00:00:00Z`,
+    to: `${toIsoDate(range.end)}T00:00:00Z`,
+    dateFilter: "Arrival",
+    pageSize: 40,
+    ...(propertyId ? { propertyIds: [propertyId] } : {}),
+  };
+
+  const { results } = await listApaleoReservationsWithDebug({ query: upstreamQuery });
+  return results.map((item) => sanitizeApaleoReservation(item, listingsById));
+};
+
+// Fetches both PMS's in parallel and keeps whichever side succeeds — one
+// provider being down (or a property simply not existing on that provider)
+// shouldn't blank out the other provider's real data.
+const fetchReservationsSnapshot = async ({ range, propertyId, listingsById }) => {
+  const [guestyOutcome, apaleoOutcome] = await Promise.allSettled([
+    fetchGuestyReservationsSnapshot({ range, propertyId, listingsById }),
+    fetchApaleoReservationsSnapshot({ range, propertyId, listingsById }),
+  ]);
+
+  const reservations = [];
+  const issues = [];
+
+  if (guestyOutcome.status === "fulfilled") {
+    reservations.push(...guestyOutcome.value);
+  } else {
+    issues.push(`Guesty: ${sanitizeString(guestyOutcome.reason?.message || "unavailable", 160)}`);
+  }
+
+  if (apaleoOutcome.status === "fulfilled") {
+    reservations.push(...apaleoOutcome.value);
+  } else {
+    issues.push(`Apaleo: ${sanitizeString(apaleoOutcome.reason?.message || "unavailable", 160)}`);
+  }
+
+  reservations.sort((a, b) => String(b.checkIn || "").localeCompare(String(a.checkIn || "")));
+
+  return { reservations, issues };
+};
+
 const buildSnapshot = async ({ event, rangeKey = "this_week", propertyId = "" }) => {
   const range = resolveTimeRange(rangeKey);
   const listings = await fetchListingsSnapshot(event);
@@ -273,18 +350,21 @@ const buildSnapshot = async ({ event, rangeKey = "this_week", propertyId = "" })
   const filteredListings = propertyId ? listings.filter((item) => item.id === propertyId) : listings;
 
   let reservations = [];
-  let syncStatus = { ok: true, message: "Live Guesty data is available." };
+  let syncStatus = { ok: true, message: "Live Apaleo + Guesty data is available." };
 
   try {
-    reservations = await fetchReservationsSnapshot({
-      range,
-      propertyId,
-      listingsById,
-    });
+    const snapshot = await fetchReservationsSnapshot({ range, propertyId, listingsById });
+    reservations = snapshot.reservations;
+    if (snapshot.issues.length) {
+      syncStatus = {
+        ok: reservations.length > 0,
+        message: `Partial reservation data — ${snapshot.issues.join("; ")}`,
+      };
+    }
   } catch (error) {
     syncStatus = {
       ok: false,
-      message: sanitizeString(error?.message || "Guesty reservation data is currently unavailable.", 240),
+      message: sanitizeString(error?.message || "Reservation data is currently unavailable.", 240),
     };
   }
 
@@ -326,7 +406,7 @@ const buildSnapshot = async ({ event, rangeKey = "this_week", propertyId = "" })
 
 // Building-level facts (address, floor plans, amenities) compiled from the
 // live listings table — see src/data/propertyProfiles.js. Distinct from the
-// Guesty reservations/listings snapshot above: that's booking activity,
+// Apaleo/Guesty reservations snapshot above: that's booking activity,
 // this is static inventory facts, so admins can ask "does the Fashion
 // District have parking" without it being mistaken for a booking question.
 const buildPropertyDirectoryText = () =>
@@ -485,6 +565,35 @@ const buildAddressText = (property, listingTitle = "") => {
   // Guesty-sourced addresses already read as complete ("123 Main St, 90013
   // Los Angeles, United States"), so don't re-append city/country on top.
   return `Address for ${property.name || label}: ${property.address}.`;
+};
+
+// Security deposit — a policy fact like address/specs, not an access secret,
+// so it's freely revealed rather than gated behind "only if explicitly
+// asked" the way door codes/Wi-Fi are. Lives in property_access_secrets
+// alongside those fields (same per-property row), not the separate
+// security_deposits table that netlify/functions/_shared/securityDepositService.js
+// uses for the live guest checkout — that one prices by country + bedroom
+// count and is unrelated to this per-building admin lookup.
+const DEPOSIT_QUESTION_PATTERN = /\b(deposit|security deposit|damage deposit|refundable deposit)\b/i;
+
+const fetchDepositForListing = async (guestyListingId) => {
+  const propertyRowId = await resolvePropertyRowId(guestyListingId);
+  if (!propertyRowId) return null;
+
+  const rows = await supabaseRestRequest("property_access_secrets", {
+    query: { select: "deposit_amount,deposit_currency", property_id: `eq.${propertyRowId}`, limit: 1 },
+  });
+  const row = Array.isArray(rows) ? rows[0] : null;
+  return row?.deposit_amount != null ? row : null;
+};
+
+const buildDepositText = (depositRow, listingTitle = "") => {
+  const label = listingTitle || "the selected property";
+  if (!depositRow) return `No security deposit amount is on file for ${label}.`;
+  const amount = Number(depositRow.deposit_amount);
+  const currency = sanitizeString(depositRow.deposit_currency, 10) || "";
+  if (!Number.isFinite(amount)) return `No security deposit amount is on file for ${label}.`;
+  return `Security deposit for ${label}: ${currency} ${amount}.`;
 };
 
 const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -702,6 +811,7 @@ const buildDeterministicFallbackAnswer = ({
   accessSecretsText = "",
   addressText = "",
   specsText = "",
+  depositText = "",
 }) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
@@ -739,6 +849,10 @@ const buildDeterministicFallbackAnswer = ({
     return specsText || "No unit specs are available for this request — select a specific property first.";
   }
 
+  if (DEPOSIT_QUESTION_PATTERN.test(normalizedQuery)) {
+    return depositText || "No deposit amount is available for this request — select a specific property first.";
+  }
+
   if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
     return (
       `For ${rangeLabel}, projected revenue is ${revenue} across ${reservations} reservations.` +
@@ -759,7 +873,7 @@ const buildDeterministicFallbackAnswer = ({
   );
 };
 
-const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "" }) => {
+const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "", depositText = "" }) => {
   const apiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is missing");
@@ -773,17 +887,18 @@ const createAssistantReply = async ({ query, messages, snapshot, accessSecretsTe
     "Recent chat:",
     formatHistory(messages) || "No prior messages.",
     "",
-    "Guesty-backed snapshot:",
+    "Apaleo/Guesty-backed snapshot:",
     buildSnapshotText(snapshot),
     ...(accessSecretsText ? ["", "Access details (Wi-Fi/door-lock — only reveal if explicitly asked):", accessSecretsText] : []),
+    ...(depositText ? ["", "Security deposit:", depositText] : []),
   ].join("\n");
 
   const instructions = `
 You are the OneLuxStay Executive Assistant.
 
 Rules:
-- Answer using only the supplied Guesty-backed snapshot and the property directory below it.
-- The Guesty snapshot covers booking activity (reservations, revenue, check-ins) for the selected time range.
+- Answer using only the supplied Apaleo/Guesty-backed snapshot and the property directory below it.
+- The snapshot covers booking activity (reservations, revenue, check-ins) for the selected time range, pulled live from Apaleo (most properties) and Guesty (LA Plaza).
 - The property directory covers static building facts (address, floor plans, amenities) across all cities — use it for questions like "what amenities does the Fashion District have" or "how many units do we have in Los Angeles," regardless of the selected time range or property filter.
 - Be concise, direct, and useful for leadership.
 - If the data is missing or sync is unavailable, say that clearly.
@@ -792,6 +907,7 @@ Rules:
 - Never invent figures, reservations, or property facts.
 - Only reveal Wi-Fi passwords or door codes when an "Access details" section is supplied above and the question asks for them. Never guess or fabricate a password or code. If the admin asks for access details but no "Access details" section is supplied, tell them to select a specific property in the property filter first.
 - If an "Access details" section includes a "Notes" line for the property, always state it in the same reply as the lock/door code, every time — it is operational usage guidance (e.g. what to do if the code is mistyped), not optional context. Never give a door/lock code without also giving its notes when notes are present.
+- If a "Security deposit" section is supplied above and the question asks about a deposit, state that exact amount and currency. Never guess or convert currency yourself. This is a separate, per-property figure from any general deposit policy you might otherwise assume — always prefer the supplied figure over general knowledge. If the admin asks about a deposit but no "Security deposit" section is supplied, tell them to select a specific property in the property filter first.
 `.trim();
 
   const response = await fetchWithTimeout(
@@ -872,11 +988,13 @@ export async function handler(event) {
     const needsAccessDetails = ACCESS_QUESTION_PATTERN.test(query);
     const needsAddress = ADDRESS_QUESTION_PATTERN.test(query);
     const needsSpecs = CAPACITY_QUESTION_PATTERN.test(query);
+    const needsDeposit = DEPOSIT_QUESTION_PATTERN.test(query);
 
     let accessSecretsText = "";
     let addressText = "";
     let specsText = "";
-    if (needsAccessDetails || needsAddress || needsSpecs) {
+    let depositText = "";
+    if (needsAccessDetails || needsAddress || needsSpecs || needsDeposit) {
       let resolvedPropertyId = propertyId;
       let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
 
@@ -913,12 +1031,21 @@ export async function handler(event) {
             specsText = "Unit specs lookup failed for the selected property.";
           }
         }
+        if (needsDeposit) {
+          try {
+            const deposit = await fetchDepositForListing(resolvedPropertyId);
+            depositText = buildDepositText(deposit, resolvedLabel);
+          } catch {
+            depositText = "Deposit lookup failed for the selected property.";
+          }
+        }
       } else {
         const notFoundNotice =
           'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
         if (needsAccessDetails) accessSecretsText = notFoundNotice;
         if (needsAddress) addressText = notFoundNotice;
         if (needsSpecs) specsText = notFoundNotice;
+        if (needsDeposit) depositText = notFoundNotice;
       }
     }
 
@@ -930,6 +1057,7 @@ export async function handler(event) {
         messages,
         snapshot,
         accessSecretsText,
+        depositText,
       });
     } catch (error) {
       // Logged server-side only (see createAssistantReply) — never shown to
@@ -946,6 +1074,7 @@ export async function handler(event) {
         accessSecretsText,
         addressText,
         specsText,
+        depositText,
       });
     }
 

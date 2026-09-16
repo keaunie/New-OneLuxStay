@@ -223,7 +223,7 @@ const updatePricing = async (propertyId, payload = {}) => {
 // physical rooms pooled under one Guesty listing (e.g. the HWH deluxe
 // rooms 401/403/404/501/504 sharing one listing record), each with its
 // own Wi-Fi/lock credentials.
-const ACCESS_SECRETS_SELECT = "id,property_id,room_label,wifi_network,wifi_password,door_lock_type,door_code,notes,updated_at,updated_by";
+const ACCESS_SECRETS_SELECT = "id,property_id,room_label,wifi_network,wifi_password,door_lock_type,door_code,notes,deposit_amount,deposit_currency,updated_at,updated_by";
 const getAccessSecrets = async (propertyId) => {
   const id = requireUuid(propertyId);
   const rows = await supabaseRestRequest("property_access_secrets", {
@@ -234,6 +234,8 @@ const getAccessSecrets = async (propertyId) => {
 const updateAccessSecrets = async (propertyId, payload = {}, actorEmail = "") => {
   const id = requireUuid(propertyId);
   const roomLabel = clean(payload.room_label, 80);
+  const depositCurrency = clean(payload.deposit_currency, 10).toUpperCase();
+  if (depositCurrency && !/^[A-Z]{3}$/.test(depositCurrency)) fail("Deposit currency must be a three-letter code.");
   const body = {
     room_label: roomLabel,
     wifi_network: nullable(payload.wifi_network, 200),
@@ -241,6 +243,8 @@ const updateAccessSecrets = async (propertyId, payload = {}, actorEmail = "") =>
     door_lock_type: nullable(payload.door_lock_type, 120),
     door_code: nullable(payload.door_code, 120),
     notes: nullable(payload.notes, 2000),
+    deposit_amount: ensureFinite(payload.deposit_amount, "Deposit amount", { min: 0 }),
+    deposit_currency: depositCurrency || null,
     updated_at: now(),
     updated_by: nullable(actorEmail, 320),
   };

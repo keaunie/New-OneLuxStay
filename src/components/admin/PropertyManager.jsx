@@ -8,13 +8,14 @@ const TABS = ["Overview", "Location", "Descriptions", "Amenities", "Beds & capac
 // A property normally has one access-secrets row (room_label ""). When
 // several physical rooms are pooled under one Guesty listing (e.g. the HWH
 // deluxe rooms sharing one listing), it has several rows, one per room.
-const emptyAccessRoom = () => ({ room_label: "", wifi_network: "", wifi_password: "", door_lock_type: "", door_code: "", notes: "", _persisted: false });
+const emptyAccessRoom = () => ({ room_label: "", wifi_network: "", wifi_password: "", door_lock_type: "", door_code: "", notes: "", deposit_amount: "", deposit_currency: "", _persisted: false });
 const accessForm = (secrets = []) => {
   const rows = Array.isArray(secrets) ? secrets : [];
   if (!rows.length) return [emptyAccessRoom()];
   return rows.map((row) => ({
     room_label: text(row.room_label), wifi_network: text(row.wifi_network), wifi_password: text(row.wifi_password),
-    door_lock_type: text(row.door_lock_type), door_code: text(row.door_code), notes: text(row.notes), _persisted: true,
+    door_lock_type: text(row.door_lock_type), door_code: text(row.door_code), notes: text(row.notes),
+    deposit_amount: text(row.deposit_amount), deposit_currency: text(row.deposit_currency), _persisted: true,
   }));
 };
 const text = (value) => String(value ?? "");
@@ -231,6 +232,7 @@ export default function PropertyManager({ apiBase, session, standalone = false }
           {tab === "Pricing" && <><div className="pm-fields">{["base_price", "cleaning_fee", "security_deposit", "extra_guest_fee"].map((key) => <label key={key}>{key.replaceAll("_", " ")}<input type="number" min="0" step="0.01" inputMode="decimal" value={pricing[key]} onChange={(e) => { setPricing({ ...pricing, [key]: e.target.value }); setDirty(true); }} /></label>)}<label>Currency<input maxLength="3" value={pricing.currency} onChange={(e) => { setPricing({ ...pricing, currency: e.target.value.toUpperCase() }); setDirty(true); }} /></label></div><p className="pm-help">Amounts are sent as decimal strings and stored by PostgreSQL numeric columns; browser floating-point arithmetic is not used.</p><button disabled={saving} onClick={savePricing}>Save pricing</button></>}
           {tab === "Access" && <>
             <div className="pm-alert is-warning">Sensitive: Wi-Fi and door-lock credentials for this property. Visible only to authenticated admins — never shown to guests or synced anywhere public.</div>
+            <p className="pm-help">The deposit amount here is a per-property policy fact used by the internal executive AI assistant for lookups — it is separate from the "Pricing" tab's security deposit, which is what the live guest checkout actually charges. Keep both in sync manually if they should match.</p>
             {accessLoading && <p>Loading access details…</p>}
             {!accessLoading && access && <>
               {access.length > 1 && <p className="pm-help">This listing pools several physical rooms — each has its own Wi-Fi/lock credentials below.</p>}
@@ -241,6 +243,8 @@ export default function PropertyManager({ apiBase, session, standalone = false }
                   <label>Wi-Fi password<input value={room.wifi_password} onChange={(e) => mutateAccessRoom(index, "wifi_password", e.target.value)} /></label>
                   <label>Door lock type<input value={room.door_lock_type} placeholder="e.g. keypad, smart lock, lockbox" onChange={(e) => mutateAccessRoom(index, "door_lock_type", e.target.value)} /></label>
                   <label>Door code<input value={room.door_code} onChange={(e) => mutateAccessRoom(index, "door_code", e.target.value)} /></label>
+                  <label>Security deposit amount<input type="number" min="0" step="0.01" inputMode="decimal" value={room.deposit_amount} onChange={(e) => mutateAccessRoom(index, "deposit_amount", e.target.value)} /></label>
+                  <label>Deposit currency<input maxLength="3" placeholder="USD, EUR, AED…" value={room.deposit_currency} onChange={(e) => mutateAccessRoom(index, "deposit_currency", e.target.value.toUpperCase())} /></label>
                   <label className="is-wide">Notes<textarea rows="3" value={room.notes} placeholder="Gate codes, alarm codes, anything else check-in staff need" onChange={(e) => mutateAccessRoom(index, "notes", e.target.value)} /></label>
                 </div>
                 <div className="pm-actions">
