@@ -3844,6 +3844,56 @@ const fetchListingForChat = async ({ event, listingId }) => {
   }
 };
 
+// Guest-facing hasParking lookup — reads only properties.has_parking (the
+// same boolean the admin panel's "Beds & capacity" tab edits). Deliberately
+// never touches property_access_secrets/parking_instructions, which holds
+// the exact space/level and is admin-only; there is no query here that could
+// return it. Returns null (falls back to amenities-array text matching) if
+// the listing can't be resolved to a property row.
+const fetchHasParkingForListing = async ({ listingId }) => {
+  const safeListingId = sanitizeString(listingId, 120);
+  if (!safeListingId) return null;
+
+  try {
+    const listingRows = await supabaseRestRequest("listings", {
+      query: { select: "property_id", id: `eq.${safeListingId}`, limit: 1 },
+    });
+    const propertyRowId = listingRows?.[0]?.property_id;
+    if (!propertyRowId) return null;
+
+    const propertyRows = await supabaseRestRequest("properties", {
+      query: { select: "has_parking", id: `eq.${propertyRowId}`, limit: 1 },
+    });
+    const row = propertyRows?.[0];
+    return typeof row?.has_parking === "boolean" ? row.has_parking : null;
+  } catch {
+    return null;
+  }
+};
+
+// Building-level version of fetchHasParkingForListing, for guests on a
+// property "story" page (propertyKey) rather than a specific bookable unit
+// (listingId). propertyProfiles.js's address field is generated from the
+// same properties.address values, so a prefix match on the street segment
+// reliably finds every unit at that building. "Has parking" is true if any
+// unit at the address does — matches how a desk agent would answer
+// generically about a building with mixed arrangements (e.g. some units
+// free on-site, others paid).
+const fetchHasParkingForPropertyProfile = async ({ address }) => {
+  const streetPrefix = sanitizeString(String(address || "").split(",")[0], 200);
+  if (!streetPrefix) return null;
+
+  try {
+    const rows = await supabaseRestRequest("properties", {
+      query: { select: "has_parking", address: `ilike.${streetPrefix}*`, status: "ilike.active", limit: 50 },
+    });
+    if (!Array.isArray(rows) || !rows.length) return null;
+    return rows.some((row) => row?.has_parking === true);
+  } catch {
+    return null;
+  }
+};
+
 const fetchHouseRulesForChat = async ({ event, unitTypeId }) => {
   const safeUnitTypeId = sanitizeString(unitTypeId, 120);
   if (!safeUnitTypeId) return null;
@@ -4314,7 +4364,14 @@ const formatQuietHoursForChat = (rules = {}) => {
   return `${start} - ${end}`;
 };
 
-const buildUnitInfoReply = ({ listing, question, houseRules = null }) => {
+// hasParkingOverride, when not null, comes from properties.has_parking — the
+// same admin-editable yes/no flag the executive assistant reads. It takes
+// priority over the raw amenities-array text match for the "parking" check
+// specifically, since that array can be stale/PMS-dependent. Only the
+// boolean is ever passed in here — the exact space/level (parking_instructions
+// on property_access_secrets) is never fetched for the guest chatbot at all,
+// so there is no code path for it to leak into a guest-facing reply.
+const buildUnitInfoReply = ({ listing, question, houseRules = null, hasParkingOverride = null }) => {
   if (!listing) return "";
 
   const q = String(question || "").toLowerCase();
@@ -4445,12 +4502,17 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null }) => {
 
   if (wantsAmenities) {
     if (askedAmenityChecksUnique.length) {
-      if (!amenities.length) {
+      const parkingIsOverridden = (entry) => entry.key === "parking" && typeof hasParkingOverride === "boolean";
+      const answerableChecks = askedAmenityChecksUnique.filter(
+        (entry) => parkingIsOverridden(entry) || amenities.length,
+      );
+      if (!answerableChecks.length) {
         lines.push("I can’t verify that amenity right now because this unit’s amenities data is missing.");
       } else {
         lines.push("Amenity check:");
-        askedAmenityChecksUnique.forEach((entry) => {
-          lines.push(`- ${entry.label}: ${hasAmenity(entry.valuePattern) ? "Yes" : "No"}`);
+        answerableChecks.forEach((entry) => {
+          const answer = parkingIsOverridden(entry) ? (hasParkingOverride ? "Yes" : "No") : hasAmenity(entry.valuePattern) ? "Yes" : "No";
+          lines.push(`- ${entry.label}: ${answer}`);
         });
       }
     } else if (amenities.length) {
@@ -4516,7 +4578,12 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null }) => {
 // ChatConcierge.jsx / PropertyStoryPage.jsx). Property-level data only:
 // address, floor plans, aggregated amenities. No guest, reservation, or
 // pricing data — pricing is live/per-date and stays out of this reply.
-const buildPropertyProfileReply = ({ property, question = "" }) => {
+// hasParkingOverride mirrors buildUnitInfoReply's — properties.has_parking
+// takes priority over the static amenities-array text for the "parking"
+// check specifically, so a guest already on a building's page gets the live
+// answer instead of whatever was baked into propertyProfiles.js at
+// generation time.
+const buildPropertyProfileReply = ({ property, question = "", hasParkingOverride = null }) => {
   if (!property) return "";
 
   const q = String(question || "").toLowerCase();
@@ -4561,7 +4628,15 @@ const buildPropertyProfileReply = ({ property, question = "" }) => {
     if (askedAmenityChecks.length) {
       lines.push("Amenity check for this building:");
       askedAmenityChecks.forEach((entry) => {
-        lines.push(`- ${entry.label}: ${hasAmenity(entry.valuePattern) ? "Yes" : "No"}`);
+        const answer =
+          entry.key === "parking" && typeof hasParkingOverride === "boolean"
+            ? hasParkingOverride
+              ? "Yes"
+              : "No"
+            : hasAmenity(entry.valuePattern)
+              ? "Yes"
+              : "No";
+        lines.push(`- ${entry.label}: ${answer}`);
       });
     } else if (amenities.length) {
       lines.push(`Amenities across this building: ${amenities.join(", ")}.`);
@@ -5492,10 +5567,12 @@ export async function handler(event) {
               unitTypeId: houseRulesUnitTypeId,
             })
           : null;
+        const hasParkingOverride = await fetchHasParkingForListing({ listingId: pageContext.listingId });
         const unitReply = buildUnitInfoReply({
           listing,
           question: latestPrompt,
           houseRules,
+          hasParkingOverride,
         });
         if (unitReply) {
           return respondWithIntentPayload({
@@ -5519,7 +5596,8 @@ export async function handler(event) {
 
     if (detectedIntent === CHAT_INTENTS.unit_info && !pageContext?.listingId && pageContext?.propertyKey) {
       const property = getPropertyProfileByKey(pageContext.propertyKey);
-      const propertyReply = buildPropertyProfileReply({ property, question: latestPrompt });
+      const hasParkingOverride = property ? await fetchHasParkingForPropertyProfile({ address: property.address }) : null;
+      const propertyReply = buildPropertyProfileReply({ property, question: latestPrompt, hasParkingOverride });
       if (propertyReply) {
         return respondWithIntentPayload({
           event,

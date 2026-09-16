@@ -473,8 +473,10 @@ const buildSnapshotText = (snapshot = {}) => {
   ].join("\n");
 };
 
+// "parking" is deliberately not in this list — PARKING_QUESTION_PATTERN below
+// answers it from the authoritative per-unit has_parking/parking_instructions
+// data instead of this building-level static directory.
 const AMENITY_KEYWORDS = [
-  { label: "parking", pattern: /\bparking\b/i, valuePattern: /\bparking\b/ },
   { label: "a pool", pattern: /\bpool\b/i, valuePattern: /\bpool\b/ },
   { label: "a gym", pattern: /\b(gym|fitness)\b/i, valuePattern: /\b(gym|fitness)\b/ },
   { label: "a washer", pattern: /\bwasher\b/i, valuePattern: /\bwasher\b/ },
@@ -594,6 +596,40 @@ const buildDepositText = (depositRow, listingTitle = "") => {
   const currency = sanitizeString(depositRow.deposit_currency, 10) || "";
   if (!Number.isFinite(amount)) return `No security deposit amount is on file for ${label}.`;
   return `Security deposit for ${label}: ${currency} ${amount}.`;
+};
+
+// hasParking (properties.has_parking) is the same guest-facing yes/no flag
+// the public chatbot reads — never sensitive. The exact space/level lives in
+// parking_instructions on property_access_secrets, admin-only, same as
+// Wi-Fi/door codes/deposit above — the guest chatbot has no code path to it.
+const PARKING_QUESTION_PATTERN = /\b(parking|park my car|parking space|parking spot|parking instructions|garage)\b/i;
+
+const fetchParkingForListing = async (guestyListingId) => {
+  const propertyRowId = await resolvePropertyRowId(guestyListingId);
+  if (!propertyRowId) return null;
+
+  const [propertyRows, secretRows] = await Promise.all([
+    supabaseRestRequest("properties", {
+      query: { select: "has_parking", id: `eq.${propertyRowId}`, limit: 1 },
+    }),
+    supabaseRestRequest("property_access_secrets", {
+      query: { select: "parking_instructions", property_id: `eq.${propertyRowId}`, limit: 1 },
+    }),
+  ]);
+
+  return {
+    hasParking: Boolean(propertyRows?.[0]?.has_parking),
+    instructions: sanitizeString(secretRows?.[0]?.parking_instructions, 2000),
+  };
+};
+
+const buildParkingText = (parking, listingTitle = "") => {
+  const label = listingTitle || "the selected property";
+  if (!parking) return `No parking information is on file for ${label}.`;
+  if (!parking.hasParking) return `${label} is not marked as having parking.`;
+  return parking.instructions
+    ? `${label} has parking. Instructions: ${parking.instructions}`
+    : `${label} has parking, but no specific space/level instructions are on file.`;
 };
 
 const normalizeForMatch = (value = "") => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -812,6 +848,7 @@ const buildDeterministicFallbackAnswer = ({
   addressText = "",
   specsText = "",
   depositText = "",
+  parkingText = "",
 }) => {
   const normalizedQuery = sanitizeString(query, 400).toLowerCase();
   const stats = snapshot?.stats || {};
@@ -853,6 +890,10 @@ const buildDeterministicFallbackAnswer = ({
     return depositText || "No deposit amount is available for this request — select a specific property first.";
   }
 
+  if (PARKING_QUESTION_PATTERN.test(normalizedQuery)) {
+    return parkingText || "No parking information is available for this request — select a specific property first.";
+  }
+
   if (/(revenue|sales|income|earned)/i.test(normalizedQuery)) {
     return (
       `For ${rangeLabel}, projected revenue is ${revenue} across ${reservations} reservations.` +
@@ -873,7 +914,7 @@ const buildDeterministicFallbackAnswer = ({
   );
 };
 
-const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "", depositText = "" }) => {
+const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "", depositText = "", parkingText = "" }) => {
   const apiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is missing");
@@ -891,6 +932,7 @@ const createAssistantReply = async ({ query, messages, snapshot, accessSecretsTe
     buildSnapshotText(snapshot),
     ...(accessSecretsText ? ["", "Access details (Wi-Fi/door-lock — only reveal if explicitly asked):", accessSecretsText] : []),
     ...(depositText ? ["", "Security deposit:", depositText] : []),
+    ...(parkingText ? ["", "Parking (admin-only — do not reveal the specific space/level to guests if drafting guest-facing text):", parkingText] : []),
   ].join("\n");
 
   const instructions = `
@@ -908,6 +950,7 @@ Rules:
 - Only reveal Wi-Fi passwords or door codes when an "Access details" section is supplied above and the question asks for them. Never guess or fabricate a password or code. If the admin asks for access details but no "Access details" section is supplied, tell them to select a specific property in the property filter first.
 - If an "Access details" section includes a "Notes" line for the property, always state it in the same reply as the lock/door code, every time — it is operational usage guidance (e.g. what to do if the code is mistyped), not optional context. Never give a door/lock code without also giving its notes when notes are present.
 - If a "Security deposit" section is supplied above and the question asks about a deposit, state that exact amount and currency. Never guess or convert currency yourself. This is a separate, per-property figure from any general deposit policy you might otherwise assume — always prefer the supplied figure over general knowledge. If the admin asks about a deposit but no "Security deposit" section is supplied, tell them to select a specific property in the property filter first.
+- If a "Parking" section is supplied above and the question asks about parking, state whether the property has parking and, if it does, the exact space/level instructions supplied. Never guess or fabricate a space number. If you draft any message intended for a guest, only say parking is/isn't available — never include the specific space or level, that detail is admin-only.
 `.trim();
 
   const response = await fetchWithTimeout(
@@ -989,12 +1032,14 @@ export async function handler(event) {
     const needsAddress = ADDRESS_QUESTION_PATTERN.test(query);
     const needsSpecs = CAPACITY_QUESTION_PATTERN.test(query);
     const needsDeposit = DEPOSIT_QUESTION_PATTERN.test(query);
+    const needsParking = PARKING_QUESTION_PATTERN.test(query);
 
     let accessSecretsText = "";
     let addressText = "";
     let specsText = "";
     let depositText = "";
-    if (needsAccessDetails || needsAddress || needsSpecs || needsDeposit) {
+    let parkingText = "";
+    if (needsAccessDetails || needsAddress || needsSpecs || needsDeposit || needsParking) {
       let resolvedPropertyId = propertyId;
       let resolvedLabel = snapshot?.listings?.find((item) => item.id === propertyId)?.title || "";
 
@@ -1039,6 +1084,14 @@ export async function handler(event) {
             depositText = "Deposit lookup failed for the selected property.";
           }
         }
+        if (needsParking) {
+          try {
+            const parking = await fetchParkingForListing(resolvedPropertyId);
+            parkingText = buildParkingText(parking, resolvedLabel);
+          } catch {
+            parkingText = "Parking lookup failed for the selected property.";
+          }
+        }
       } else {
         const notFoundNotice =
           'No property is selected or recognized in the question. Ask the admin to pick a specific property from the property filter, or name the property/unit clearly (e.g. "A & B 311").';
@@ -1046,6 +1099,7 @@ export async function handler(event) {
         if (needsAddress) addressText = notFoundNotice;
         if (needsSpecs) specsText = notFoundNotice;
         if (needsDeposit) depositText = notFoundNotice;
+        if (needsParking) parkingText = notFoundNotice;
       }
     }
 
@@ -1058,6 +1112,7 @@ export async function handler(event) {
         snapshot,
         accessSecretsText,
         depositText,
+        parkingText,
       });
     } catch (error) {
       // Logged server-side only (see createAssistantReply) — never shown to
@@ -1075,6 +1130,7 @@ export async function handler(event) {
         addressText,
         specsText,
         depositText,
+        parkingText,
       });
     }
 
