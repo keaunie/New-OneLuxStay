@@ -822,20 +822,27 @@ const matchPropertyInText = (text, nicknameRows) => {
 // fully match — rather than naming nothing at all — silently answering from
 // an unrelated property mentioned earlier in the chat is worse than saying
 // nothing, so this returns no match instead of guessing.
-// Field-keyword words (what's being asked about) must not count as a
-// property mention on their own — "and the deposit?" names no property and
-// should still be allowed to fall back to history, same as "what about the
-// wifi for that unit."
-const FIELD_KEYWORD_WORDS = new Set([
-  "deposit", "security", "damage", "refundable",
-  "parking", "park", "garage",
-  "address", "located", "location", "directions",
-  "capacity", "bedroom", "bedrooms", "bathroom", "bathrooms",
-  "accommodate", "accommodates", "guest", "guests", "sleep", "sleeps",
-]);
-const hasPotentialPropertyMention = (text) =>
+// Grounded in real data rather than a hand-maintained list of "generic
+// English words" — a fixed denylist (deposit/parking/address/...) always
+// misses the next ordinary word that shows up in a follow-up ("What is the
+// FULL address?" — "full" isn't a field keyword, but it isn't a property
+// name either, and would otherwise wrongly count as one and block the
+// history fallback below). Instead: a token only counts as naming a
+// property if it actually appears somewhere in a real nickname/room-label/
+// title, built once per call from the same rows already fetched below.
+const collectKnownPropertyTokens = (nicknameRows, roomRows) => {
+  const tokens = new Set();
+  nicknameRows.forEach((row) => tokensForMatch(row?.nickname).forEach((token) => tokens.add(token)));
+  roomRows.forEach((row) => {
+    tokensForMatch(row.roomLabel).forEach((token) => tokens.add(token));
+    tokensForMatch(row.nickname).forEach((token) => tokens.add(token));
+    tokensForMatch(row.title).forEach((token) => tokens.add(token));
+  });
+  return tokens;
+};
+const hasPotentialPropertyMention = (text, knownPropertyTokens) =>
   tokensForMatch(text).some(
-    (token) => /^[a-z]+$/.test(token) && token.length >= 3 && !FIELD_KEYWORD_WORDS.has(token),
+    (token) => /^[a-z]+$/.test(token) && token.length >= 3 && knownPropertyTokens.has(token),
   );
 
 // Several buildings (HWH's deluxe categories, the LLEW-style room-pooled
@@ -936,7 +943,8 @@ const resolvePropertyFromConversation = async (query, messages = []) => {
 
   const direct = matchEither(query);
   if (direct) return direct;
-  if (hasPotentialPropertyMention(query)) return null;
+  const knownPropertyTokens = collectKnownPropertyTokens(nicknameRows, roomRows);
+  if (hasPotentialPropertyMention(query, knownPropertyTokens)) return null;
 
   const priorTexts = [...messages].reverse().map((message) => message?.content);
   for (const text of priorTexts) {
