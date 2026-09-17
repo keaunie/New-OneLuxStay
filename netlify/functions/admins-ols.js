@@ -1213,6 +1213,24 @@ const inferDeployContext = () => {
   return "development";
 };
 
+// The admin panel (admin.oneluxstay.com) is a separate origin from the
+// marketing site that PUBLIC_SITE_URL/URL/DEPLOY_URL point at (oneluxstay.com)
+// — see src/config/domains.js. Invite links always land on the admin panel's
+// /executive-ols/accept route, so the open-redirect guard below must accept
+// that origin explicitly instead of only whatever PUBLIC_SITE_URL resolves to.
+const ADMIN_INVITE_ALLOWED_ORIGINS = [
+  "https://admin.oneluxstay.com",
+  "https://oneluxstay.com",
+  "https://www.oneluxstay.com",
+  "https://oneluxstay.netlify.app",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:8888",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:8888",
+];
+
 const resolveInviteRedirectUrl = (payload = {}, event = {}) => {
   const provided = sanitizeString(payload?.redirectTo, 4000);
   const fallback =
@@ -1229,12 +1247,20 @@ const resolveInviteRedirectUrl = (payload = {}, event = {}) => {
       throw new Error("Unsupported redirect URL protocol.");
     }
 
-    // Prevent open redirects: if we have a configured site URL, require the redirect to match that origin.
+    // Prevent open redirects: only allow a known admin-panel/site origin, not
+    // an arbitrary attacker-supplied one.
+    let fallbackOrigin = null;
     if (fallback) {
-      const fallbackOrigin = new URL(fallback).origin;
-      if (parsed.origin !== fallbackOrigin) {
-        throw new Error("Invite redirect URL must match this site's origin.");
+      try {
+        fallbackOrigin = new URL(fallback).origin;
+      } catch {
+        fallbackOrigin = null;
       }
+    }
+    const isAllowedOrigin =
+      ADMIN_INVITE_ALLOWED_ORIGINS.includes(parsed.origin) || (fallbackOrigin && parsed.origin === fallbackOrigin);
+    if (!isAllowedOrigin) {
+      throw new Error("Invite redirect URL must match this site's origin.");
     }
 
     return parsed.toString();
