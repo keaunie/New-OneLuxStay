@@ -79,10 +79,15 @@ const createR2Client = (config) => new S3Client({
   credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
 });
 
+// guesty_raw is pulled in both selects below purely to read its "nickname"
+// field (e.g. "DUBAI 2607") — Guesty's internal unit/room identifier, which
+// has no dedicated column of its own. It's stripped back out (see
+// withGuestyNickname) before the row reaches the frontend so we don't ship
+// the whole vendor payload on every list/detail request.
 const LIST_SELECT = [
   "id", "property_code", "guesty_listing_id", "name", "address", "city", "country", "property_type",
   "room_type", "bedrooms", "bathrooms", "accommodates", "status", "website_status", "content_sync_mode",
-  "source_system", "last_synced_at", "updated_at", "property_descriptions(title,language)",
+  "source_system", "last_synced_at", "updated_at", "guesty_raw", "property_descriptions(title,language)",
   "property_images(id,is_primary,migration_status,public_url,url,original_source_url,sort_order)",
 ].join(",");
 const PROPERTY_SELECT = [
@@ -90,12 +95,16 @@ const PROPERTY_SELECT = [
   "longitude", "room_type", "bedrooms", "bathrooms", "accommodates", "size_sqm", "has_balcony", "has_parking",
   "has_wifi", "status", "created_at", "updated_at", "slug", "parent_property_id", "guesty_account_id",
   "guesty_listing_type", "guesty_parent_listing_id", "property_type", "beds", "bed_type", "min_nights", "max_nights",
-  "timezone", "website_status", "content_sync_mode", "source_system", "source_updated_at", "last_synced_at",
+  "timezone", "website_status", "content_sync_mode", "source_system", "source_updated_at", "last_synced_at", "guesty_raw",
   "property_descriptions(id,language,title,description,summary,space,access,interaction_with_guests,notes,neighborhood,transit,house_rules,source_system,source_updated_at,updated_at)",
   "property_amenities(id,amenity)", "property_tags(id,tag)", "property_features(id,key,value)",
   "property_beds(id,room_name,bed_type,quantity,source_text,sort_order,created_at,updated_at)",
   "property_pricing(id,base_price,currency,cleaning_fee,security_deposit,extra_guest_fee,created_at)",
 ].join(",");
+const withGuestyNickname = (row) => {
+  const { guesty_raw: guestyRaw, ...rest } = row;
+  return { ...rest, guesty_nickname: clean(guestyRaw?.nickname, 200) || null };
+};
 const IMAGE_SELECT = "id,property_id,url,object_key,alt_text,is_primary,sort_order,created_at,guesty_image_id,original_source_url,thumbnail_source_url,thumbnail_object_key,public_url,caption,width,height,file_size_bytes,mime_type,migration_status,migration_error,migrated_at,updated_at";
 
 const listProperties = async (params = {}) => {
@@ -114,14 +123,14 @@ const listProperties = async (params = {}) => {
   const rows = await supabaseRestRequest("properties", { query, prefer: "count=exact", includeResponse: true });
   const data = rows?.data || rows;
   const count = Number(rows?.count ?? rows?.total ?? data?.length ?? 0);
-  return { properties: Array.isArray(data) ? data : [], page, pageSize, count };
+  return { properties: (Array.isArray(data) ? data : []).map(withGuestyNickname), page, pageSize, count };
 };
 
 const getProperty = async (propertyId) => {
   const id = requireUuid(propertyId);
   const rows = await supabaseRestRequest("properties", { query: { select: PROPERTY_SELECT, id: `eq.${id}`, limit: 1 } });
   if (!rows?.[0]) fail("Property not found.", 404, "not_found");
-  const property = rows[0];
+  const property = withGuestyNickname(rows[0]);
   const related = await Promise.allSettled([
     supabaseRestRequest("property_images", { query: { select: IMAGE_SELECT, property_id: `eq.${id}`, order: "sort_order.asc", limit: 100 } }),
     supabaseRestRequest("property_source_snapshots", { query: { select: "id,property_id,provider,external_listing_id,payload_hash,captured_at", property_id: `eq.${id}`, order: "captured_at.desc", limit: 25 } }),
