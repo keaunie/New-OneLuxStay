@@ -80,10 +80,10 @@ const createR2Client = (config) => new S3Client({
 });
 
 // guesty_raw is pulled in both selects below purely to read its "nickname"
-// field (e.g. "DUBAI 2607") — Guesty's internal unit/room identifier, which
-// has no dedicated column of its own. It's stripped back out (see
-// withGuestyNickname) before the row reaches the frontend so we don't ship
-// the whole vendor payload on every list/detail request.
+// field (e.g. "DUBAI 2607") — the unit/room identifier, which has no
+// dedicated column of its own. It's stripped back out (see withUnitNumber)
+// before the row reaches the frontend so we don't ship the whole synced
+// payload on every list/detail request.
 const LIST_SELECT = [
   "id", "property_code", "guesty_listing_id", "name", "address", "city", "country", "property_type",
   "room_type", "bedrooms", "bathrooms", "accommodates", "status", "website_status", "content_sync_mode",
@@ -101,9 +101,9 @@ const PROPERTY_SELECT = [
   "property_beds(id,room_name,bed_type,quantity,source_text,sort_order,created_at,updated_at)",
   "property_pricing(id,base_price,currency,cleaning_fee,security_deposit,extra_guest_fee,created_at)",
 ].join(",");
-const withGuestyNickname = (row) => {
+const withUnitNumber = (row) => {
   const { guesty_raw: guestyRaw, ...rest } = row;
-  return { ...rest, guesty_nickname: clean(guestyRaw?.nickname, 200) || null };
+  return { ...rest, unit_number: clean(guestyRaw?.nickname, 200) || null };
 };
 const IMAGE_SELECT = "id,property_id,url,object_key,alt_text,is_primary,sort_order,created_at,guesty_image_id,original_source_url,thumbnail_source_url,thumbnail_object_key,public_url,caption,width,height,file_size_bytes,mime_type,migration_status,migration_error,migrated_at,updated_at";
 
@@ -123,14 +123,14 @@ const listProperties = async (params = {}) => {
   const rows = await supabaseRestRequest("properties", { query, prefer: "count=exact", includeResponse: true });
   const data = rows?.data || rows;
   const count = Number(rows?.count ?? rows?.total ?? data?.length ?? 0);
-  return { properties: (Array.isArray(data) ? data : []).map(withGuestyNickname), page, pageSize, count };
+  return { properties: (Array.isArray(data) ? data : []).map(withUnitNumber), page, pageSize, count };
 };
 
 const getProperty = async (propertyId) => {
   const id = requireUuid(propertyId);
   const rows = await supabaseRestRequest("properties", { query: { select: PROPERTY_SELECT, id: `eq.${id}`, limit: 1 } });
   if (!rows?.[0]) fail("Property not found.", 404, "not_found");
-  const property = withGuestyNickname(rows[0]);
+  const property = withUnitNumber(rows[0]);
   const related = await Promise.allSettled([
     supabaseRestRequest("property_images", { query: { select: IMAGE_SELECT, property_id: `eq.${id}`, order: "sort_order.asc", limit: 100 } }),
     supabaseRestRequest("property_source_snapshots", { query: { select: "id,property_id,provider,external_listing_id,payload_hash,captured_at", property_id: `eq.${id}`, order: "captured_at.desc", limit: 25 } }),
