@@ -3809,10 +3809,17 @@ const inferCityFromReservation = (reservation = {}, supportedCities = []) =>
     ),
   );
 
-const buildReservationStatusReply = ({ reservationCode = "", reservation = null, supportedCities = [] }) => {
+const buildReservationStatusReply = ({
+  reservationCode = "",
+  reservation = null,
+  supportedCities = [],
+  phone = "",
+}) => {
   const safeCode = sanitizeReservationCode(reservationCode);
+  const safePhone = sanitizeString(phone, 60);
   if (!reservation) {
-    return `I could not find a booking for reservation code ${safeCode || "(missing)"}. Please verify the code and try again. If it still fails, contact reservations@oneluxstay.com for manual verification.`;
+    const notFoundPhoneLine = safePhone ? ` Or call us directly at ${safePhone}.` : "";
+    return `I could not find a booking for reservation code ${safeCode || "(missing)"}. Please verify the code and try again. If it still fails, contact reservations@oneluxstay.com for manual verification.${notFoundPhoneLine}`;
   }
 
   const status = formatReservationStatus(reservation?.status);
@@ -3841,6 +3848,7 @@ const buildReservationStatusReply = ({ reservationCode = "", reservation = null,
 
   lines.push("");
   lines.push("If you want, I can also check availability for new dates and share direct unit-page links.");
+  if (safePhone) lines.push(`Prefer to speak with our team about this booking? Call us at ${safePhone}.`);
   return lines.join("\n");
 };
 
@@ -5005,7 +5013,25 @@ export async function handler(event) {
       hasDirectAvailabilityIntent ||
       (asksAvailabilityWindow && hasAvailabilityFollowupSignal && !asksPolicy && !asksCheckInOutTime);
     const hasReservationCode = Boolean(reservationCode);
-    const asksBookingStatus = isBookingStatusQuestion(latestPromptForIntent) || hasReservationCode;
+    // A reservation/booking id can leak into pageContext.search from a stale
+    // "manage booking" link sitting in the address bar long after the guest
+    // navigated away from it. That alone must not hijack an unrelated,
+    // explicit question (availability, price, policy, etc.) into a booking
+    // status lookup — only let the URL-sourced code win when the guest's
+    // message doesn't already show a clear different intent.
+    const hasExplicitReservationCode = Boolean(extractReservationCodeFromPrompt(latestPrompt));
+    const hasCompetingIntent =
+      asksAvailability ||
+      asksPolicy ||
+      asksUnitInfo ||
+      isListingPriceQuestion ||
+      asksCheckInOutTime ||
+      asksCurrentTime ||
+      asksDestinationRecommendation;
+    const asksBookingStatus =
+      isBookingStatusQuestion(latestPromptForIntent) ||
+      hasExplicitReservationCode ||
+      (hasReservationCode && !hasCompetingIntent);
     const includesSensitivePaymentData = hasSensitivePaymentData(latestPromptForIntent);
     let policyRows = [];
 
@@ -5077,10 +5103,22 @@ export async function handler(event) {
     }
 
     if (detectedIntent === CHAT_INTENTS.booking_status) {
+      const contactPhone = sanitizeString(conciergeKnowledge?.brand?.contactPhone || "", 60);
       if (!reservationCode) {
         const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
+        const bookingStatusPhoneLine =
+          contactPhone &&
+          (locale === "ja"
+            ? ` お電話でも承ります: ${contactPhone}`
+            : locale === "ar"
+              ? ` يمكنك ايضا الاتصال بنا على ${contactPhone}.`
+              : locale === "nl"
+                ? ` Je kunt ons ook bellen op ${contactPhone}.`
+                : locale === "fr"
+                  ? ` Vous pouvez aussi nous appeler au ${contactPhone}.`
+                  : ` Or you can just call us at ${contactPhone}.`);
         const bookingStatusPrompt =
-          locale === "ja"
+          (locale === "ja"
             ? "予約状況を確認できます。予約コードを教えてください（例: GY-aeDHKynZ）。"
             : locale === "ar"
               ? "يمكنني التحقق من حالة الحجز. من فضلك ارسل رمز الحجز (مثال: GY-aeDHKynZ)."
@@ -5088,7 +5126,8 @@ export async function handler(event) {
                 ? "Ik kan je boekingsstatus checken. Stuur je reserveringscode (bijv. GY-aeDHKynZ)."
                 : locale === "fr"
                   ? "Je peux verifier le statut de votre reservation. Envoyez votre code de reservation (ex: GY-aeDHKynZ)."
-                  : "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).";
+                  : "I can check your booking status. Please share your reservation code (for example: GY-aeDHKynZ).") +
+          (bookingStatusPhoneLine || "");
         return respondWithIntentPayload({
           event,
           apiKey,
@@ -5150,6 +5189,7 @@ export async function handler(event) {
             reservationCode,
             reservation: reservationForReply,
             supportedCities,
+            phone: contactPhone,
           }),
           smarten: true,
         });
@@ -5166,7 +5206,8 @@ export async function handler(event) {
           intent: detectedIntent,
           tool: CHAT_TOOLS.reservation_lookup,
           reply:
-            "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help.",
+            "I had trouble reaching the booking status service just now. Please try again in a moment, or contact reservations@oneluxstay.com for immediate help." +
+            (contactPhone ? ` You can also call us directly at ${contactPhone}.` : ""),
           smarten: true,
         });
       }
