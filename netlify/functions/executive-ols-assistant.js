@@ -490,7 +490,7 @@ const AMENITY_KEYWORDS = [
 // directory above. Fetched on demand, scoped to the one Guesty listing the
 // admin has selected in the property filter, only when the question asks
 // for them.
-const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|lock\s*box|keypad|access code|gate code|entry code|pass\s*code|pin\s*code)\b/i;
+const ACCESS_QUESTION_PATTERN = /\b(wi-?fi|wireless network|network password|door\s*code|door\s*lock|lock\s*code|lock\s*box|keypad|access code|gate code|entry code|pass\s*code|pin\s*code|room\s*code|unit\s*code|apartment\s*code)\b/i;
 const ACCESS_SECRETS_SELECT = "room_label,wifi_network,wifi_password,door_lock_type,door_code,notes";
 
 const resolvePropertyRowId = async (guestyListingId) => {

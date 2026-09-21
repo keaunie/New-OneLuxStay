@@ -88,7 +88,7 @@ const LIST_SELECT = [
 const PROPERTY_SELECT = [
   "id", "guesty_id", "guesty_listing_id", "name", "property_code", "unit_number", "address", "city", "country", "latitude",
   "longitude", "room_type", "bedrooms", "bathrooms", "accommodates", "size_sqm", "has_balcony", "has_parking",
-  "has_wifi", "status", "created_at", "updated_at", "slug", "parent_property_id", "guesty_account_id",
+  "parking_details", "has_wifi", "status", "created_at", "updated_at", "slug", "parent_property_id", "guesty_account_id",
   "guesty_listing_type", "guesty_parent_listing_id", "property_type", "beds", "bed_type", "min_nights", "max_nights",
   "timezone", "website_status", "content_sync_mode", "source_system", "source_updated_at", "last_synced_at",
   "property_descriptions(id,language,title,description,summary,space,access,interaction_with_guests,notes,neighborhood,transit,house_rules,source_system,source_updated_at,updated_at)",
@@ -138,6 +138,7 @@ const PROPERTY_FIELDS = {
   name: [240], property_code: [120], unit_number: [200], guesty_listing_id: [200], address: [500], city: [160], country: [160],
   room_type: [120], status: [40], slug: [240], parent_property_id: [80], guesty_listing_type: [120],
   property_type: [120], bed_type: [120], timezone: [120], website_status: [40], content_sync_mode: [40], source_system: [80],
+  parking_details: [500],
 };
 const buildProperty = (payload = {}, { creating = false } = {}) => {
   const output = {};

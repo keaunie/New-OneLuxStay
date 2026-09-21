@@ -9,6 +9,7 @@ import { getApaleoMappingsByLocalId, getUnitGroupCalendarAvailability } from "./
 import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
 import { calculateNights, roundMoney } from "./_shared/pricingService.js";
 import { PUBLIC_WEBSITE_URL } from "./_shared/http.js";
+import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
 
 dotenv.config();
 
@@ -134,8 +135,8 @@ Your primary role is to help guests discover the perfect stay AND guide them con
 - Never turn a simple question into a booking funnel. Answer the question first. Only mention booking naturally at the end if it's genuinely relevant.
 
 ## Live agent / human handoff
-- If a guest asks to talk to a live agent, a human, a real person, or a representative, or asks how to call/reach the team directly, give them the phone number from the knowledge context and mention it works for both a phone call and WhatsApp, in one natural sentence — e.g. "Of course — you can reach our team directly at +1 213 866 3589, either by phone or WhatsApp, whichever's easier for you."
-- Don't wait for a guest to explicitly say "phone number" — "can I talk to someone," "is there a human I can talk to," and similar all count.
+- If a guest asks to talk to a live agent, a human, a real person, a representative, or the front desk, or asks how to call/reach/contact the team directly, or says they've been trying to reach the team with no answer/response, give them the phone number from the knowledge context and mention it works for both a phone call and WhatsApp, in one natural sentence — e.g. "Of course — you can reach our team directly at +1 213 866 3589, either by phone or WhatsApp, whichever's easier for you."
+- Don't wait for a guest to explicitly say "phone number" — "can I talk to someone," "is there a human I can talk to," "I need to speak to the front desk," "I've been trying to contact you all day," and similar all count.
 
 ## Booking assistance
 - Once you have city + dates + guest count, go straight to available options. No extra questions unless needed.
@@ -642,7 +643,13 @@ const isAvailabilityQuestion = (text = "", hasDateRange = false) => {
   if (/\b(check[- ]?in|check[- ]?out|dates?)\b/i.test(source)) {
     return true;
   }
-  if (hasDateRange && /\b(book|booking|reserve|reservation|stay)\b/i.test(source)) {
+  // "stay" deliberately excluded here — it's too generic a word (e.g. "three
+  // night stay", "extended stay") and previously caused any follow-up
+  // question that merely mentioned a stay to re-trigger a brand new
+  // availability search using whatever dates were already known, drowning
+  // out unrelated questions like "would you make an exception to the
+  // minimum-night policy" with a repeated listings reply.
+  if (hasDateRange && /\b(book|booking|reserve|reservation)\b/i.test(source)) {
     return true;
   }
   // Catch natural booking phrases: "antwerp for tomorrow until monday", "book dubai next week"
@@ -1828,7 +1835,7 @@ const buildFallbackReply = ({ latestUserMessage, pageContext, conciergeKnowledge
       : "You can book by choosing a city or listing, selecting your dates and guest count, reviewing the stay details, and continuing through checkout on the site. If you are still deciding, I can help narrow down which city page to start from.";
   }
 
-  if (/\b(human|live agent|real person|representative|talk to (someone|somebody)|speak to (someone|somebody|a person)|call (you|us)|phone number|call directly)\b/.test(prompt)) {
+  if (/\b(human|live agent|real person|representative|front desk|talk to (someone|somebody)|speak to (someone|somebody|a person|the front desk)|call (you|us)|phone number|call directly|contact (you|us)|reach (you|us)|(trying to|been trying to) (contact|reach)|no answer|not (getting|hearing) (a response|back|anything))\b/.test(prompt)) {
     return conciergeKnowledge.brand.contactPhone
       ? `Of course — you can reach our team directly at ${conciergeKnowledge.brand.contactPhone}, by phone call or WhatsApp, whichever's easier for you.`
       : "I can connect you with our team — reach out via WhatsApp or email and someone will get right back to you.";
@@ -2355,6 +2362,7 @@ const fallbackResponse = async ({
     languageProfile,
     apiKey: skipLocalization ? "" : apiKey,
     model,
+    conciergeKnowledge,
   });
 };
 
@@ -2468,27 +2476,36 @@ const hasRecentAttentionHandoff = (messages = []) =>
       ),
     );
 
-const buildAttentionReply = ({ latestUserMessage, pageContext, languageProfile }) => {
+const buildAttentionReply = ({ latestUserMessage, pageContext, languageProfile, conciergeKnowledge }) => {
   const city = sanitizeString(pageContext?.city || "", 120);
   const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
   const citySuffix = city ? ` in ${city}` : "";
+  // A guest reaching this reply has, by definition, already gotten at least
+  // one unhelpful/repeated answer — never leave them with only "an admin
+  // will follow up" and no way to reach a person right now.
+  const phone = sanitizeString(conciergeKnowledge?.brand?.contactPhone || "", 60);
 
   if (locale === "ar") {
+    const phoneLine = phone ? ` يمكنك أيضا التواصل معنا مباشرة على ${phone} عبر الاتصال أو واتساب.` : "";
     return `شكرا لصبرك. حتى لا أكرر نفس الرد، قمت بتحويل هذه المحادثة لفريقنا${
       city ? ` في ${city}` : ""
-    } ليراجعوا طلبك ويردوا عليك بمساعدة أدق. إذا كان سؤالك عن حالة الحجز، أرسل رمز الحجز فقط. وإذا كان عن التوفر، أرسل تواريخ الدخول والخروج وعدد الضيوف.`;
+    } ليراجعوا طلبك ويردوا عليك بمساعدة أدق. إذا كان سؤالك عن حالة الحجز، أرسل رمز الحجز فقط. وإذا كان عن التوفر، أرسل تواريخ الدخول والخروج وعدد الضيوف.${phoneLine}`;
   }
   if (locale === "nl") {
-    return `Dank je voor je geduld. Om te voorkomen dat ik hetzelfde antwoord blijf herhalen, heb ik dit gesprek doorgestuurd naar ons team${citySuffix} zodat iemand je aanvraag kan bekijken en je gerichter kan helpen. Gaat het om boekingsstatus? Stuur dan alleen je reserveringscode. Gaat het om beschikbaarheid? Stuur je check-in/check-out en het aantal gasten.`;
+    const phoneLine = phone ? ` Je kunt ons ook direct bereiken op ${phone}, via bellen of WhatsApp.` : "";
+    return `Dank je voor je geduld. Om te voorkomen dat ik hetzelfde antwoord blijf herhalen, heb ik dit gesprek doorgestuurd naar ons team${citySuffix} zodat iemand je aanvraag kan bekijken en je gerichter kan helpen. Gaat het om boekingsstatus? Stuur dan alleen je reserveringscode. Gaat het om beschikbaarheid? Stuur je check-in/check-out en het aantal gasten.${phoneLine}`;
   }
   if (locale === "fr") {
-    return `Merci pour votre patience. Pour eviter de repeter la meme reponse, j'ai transmis cette conversation a notre equipe${citySuffix} afin qu'un admin puisse examiner votre demande et vous aider plus precisement. Si c'est pour le statut de reservation, envoyez seulement votre code de reservation. Si c'est pour la disponibilite, envoyez vos dates d'arrivee/depart et le nombre de voyageurs.`;
+    const phoneLine = phone ? ` Vous pouvez aussi nous joindre directement au ${phone}, par appel ou WhatsApp.` : "";
+    return `Merci pour votre patience. Pour eviter de repeter la meme reponse, j'ai transmis cette conversation a notre equipe${citySuffix} afin qu'un admin puisse examiner votre demande et vous aider plus precisement. Si c'est pour le statut de reservation, envoyez seulement votre code de reservation. Si c'est pour la disponibilite, envoyez vos dates d'arrivee/depart et le nombre de voyageurs.${phoneLine}`;
   }
   if (locale === "ja") {
-    return `お待たせしてすみません。同じ返答を繰り返さないよう、この会話を担当チーム${city ? `（${city}）` : ""}に共有しました。内容を確認して、より的確にご案内します。予約状況の確認なら予約コードのみ、空室確認ならチェックイン/アウト日と人数を教えてください。`;
+    const phoneLine = phone ? ` お急ぎの場合は ${phone} まで、お電話またはWhatsAppで直接ご連絡いただけます。` : "";
+    return `お待たせしてすみません。同じ返答を繰り返さないよう、この会話を担当チーム${city ? `（${city}）` : ""}に共有しました。内容を確認して、より的確にご案内します。予約状況の確認なら予約コードのみ、空室確認ならチェックイン/アウト日と人数を教えてください。${phoneLine}`;
   }
 
-  return `Thanks for your patience. To avoid repeating the same unhelpful reply, I’ve flagged this conversation for our team${citySuffix} so an admin can review and follow up with more specific help. If this is about booking status, please share your reservation code only. If it’s about availability, share your check-in/check-out dates and guest count.`;
+  const phoneLine = phone ? ` In the meantime, you can also reach our team directly at ${phone}, by phone call or WhatsApp.` : "";
+  return `Thanks for your patience. To avoid repeating the same unhelpful reply, I’ve flagged this conversation for our team${citySuffix} so an admin can review and follow up with more specific help. If this is about booking status, please share your reservation code only. If it’s about availability, share your check-in/check-out dates and guest count.${phoneLine}`;
 };
 
 const notifyAdminsOfGuestAttention = async ({
@@ -2530,6 +2547,7 @@ const buildFallbackOrAttentionResponse = async ({
   languageProfile,
   apiKey = "",
   model = "gpt-5-mini",
+  conciergeKnowledge,
 }) => {
   const repeatedGuestMessageCount = countPreviousMatchingUserMessages({ messages, latestUserMessage });
   const shouldEscalate =
@@ -2565,7 +2583,7 @@ const buildFallbackOrAttentionResponse = async ({
       model,
       latestUserMessage,
       languageProfile,
-      reply: buildAttentionReply({ latestUserMessage, pageContext, languageProfile }),
+      reply: buildAttentionReply({ latestUserMessage, pageContext, languageProfile, conciergeKnowledge }),
       mode: "needs_attention",
       notice: localizedNotice,
     });
@@ -3844,12 +3862,14 @@ const fetchListingForChat = async ({ event, listingId }) => {
   }
 };
 
-// Guest-facing hasParking lookup — reads only properties.has_parking (the
-// same boolean the admin panel's "Beds & capacity" tab edits). Deliberately
-// never touches property_access_secrets/parking_instructions, which holds
-// the exact space/level and is admin-only; there is no query here that could
-// return it. Returns null (falls back to amenities-array text matching) if
-// the listing can't be resolved to a property row.
+// Guest-facing parking lookup — reads properties.has_parking (the same
+// boolean the admin panel's "Beds & capacity" tab edits) plus
+// parking_details, a short guest-safe description (cost/type/distance) an
+// admin can optionally fill in there. Deliberately never touches
+// property_access_secrets/parking_instructions, which holds the exact
+// space/level and is admin-only; there is no query here that could return
+// it. Returns null (falls back to amenities-array text matching) if the
+// listing can't be resolved to a property row.
 const fetchHasParkingForListing = async ({ listingId }) => {
   const safeListingId = sanitizeString(listingId, 120);
   if (!safeListingId) return null;
@@ -3862,10 +3882,11 @@ const fetchHasParkingForListing = async ({ listingId }) => {
     if (!propertyRowId) return null;
 
     const propertyRows = await supabaseRestRequest("properties", {
-      query: { select: "has_parking", id: `eq.${propertyRowId}`, limit: 1 },
+      query: { select: "has_parking,parking_details", id: `eq.${propertyRowId}`, limit: 1 },
     });
     const row = propertyRows?.[0];
-    return typeof row?.has_parking === "boolean" ? row.has_parking : null;
+    if (typeof row?.has_parking !== "boolean") return null;
+    return { hasParking: row.has_parking, details: sanitizeString(row.parking_details, 500) };
   } catch {
     return null;
   }
@@ -3878,20 +3899,101 @@ const fetchHasParkingForListing = async ({ listingId }) => {
 // reliably finds every unit at that building. "Has parking" is true if any
 // unit at the address does — matches how a desk agent would answer
 // generically about a building with mixed arrangements (e.g. some units
-// free on-site, others paid).
+// free on-site, others paid). Details come from the first unit at that
+// address that has any filled in.
 const fetchHasParkingForPropertyProfile = async ({ address }) => {
   const streetPrefix = sanitizeString(String(address || "").split(",")[0], 200);
   if (!streetPrefix) return null;
 
   try {
     const rows = await supabaseRestRequest("properties", {
-      query: { select: "has_parking", address: `ilike.${streetPrefix}*`, status: "ilike.active", limit: 50 },
+      query: { select: "has_parking,parking_details", address: `ilike.${streetPrefix}*`, status: "ilike.active", limit: 50 },
     });
     if (!Array.isArray(rows) || !rows.length) return null;
-    return rows.some((row) => row?.has_parking === true);
+    const hasParking = rows.some((row) => row?.has_parking === true);
+    const details = sanitizeString(rows.find((row) => row?.parking_details)?.parking_details, 500);
+    return { hasParking, details };
   } catch {
     return null;
   }
+};
+
+// Guest-facing security deposit lookup. Reuses resolveSecurityDeposit (the
+// same country+bedroom-count rules _shared/securityDepositService.js uses
+// for the live checkout) when a specific listing is known, for an exact
+// figure. Without a listing — a guest just chatting about a city, not on a
+// unit page — falls back to reading every security_deposits row for that
+// city's country: if the amount is the same across every bedroom count
+// there (true for US and UAE today), Lucy can still answer exactly; if it
+// varies by bedroom count (true for EU/Antwerp), she says so honestly
+// instead of guessing one figure.
+const DEPOSIT_COUNTRY_BY_CITY = {
+  Antwerp: "EU",
+  "Los Angeles": "US",
+  "Redondo Beach": "US",
+  Dubai: "UAE",
+};
+
+const fetchDepositInfoForChat = async ({ listingId, cityLabel } = {}) => {
+  const safeListingId = sanitizeString(listingId, 120);
+  if (safeListingId) {
+    try {
+      const exact = await resolveSecurityDeposit({ listingId: safeListingId });
+      if (exact && Number.isFinite(exact.amount)) {
+        return { kind: "exact", amount: exact.amount, currency: exact.currency || "USD" };
+      }
+    } catch {
+      // fall through to the country-level lookup below
+    }
+  }
+
+  const country = DEPOSIT_COUNTRY_BY_CITY[normalizeCityLabel(cityLabel)];
+  if (!country) return null;
+
+  try {
+    const rows = await supabaseRestRequest("security_deposits", {
+      query: { select: "bedrooms,amount,currency,required", country: `eq.${country}`, order: "bedrooms.asc.nullslast", limit: 20 },
+    });
+    const active = (Array.isArray(rows) ? rows : []).filter(
+      (row) => row?.required !== false && Number.isFinite(Number(row?.amount)) && Number(row.amount) >= 0,
+    );
+    if (!active.length) return null;
+
+    const currency = sanitizeString(active[0]?.currency, 10) || "USD";
+    const uniqueAmounts = new Set(active.map((row) => Number(row.amount)));
+    if (uniqueAmounts.size === 1) {
+      return { kind: "exact", amount: Number(active[0].amount), currency };
+    }
+
+    return {
+      kind: "varies",
+      currency,
+      byBedrooms: active
+        .filter((row) => row.bedrooms != null)
+        .map((row) => ({ bedrooms: Number(row.bedrooms), amount: Number(row.amount) }))
+        .sort((a, b) => a.bedrooms - b.bedrooms),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const buildDepositReply = (info) => {
+  if (!info) return "";
+  const formatAmount = (amount, currency) => `${Number(amount).toLocaleString("en-US")} ${currency}`;
+
+  if (info.kind === "exact") {
+    return `The security deposit is ${formatAmount(info.amount, info.currency)}, fully refundable after checkout as long as there's no damage.`;
+  }
+
+  if (info.kind === "varies" && info.byBedrooms.length) {
+    const byBedroomText = info.byBedrooms
+      .map((row) => `${row.bedrooms}BR: ${formatAmount(row.amount, info.currency)}`)
+      .join(", ");
+    return `The security deposit depends on the unit size — ${byBedroomText}. It's fully refundable after checkout as long as there's no damage. Let me know the property or bedroom count you're looking at and I can confirm the exact amount.`;
+  }
+
+  return "";
 };
 
 const fetchHouseRulesForChat = async ({ event, unitTypeId }) => {
@@ -4364,13 +4466,15 @@ const formatQuietHoursForChat = (rules = {}) => {
   return `${start} - ${end}`;
 };
 
-// hasParkingOverride, when not null, comes from properties.has_parking — the
-// same admin-editable yes/no flag the executive assistant reads. It takes
-// priority over the raw amenities-array text match for the "parking" check
-// specifically, since that array can be stale/PMS-dependent. Only the
-// boolean is ever passed in here — the exact space/level (parking_instructions
-// on property_access_secrets) is never fetched for the guest chatbot at all,
-// so there is no code path for it to leak into a guest-facing reply.
+// hasParkingOverride, when not null, is { hasParking, details } sourced from
+// properties.has_parking/parking_details — the same admin-editable fields
+// the executive assistant reads. It takes priority over the raw
+// amenities-array text match for the "parking" check specifically, since
+// that array can be stale/PMS-dependent. Only that boolean + guest-safe
+// description are ever passed in here — the exact space/level
+// (parking_instructions on property_access_secrets) is never fetched for
+// the guest chatbot at all, so there is no code path for it to leak into a
+// guest-facing reply.
 const buildUnitInfoReply = ({ listing, question, houseRules = null, hasParkingOverride = null }) => {
   if (!listing) return "";
 
@@ -4480,8 +4584,13 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null, hasParkingOv
     Number.isFinite(beds) && beds > 0 && `Beds: ${beds}`,
   ].filter(Boolean);
 
+  // Only lead with the unit/capacity overview when nothing more specific was
+  // asked — a guest asking only about parking (or Wi-Fi, size, house rules…)
+  // wants that answer, not a repeat of the bedroom/bathroom count they
+  // already have on the page.
+  const hasSpecificIntent = wantsSize || wantsLandmarks || wantsAmenities || wantsHouseRules;
   const lines = [];
-  if (baseOverview.length) lines.push(baseOverview.join(" | "));
+  if (!hasSpecificIntent && baseOverview.length) lines.push(baseOverview.join(" | "));
 
   if (wantsSize) {
     lines.push(
@@ -4502,7 +4611,7 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null, hasParkingOv
 
   if (wantsAmenities) {
     if (askedAmenityChecksUnique.length) {
-      const parkingIsOverridden = (entry) => entry.key === "parking" && typeof hasParkingOverride === "boolean";
+      const parkingIsOverridden = (entry) => entry.key === "parking" && typeof hasParkingOverride?.hasParking === "boolean";
       const answerableChecks = askedAmenityChecksUnique.filter(
         (entry) => parkingIsOverridden(entry) || amenities.length,
       );
@@ -4511,7 +4620,13 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null, hasParkingOv
       } else {
         lines.push("Amenity check:");
         answerableChecks.forEach((entry) => {
-          const answer = parkingIsOverridden(entry) ? (hasParkingOverride ? "Yes" : "No") : hasAmenity(entry.valuePattern) ? "Yes" : "No";
+          if (parkingIsOverridden(entry)) {
+            const yesNo = hasParkingOverride.hasParking ? "Yes" : "No";
+            const detail = hasParkingOverride.hasParking && hasParkingOverride.details ? ` — ${hasParkingOverride.details}` : "";
+            lines.push(`- ${entry.label}: ${yesNo}${detail}`);
+            return;
+          }
+          const answer = hasAmenity(entry.valuePattern) ? "Yes" : "No";
           lines.push(`- ${entry.label}: ${answer}`);
         });
       }
@@ -4578,11 +4693,11 @@ const buildUnitInfoReply = ({ listing, question, houseRules = null, hasParkingOv
 // ChatConcierge.jsx / PropertyStoryPage.jsx). Property-level data only:
 // address, floor plans, aggregated amenities. No guest, reservation, or
 // pricing data — pricing is live/per-date and stays out of this reply.
-// hasParkingOverride mirrors buildUnitInfoReply's — properties.has_parking
-// takes priority over the static amenities-array text for the "parking"
-// check specifically, so a guest already on a building's page gets the live
-// answer instead of whatever was baked into propertyProfiles.js at
-// generation time.
+// hasParkingOverride mirrors buildUnitInfoReply's { hasParking, details }
+// shape — properties.has_parking/parking_details take priority over the
+// static amenities-array text for the "parking" check specifically, so a
+// guest already on a building's page gets the live answer instead of
+// whatever was baked into propertyProfiles.js at generation time.
 const buildPropertyProfileReply = ({ property, question = "", hasParkingOverride = null }) => {
   if (!property) return "";
 
@@ -4616,26 +4731,28 @@ const buildPropertyProfileReply = ({ property, question = "", hasParkingOverride
     ? [Math.min(...floorPlans.map((f) => f.bedrooms ?? 0)), Math.max(...floorPlans.map((f) => f.bedrooms ?? 0))]
     : null;
 
+  // Same as buildUnitInfoReply: only lead with the building overview when
+  // nothing more specific was asked, so a focused "is there parking" gets a
+  // focused answer instead of a repeat of the address/unit-count blurb.
   const lines = [];
   const overview = [
     property.areaLabel && `${property.areaLabel}, ${property.city}`,
     property.address,
     Number.isFinite(property.totalUnits) && `${property.totalUnits} residences across ${floorPlans.length} floor plan${floorPlans.length === 1 ? "" : "s"}`,
   ].filter(Boolean);
-  if (overview.length) lines.push(overview.join(" | "));
+  if (!wantsAmenities && !wantsFloorPlans && overview.length) lines.push(overview.join(" | "));
 
   if (wantsAmenities) {
     if (askedAmenityChecks.length) {
       lines.push("Amenity check for this building:");
       askedAmenityChecks.forEach((entry) => {
-        const answer =
-          entry.key === "parking" && typeof hasParkingOverride === "boolean"
-            ? hasParkingOverride
-              ? "Yes"
-              : "No"
-            : hasAmenity(entry.valuePattern)
-              ? "Yes"
-              : "No";
+        if (entry.key === "parking" && typeof hasParkingOverride?.hasParking === "boolean") {
+          const yesNo = hasParkingOverride.hasParking ? "Yes" : "No";
+          const detail = hasParkingOverride.hasParking && hasParkingOverride.details ? ` — ${hasParkingOverride.details}` : "";
+          lines.push(`- ${entry.label}: ${yesNo}${detail}`);
+          return;
+        }
+        const answer = hasAmenity(entry.valuePattern) ? "Yes" : "No";
         lines.push(`- ${entry.label}: ${answer}`);
       });
     } else if (amenities.length) {
@@ -4868,9 +4985,14 @@ export async function handler(event) {
         latestPromptForIntent,
       );
     const cityOnlyMessage = isCityOnlyMessage(latestPromptForIntent, supportedCities);
+    // asksBookingLead fires on any bare "how much" phrasing (isBookingLeadQuestion
+    // checks price/cost/rate words), which also matches "how much is the
+    // deposit" — without the !asksPolicy guard here, a deposit/cancellation/
+    // refund question would get routed to the availability "share your
+    // dates" flow instead of actually being answered.
     const hasDirectAvailabilityIntent =
       isAvailabilityQuestion(latestPromptForIntent, asksAvailabilityWindow) ||
-      (asksBookingLead && !isListingPriceQuestion) ||
+      (asksBookingLead && !isListingPriceQuestion && !asksPolicy) ||
       cityOnlyMessage;
     const hasAvailabilityFollowupSignal =
       followUpAvailabilityIntent ||
@@ -5504,6 +5626,34 @@ export async function handler(event) {
     }
 
     if (detectedIntent === CHAT_INTENTS.policy) {
+      if (/\bdeposit\b/i.test(latestPrompt)) {
+        try {
+          const depositCityLabel = promptCityHint || conversationCityHint || pageContextCityHint || pageContext?.city;
+          const depositInfo = await fetchDepositInfoForChat({
+            listingId: pageContext?.listingId,
+            cityLabel: depositCityLabel,
+          });
+          const depositReply = buildDepositReply(depositInfo);
+          if (depositReply) {
+            return respondWithIntentPayload({
+              event,
+              apiKey,
+              model,
+              latestUserMessage,
+              languageProfile,
+              intent: detectedIntent,
+              tool: CHAT_TOOLS.policy_lookup,
+              reply: depositReply,
+              smarten: true,
+            });
+          }
+        } catch (depositError) {
+          console.warn("Deposit lookup failed for chat path", {
+            message: depositError?.message || String(depositError),
+          });
+        }
+      }
+
       let queryEmbedding = null;
       if (apiKey) {
         try {
