@@ -1089,9 +1089,16 @@ export const listApaleoReservations = async ({ query = {} } = {}) => {
   return payload.results;
 };
 
+const normalizeCodeForMatch = (value = "") =>
+  String(value || "")
+    .trim()
+    .replace(/[^a-z0-9]/gi, "")
+    .toUpperCase();
+
 export const findApaleoReservationByCode = async ({ reservationCode = "" } = {}) => {
   const safeCode = sanitizeString(reservationCode, 120);
   if (!safeCode) return null;
+  const requestedKey = normalizeCodeForMatch(safeCode);
   const endpoint = sanitizeString(process.env.APALEO_RESERVATIONS_ENDPOINT || "/booking/v1/reservations", 240);
 
   const attempts = [
@@ -1107,10 +1114,21 @@ export const findApaleoReservationByCode = async ({ reservationCode = "" } = {})
       const response = await apaleoRequest(attempt.path, { query: attempt.query || {} });
       const payload = response?.payload || {};
       const list = toArray(payload?.reservations || payload?.items || payload?.data || payload);
+      // Not every query param above is guaranteed to be a real Apaleo filter.
+      // If Apaleo silently ignores an unrecognized one, it returns its
+      // default (unfiltered) list instead of an error — so every candidate
+      // must be checked against the requested code, never just list[0],
+      // otherwise a guest can be shown someone else's reservation.
+      const candidates = list.length ? list : [payload];
 
-      const candidate = Array.isArray(list) && list.length ? list[0] : payload;
-      const normalized = normalizeApaleoReservation(candidate || {});
-      if (normalized.id) return normalized;
+      for (const candidate of candidates) {
+        const normalized = normalizeApaleoReservation(candidate || {});
+        if (!normalized.id) continue;
+        const matches =
+          normalizeCodeForMatch(normalized.id) === requestedKey ||
+          normalizeCodeForMatch(normalized.confirmationNumber) === requestedKey;
+        if (matches) return normalized;
+      }
     } catch (error) {
       if (Number(error?.statusCode) === 404) continue;
       if (Number(error?.statusCode) === 400) continue;

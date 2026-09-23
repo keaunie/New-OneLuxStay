@@ -105,20 +105,20 @@ export const getProperties = async ({ city = "", provider = "" } = {}) => {
 };
 
 export const getReservations = async ({ city = "", provider = "", reservationCode = "" } = {}) => {
+  if (!reservationCode || reservationCode.trim().length < 5) {
+    return { provider: PMS_PROVIDERS.APALEO, results: [] };
+  }
+
   const selectedProvider = detectPmsProvider({ city, provider });
   if (selectedProvider === PMS_PROVIDERS.APALEO) {
     const payload = await fetchApaleoReservations({
-      city: city || "Antwerp",
+      city: city || "",
       reservationCode,
     });
     return {
       provider: PMS_PROVIDERS.APALEO,
       results: Array.isArray(payload?.results) ? payload.results : [],
     };
-  }
-
-  if (!reservationCode) {
-    return { provider: PMS_PROVIDERS.GUESTY, results: [] };
   }
 
   const payload = await request(`/getReservation?reservationId=${encodeURIComponent(reservationCode)}`);

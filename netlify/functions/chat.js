@@ -429,7 +429,12 @@ const isValidAcknowledgementSentence = (sentence = "") => {
   if (!s) return false;
   // Reject sentences that are really policy/pricing/booking statements — these should never
   // be injected as acknowledgements in front of unrelated replies.
-  if (/\b(rates?|pricing|price|available pricing|booking flow|book(ing)?|checkout|reservation|guests? typically|choose a city|city page)\b/.test(s)) return false;
+  if (
+    /\b(rates?|pricing|price|available pricing|booking flow|book(ing)?|check-?out|check-?in|reservation|guests? typically|choose a city|city page|cancellation|policy|procedure|refund|please note|kindly|hereby|pursuant)\b/.test(
+      s,
+    )
+  )
+    return false;
   // Must be a short conversational acknowledgement (under 100 chars), not a long content sentence
   if (s.length > 100) return false;
   return true;
@@ -1397,6 +1402,14 @@ const looksLikeReservationCode = (value = "") => {
   const hasSeparator = /[._-]/.test(raw);
   if (!hasDigit && !hasSeparator) return false;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false;
+  // Reject concatenated date-like tokens a guest might type ("7sep2026",
+  // "24dec25", "september7", "dec24th") so they never get mistaken for a
+  // reservation code.
+  if (/^\d{1,2}[A-Za-z]{3}\d{2,4}$/.test(raw)) return false;
+  if (/^[A-Za-z]{3,9}\d{1,2}(st|nd|rd|th)?\d{0,4}$/i.test(raw)) return false;
+  const MONTH_ABBREVIATIONS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const lowerRaw = raw.toLowerCase();
+  if (hasDigit && MONTH_ABBREVIATIONS.some((month) => lowerRaw.includes(month))) return false;
   return /^[A-Za-z0-9._-]+$/.test(raw);
 };
 
@@ -1446,32 +1459,13 @@ const extractReservationCodeFromPrompt = (prompt = "") => {
   return "";
 };
 
-const extractReservationCode = ({ prompt = "", search = "" }) => {
-  const fromPrompt = extractReservationCodeFromPrompt(prompt);
-  if (fromPrompt) return fromPrompt;
-
-  try {
-    const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
-    const candidates = [
-      params.get("reservationId"),
-      params.get("reservation_id"),
-      params.get("bookingId"),
-      params.get("booking_id"),
-      params.get("confirmationCode"),
-      params.get("confirmation"),
-      params.get("code"),
-      params.get("res"),
-    ];
-    for (const value of candidates) {
-      const candidate = sanitizeReservationCode(value || "");
-      if (looksLikeReservationCode(candidate)) return candidate;
-    }
-  } catch {
-    // ignore malformed query string
-  }
-
-  return "";
-};
+// Deliberately does not fall back to reading a reservation id out of the page
+// URL (pageContext.search). A confirmation-link URL can be forwarded,
+// bookmarked, or leak via a referrer header long after the original guest
+// moved on — auto-disclosing that reservation's status to whoever else opens
+// it, without them ever asking about a booking, is a real guest-data leak.
+// Only a code the guest actually typed counts.
+const extractReservationCode = ({ prompt = "" }) => extractReservationCodeFromPrompt(prompt);
 
 const extractGuests = (text = "", fallback = 1) => {
   const parsed = parseGuestsFromText(text);
@@ -5014,12 +5008,13 @@ export async function handler(event) {
       (asksAvailabilityWindow && hasAvailabilityFollowupSignal && !asksPolicy && !asksCheckInOutTime);
     const hasReservationCode = Boolean(reservationCode);
     // A reservation/booking id can leak into pageContext.search from a stale
-    // "manage booking" link sitting in the address bar long after the guest
-    // navigated away from it. That alone must not hijack an unrelated,
-    // explicit question (availability, price, policy, etc.) into a booking
-    // status lookup — only let the URL-sourced code win when the guest's
-    // message doesn't already show a clear different intent.
-    const hasExplicitReservationCode = Boolean(extractReservationCodeFromPrompt(latestPrompt));
+    // reservationCode is only ever derived from what the guest typed (see
+    // extractReservationCode). The loose token-scanning fallback inside
+    // extractReservationCodeFromPrompt can still misfire on look-alike
+    // strings (e.g. a mistyped date), so a code alone doesn't win over a
+    // message that clearly asks about something else — it only decides
+    // intent when the message isn't already a clear availability/price/
+    // policy/etc. question.
     const hasCompetingIntent =
       asksAvailability ||
       asksPolicy ||
@@ -5030,7 +5025,6 @@ export async function handler(event) {
       asksDestinationRecommendation;
     const asksBookingStatus =
       isBookingStatusQuestion(latestPromptForIntent) ||
-      hasExplicitReservationCode ||
       (hasReservationCode && !hasCompetingIntent);
     const includesSensitivePaymentData = hasSensitivePaymentData(latestPromptForIntent);
     let policyRows = [];
