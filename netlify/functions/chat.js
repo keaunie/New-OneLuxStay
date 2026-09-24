@@ -13,7 +13,11 @@ import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
 
 dotenv.config();
 
-const OPENAI_API_URL = "https://api.openai.com/v1/responses";
+// Chat/completions traffic now goes through OpenRouter (Chat Completions
+// format: "messages" in, "choices[0].message.content" out) instead of
+// OpenAI's Responses API. Embeddings are unaffected and still go to OpenAI.
+const OPENAI_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_REFERER = "https://oneluxstay.com";
 const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
 const MAX_MESSAGES = 10;
 const DEFAULT_MATCH_RPC = "match_document_sections";
@@ -2065,7 +2069,7 @@ const detectPrimaryIntent = ({
 
 const buildSmartToolReply = async ({
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   latestUserMessage,
   languageProfile,
   intent = "",
@@ -2083,23 +2087,27 @@ const buildSmartToolReply = async ({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": OPENROUTER_REFERER,
         },
         body: JSON.stringify({
           model,
-          reasoning: { effort: "low" },
-          text: { verbosity: "low" },
-          max_output_tokens: 500,
-          input: [
-            "Rewrite the tool result into a clear, warm, concise WhatsApp concierge reply.",
-            `Intent: ${sanitizeString(intent, 80) || "general"}`,
-            `Tool used: ${sanitizeString(tool, 80) || "none"}`,
-            `Guest message: ${sanitizeString(latestUserMessage?.content || latestUserMessage || "", 600)}`,
-            `Language instruction: ${buildLanguageReplyInstruction({ languageProfile, latestUserMessage })}`,
-            "Preserve all facts exactly. Do not add any new facts. Do not change reservation codes, URLs, listing names, dates in YYYY-MM-DD, times, currencies, or numbers.",
-            "If the tool result asks for missing information, keep the reply direct and action-oriented.",
-            "Return only the final guest-facing reply text.",
-            `Tool result:\n${baseReply}`,
-          ].join("\n"),
+          max_tokens: 500,
+          messages: [
+            {
+              role: "user",
+              content: [
+                "Rewrite the tool result into a clear, warm, concise WhatsApp concierge reply.",
+                `Intent: ${sanitizeString(intent, 80) || "general"}`,
+                `Tool used: ${sanitizeString(tool, 80) || "none"}`,
+                `Guest message: ${sanitizeString(latestUserMessage?.content || latestUserMessage || "", 600)}`,
+                `Language instruction: ${buildLanguageReplyInstruction({ languageProfile, latestUserMessage })}`,
+                "Preserve all facts exactly. Do not add any new facts. Do not change reservation codes, URLs, listing names, dates in YYYY-MM-DD, times, currencies, or numbers.",
+                "If the tool result asks for missing information, keep the reply direct and action-oriented.",
+                "Return only the final guest-facing reply text.",
+                `Tool result:\n${baseReply}`,
+              ].join("\n"),
+            },
+          ],
         }),
       },
       15_000,
@@ -2116,7 +2124,7 @@ const buildSmartToolReply = async ({
 
 const localizeGuestVisibleContent = async ({
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   latestUserMessage,
   languageProfile,
   reply = "",
@@ -2143,30 +2151,34 @@ const localizeGuestVisibleContent = async ({
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": OPENROUTER_REFERER,
       },
       body: JSON.stringify({
         model,
-        reasoning: { effort: "low" },
-        text: { verbosity: "low" },
-        max_output_tokens: 900,
-        input: [
-          "Translate the One Lux Stay concierge text into the same language as the guest message.",
-          'Return valid JSON only using this exact shape: {"reply":"...","notice":"...","quickReplies":[{"label":"...","message":"..."}]}',
-          "Keep URLs, reservation codes, listing names, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
-          "Do not explain the translation. Do not add extra keys.",
-          `Guest message language reference: ${guestText}`,
-          `Target language hint: ${languageProfile?.label || "same as guest"}`,
-          `Payload to translate: ${JSON.stringify({
-            reply: sanitizeString(reply, 3000),
-            notice: sanitizeString(notice, 300),
-            quickReplies: Array.isArray(quickReplies)
-              ? quickReplies.map((item) => ({
-                  label: sanitizeString(item?.label, 160),
-                  message: sanitizeString(item?.message, 260),
-                }))
-              : [],
-          })}`,
-        ].join("\n"),
+        max_tokens: 900,
+        messages: [
+          {
+            role: "user",
+            content: [
+              "Translate the One Lux Stay concierge text into the same language as the guest message.",
+              'Return valid JSON only using this exact shape: {"reply":"...","notice":"...","quickReplies":[{"label":"...","message":"..."}]}',
+              "Keep URLs, reservation codes, listing names, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
+              "Do not explain the translation. Do not add extra keys.",
+              `Guest message language reference: ${guestText}`,
+              `Target language hint: ${languageProfile?.label || "same as guest"}`,
+              `Payload to translate: ${JSON.stringify({
+                reply: sanitizeString(reply, 3000),
+                notice: sanitizeString(notice, 300),
+                quickReplies: Array.isArray(quickReplies)
+                  ? quickReplies.map((item) => ({
+                      label: sanitizeString(item?.label, 160),
+                      message: sanitizeString(item?.message, 260),
+                    }))
+                  : [],
+              })}`,
+            ].join("\n"),
+          },
+        ],
       }),
     }, 20_000);
 
@@ -2198,7 +2210,7 @@ const localizeGuestVisibleContent = async ({
 const respondWithGuestPayload = async ({
   event,
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   latestUserMessage,
   languageProfile,
   reply = "",
@@ -2241,7 +2253,7 @@ const respondWithGuestPayload = async ({
 const respondWithIntentPayload = async ({
   event,
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   latestUserMessage,
   languageProfile,
   intent = CHAT_INTENTS.general_gpt,
@@ -2300,7 +2312,7 @@ const fallbackResponse = async ({
   sentimentLessons = [],
   languageProfile,
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
 }) => {
   const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
   const skipLocalization = locale === "ar" || locale === "nl" || locale === "fr" || locale === "ja";
@@ -2396,7 +2408,7 @@ const countPreviousMatchingUserMessages = ({ messages = [], latestUserMessage } 
 
 const buildFallbackRescueReply = async ({
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   latestUserMessage,
   pageContext = {},
   messages = [],
@@ -2540,7 +2552,7 @@ const buildFallbackOrAttentionResponse = async ({
   reply = "",
   languageProfile,
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   conciergeKnowledge,
 }) => {
   const repeatedGuestMessageCount = countPreviousMatchingUserMessages({ messages, latestUserMessage });
@@ -2634,44 +2646,31 @@ const buildInput = ({
   ].join("\n");
 };
 
+// Parses an OpenRouter/OpenAI Chat Completions response
+// (choices[0].message.content), not the Responses API's output[] shape.
 const extractOutputText = (payload) => {
-  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === "string" && content.trim()) {
+    return content.trim();
   }
 
-  if (!Array.isArray(payload?.output)) return "";
+  if (Array.isArray(content)) {
+    const parts = content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (typeof part?.text === "string") return part.text;
+        return "";
+      })
+      .filter(Boolean);
+    if (parts.length) return parts.join("\n").trim();
+  }
 
-  const parts = [];
-  payload.output.forEach((item) => {
-    if (!Array.isArray(item?.content)) return;
-    item.content.forEach((contentPart) => {
-      if (contentPart?.type === "output_text") {
-        if (typeof contentPart.text === "string") {
-          parts.push(contentPart.text);
-          return;
-        }
-        if (typeof contentPart.text?.value === "string") {
-          parts.push(contentPart.text.value);
-          return;
-        }
-      }
-
-      if (contentPart?.type === "text") {
-        if (typeof contentPart.text === "string") {
-          parts.push(contentPart.text);
-        } else if (typeof contentPart.text?.value === "string") {
-          parts.push(contentPart.text.value);
-        }
-      }
-    });
-  });
-
-  return parts.join("\n").trim();
+  return "";
 };
 
 const requestSimpleGuestReply = async ({
   apiKey = "",
-  model = "gpt-5-mini",
+  model = "google/gemma-2-9b-it:free",
   instructions = "",
   input = "",
   maxOutputTokens = 400,
@@ -2687,12 +2686,15 @@ const requestSimpleGuestReply = async ({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": OPENROUTER_REFERER,
         },
         body: JSON.stringify({
           model,
-          instructions,
-          input,
-          max_output_tokens: maxOutputTokens,
+          max_tokens: maxOutputTokens,
+          messages: [
+            ...(instructions ? [{ role: "system", content: instructions }] : []),
+            { role: "user", content: input },
+          ],
         }),
       },
       timeoutMs,
@@ -4289,7 +4291,7 @@ const parseJsonObjectFromText = (value = "") => {
   }
 };
 
-const translatePromptToEnglish = async ({ apiKey = "", model = "gpt-5-mini", text = "" } = {}) => {
+const translatePromptToEnglish = async ({ apiKey = "", model = "google/gemma-2-9b-it:free", text = "" } = {}) => {
   const prompt = sanitizeString(text, 900);
   if (!apiKey || !prompt) return prompt;
 
@@ -4301,18 +4303,22 @@ const translatePromptToEnglish = async ({ apiKey = "", model = "gpt-5-mini", tex
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": OPENROUTER_REFERER,
         },
         body: JSON.stringify({
           model,
-          reasoning: { effort: "low" },
-          text: { verbosity: "low" },
-          max_output_tokens: 160,
-          input: [
-            "Translate the guest message to English for intent detection.",
-            "Return only the translated English text (no JSON, no extra commentary).",
-            "Keep reservation codes, listing IDs, URLs, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
-            `Guest message: ${prompt}`,
-          ].join("\n"),
+          max_tokens: 160,
+          messages: [
+            {
+              role: "user",
+              content: [
+                "Translate the guest message to English for intent detection.",
+                "Return only the translated English text (no JSON, no extra commentary).",
+                "Keep reservation codes, listing IDs, URLs, dates in YYYY-MM-DD, times, currencies, and numbers unchanged.",
+                `Guest message: ${prompt}`,
+              ].join("\n"),
+            },
+          ],
         }),
       },
       12_000,
@@ -4846,8 +4852,12 @@ export async function handler(event) {
   const learningText = buildLearningText({ goodExamples, badExamples });
   const sentimentLearningText = buildSentimentLearningText(sentimentLessons);
 
-  const apiKey = getEnv("OPENAI_API_KEY");
-  const model = getEnv("OPENAI_CHAT_MODEL") || "gpt-5-mini";
+  const apiKey = getEnv("OPENROUTER_API_KEY");
+  const model = getEnv("OPENAI_CHAT_MODEL") || "google/gemma-2-9b-it:free";
+  // Embeddings still go straight to OpenAI (see OPENAI_EMBEDDINGS_URL), so
+  // they need the original OpenAI key, not the OpenRouter one `apiKey` now
+  // holds — a shared key here would 401 every embedding call.
+  const embeddingApiKey = getEnv("OPENAI_API_KEY");
   const embeddingModel = getEnv("OPENAI_EMBEDDING_MODEL") || "text-embedding-3-small";
 
   try {
@@ -5690,10 +5700,10 @@ export async function handler(event) {
       }
 
       let queryEmbedding = null;
-      if (apiKey) {
+      if (embeddingApiKey) {
         try {
           queryEmbedding = await createEmbedding({
-            apiKey,
+            apiKey: embeddingApiKey,
             model: embeddingModel,
             text: latestPrompt,
           });
@@ -5820,24 +5830,31 @@ export async function handler(event) {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": OPENROUTER_REFERER,
       },
       body: JSON.stringify({
         model,
-        instructions: [siteContext, languageInstruction ? `Language: ${languageInstruction}` : ""]
-          .filter(Boolean)
-          .join("\n"),
-        input: buildInput({
-          pageContext,
-          messages,
-          knowledgeText,
-          retrievedPolicyText,
-          learningText,
-          sentimentLearningText,
-          languageInstruction,
-        }),
-        reasoning: { effort: "medium" },
-        text: { verbosity: "low" },
-        max_output_tokens: 900,
+        max_tokens: 900,
+        messages: [
+          {
+            role: "system",
+            content: [siteContext, languageInstruction ? `Language: ${languageInstruction}` : ""]
+              .filter(Boolean)
+              .join("\n"),
+          },
+          {
+            role: "user",
+            content: buildInput({
+              pageContext,
+              messages,
+              knowledgeText,
+              retrievedPolicyText,
+              learningText,
+              sentimentLearningText,
+              languageInstruction,
+            }),
+          },
+        ],
       }),
     });
 
@@ -5892,7 +5909,7 @@ export async function handler(event) {
       return jsonResponse(
         response.status,
         {
-          error: data?.error?.message || "OpenAI request failed",
+          error: data?.error?.message || "OpenRouter request failed",
           details: data?.error || data || null,
         },
         event,
