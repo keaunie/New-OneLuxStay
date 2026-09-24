@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "./http.js";
+import { getAdyenMerchantAccountIds, getApaleoSubMerchantIds } from "./paymentAccountMappings.js";
 
 const clean = (value = "", max = 240) => String(value ?? "").trim().slice(0, max);
 const environment = () => clean(process.env.ADYEN_ENVIRONMENT || "test", 20).toLowerCase();
@@ -41,14 +42,7 @@ export const assertAdyenEnabledForProperty = (propertyId) => {
 
 export const resolveAdyenMerchantAccount = (propertyId) => {
   const safePropertyId = clean(propertyId, 120);
-  let perPropertyMap = {};
-  try {
-    perPropertyMap = JSON.parse(process.env.ADYEN_MERCHANT_ACCOUNT_IDS_JSON || "{}");
-  } catch {
-    throw Object.assign(new Error("ADYEN_MERCHANT_ACCOUNT_IDS_JSON must be valid JSON"), {
-      statusCode: 503, code: "ADYEN_MERCHANT_ACCOUNT_CONFIG_INVALID",
-    });
-  }
+  const perPropertyMap = getAdyenMerchantAccountIds();
   const merchantAccount = clean(
     perPropertyMap[safePropertyId] || process.env.ADYEN_MERCHANT_ACCOUNT,
     180,
@@ -67,12 +61,7 @@ export const getApaleoPayAdditionalData = ({ propertyId, guaranteeType } = {}) =
   if (!accountId || !safePropertyId) {
     throw Object.assign(new Error("Apaleo Pay account and property metadata are not configured"), { statusCode: 503, code: "APALEO_PAY_METADATA_MISSING" });
   }
-  let propertySubMerchants = {};
-  try {
-    propertySubMerchants = JSON.parse(process.env.APALEO_SUB_MERCHANT_IDS_JSON || "{}");
-  } catch {
-    throw Object.assign(new Error("APALEO_SUB_MERCHANT_IDS_JSON must be valid JSON"), { statusCode: 503, code: "APALEO_PAY_METADATA_INVALID" });
-  }
+  const propertySubMerchants = getApaleoSubMerchantIds();
   const additionalData = {
     "metadata.accountId": accountId,
     "metadata.propertyId": safePropertyId,
