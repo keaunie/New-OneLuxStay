@@ -2069,7 +2069,7 @@ const detectPrimaryIntent = ({
 
 const buildSmartToolReply = async ({
   apiKey = "",
-  model = "meta-llama/llama-3.1-8b-instruct:free",
+  model = "qwen/qwen3.8-27b:free",
   latestUserMessage,
   languageProfile,
   intent = "",
