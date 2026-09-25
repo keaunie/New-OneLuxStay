@@ -2069,7 +2069,7 @@ const detectPrimaryIntent = ({
 
 const buildSmartToolReply = async ({
   apiKey = "",
-  model = "qwen/qwen3.8-27b:free",
+  model = getEnv("OPENAI_CHAT_MODEL") || "google/gemma-2-9b-it:free",
   latestUserMessage,
   languageProfile,
   intent = "",
@@ -2617,6 +2617,7 @@ const buildInput = ({
   messages,
   knowledgeText,
   retrievedPolicyText = "",
+  propertyKnowledgeText = "",
   learningText = "",
   sentimentLearningText = "",
   languageInstruction = "",
@@ -2635,6 +2636,9 @@ const buildInput = ({
     sentimentLearningText ? `Sentiment coaching:\n${sentimentLearningText}` : "",
     learningText ? `Feedback-based coaching:\n${learningText}` : "",
     retrievedPolicyText ? `Retrieved policy knowledge:\n${retrievedPolicyText}` : "",
+    propertyKnowledgeText
+      ? `Property knowledge base (use this to answer the guest's question when relevant):\n${propertyKnowledgeText}`
+      : "",
     "Current website context:",
     ...contextLines,
     "",
@@ -2890,7 +2894,57 @@ const buildRetrievedPolicyText = (rows = []) =>
     )
     .join("\n\n");
 
-const buildDeterministicPolicyReply = ({ rows = [], question = "" }) => {
+// property_knowledge is a small curated Q&A table (global, city and
+// property scoped rows), so it's fetched whole and ranked locally with the
+// same token scoring as the policy keyword fallback. Rows scoped to a
+// different city than the guest is asking about are dropped so an Antwerp
+// question never picks up Dubai answers.
+const retrievePropertyKnowledge = async ({ queryText = "", city = "", propertyKey = "", limit = 4 } = {}) => {
+  const tokens = tokenizeQuery(queryText);
+  if (!tokens.length) return [];
+
+  const rows = await supabaseRestRequest("property_knowledge", {
+    query: {
+      select: "scope,city,property_code,category,question,content",
+      limit: 500,
+    },
+  });
+
+  const targetCity = normalizeCityLabel(city);
+  const targetProperty = String(propertyKey || "").trim().toLowerCase();
+
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row?.content)
+    .filter((row) => !targetCity || !row.city || normalizeCityLabel(row.city) === targetCity)
+    .map((row) => {
+      let score = scoreSectionMatch({
+        text: `${row.category || ""} ${row.content}`,
+        title: row.question,
+        tokens,
+      });
+      if (score > 0 && targetProperty && String(row.property_code || "").toLowerCase() === targetProperty) {
+        score += 3;
+      }
+      return { row, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, Math.min(6, Number(limit) || 4)))
+    .map(({ row }) => row);
+};
+
+const buildPropertyKnowledgeText = (rows = []) =>
+  rows
+    .map((row) =>
+      [
+        `Scope: ${[row?.city, row?.property_code].filter(Boolean).join(" / ") || "All properties"}`,
+        `Q: ${sanitizeString(row?.question, 240)}`,
+        `A: ${sanitizeString(row?.content, 900)}`,
+      ].join("\n"),
+    )
+    .join("\n\n");
+
+const buildDeterministicPolicyReply =({ rows = [], question = "" }) => {
   const normalizedQuestion = String(question || "").toLowerCase();
   const wantsCancellation = /\b(cancel|cancellation|refund)\b/.test(normalizedQuestion);
   const wantsCheckout = /\b(check[- ]?out|checkout|vacate)\b/.test(normalizedQuestion);
@@ -5825,6 +5879,20 @@ export async function handler(event) {
       });
     }
 
+    let propertyKnowledgeText = "";
+    try {
+      const knowledgeRows = await retrievePropertyKnowledge({
+        queryText: latestPromptForIntent,
+        city: normalizedPromptCity || normalizedPageContextCity || normalizedConversationCity,
+        propertyKey: pageContext?.propertyKey,
+      });
+      propertyKnowledgeText = buildPropertyKnowledgeText(knowledgeRows);
+    } catch (knowledgeError) {
+      console.warn("Property knowledge retrieval failed for chat path", {
+        message: knowledgeError?.message || String(knowledgeError),
+      });
+    }
+
     const response = await fetchWithTimeout(OPENAI_API_URL, {
       method: "POST",
       headers: {
@@ -5849,6 +5917,7 @@ export async function handler(event) {
               messages,
               knowledgeText,
               retrievedPolicyText,
+              propertyKnowledgeText,
               learningText,
               sentimentLearningText,
               languageInstruction,
@@ -5933,6 +6002,7 @@ export async function handler(event) {
           messages,
           knowledgeText,
           retrievedPolicyText,
+          propertyKnowledgeText,
           learningText,
           sentimentLearningText,
           languageInstruction,
