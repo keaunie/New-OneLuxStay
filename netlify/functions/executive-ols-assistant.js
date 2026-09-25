@@ -6,6 +6,14 @@ import { listApaleoReservationsWithDebug } from "./_shared/apaleoService.js";
 import { verifyAdminsOlsAccess } from "./_shared/adminsOlsAuth.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 import { propertyProfiles } from "../../src/data/propertyProfiles.js";
+import conciergeKnowledge from "../../src/data/conciergeKnowledge.js";
+import {
+  OPENROUTER_CHAT_URL,
+  OPENROUTER_REFERER,
+  buildChatModelFields,
+  resolveChatModel,
+} from "./_shared/openRouterChat.js";
+import { buildPropertyKnowledgeText, retrievePropertyKnowledge } from "./_shared/propertyKnowledge.js";
 
 dotenv.config();
 
@@ -1104,45 +1112,66 @@ const buildFinalFallbackMessage = (snapshot = {}) => {
   );
 };
 
-const createAssistantReply = async ({ query, messages, snapshot, accessSecretsText = "", depositText = "", parkingText = "" }) => {
-  const apiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing");
+// Official guest-facing policies (same source the guest concierge uses), so
+// the assistant quotes the Terms & Conditions rather than guessing.
+const buildPolicyText = () =>
+  Object.entries(conciergeKnowledge?.policies || {})
+    .map(([key, value]) => `- ${key}: ${sanitizeString(value, 600)}`)
+    .join("\n");
+
+// Used when every AI provider is down: the top knowledge-base answer is a
+// better reply than "the AI assistant is unavailable".
+const buildKnowledgeFallbackAnswer = (rows = []) => {
+  const [top] = rows;
+  if (!top?.content) return "";
+  const scope = [top.city, top.property_code].filter(Boolean).join(" / ");
+  return `From the knowledge base${scope ? ` (${scope})` : ""}: ${sanitizeString(top.content, 1500)}`;
+};
+
+// Primary path: OpenRouter with the same model list and fallbacks as the
+// guest concierge.
+const requestOpenRouterReply = async ({ apiKey, instructions, input }) => {
+  const model = resolveChatModel("OPENROUTER_EXECUTIVE_OLS_MODEL", "OPENAI_EXECUTIVE_OLS_MODEL");
+  const response = await fetchWithTimeout(
+    OPENROUTER_CHAT_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": OPENROUTER_REFERER,
+      },
+      body: JSON.stringify({
+        ...buildChatModelFields(model),
+        max_tokens: 900,
+        messages: [
+          { role: "system", content: instructions },
+          { role: "user", content: input },
+        ],
+      }),
+    },
+    30_000,
+  );
+
+  const payload = parseJson(await response.text());
+  if (!response.ok) {
+    console.error("[executive-ols-assistant] OpenRouter request failed", {
+      status: response.status,
+      model,
+      error: payload?.error,
+    });
+    throw new Error(payload?.error?.message || `OpenRouter request failed (${response.status})`);
   }
 
+  const content = payload?.choices?.[0]?.message?.content;
+  const text = Array.isArray(content)
+    ? content.map((part) => (typeof part === "string" ? part : part?.text || "")).join("\n")
+    : String(content || "");
+  return sanitizeString(text, 6000);
+};
+
+const requestOpenAiReply = async ({ apiKey, instructions, input }) => {
   const model = sanitizeString(getEnv("OPENAI_EXECUTIVE_OLS_MODEL") || "gpt-5-mini", 120);
-  const input = [
-    "Executive question:",
-    sanitizeString(query, 1200),
-    "",
-    "Recent chat:",
-    formatHistory(messages) || "No prior messages.",
-    "",
-    "Apaleo/Guesty-backed snapshot:",
-    buildSnapshotText(snapshot),
-    ...(accessSecretsText ? ["", "Access details (Wi-Fi/door-lock — only reveal if explicitly asked):", accessSecretsText] : []),
-    ...(depositText ? ["", "Security deposit:", depositText] : []),
-    ...(parkingText ? ["", "Parking (admin-only — do not reveal the specific space/level to guests if drafting guest-facing text):", parkingText] : []),
-  ].join("\n");
-
-  const instructions = `
-You are the OneLuxStay Executive Assistant.
-
-Rules:
-- Answer using only the supplied Apaleo/Guesty-backed snapshot and the property directory below it.
-- The snapshot covers booking activity (reservations, revenue, check-ins) for the selected time range, pulled live from Apaleo (most properties) and Guesty (LA Plaza).
-- The property directory covers static building facts (address, floor plans, amenities) across all cities — use it for questions like "what amenities does the Fashion District have" or "how many units do we have in Los Angeles," regardless of the selected time range or property filter.
-- Be concise, direct, and useful for leadership.
-- If the data is missing or sync is unavailable, say that clearly.
-- When useful, provide short recommendations or next steps.
-- You may draft professional guest or internal messages when asked.
-- Never invent figures, reservations, or property facts.
-- Only reveal Wi-Fi passwords or door codes when an "Access details" section is supplied above and the question asks for them. Never guess or fabricate a password or code. If the admin asks for access details but no "Access details" section is supplied, tell them to select a specific property in the property filter first.
-- If an "Access details" section includes a "Notes" line for the property, always state it in the same reply as the lock/door code, every time — it is operational usage guidance (e.g. what to do if the code is mistyped), not optional context. Never give a door/lock code without also giving its notes when notes are present.
-- If a "Security deposit" section is supplied above and the question asks about a deposit, state that exact amount and currency. Never guess or convert currency yourself. This is a separate, per-property figure from any general deposit policy you might otherwise assume — always prefer the supplied figure over general knowledge. If the admin asks about a deposit but no "Security deposit" section is supplied, tell them to select a specific property in the property filter first.
-- If a "Parking" section is supplied above and the question asks about parking, state whether the property has parking and, if it does, the exact space/level instructions supplied. Never guess or fabricate a space number. If you draft any message intended for a guest, only say parking is/isn't available — never include the specific space or level, that detail is admin-only.
-`.trim();
-
   const response = await fetchWithTimeout(
     OPENAI_RESPONSES_URL,
     {
@@ -1177,6 +1206,82 @@ Rules:
   }
 
   return sanitizeString(extractOutputText(payload), 6000);
+};
+
+const createAssistantReply = async ({
+  query,
+  messages,
+  snapshot,
+  accessSecretsText = "",
+  depositText = "",
+  parkingText = "",
+  knowledgeText = "",
+}) => {
+  const openRouterKey = sanitizeString(getEnv("OPENROUTER_API_KEY"), 500);
+  const openAiKey = sanitizeString(getEnv("OPENAI_API_KEY"), 500);
+  if (!openRouterKey && !openAiKey) {
+    throw new Error("OPENROUTER_API_KEY and OPENAI_API_KEY are both missing");
+  }
+
+  const input = [
+    "Executive question:",
+    sanitizeString(query, 1200),
+    "",
+    "Recent chat:",
+    formatHistory(messages) || "No prior messages.",
+    "",
+    "Apaleo/Guesty-backed snapshot:",
+    buildSnapshotText(snapshot),
+    ...(accessSecretsText ? ["", "Access details (Wi-Fi/door-lock — only reveal if explicitly asked):", accessSecretsText] : []),
+    ...(depositText ? ["", "Security deposit:", depositText] : []),
+    ...(parkingText ? ["", "Parking (admin-only — do not reveal the specific space/level to guests if drafting guest-facing text):", parkingText] : []),
+    "",
+    "Official guest policies (Terms & Conditions):",
+    buildPolicyText(),
+    ...(knowledgeText ? ["", "Knowledge base entries relevant to this question:", knowledgeText] : []),
+  ].join("\n");
+
+  const instructions = `
+You are the OneLuxStay Executive Assistant.
+
+Rules:
+- Answer using only the supplied Apaleo/Guesty-backed snapshot and the property directory below it.
+- The snapshot covers booking activity (reservations, revenue, check-ins) for the selected time range, pulled live from Apaleo (most properties) and Guesty (LA Plaza).
+- The property directory covers static building facts (address, floor plans, amenities) across all cities — use it for questions like "what amenities does the Fashion District have" or "how many units do we have in Los Angeles," regardless of the selected time range or property filter.
+- Be concise, direct, and useful for leadership.
+- If the data is missing or sync is unavailable, say that clearly.
+- When useful, provide short recommendations or next steps.
+- You may draft professional guest or internal messages when asked.
+- Never invent figures, reservations, or property facts.
+- Only reveal Wi-Fi passwords or door codes when an "Access details" section is supplied above and the question asks for them. Never guess or fabricate a password or code. If the admin asks for access details but no "Access details" section is supplied, tell them to select a specific property in the property filter first.
+- If an "Access details" section includes a "Notes" line for the property, always state it in the same reply as the lock/door code, every time — it is operational usage guidance (e.g. what to do if the code is mistyped), not optional context. Never give a door/lock code without also giving its notes when notes are present.
+- If a "Security deposit" section is supplied above and the question asks about a deposit, state that exact amount and currency. Never guess or convert currency yourself. This is a separate, per-property figure from any general deposit policy you might otherwise assume — always prefer the supplied figure over general knowledge. If the admin asks about a deposit but no "Security deposit" section is supplied, tell them to select a specific property in the property filter first.
+- If a "Parking" section is supplied above and the question asks about parking, state whether the property has parking and, if it does, the exact space/level instructions supplied. Never guess or fabricate a space number. If you draft any message intended for a guest, only say parking is/isn't available — never include the specific space or level, that detail is admin-only.
+- For policy questions (cancellation, deposits, pets, check-in/out, house rules), answer from the "Official guest policies" and "Knowledge base" sections. If they conflict, the Official guest policies win. Never soften a policy (e.g. never say pets or refunds "vary" when the policy says otherwise).
+`.trim();
+
+  // OpenRouter first (free models with automatic fallbacks); OpenAI only as
+  // a last resort so one provider's outage or quota never takes the
+  // assistant down on its own.
+  let lastError = null;
+  if (openRouterKey) {
+    try {
+      const reply = await requestOpenRouterReply({ apiKey: openRouterKey, instructions, input });
+      if (reply) return reply;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (openAiKey) {
+    try {
+      const reply = await requestOpenAiReply({ apiKey: openAiKey, instructions, input });
+      if (reply) return reply;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) throw lastError;
+  return "";
 };
 
 export async function handler(event) {
@@ -1323,7 +1428,16 @@ export async function handler(event) {
       overviewText,
     });
 
+    let knowledgeRows = [];
     if (!answer) {
+      try {
+        knowledgeRows = await retrievePropertyKnowledge({ queryText: query });
+      } catch (knowledgeError) {
+        console.warn("[executive-ols-assistant] Knowledge base lookup failed", {
+          message: knowledgeError?.message || String(knowledgeError),
+        });
+      }
+
       try {
         answer = await createAssistantReply({
           query,
@@ -1332,6 +1446,7 @@ export async function handler(event) {
           accessSecretsText,
           depositText,
           parkingText,
+          knowledgeText: buildPropertyKnowledgeText(knowledgeRows),
         });
       } catch (error) {
         // Logged server-side only (see createAssistantReply) — never shown to
@@ -1343,7 +1458,7 @@ export async function handler(event) {
     }
 
     if (!answer) {
-      answer = buildFinalFallbackMessage(snapshot);
+      answer = buildKnowledgeFallbackAnswer(knowledgeRows) || buildFinalFallbackMessage(snapshot);
     }
 
     return jsonResponse(

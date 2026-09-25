@@ -10,14 +10,19 @@ import { buildAiCorsHeaders, verifyAiRequest } from "./_shared/aiProtection.js";
 import { calculateNights, roundMoney } from "./_shared/pricingService.js";
 import { PUBLIC_WEBSITE_URL } from "./_shared/http.js";
 import { resolveSecurityDeposit } from "./_shared/securityDepositService.js";
+import {
+  OPENROUTER_CHAT_URL as OPENAI_API_URL,
+  OPENROUTER_REFERER,
+  buildChatModelFields,
+  resolveChatModel,
+} from "./_shared/openRouterChat.js";
+import { buildPropertyKnowledgeText, retrievePropertyKnowledge } from "./_shared/propertyKnowledge.js";
 
 dotenv.config();
 
 // Chat/completions traffic now goes through OpenRouter (Chat Completions
 // format: "messages" in, "choices[0].message.content" out) instead of
 // OpenAI's Responses API. Embeddings are unaffected and still go to OpenAI.
-const OPENAI_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_REFERER = "https://oneluxstay.com";
 const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
 const MAX_MESSAGES = 10;
 const DEFAULT_MATCH_RPC = "match_document_sections";
@@ -33,23 +38,6 @@ const POLICY_CONTENT_TYPES = [
 ];
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
-
-// OpenRouter retires free model ids without notice (google/gemma-2-9b-it:free
-// and meta-llama/llama-3.1-8b-instruct:free both vanished), and an unknown id
-// fails every call, so all chat calls resolve their model from one place.
-// OpenRouter ids are "vendor/model"; a bare OpenAI-style value such as
-// "gpt-5-mini" left in OPENAI_CHAT_MODEL is ignored rather than sent.
-const DEFAULT_CHAT_MODEL = "qwen/qwen3.8-27b:free";
-// Tried in order by OpenRouter when the primary model is rate-limited or down.
-const FALLBACK_CHAT_MODELS = ["google/gemma-4-31b-it:free", "z-ai/glm-5.2:free"];
-const resolveChatModel = () => {
-  const configured = String(getEnv("OPENAI_CHAT_MODEL") || "").trim();
-  return configured.includes("/") ? configured : DEFAULT_CHAT_MODEL;
-};
-const buildChatModelFields = (model) => ({
-  model,
-  models: [model, ...FALLBACK_CHAT_MODELS.filter((fallback) => fallback !== model)],
-});
 
 const parseEnvBoolean = (value, fallback = false) => {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -2911,57 +2899,7 @@ const buildRetrievedPolicyText = (rows = []) =>
     )
     .join("\n\n");
 
-// property_knowledge is a small curated Q&A table (global, city and
-// property scoped rows), so it's fetched whole and ranked locally with the
-// same token scoring as the policy keyword fallback. Rows scoped to a
-// different city than the guest is asking about are dropped so an Antwerp
-// question never picks up Dubai answers.
-const retrievePropertyKnowledge = async ({ queryText = "", city = "", propertyKey = "", limit = 4 } = {}) => {
-  const tokens = tokenizeQuery(queryText);
-  if (!tokens.length) return [];
-
-  const rows = await supabaseRestRequest("property_knowledge", {
-    query: {
-      select: "scope,city,property_code,category,question,content",
-      limit: 500,
-    },
-  });
-
-  const targetCity = normalizeCityLabel(city);
-  const targetProperty = String(propertyKey || "").trim().toLowerCase();
-
-  return (Array.isArray(rows) ? rows : [])
-    .filter((row) => row?.content)
-    .filter((row) => !targetCity || !row.city || normalizeCityLabel(row.city) === targetCity)
-    .map((row) => {
-      let score = scoreSectionMatch({
-        text: `${row.category || ""} ${row.content}`,
-        title: row.question,
-        tokens,
-      });
-      if (score > 0 && targetProperty && String(row.property_code || "").toLowerCase() === targetProperty) {
-        score += 3;
-      }
-      return { row, score };
-    })
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(6, Number(limit) || 4)))
-    .map(({ row }) => row);
-};
-
-const buildPropertyKnowledgeText = (rows = []) =>
-  rows
-    .map((row) =>
-      [
-        `Scope: ${[row?.city, row?.property_code].filter(Boolean).join(" / ") || "All properties"}`,
-        `Q: ${sanitizeString(row?.question, 240)}`,
-        `A: ${sanitizeString(row?.content, 900)}`,
-      ].join("\n"),
-    )
-    .join("\n\n");
-
-const buildDeterministicPolicyReply =({ rows = [], question = "" }) => {
+const buildDeterministicPolicyReply = ({ rows = [], question = "" }) => {
   const normalizedQuestion = String(question || "").toLowerCase();
   const wantsCancellation = /\b(cancel|cancellation|refund)\b/.test(normalizedQuestion);
   const wantsCheckout = /\b(check[- ]?out|checkout|vacate)\b/.test(normalizedQuestion);
@@ -5902,6 +5840,7 @@ export async function handler(event) {
         queryText: latestPromptForIntent,
         city: normalizedPromptCity || normalizedPageContextCity || normalizedConversationCity,
         propertyKey: pageContext?.propertyKey,
+        normalizeCity: normalizeCityLabel,
       });
       propertyKnowledgeText = buildPropertyKnowledgeText(knowledgeRows);
     } catch (knowledgeError) {
