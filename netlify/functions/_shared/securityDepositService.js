@@ -116,7 +116,21 @@ const parseRule = (row = {}) => {
   };
 };
 
-const getSecurityDepositRules = async () => {
+// listings.js resolves deposits for ~200 listings with Promise.all; without
+// sharing the in-flight request, every one of them misses the (not yet
+// filled) cache and fires its own identical Supabase query — hundreds of
+// parallel requests that pushed /listings to ~30s and timed out the chat.
+const getSecurityDepositRules = () => {
+  const pending = globalThis.__olsSecurityDepositRulesPending;
+  if (pending) return pending;
+  const request = loadSecurityDepositRules().finally(() => {
+    globalThis.__olsSecurityDepositRulesPending = null;
+  });
+  globalThis.__olsSecurityDepositRulesPending = request;
+  return request;
+};
+
+const loadSecurityDepositRules = async () => {
   const now = Date.now();
   const cache = globalThis.__olsSecurityDepositRulesCache;
   if (

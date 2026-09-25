@@ -3101,7 +3101,7 @@ const fetchAvailableListingsForDates = async ({
   const listingsLookup = await fetchFunctionJson({
     event,
     path: "/listings?limit=200",
-    timeoutMs: 20_000,
+    timeoutMs: 12_000,
   });
   const base = listingsLookup.base;
   const listingsPayload = listingsLookup.payload || {};
@@ -3406,7 +3406,7 @@ const fetchAvailableDatesForMonth = async ({
   const listingsLookup = await fetchFunctionJson({
     event,
     path: "/listings?limit=200",
-    timeoutMs: 20_000,
+    timeoutMs: 12_000,
   });
   const base = listingsLookup.base;
   const listingsPayload = listingsLookup.payload || {};
@@ -5712,7 +5712,9 @@ export async function handler(event) {
           tool: CHAT_TOOLS.availability_lookup,
           reply:
             "I had trouble reaching live availability right now. Please try again in a moment. If this keeps happening, contact reservations@oneluxstay.com and we'll confirm dates manually.",
-          smarten: true,
+          // Sent as-is: this path is already late, and another AI round trip
+          // here is what pushed the request past Netlify's function timeout.
+          smarten: false,
         });
       }
     }
