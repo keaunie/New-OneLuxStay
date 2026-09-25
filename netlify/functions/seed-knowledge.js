@@ -275,7 +275,7 @@ const buildPropertyFaqDoc = () => {
       key: "pets",
       title: "Pet Policy",
       content:
-        "Pet policies vary by property. Some One Lux Stay units are pet-friendly. Guests should contact the team before booking to confirm whether their specific unit accepts pets.",
+        "Pets are generally not permitted at One Lux Stay properties unless the specific listing explicitly states otherwise. Guests traveling with a service animal should inform the team before booking.",
     },
     {
       key: "smoking",
@@ -287,7 +287,7 @@ const buildPropertyFaqDoc = () => {
       key: "cancellation",
       title: "Cancellation Policy",
       content:
-        "Cancellation policies vary by booking type and dates. The applicable policy is shown clearly during checkout before payment. Guests can also contact reservations@oneluxstay.com for clarification on their specific reservation.",
+        "One Lux Stay has a strict cancellation policy. There is a 1-hour grace period after booking. After that: cancelling 31 or more days before arrival is charged 50% of the total price; 15-30 days before arrival is charged 75%; within 14 days of arrival is charged 100% (no refund). Non-refundable rates are charged 100% if cancelled. Guests can contact reservations@oneluxstay.com about their specific reservation.",
     },
     {
       key: "checkin-process",
