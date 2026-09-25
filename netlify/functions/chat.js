@@ -1052,6 +1052,29 @@ const extractDatesFromText = (text = "") => {
     push(toIsoDate(year, month, day), dayMonthMatch.index, 3);
   }
 
+  // Month boundaries without a day number: "until end of September",
+  // "start of October", "mid-October", "end of the month", "end of next month".
+  const monthBoundaryRegex = new RegExp(
+    `\\b(end|start|beginning|middle|mid)(?:\\s+of)?[\\s-]+(?:the\\s+)?(?:${MONTH_NAME_PATTERN}\\b(?:\\s+(20\\d{2}))?|(this|next)\\s+month\\b|month\\b)`,
+    "gi",
+  );
+  let boundaryMatch;
+  while ((boundaryMatch = monthBoundaryRegex.exec(source)) !== null) {
+    const position = String(boundaryMatch[1] || "").toLowerCase();
+    let month = monthToNumber(boundaryMatch[2] || "");
+    let year;
+    if (month) {
+      year = inferYearForMonthOnly({ month, explicitYear: boundaryMatch[3] || "", now });
+    } else {
+      const base = new Date(now.getFullYear(), now.getMonth() + (/next/i.test(boundaryMatch[4] || "") ? 1 : 0), 1);
+      month = base.getMonth() + 1;
+      year = base.getFullYear();
+    }
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const day = position === "end" ? lastDay : position === "middle" || position === "mid" ? 15 : 1;
+    push(toIsoDate(year, month, day), boundaryMatch.index, 3);
+  }
+
   matches
     .sort((a, b) => {
       if (a.index !== b.index) return a.index - b.index;
@@ -1093,6 +1116,21 @@ const extractDateRange = ({ prompt = "", search = "" }) => {
     const checkIn = fromPrompt[0];
     const checkOut = fromPrompt[1];
     if (checkIn < checkOut) return { checkIn, checkOut };
+  }
+
+  // One date plus a length of stay: "today for 3 nights", "Friday for a week".
+  if (fromPrompt.length === 1) {
+    const durationMatch = source.match(
+      /\bfor\s+(\d{1,2}|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+(nights?|days?|weeks?)\b/i,
+    );
+    if (durationMatch) {
+      const words = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+      const amount = Number(durationMatch[1]) || words[durationMatch[1].toLowerCase()] || 0;
+      const nights = /^week/i.test(durationMatch[2]) ? amount * 7 : amount;
+      const checkIn = fromPrompt[0];
+      const checkOut = toIsoFromLocalDate(addDays(new Date(`${checkIn}T12:00:00`), nights));
+      if (nights > 0 && isValidIsoDate(checkOut) && checkIn < checkOut) return { checkIn, checkOut };
+    }
   }
 
   try {
