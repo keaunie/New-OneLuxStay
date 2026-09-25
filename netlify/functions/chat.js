@@ -34,6 +34,23 @@ const POLICY_CONTENT_TYPES = [
 
 const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name);
 
+// OpenRouter retires free model ids without notice (google/gemma-2-9b-it:free
+// and meta-llama/llama-3.1-8b-instruct:free both vanished), and an unknown id
+// fails every call, so all chat calls resolve their model from one place.
+// OpenRouter ids are "vendor/model"; a bare OpenAI-style value such as
+// "gpt-5-mini" left in OPENAI_CHAT_MODEL is ignored rather than sent.
+const DEFAULT_CHAT_MODEL = "qwen/qwen3.8-27b:free";
+// Tried in order by OpenRouter when the primary model is rate-limited or down.
+const FALLBACK_CHAT_MODELS = ["google/gemma-4-31b-it:free", "z-ai/glm-5.2:free"];
+const resolveChatModel = () => {
+  const configured = String(getEnv("OPENAI_CHAT_MODEL") || "").trim();
+  return configured.includes("/") ? configured : DEFAULT_CHAT_MODEL;
+};
+const buildChatModelFields = (model) => ({
+  model,
+  models: [model, ...FALLBACK_CHAT_MODELS.filter((fallback) => fallback !== model)],
+});
+
 const parseEnvBoolean = (value, fallback = false) => {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (!normalized) return fallback;
@@ -2069,7 +2086,7 @@ const detectPrimaryIntent = ({
 
 const buildSmartToolReply = async ({
   apiKey = "",
-  model = getEnv("OPENAI_CHAT_MODEL") || "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   latestUserMessage,
   languageProfile,
   intent = "",
@@ -2090,7 +2107,7 @@ const buildSmartToolReply = async ({
           "HTTP-Referer": OPENROUTER_REFERER,
         },
         body: JSON.stringify({
-          model,
+          ...buildChatModelFields(model),
           max_tokens: 500,
           messages: [
             {
@@ -2124,7 +2141,7 @@ const buildSmartToolReply = async ({
 
 const localizeGuestVisibleContent = async ({
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   latestUserMessage,
   languageProfile,
   reply = "",
@@ -2154,7 +2171,7 @@ const localizeGuestVisibleContent = async ({
         "HTTP-Referer": OPENROUTER_REFERER,
       },
       body: JSON.stringify({
-        model,
+        ...buildChatModelFields(model),
         max_tokens: 900,
         messages: [
           {
@@ -2210,7 +2227,7 @@ const localizeGuestVisibleContent = async ({
 const respondWithGuestPayload = async ({
   event,
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   latestUserMessage,
   languageProfile,
   reply = "",
@@ -2253,7 +2270,7 @@ const respondWithGuestPayload = async ({
 const respondWithIntentPayload = async ({
   event,
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   latestUserMessage,
   languageProfile,
   intent = CHAT_INTENTS.general_gpt,
@@ -2312,7 +2329,7 @@ const fallbackResponse = async ({
   sentimentLessons = [],
   languageProfile,
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
 }) => {
   const locale = sanitizeString(languageProfile?.code || "", 12).toLowerCase();
   const skipLocalization = locale === "ar" || locale === "nl" || locale === "fr" || locale === "ja";
@@ -2408,7 +2425,7 @@ const countPreviousMatchingUserMessages = ({ messages = [], latestUserMessage } 
 
 const buildFallbackRescueReply = async ({
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   latestUserMessage,
   pageContext = {},
   messages = [],
@@ -2552,7 +2569,7 @@ const buildFallbackOrAttentionResponse = async ({
   reply = "",
   languageProfile,
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   conciergeKnowledge,
 }) => {
   const repeatedGuestMessageCount = countPreviousMatchingUserMessages({ messages, latestUserMessage });
@@ -2674,7 +2691,7 @@ const extractOutputText = (payload) => {
 
 const requestSimpleGuestReply = async ({
   apiKey = "",
-  model = "google/gemma-2-9b-it:free",
+  model = resolveChatModel(),
   instructions = "",
   input = "",
   maxOutputTokens = 400,
@@ -2693,7 +2710,7 @@ const requestSimpleGuestReply = async ({
           "HTTP-Referer": OPENROUTER_REFERER,
         },
         body: JSON.stringify({
-          model,
+          ...buildChatModelFields(model),
           max_tokens: maxOutputTokens,
           messages: [
             ...(instructions ? [{ role: "system", content: instructions }] : []),
@@ -4345,7 +4362,7 @@ const parseJsonObjectFromText = (value = "") => {
   }
 };
 
-const translatePromptToEnglish = async ({ apiKey = "", model = "google/gemma-2-9b-it:free", text = "" } = {}) => {
+const translatePromptToEnglish = async ({ apiKey = "", model = resolveChatModel(), text = "" } = {}) => {
   const prompt = sanitizeString(text, 900);
   if (!apiKey || !prompt) return prompt;
 
@@ -4360,7 +4377,7 @@ const translatePromptToEnglish = async ({ apiKey = "", model = "google/gemma-2-9
           "HTTP-Referer": OPENROUTER_REFERER,
         },
         body: JSON.stringify({
-          model,
+          ...buildChatModelFields(model),
           max_tokens: 160,
           messages: [
             {
@@ -4907,7 +4924,7 @@ export async function handler(event) {
   const sentimentLearningText = buildSentimentLearningText(sentimentLessons);
 
   const apiKey = getEnv("OPENROUTER_API_KEY");
-  const model = getEnv("OPENAI_CHAT_MODEL") || "google/gemma-2-9b-it:free";
+  const model = resolveChatModel();
   // Embeddings still go straight to OpenAI (see OPENAI_EMBEDDINGS_URL), so
   // they need the original OpenAI key, not the OpenRouter one `apiKey` now
   // holds — a shared key here would 401 every embedding call.
@@ -5901,7 +5918,7 @@ export async function handler(event) {
         "HTTP-Referer": OPENROUTER_REFERER,
       },
       body: JSON.stringify({
-        model,
+        ...buildChatModelFields(model),
         max_tokens: 900,
         messages: [
           {
