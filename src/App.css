@@ -20190,3 +20190,13 @@ a[href="#redondo-city-tour"],
     grid-template-columns: 1fr;
   }
 }
+
+.dubai-pool-banner {
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #7a4b2a;
+  background: linear-gradient(145deg, rgba(255, 248, 235, 0.98), rgba(248, 229, 198, 0.9));
+  border-bottom: 1px solid rgba(223, 169, 104, 0.55);
+}

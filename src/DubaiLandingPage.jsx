@@ -2343,6 +2343,12 @@ const GOOGLE_REVIEW_LINKS = {
   "dubai-business": "",
   "dubai-palm": "",
 };
+// Building pool closed for maintenance (notice from building management).
+const DUBAI_POOL_CLOSED_UNTIL = new Date("2026-11-16T00:00:00+04:00");
+const isDubaiPoolClosurePeriod = () => Date.now() < DUBAI_POOL_CLOSED_UNTIL.getTime();
+const isDubaiPoolClosed = (listing) =>
+  Boolean(listing) && isDubaiPoolClosurePeriod() && /dubai/i.test(formatAddress(listing) || "");
+
 const HOLLYWOOD_FACILITIES = [
   "Rooftop pool",
   "Valet parking",
@@ -7428,6 +7434,13 @@ const applyCheckoutPromoCode = () => {
             <p>Great facilities. Review score, 9.6</p>
           </div>
         </div>
+        {isDubaiPoolClosed(activeListing) && (
+          <div className="la-section-hero__notice" role="status">
+            <strong>Swimming pool maintenance notice:</strong> the building swimming pool is closed for
+            maintenance from 1 October 2026 to 15 November 2026. All other amenities, including the gym,
+            remain available as usual.
+          </div>
+        )}
         <div className="la-unit-modal__facilities">
           {activeListing?.amenities?.length ? (() => {
             const allGroups = groupAmenities(activeListing.amenities);
@@ -8507,6 +8520,12 @@ const applyCheckoutPromoCode = () => {
           </div>
         </div>
       </section> */}
+      {isDubaiPoolClosurePeriod() && (
+        <div className="dubai-pool-banner" role="status">
+          <strong>Swimming pool maintenance notice:</strong> the building swimming pool is closed from 1 October
+          2026 to 15 November 2026. All other amenities, including the gym, remain available as usual.
+        </div>
+      )}
       <section
         className="city-search-shell city-search-shell--dubai"
         aria-label="Search Dubai stays"

@@ -59,6 +59,7 @@ export const conciergeKnowledge = {
         "Dubai's peak season runs October through April — book ahead for the best availability.",
         "Properties offer easy access to Dubai Marina, Downtown, DIFC, and Palm Jumeirah.",
         "Popular for guests combining business in Dubai with leisure travel in the region.",
+        "Dubai building swimming pool is closed for maintenance from 1 October 2026 to 15 November 2026. All other amenities, including the gym, remain available as usual.",
       ],
     },
   ],
