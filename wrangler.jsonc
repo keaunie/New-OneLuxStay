@@ -4,5 +4,12 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
-  }
+  },
+  // Serve the public site from Cloudflare. Attaching a custom domain only works once
+  // the hostname has no existing DNS record in the Cloudflare zone (delete the old
+  // A/AAAA/CNAME records for the apex and www first; email MX/TXT records are separate).
+  "routes": [
+    { "pattern": "oneluxstay.com", "custom_domain": true },
+    { "pattern": "www.oneluxstay.com", "custom_domain": true }
+  ]
 }

@@ -4862,7 +4862,13 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
   // truth — and returns false whenever it can't produce data (missing
   // mapping, or any other failure), so the caller always has a Guesty
   // fallback to reach for instead of showing a dead end.
-  const fetchSectionApaleoCalendarMonth = async (listingId, targetDate, cacheKeyBase, primaryId, { force = false } = {}) => {
+  const fetchSectionApaleoCalendarMonth = async (
+    listingId,
+    targetDate,
+    cacheKeyBase,
+    primaryId,
+    { force = false, listingIds = [] } = {}
+  ) => {
     if (!listingId) return false;
     const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
     const rangeEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 2, 0);
@@ -4878,22 +4884,45 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     setSectionCalendarLoading(true);
     setSectionCalendarError("");
     try {
-      const query = new URLSearchParams({
-        localPropertyId: listingId,
-        startDate: toISODate(monthStart),
-        endDate: toISODate(rangeEnd),
-        adults: String(Math.max(1, Number(sectionGuests) || 1)),
-      });
-      const response = await fetch(`${apiBase}/api-booking-calendar?${query}`, { cache: "no-store" });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (payload?.code === "APALEO_MAPPING_MISSING") return false;
-        throw new Error(payload?.message || "Unable to load Apaleo calendar availability.");
+      // Ask Apaleo about every unit in the section, not just the primary one: a section
+      // is a group of units, and its primary unit can be fully booked while others are
+      // open. A date is open if any unit is open, priced at the cheapest open unit.
+      const calendarIds = [
+        ...new Set([listingId, ...(Array.isArray(listingIds) ? listingIds : [])].map(toLookupKey).filter(Boolean)),
+      ];
+      const results = await Promise.all(
+        calendarIds.map(async (id) => {
+          try {
+            const query = new URLSearchParams({
+              localPropertyId: id,
+              startDate: toISODate(monthStart),
+              endDate: toISODate(rangeEnd),
+              adults: String(Math.max(1, Number(sectionGuests) || 1)),
+            });
+            const response = await fetch(`${apiBase}/api-booking-calendar?${query}`, { cache: "no-store" });
+            const payload = await response.json().catch(() => ({}));
+            return { ok: response.ok, payload };
+          } catch {
+            return { ok: false, payload: {} };
+          }
+        })
+      );
+      const okResults = results.filter((result) => result.ok);
+      if (!okResults.length) {
+        if (results.every((result) => result.payload?.code === "APALEO_MAPPING_MISSING")) return false;
+        throw new Error(results[0]?.payload?.message || "Unable to load Apaleo calendar availability.");
       }
 
+      const sectionAvailability = {};
+      okResults.forEach(({ payload }) => {
+        Object.entries(payload?.availability || {}).forEach(([date, isOpen]) => {
+          if (isOpen) sectionAvailability[date] = true;
+          else if (!(date in sectionAvailability)) sectionAvailability[date] = false;
+        });
+      });
       const mergedAvailability = {
         ...(sectionCalendarAvailabilityRef.current[cacheKeyBase] || {}),
-        ...(payload?.availability || {}),
+        ...sectionAvailability,
       };
       sectionCalendarAvailabilityRef.current[cacheKeyBase] = mergedAvailability;
       if (primaryId && primaryId !== cacheKeyBase) {
@@ -4901,11 +4930,25 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       }
       setSectionCalendarAvailability(mergedAvailability);
 
-      const normalizedDays = Array.isArray(payload?.days) ? payload.days.filter((day) => day?.date) : [];
       const dayMap = { ...(sectionCalendarDaysRef.current[cacheKeyBase] || {}) };
-      normalizedDays.forEach((day) => {
-        dayMap[day.date] = day;
+      const freshDates = {};
+      okResults.forEach(({ payload }) => {
+        (Array.isArray(payload?.days) ? payload.days : [])
+          .filter((day) => day?.date)
+          .forEach((day) => {
+            const current = freshDates[day.date];
+            const dayPrice = Number(day.price);
+            const currentPrice = Number(current?.price);
+            const isBetter =
+              !current ||
+              (day.available && !current.available) ||
+              (Boolean(day.available) === Boolean(current.available) &&
+                Number.isFinite(dayPrice) &&
+                (!Number.isFinite(currentPrice) || dayPrice < currentPrice));
+            if (isBetter) freshDates[day.date] = day;
+          });
       });
+      Object.assign(dayMap, freshDates);
       sectionCalendarDaysRef.current[cacheKeyBase] = dayMap;
       if (primaryId && primaryId !== cacheKeyBase) {
         sectionCalendarDaysRef.current[primaryId] = dayMap;
@@ -4933,7 +4976,10 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     const cacheKeyBase = sectionCalendarKey || primaryId;
     if (!cacheKeyBase) return;
 
-    const apaleoHandled = await fetchSectionApaleoCalendarMonth(primaryId, targetDate, cacheKeyBase, primaryId, { force });
+    const apaleoHandled = await fetchSectionApaleoCalendarMonth(primaryId, targetDate, cacheKeyBase, primaryId, {
+      force,
+      listingIds: normalizedListingIds,
+    });
     if (apaleoHandled) return;
 
     const key = `${cacheKeyBase}-${monthKey(targetDate)}`;
