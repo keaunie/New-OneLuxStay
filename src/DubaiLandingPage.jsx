@@ -970,6 +970,98 @@ const getApaleoCityCalendarAvailability = async (listingIds, { startDate, endDat
   return { availabilityByDate, unresolvedIds };
 };
 
+// Card prices for Apaleo-mapped units. Guesty's quote endpoint has no inventory for
+// these units (its calendar reports every day unavailable), so a card that depends on
+// it never leaves "Checking price...". Ask Apaleo instead: for the visitor's dates when
+// they picked some, otherwise for the first run of open nights Apaleo's calendar shows
+// (a one-night stay starting today usually has no offer because of minimum stays).
+const APALEO_CARD_PROBE_NIGHTS = [3, 2];
+
+const getApaleoCardRate = async (listingId, { checkIn, checkOut, guests, hasSelectedDates } = {}) => {
+  const id = toLookupKey(listingId);
+  if (!id) return null;
+  const adults = String(Math.max(1, Number(guests) || 1));
+
+  const fetchBestOffer = async (arrival, departure) => {
+    try {
+      const params = new URLSearchParams({ localPropertyId: id, arrival, departure, adults });
+      const response = await fetch(`${apiBase}/api-booking-offers?${params}`, { cache: "no-store" });
+      if (!response.ok) return null;
+      const payload = await response.json().catch(() => ({}));
+      const offers = Array.isArray(payload?.offers) ? payload.offers : [];
+      let best = null;
+      offers.forEach((offer) => {
+        const total = Number(offer?.totalGrossAmount?.amount);
+        if (!Number.isFinite(total) || total <= 0) return;
+        if (!best || total < best.total) {
+          best = { total, currency: offer?.totalGrossAmount?.currency || "AED" };
+        }
+      });
+      return best;
+    } catch {
+      return null;
+    }
+  };
+
+  const toRate = (offer, arrival, departure) => {
+    const nights = diffNights(arrival, departure);
+    if (!offer || !nights) return null;
+    return {
+      nightly: offer.total / nights,
+      total: hasSelectedDates ? offer.total : null,
+      nights,
+      currency: offer.currency,
+    };
+  };
+
+  if (hasSelectedDates && checkIn && checkOut) {
+    return toRate(await fetchBestOffer(checkIn, checkOut), checkIn, checkOut);
+  }
+
+  try {
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from.getTime() + MAX_APALEO_CALENDAR_DAYS * 86_400_000);
+    const params = new URLSearchParams({
+      localPropertyId: id,
+      startDate: toISODate(from),
+      endDate: toISODate(to),
+      adults,
+    });
+    const response = await fetch(`${apiBase}/api-booking-calendar?${params}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload = await response.json().catch(() => ({}));
+    const openDates = Object.entries(payload?.availability || {})
+      .filter(([, open]) => open === true)
+      .map(([date]) => date)
+      .sort();
+    if (!openDates.length) return { unavailable: true };
+    const openSet = new Set(openDates);
+    for (const date of openDates) {
+      for (const nights of APALEO_CARD_PROBE_NIGHTS) {
+        let runIsOpen = true;
+        for (let step = 0; step < nights; step += 1) {
+          const day = new Date(`${date}T00:00:00`);
+          day.setDate(day.getDate() + step);
+          if (!openSet.has(toISODate(day))) {
+            runIsOpen = false;
+            break;
+          }
+        }
+        if (!runIsOpen) continue;
+        const departureDate = new Date(`${date}T00:00:00`);
+        departureDate.setDate(departureDate.getDate() + nights);
+        const departure = toISODate(departureDate);
+        const rate = toRate(await fetchBestOffer(date, departure), date, departure);
+        if (rate) return rate;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
 const getLowestPriceListing = (listings = []) => {
   let best = null;
   let bestPrice = null;
@@ -3788,6 +3880,28 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
             };
           }
         });
+        // Units Guesty could not quote (it has no inventory for Apaleo-mapped units) get
+        // their price from Apaleo instead of staying on "Checking price...".
+        const unquoted = requests.filter(
+          (entry) => entry.displayListingId && !nextRates[entry.displayListingId]
+        );
+        if (unquoted.length) {
+          const hasSelectedDates = Boolean(parsedCheckIn && parsedCheckOut && parsedCheckOut > parsedCheckIn);
+          const apaleoRates = await Promise.all(
+            unquoted.map((entry) =>
+              getApaleoCardRate(entry.displayListingId, {
+                checkIn: quoteCheckIn,
+                checkOut: quoteCheckOut,
+                guests: Number(sectionGuests) || 1,
+                hasSelectedDates,
+              })
+            )
+          );
+          unquoted.forEach((entry, index) => {
+            if (apaleoRates[index]) nextRates[entry.displayListingId] = apaleoRates[index];
+          });
+        }
+        if (!active) return;
         setCardQuoteRates(nextRates);
       } catch {
         if (active) setCardQuoteRates({});
@@ -3870,7 +3984,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
         ? `${formatCurrency(priceValue, displayCurrency)}${
             canShowStayTotal ? " total" : typeof quotedTotal === "number" ? " avg/night" : " / night"
           }`
-        : "Checking price...";
+        : quoteRateEntry?.unavailable
+          ? "Contact us for rates"
+          : "Checking price...";
     const bedrooms = getListingBedrooms(listing);
     const bathrooms = firstNumber(listing?.bathrooms);
     const areaSqft = firstNumber(listing?.squareFeet, listing?.area, listing?.size?.value);
@@ -8906,7 +9022,9 @@ const applyCheckoutPromoCode = () => {
                       ? `${formatCurrency(stayTotal, displayCurrency)} total`
                       : typeof dailyRate === "number"
                         ? `${formatCurrency(dailyRate, displayCurrency)} ${nightlyPriceLabel}`
-                        : "Checking price...";
+                        : quoteRateEntry?.unavailable
+                          ? "Contact us for rates"
+                          : "Checking price...";
                     const priceSub = canShowStayTotal
                       ? `${formatCurrency(dailyRate, displayCurrency)} ${nightlyPriceLabel} | ${stayNights} ${stayNights === 1 ? "night" : "nights"}`
                       : "";
