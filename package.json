@@ -10,6 +10,7 @@
 		"start": "npm run preview -- --host --port 4173",
 		"sitemap:generate": "node scripts/generate-sitemap.js",
 		"build": "npm run sitemap:generate && vite build && node -e \"require('fs').copyFileSync('public/.htaccess','dist/.htaccess')\"",
+		"deploy:cloudflare": "npm run build && node -e \"require('fs').rmSync('dist/_redirects',{force:true})\" && npx wrangler deploy",
 		"lint": "eslint .",
 		"test:apaleo": "node --test tests/apaleo-booking.test.js",
 		"preview": "vite preview",
