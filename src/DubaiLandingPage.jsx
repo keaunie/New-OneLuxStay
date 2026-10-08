@@ -3210,6 +3210,12 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
       Object.entries(calendarAvailability || {}).filter(([, value]) => typeof value === "boolean")
     )
   ), [calendarAvailability]);
+  // Apaleo answered for the months shown and not a single night is open (for example the
+  // unit is blocked by the team). Say so, instead of leaving an unexplained grey calendar.
+  const listingHasNoOpenDates = useMemo(() => {
+    if (calendarAvailabilityMap.size < 28) return false;
+    return ![...calendarAvailabilityMap.values()].some(Boolean);
+  }, [calendarAvailabilityMap]);
 
 
   const calendarCurrentMonth = useMemo(() => {
@@ -7222,6 +7228,12 @@ const applyCheckoutPromoCode = () => {
                   </small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
+                {listingHasNoOpenDates && (
+                  <p className="la-section-hero__notice" role="status">
+                    This residence has no open dates at the moment. Please contact us and we&rsquo;ll help
+                    you find the right stay, or choose another residence.
+                  </p>
+                )}
                 <DateRangePicker
                   value={{ checkIn: sectionCheckIn, checkOut: sectionCheckOut }}
                   dayPrices={calendarDayMap}
