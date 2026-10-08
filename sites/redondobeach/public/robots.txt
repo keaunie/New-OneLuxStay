@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://redondobeach.oneluxstay.com/sitemap.xml
