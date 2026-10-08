@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import apiBase from "./utils/apiBase";
-import { submitApaleoPaymentDetails, getApaleoBookingConfirmation } from "./services/apaleoBookingApi";
+import { submitApaleoPaymentDetails, getApaleoBookingConfirmation, completeApaleoStripeBooking } from "./services/apaleoBookingApi";
 
 const formatCurrency = (value, currency = "USD") => {
   const numeric = Number(value);
@@ -67,18 +67,25 @@ const BookingConfirmationPage = () => {
   // Adyen's standard param for resuming a redirect payment.
   const bookingSessionId = params.get("bookingSessionId") || "";
   const redirectResult = params.get("redirectResult") || "";
-  const [apaleoStatus, setApaleoStatus] = useState(bookingSessionId ? "finalizing" : "");
+  // Stripe (Dubai): Stripe sends the guest back with the Checkout Session id once their card
+  // is saved; the server verifies it with Stripe and then creates the Apaleo reservation.
+  const stripeSessionId = params.get("stripe_session_id") || "";
+  const stripeCancelled = params.get("provider") === "stripe" && params.get("cancelled") === "1";
+  const [apaleoStatus, setApaleoStatus] = useState(bookingSessionId && !stripeCancelled ? "finalizing" : "");
   const [apaleoConfirmation, setApaleoConfirmation] = useState(null);
   const [apaleoError, setApaleoError] = useState("");
 
   useEffect(() => {
-    if (!bookingSessionId) return;
+    if (!bookingSessionId || stripeCancelled) return;
     let cancelled = false;
 
     const finalizeApaleoBooking = async () => {
       try {
         if (redirectResult) {
           await submitApaleoPaymentDetails({ bookingSessionId, details: { redirectResult } });
+        }
+        if (stripeSessionId) {
+          await completeApaleoStripeBooking({ bookingSessionId, checkoutSessionId: stripeSessionId });
         }
         const deadline = Date.now() + 20_000;
         let result = null;
@@ -111,7 +118,7 @@ const BookingConfirmationPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [bookingSessionId, redirectResult]);
+  }, [bookingSessionId, redirectResult, stripeSessionId]);
 
   useEffect(() => {
     if (checkoutState !== "success" || !sessionId) return;
@@ -179,10 +186,15 @@ const BookingConfirmationPage = () => {
         <div className="ack-card">
           <header className="ack-card__header">
             <p className="ack-card__kicker">OneLuxStay</p>
-            <h1>{apaleoStatus === "confirmed" ? "Thank You" : "Almost there"}</h1>
+            <h1>{apaleoStatus === "confirmed" ? "Thank You" : stripeCancelled ? "Booking not completed" : "Almost there"}</h1>
           </header>
           {apaleoStatus === "finalizing" && (
-            <div className="ack-success"><p>Finalizing your payment and booking. Please wait…</p></div>
+            <div className="ack-success"><p>{stripeSessionId ? "Confirming your booking. Please wait…" : "Finalizing your payment and booking. Please wait…"}</p></div>
+          )}
+          {stripeCancelled && (
+            <div className="ack-success">
+              <p>Your card was not saved, so your booking has not been made. You can go back and try again whenever you&rsquo;re ready.</p>
+            </div>
           )}
           {apaleoStatus === "confirmed" && (
             <div className="ack-details">
@@ -196,7 +208,9 @@ const BookingConfirmationPage = () => {
           )}
           {apaleoStatus === "pending" && (
             <div className="ack-success">
-              <p>Your payment is being processed. We&rsquo;ll email your confirmation shortly — please contact us if you don&rsquo;t hear back within a few minutes.</p>
+              <p>{stripeSessionId
+                ? "Your card was saved and we’re finishing your booking. We’ll email your confirmation shortly — please contact us if you don’t hear back within a few minutes."
+                : "Your payment is being processed. We’ll email your confirmation shortly — please contact us if you don’t hear back within a few minutes."}</p>
             </div>
           )}
           {apaleoStatus === "error" && (

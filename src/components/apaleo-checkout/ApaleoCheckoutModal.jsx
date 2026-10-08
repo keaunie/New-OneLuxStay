@@ -3,6 +3,7 @@ import Stepper, { Step } from "../Stepper";
 import useApaleoBookingFlow, { BOOKING_PHASE } from "../../hooks/useApaleoBookingFlow";
 import DateOfferSearch from "./DateOfferSearch";
 import AdyenPaymentPanel from "./AdyenPaymentPanel";
+import StripePaymentPanel from "./StripePaymentPanel";
 import { COUNTRIES } from "../../utils/countries";
 import { PAYMENTS_DISABLED, PAYMENTS_DISABLED_CONTACT } from "../../config/paymentsConfig";
 
@@ -369,7 +370,15 @@ export default function ApaleoCheckoutModal({
                 </button>
               </div>
             ) : (
-              flow.paymentMethodsConfig ? <AdyenPaymentPanel flow={flow} onAuthorized={handlePaymentAuthorized} onDeclined={() => {}} /> :
+              flow.paymentMethodsConfig?.provider === "stripe" ? (
+                <StripePaymentPanel
+                  flow={flow}
+                  guest={guest}
+                  listingTitle={listingTitle}
+                  buildConsent={buildConsentPayload}
+                  disabled={flow.phase === BOOKING_PHASE.CONFIRMING}
+                />
+              ) : flow.paymentMethodsConfig ? <AdyenPaymentPanel flow={flow} onAuthorized={handlePaymentAuthorized} onDeclined={() => {}} /> :
                 <p className="apaleo-checkout-modal__hint">Loading secure payment methods…</p>
             )}
             {flow.error && <p className="apaleo-checkout-modal__error">{flow.error.message}</p>}

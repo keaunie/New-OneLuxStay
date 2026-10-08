@@ -1893,6 +1893,26 @@ export async function handler(event) {
     });
   }
 
+  // Apaleo booking-engine bookings that saved a card through Stripe (e.g. Dubai). These
+  // carry our booking session id and are finished here even if the guest never returned.
+  if (stripeEvent.type === "checkout.session.completed" && stripeEvent.data?.object?.metadata?.apaleoBookingSessionId) {
+    try {
+      const { completeStripeSetupBooking } = await import("./_shared/stripeBookingService.js");
+      const object = stripeEvent.data.object;
+      const result = await completeStripeSetupBooking({
+        bookingSessionId: object.metadata.apaleoBookingSessionId,
+        checkoutSessionId: object.id,
+      });
+      return jsonResponse(result.status < 300 ? 200 : 202, { received: true, apaleo: true, status: result.status });
+    } catch (error) {
+      console.error("[stripe-webhook] Apaleo Stripe booking completion failed", {
+        bookingSessionId: stripeEvent.data?.object?.metadata?.apaleoBookingSessionId, message: error?.message,
+      });
+      // 500 lets Stripe retry; the booking is idempotent so a retry is safe.
+      return jsonResponse(500, { received: false, message: error?.message || "Booking completion failed" });
+    }
+  }
+
   const handledTypes = new Set([
     "checkout.session.completed",
     "checkout.session.async_payment_succeeded",

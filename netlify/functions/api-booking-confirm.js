@@ -117,20 +117,30 @@ export async function handler(event) {
       return jsonResponse(400, { message: "A complete guest address and two-letter country code are required" });
     }
     const paymentMetadata = session.payment_metadata || {};
+    const isStripeCard = session.payment_provider === "stripe";
+    if (isStripeCard && session.guarantee_type === "CreditCard") {
+      // A saved Stripe card cannot be passed to Apaleo as a card guarantee.
+      return jsonResponse(409, { message: "This rate needs a card guarantee that Stripe cannot provide", code: "STRIPE_GUARANTEE_UNSUPPORTED" });
+    }
+    const stripeCard = isStripeCard ? paymentMetadata.stripe || {} : null;
     const reservation = {
       arrival: session.arrival, departure: session.departure, adults: session.adults,
       ...(session.children_ages?.length ? { childrenAges: session.children_ages } : {}),
       channelCode: "Ibe", primaryGuest, guaranteeType: session.guarantee_type,
       timeSlices: Array.from({ length: nightCount(session.arrival, session.departure) }, () => ({ ratePlanId: session.rate_plan_id })),
       ...(session.selected_services?.length ? { services: session.selected_services.map((service) => ({ serviceId: service.serviceId })) } : {}),
+      ...(stripeCard?.paymentMethodId ? {
+        // IDs only, never card numbers: lets the team find the saved card in Stripe.
+        comment: clean(`Card saved in Stripe (not charged). Customer ${stripeCard.customerId} / payment method ${stripeCard.paymentMethodId}`, 500),
+      } : {}),
       ...(session.guarantee_type === "Prepayment" ? {
         prePaymentAmount: { amount: minorToMajor(session.prepayment_minor, session.currency), currency: session.currency },
       } : {}),
     };
     const bookingRequest = {
       booker: { ...primaryGuest, address }, reservations: [reservation],
-      ...(session.guarantee_type === "Prepayment" && session.payment_reference ? { transactionReference: session.payment_reference } : {}),
-      ...(session.guarantee_type === "CreditCard" && paymentMetadata.payerReference && paymentMetadata.storedPaymentMethodId ? {
+      ...(!isStripeCard && session.guarantee_type === "Prepayment" && session.payment_reference ? { transactionReference: session.payment_reference } : {}),
+      ...(!isStripeCard && session.guarantee_type === "CreditCard" && paymentMetadata.payerReference && paymentMetadata.storedPaymentMethodId ? {
         paymentAccount: { payerReference: paymentMetadata.payerReference, storedPaymentMethodId: paymentMetadata.storedPaymentMethodId },
       } : {}),
     };

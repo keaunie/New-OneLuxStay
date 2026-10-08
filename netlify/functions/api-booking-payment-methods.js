@@ -1,5 +1,6 @@
 import { jsonResponse, readJsonBody } from "./_shared/http.js";
 import { getBookingSession } from "./_shared/apaleoBookingService.js";
+import { usesStripeForProperty } from "./_shared/stripeBookingService.js";
 import { adyenRequest, getAdyenPublicConfig, assertAdyenEnabledForProperty, resolveAdyenMerchantAccount } from "./_shared/adyenService.js";
 
 export async function handler(event) {
@@ -9,6 +10,10 @@ export async function handler(event) {
     const body = readJsonBody(event);
     const session = await getBookingSession(body.bookingSessionId);
     if (session.guarantee_type === "PM6Hold") return jsonResponse(200, { paymentMethods: [], paymentRequired: false });
+    // Properties that take cards through Stripe (e.g. Dubai) have no Adyen merchant account.
+    if (usesStripeForProperty(session.property_id)) {
+      return jsonResponse(200, { provider: "stripe", paymentMethods: [], paymentRequired: true });
+    }
     assertAdyenEnabledForProperty(session.property_id);
     const value = session.guarantee_type === "CreditCard" ? 0 : Number(session.prepayment_minor);
     const countryCode = String(body.countryCode || "BE").toUpperCase().slice(0, 2);

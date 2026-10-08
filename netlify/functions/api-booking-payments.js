@@ -1,5 +1,6 @@
 import { jsonResponse, readJsonBody, getBaseUrl } from "./_shared/http.js";
 import { getBookingSession, revalidateBookingSession } from "./_shared/apaleoBookingService.js";
+import { usesStripeForProperty } from "./_shared/stripeBookingService.js";
 import { adyenRequest, getApaleoPayAdditionalData, assertAdyenEnabledForProperty, resolveAdyenMerchantAccount } from "./_shared/adyenService.js";
 import { supabaseRestRequest } from "./_shared/supabaseClient.js";
 
@@ -14,6 +15,9 @@ export async function handler(event) {
     if (session.guarantee_type === "PM6Hold") return jsonResponse(409, { message: "This offer does not require payment", code: "PAYMENT_NOT_REQUIRED" });
     if (!["READY_FOR_PAYMENT", "PAYMENT_DECLINED", "PAYMENT_ACTION_REQUIRED"].includes(session.state)) {
       return jsonResponse(409, { message: "Booking session is not ready for payment", code: "INVALID_SESSION_STATE" });
+    }
+    if (usesStripeForProperty(session.property_id)) {
+      return jsonResponse(409, { message: "This property takes cards through Stripe", code: "USE_STRIPE" });
     }
     assertAdyenEnabledForProperty(session.property_id);
     const value = session.guarantee_type === "CreditCard" ? 0 : Number(session.prepayment_minor);

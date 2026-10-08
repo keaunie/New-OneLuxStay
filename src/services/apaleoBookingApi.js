@@ -21,3 +21,5 @@ export const submitApaleoPaymentDetails = (input) => post("api-booking-payment-d
 export const confirmApaleoBooking = (input) => post("api-booking-confirm", input);
 export const submitApaleoManualRequest = (input) => post("api-booking-manual-request", input);
 export const getApaleoBookingConfirmation = (bookingSessionId) => call(`api-booking-confirmation?${query({ bookingSessionId })}`);
+export const createApaleoStripeCheckout = (input) => post("api-booking-stripe-checkout", input);
+export const completeApaleoStripeBooking = (input) => post("api-booking-stripe-complete", input);
