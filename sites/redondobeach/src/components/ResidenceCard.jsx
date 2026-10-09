@@ -1,14 +1,19 @@
 import { Link } from "react-router-dom";
+import PhotoImage from "./PhotoImage.jsx";
 import { resizePhoto } from "../lib/residences.js";
 import { SITE } from "../data/content.js";
 
-export default function ResidenceCard({ residence }) {
+export default function ResidenceCard({ residence, loading = false }) {
   const cover = residence.photos[0];
   return (
     <article className="residence-card">
       <Link to={`/residences/${residence.slug}`} className="residence-card__media" aria-label={`View ${residence.title}`}>
         {cover ? (
-          <img src={resizePhoto(cover, 800)} alt={`${residence.title} living area`} loading="lazy" width="800" height="600" />
+          <PhotoImage key={cover} src={resizePhoto(cover, 800)} alt={`${residence.title} living area`} />
+        ) : loading ? (
+          <span className="photo photo--loading" aria-busy="true">
+            <span className="photo__spinner" role="status" aria-label="Loading photo" />
+          </span>
         ) : (
           <div className="residence-card__placeholder" aria-hidden="true">OneLuxStay</div>
         )}

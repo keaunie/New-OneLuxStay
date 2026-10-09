@@ -10,7 +10,7 @@ export default function Home() {
     null,
     "Furnished long-term rentals in Redondo Beach, California. Stay 31 nights or more in a fully furnished home near the pier, the marina and the beach.",
   );
-  const { residences } = useResidences();
+  const { residences, loading } = useResidences();
 
   return (
     <>
@@ -69,7 +69,7 @@ export default function Home() {
           </header>
           <div className="grid-residences">
             {residences.map((residence) => (
-              <ResidenceCard key={residence.slug} residence={residence} />
+              <ResidenceCard key={residence.slug} residence={residence} loading={loading} />
             ))}
           </div>
           <p className="section__note">

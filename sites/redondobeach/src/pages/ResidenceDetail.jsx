@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import usePageMeta from "../lib/usePageMeta.js";
 import useResidences from "../lib/useResidences.js";
 import InquiryForm from "../components/InquiryForm.jsx";
+import PhotoImage from "../components/PhotoImage.jsx";
 import { resizePhoto } from "../lib/residences.js";
 import { SITE } from "../data/content.js";
 import NotFound from "./NotFound.jsx";
@@ -26,7 +27,9 @@ function Lightbox({ photos, index, onClose, onChange }) {
     <div className="lightbox" role="dialog" aria-modal="true" aria-label="Photo gallery">
       <button type="button" className="lightbox__close" onClick={onClose}>Close</button>
       <button type="button" className="lightbox__nav lightbox__nav--prev" onClick={() => onChange((index - 1 + photos.length) % photos.length)} aria-label="Previous photo">‹</button>
-      <img src={resizePhoto(photos[index], 1600)} alt={`Photo ${index + 1} of ${photos.length}`} />
+      <div className="lightbox__stage">
+        <PhotoImage key={photos[index]} src={resizePhoto(photos[index], 1600)} alt={`Photo ${index + 1} of ${photos.length}`} eager fit="contain" />
+      </div>
       <button type="button" className="lightbox__nav lightbox__nav--next" onClick={() => onChange((index + 1) % photos.length)} aria-label="Next photo">›</button>
       <p className="lightbox__count">{index + 1} / {photos.length}</p>
     </div>
@@ -72,11 +75,21 @@ export default function ResidenceDetail() {
       </section>
 
       <section className="container">
-        {gallery.length > 0 ? (
+        {loading && gallery.length === 0 ? (
+          <div className="gallery gallery--5" aria-busy="true" aria-label="Loading photos">
+            {[0, 1, 2, 3, 4].map((index) => (
+              <span key={index} className="gallery__item">
+                <span className="photo photo--loading">
+                  <span className="photo__spinner" role="status" aria-label="Loading photo" />
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : gallery.length > 0 ? (
           <div className={`gallery gallery--${Math.min(gallery.length, 5)}`}>
             {gallery.map((photo, index) => (
               <button key={photo} type="button" className="gallery__item" onClick={() => setLightboxIndex(index)} aria-label={`Open photo ${index + 1}`}>
-                <img src={resizePhoto(photo, index === 0 ? 1200 : 700)} alt={index === 0 ? `${residence.title} interior` : ""} loading={index === 0 ? "eager" : "lazy"} />
+                <PhotoImage key={photo} src={resizePhoto(photo, index === 0 ? 1200 : 700)} alt={index === 0 ? `${residence.title} interior` : ""} eager={index === 0} />
               </button>
             ))}
             {photos.length > 5 && (
@@ -105,9 +118,13 @@ export default function ResidenceDetail() {
             </p>
 
             <h3>Amenities</h3>
-            <ul className="amenities">
-              {amenities.map((item) => <li key={item}>{item}</li>)}
-            </ul>
+            {loading ? (
+              <p className="section__note" role="status">Loading amenities…</p>
+            ) : (
+              <ul className="amenities">
+                {amenities.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            )}
 
             <h3>Location</h3>
             <p>{residence.building.street}</p>

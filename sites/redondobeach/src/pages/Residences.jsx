@@ -55,7 +55,7 @@ export default function Residences() {
 
           <div className="grid-residences">
             {visible.map((residence) => (
-              <ResidenceCard key={residence.slug} residence={residence} />
+              <ResidenceCard key={residence.slug} residence={residence} loading={loading} />
             ))}
           </div>
 
