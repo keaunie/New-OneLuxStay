@@ -33,8 +33,13 @@ npm run build:redondo      # builds to sites/redondobeach/dist
 npm run deploy:redondo     # build + publish to Cloudflare as "oneluxstay-redondobeach"
 ```
 
-`sites/redondobeach/wrangler.jsonc` attaches the custom domain `redondobeach.oneluxstay.com`. Cloudflare creates
-the DNS record itself on the first deploy, as long as that hostname has no existing record in the zone.
+`sites/redondobeach/wrangler.jsonc` attaches the custom domains. Cloudflare creates the DNS records itself on
+deploy, as long as those hostnames have no existing record in the zone.
+
+- `redondobeach.oneluxstay.com` is the main address.
+- `redondo.oneluxstay.com` is an alternate address guests may type. `worker.js` permanently (301) redirects it to the
+  main address, keeping the page and query string, so search engines see one official site. To add more alternate
+  addresses, add them to `ALIAS_HOSTS` in `worker.js` and to `routes` in `wrangler.jsonc`.
 
 ## How inquiries work
 
