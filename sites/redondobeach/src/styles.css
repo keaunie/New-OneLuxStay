@@ -272,3 +272,12 @@ ul, ol { margin: 0; padding: 0; }
   .photo img { transition: none; }
   .photo__spinner { animation-duration: 2s !important; transition: none; }
 }
+
+/* Motion (anime.js) */
+.steps { position: relative; }
+.steps__line { position: absolute; left: 19px; top: 20px; width: 2px; height: calc(100% - 40px); overflow: visible; pointer-events: none; }
+.steps__line path { fill: none; stroke: var(--gold); stroke-width: 2; }
+.steps li { position: relative; }
+.steps__num { position: relative; z-index: 1; }
+.hero { background-position: 50% 50%; will-change: background-position; }
+@media (prefers-reduced-motion: reduce) { .steps__line { display: none; } }

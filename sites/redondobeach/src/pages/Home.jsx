@@ -112,6 +112,9 @@ export default function Home() {
             <p className="eyebrow">How it works</p>
             <h2>From inquiry to keys in four steps</h2>
             <ol className="steps">
+              <svg className="steps__line" viewBox="0 0 2 100" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M1 0 V100" vectorEffect="non-scaling-stroke" />
+              </svg>
               {STEPS.map((step, index) => (
                 <li key={step.title}>
                   <span className="steps__num">{index + 1}</span>

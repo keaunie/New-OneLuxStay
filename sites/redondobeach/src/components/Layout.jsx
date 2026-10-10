@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { SITE } from "../data/content.js";
+import { initMotion } from "../lib/motion.js";
 
 const NAV = [
   { to: "/residences", label: "Residences" },
@@ -16,6 +17,9 @@ export default function Layout() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+
+  // anime.js motion; re-run on every page so new content gets its animations.
+  useEffect(() => initMotion(document), [pathname]);
 
   return (
     <>
