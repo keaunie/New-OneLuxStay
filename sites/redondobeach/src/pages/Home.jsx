@@ -19,12 +19,12 @@ export default function Home() {
 
   return (
     <>
+      {!prefersReducedMotion() && (
+        <Suspense fallback={null}>
+          <BeachScene />
+        </Suspense>
+      )}
       <section className="hero" style={{ backgroundImage: `url(${IMAGES.hero})` }}>
-        {!prefersReducedMotion() && (
-          <Suspense fallback={null}>
-            <BeachScene />
-          </Suspense>
-        )}
         <div className="hero__shade" />
         <div className="container hero__content">
           <p className="eyebrow eyebrow--light">Redondo Beach, California</p>
@@ -48,6 +48,13 @@ export default function Home() {
               <p className="facts-bar__value">{fact.value}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="beat">
+        <div className="container beat__inner">
+          <p className="eyebrow eyebrow--light">Morning</p>
+          <p className="beat__text">Coffee on the sand, sunlight on the water.</p>
         </div>
       </section>
 
@@ -86,6 +93,13 @@ export default function Home() {
             Monthly pricing is seasonal and depends on the home and your dates. Tell us when you&rsquo;d like to move
             in and we&rsquo;ll send an exact quote.
           </p>
+        </div>
+      </section>
+
+      <section className="beat">
+        <div className="container beat__inner">
+          <p className="eyebrow eyebrow--light">Afternoon</p>
+          <p className="beat__text">Walk out along the pier and watch the South Bay go by.</p>
         </div>
       </section>
 
@@ -139,6 +153,13 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="beat">
+        <div className="container beat__inner">
+          <p className="eyebrow eyebrow--light">Golden hour</p>
+          <p className="beat__text">Every evening, the whole coast turns to gold.</p>
+        </div>
+      </section>
+
       <section className="section">
         <div className="container container--narrow">
           <header className="section__head">
@@ -154,6 +175,13 @@ export default function Home() {
             ))}
           </div>
           <p className="section__note"><Link to="/long-term-stays" className="link-arrow">More about long-term stays</Link></p>
+        </div>
+      </section>
+
+      <section className="beat">
+        <div className="container beat__inner">
+          <p className="eyebrow eyebrow--light">Dusk</p>
+          <p className="beat__text">Then the pier lights come on. Stay as long as you like.</p>
         </div>
       </section>
 

@@ -5,6 +5,7 @@ import { animate, createTimeline, onScroll, splitText, stagger, svg, utils } fro
 
 const REVEAL = [
   ".section__head",
+  ".beat__text",
   ".info-card",
   ".place-card",
   ".residence-card",
@@ -25,6 +26,10 @@ export function initMotion(root = document) {
   if (prefersReducedMotion()) return () => {};
 
   const revertibles = [];
+  const scrollObservers = [];
+  // Per-run guard (not a DOM flag) so a cleanup followed by a fresh run, as React StrictMode does, starts clean.
+  const claimed = new WeakSet();
+  const claim = (el) => (claimed.has(el) ? false : (claimed.add(el), true));
   const track = (item) => {
     revertibles.push(item);
     return item;
@@ -43,55 +48,52 @@ export function initMotion(root = document) {
       .add(hero.querySelector(".hero__lead"), { opacity: [0, 1], translateY: [20, 0], duration: 800 }, "-=700")
       .add(hero.querySelectorAll(".hero__actions > *"), { opacity: [0, 1], translateY: [20, 0], duration: 700, delay: stagger(110) }, "-=550");
 
-    track(
-      animate(hero, {
-        backgroundPositionY: ["50%", "85%"],
-        ease: "linear",
-        autoplay: onScroll({ target: hero, enter: "top top", leave: "bottom top", sync: true }),
-      }),
-    );
+    const heroScroll = onScroll({ target: hero, enter: "top top", leave: "bottom top", sync: true });
+    scrollObservers.push(heroScroll);
+    track(animate(hero, { backgroundPositionY: ["50%", "85%"], ease: "linear", autoplay: heroScroll }));
   }
 
   // --- Header settles in once per page load ---
   const header = root.querySelector(".site-header");
-  if (header && !header.dataset.motion) {
-    header.dataset.motion = "1";
+  if (header && claim(header)) {
     track(animate(header, { opacity: [0, 1], translateY: [-16, 0], duration: 800, ease: "outCubic" }));
   }
 
   // --- Facts bar: leading numbers count up ---
   root.querySelectorAll(".facts-bar__value").forEach((el) => {
     const match = el.textContent.match(/^(\d+)(.*)$/);
-    if (!match || el.dataset.motion) return;
-    el.dataset.motion = "1";
+    if (!match || !claim(el)) return;
     const [, target, rest] = match;
+    const original = el.textContent;
     const counter = { value: 0 };
     el.style.fontVariantNumeric = "tabular-nums";
     el.textContent = `0${rest}`;
-    track(
+    const count = track(
       animate(counter, {
         value: Number(target),
         duration: 1400,
         ease: "outExpo",
         modifier: utils.round(0),
         onUpdate: () => { el.textContent = `${counter.value}${rest}`; },
-        autoplay: onScroll({ target: el, enter: "bottom-=40 top" }),
+        autoplay: false,
       }),
     );
+    const watch = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      watch.disconnect();
+      count.play();
+    }, { threshold: 0.4 });
+    watch.observe(el);
+    track({ revert: () => { watch.disconnect(); el.textContent = original; } });
   });
 
   // --- Steps: the connector line draws as you scroll, numbers pop in ---
   const stepsLine = root.querySelector(".steps__line path");
   const steps = root.querySelector(".steps");
-  if (stepsLine && steps && !steps.dataset.motion) {
-    steps.dataset.motion = "1";
-    track(
-      animate(svg.createDrawable(stepsLine), {
-        draw: ["0 0", "0 1"],
-        ease: "linear",
-        autoplay: onScroll({ target: steps, enter: "bottom-=120 top", leave: "top+=240 bottom", sync: 0.4 }),
-      }),
-    );
+  if (stepsLine && steps && claim(steps)) {
+    const stepsScroll = onScroll({ target: steps, enter: "bottom-=120 top", leave: "top+=240 bottom", sync: 0.4 });
+    scrollObservers.push(stepsScroll);
+    track(animate(svg.createDrawable(stepsLine), { draw: ["0 0", "0 1"], ease: "linear", autoplay: stepsScroll }));
   }
 
   // --- Scroll reveals for everything else, staggered within each row ---
@@ -130,7 +132,17 @@ export function initMotion(root = document) {
   const mo = new MutationObserver(register);
   mo.observe(main, { childList: true, subtree: true });
 
+  // Scroll positions are measured once, so re-measure when the page height changes.
+  let refreshTimer;
+  const ro = new ResizeObserver(() => {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => scrollObservers.forEach((o) => o.refresh()), 150);
+  });
+  ro.observe(document.body);
+
   return () => {
+    ro.disconnect();
+    clearTimeout(refreshTimer);
     mo.disconnect();
     io.disconnect();
     revertibles.forEach((item) => item.revert?.());

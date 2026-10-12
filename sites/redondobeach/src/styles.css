@@ -282,13 +282,33 @@ ul, ol { margin: 0; padding: 0; }
 .hero { background-position: 50% 50%; will-change: background-position; }
 @media (prefers-reduced-motion: reduce) { .steps__line { display: none; } }
 
-/* 3D hero scene */
-.hero { overflow: hidden; min-height: min(100vh, 900px); }
-.hero__canvas { position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s ease; }
-.hero__canvas.is-ready { opacity: 1; }
-.hero__canvas canvas { display: block; width: 100% !important; height: 100% !important; }
-.hero:has(.hero__canvas.is-ready) .hero__shade { background: linear-gradient(180deg, rgba(10, 30, 44, 0.28) 0%, rgba(10, 30, 44, 0) 40%, rgba(10, 30, 44, 0.5) 100%); }
-.hero:has(.hero__canvas.is-ready) h1,
-.hero:has(.hero__canvas.is-ready) .hero__lead,
-.hero:has(.hero__canvas.is-ready) .eyebrow { text-shadow: 0 2px 18px rgba(8, 28, 42, 0.55); }
-.hero:has(.hero__canvas.is-ready) .eyebrow { color: #fff3d6; }
+/* 3D scroll story. Everything here only applies while the WebGL scene is running (body.scene-on);
+   without it the page keeps its original solid-colour sections and photo hero. */
+.bg-scene { position: fixed; inset: 0; z-index: -1; opacity: 0; transition: opacity 1.2s ease; background: #cfe6f5; }
+.bg-scene.is-ready { opacity: 1; }
+.bg-scene canvas { display: block; width: 100% !important; height: 100% !important; }
+.beat { display: none; }
+
+body.scene-on { background: #0c1b27; }
+body.scene-on .hero { background: none; min-height: min(100vh, 900px); }
+body.scene-on .hero__shade { background: linear-gradient(180deg, rgba(10, 30, 44, 0.28) 0%, rgba(10, 30, 44, 0) 40%, rgba(10, 30, 44, 0.45) 100%); }
+body.scene-on .hero h1,
+body.scene-on .hero__lead,
+body.scene-on .eyebrow--light,
+body.scene-on .beat__text { text-shadow: 0 2px 18px rgba(8, 28, 42, 0.6); }
+body.scene-on .hero .eyebrow { color: #fff3d6; }
+
+body.scene-on .facts-bar { background: transparent; }
+body.scene-on .facts-bar__grid { background: rgba(15, 45, 64, 0.62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-radius: var(--radius); padding: 22px 28px; }
+
+/* Story captions: big words floating over the beach between the content panels */
+body.scene-on .beat { display: flex; align-items: center; min-height: 85vh; color: #fff; }
+.beat__inner { text-align: center; }
+.beat .eyebrow { color: #fff; opacity: 0.95; }
+.beat__text { font: 600 clamp(2rem, 5.2vw, 3.8rem) var(--serif); line-height: 1.15; max-width: 16em; margin: 0 auto; color: #fff; }
+
+/* Content sections become frosted panels floating over the scene */
+body.scene-on .section, body.scene-on .section--tint, body.scene-on .section--cta { background: transparent; padding: clamp(32px, 5vw, 64px) 0; }
+body.scene-on .section > .container { background: rgba(250, 246, 239, 0.86); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 22px; padding: clamp(24px, 4vw, 52px); box-shadow: 0 20px 60px rgba(8, 28, 42, 0.25); }
+body.scene-on .section--cta > .container { background: rgba(15, 45, 64, 0.78); }
+@media (max-width: 760px) { body.scene-on .beat { min-height: 70vh; } }
