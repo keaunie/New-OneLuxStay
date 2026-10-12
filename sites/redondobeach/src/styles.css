@@ -289,8 +289,18 @@ ul, ol { margin: 0; padding: 0; }
 .bg-scene canvas { display: block; width: 100% !important; height: 100% !important; }
 .beat { display: none; }
 
+/* Photo backdrop: real Redondo photos, graded by scroll (see PhotoBackdrop.jsx). */
+.bg-photo { overflow: hidden; background: #0c1b27; }
+.bg-photo__stack { position: absolute; inset: -4%; filter: var(--pb-filter, none); transform: translate3d(var(--pb-tx, 0), var(--pb-ty, 0), 0) scale(var(--pb-zoom, 1.06)); will-change: transform, filter; }
+.bg-photo__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; }
+.bg-photo__img--pier { opacity: var(--pb-fade, 0); object-position: 40% 55%; }
+.bg-photo__tint { position: absolute; inset: 0; mix-blend-mode: multiply; background: linear-gradient(180deg, var(--pb-tint-a, #fff) 0%, var(--pb-tint-b, #fff) 70%); }
+.bg-photo__glow { position: absolute; inset: 0; mix-blend-mode: screen; opacity: var(--pb-glow, 0); background: radial-gradient(ellipse 75% 38% at 62% 48%, rgba(255, 168, 84, 0.85), rgba(255, 120, 90, 0.35) 55%, transparent 80%); }
+.bg-photo__night { position: absolute; inset: 0; opacity: var(--pb-night, 0); background: linear-gradient(180deg, #0b1233 0%, #1a2150 55%, #2a2a55 100%); }
+.bg-photo__stars { position: absolute; inset: 0; opacity: var(--pb-stars, 0); }
+.bg-photo__stars span { position: absolute; border-radius: 50%; background: #fff; }
 body.scene-on { background: #0c1b27; }
-body.scene-on .hero { background: none; min-height: min(100vh, 900px); }
+body.scene-on .hero { background: none !important; min-height: min(100vh, 900px); }
 body.scene-on .hero__shade { background: linear-gradient(180deg, rgba(10, 30, 44, 0.28) 0%, rgba(10, 30, 44, 0) 40%, rgba(10, 30, 44, 0.45) 100%); }
 body.scene-on .hero h1,
 body.scene-on .hero__lead,

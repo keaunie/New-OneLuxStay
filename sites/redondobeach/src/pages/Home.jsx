@@ -9,6 +9,10 @@ import { EXPLORE, FAQS, IMAGES, QUICK_FACTS, SITE, STEPS, WHO_FOR, WHY_LONG_TERM
 
 // The 3D scene is its own chunk so the page text and photos never wait on three.js.
 const BeachScene = lazy(() => import("../components/BeachScene.jsx"));
+const PhotoBackdrop = lazy(() => import("../components/PhotoBackdrop.jsx"));
+
+// Real photos are the default backdrop. Add ?scene=3d to the URL to see the original 3D scene.
+const wants3d = () => new URLSearchParams(window.location.search).get("scene") === "3d";
 
 export default function Home() {
   usePageMeta(
@@ -21,7 +25,7 @@ export default function Home() {
     <>
       {!prefersReducedMotion() && (
         <Suspense fallback={null}>
-          <BeachScene />
+          {wants3d() ? <BeachScene /> : <PhotoBackdrop />}
         </Suspense>
       )}
       <section className="hero" style={{ backgroundImage: `url(${IMAGES.hero})` }}>
