@@ -1,9 +1,14 @@
+import { Suspense, lazy } from "react";
 import { Link } from "react-router-dom";
+import { prefersReducedMotion } from "../lib/motion.js";
 import usePageMeta from "../lib/usePageMeta.js";
 import useResidences from "../lib/useResidences.js";
 import ResidenceCard from "../components/ResidenceCard.jsx";
 import InquiryForm from "../components/InquiryForm.jsx";
 import { EXPLORE, FAQS, IMAGES, QUICK_FACTS, SITE, STEPS, WHO_FOR, WHY_LONG_TERM } from "../data/content.js";
+
+// The 3D scene is its own chunk so the page text and photos never wait on three.js.
+const BeachScene = lazy(() => import("../components/BeachScene.jsx"));
 
 export default function Home() {
   usePageMeta(
@@ -15,6 +20,11 @@ export default function Home() {
   return (
     <>
       <section className="hero" style={{ backgroundImage: `url(${IMAGES.hero})` }}>
+        {!prefersReducedMotion() && (
+          <Suspense fallback={null}>
+            <BeachScene />
+          </Suspense>
+        )}
         <div className="hero__shade" />
         <div className="container hero__content">
           <p className="eyebrow eyebrow--light">Redondo Beach, California</p>

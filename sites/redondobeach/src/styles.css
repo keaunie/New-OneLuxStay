@@ -281,3 +281,14 @@ ul, ol { margin: 0; padding: 0; }
 .steps__num { position: relative; z-index: 1; }
 .hero { background-position: 50% 50%; will-change: background-position; }
 @media (prefers-reduced-motion: reduce) { .steps__line { display: none; } }
+
+/* 3D hero scene */
+.hero { overflow: hidden; min-height: min(100vh, 900px); }
+.hero__canvas { position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s ease; }
+.hero__canvas.is-ready { opacity: 1; }
+.hero__canvas canvas { display: block; width: 100% !important; height: 100% !important; }
+.hero:has(.hero__canvas.is-ready) .hero__shade { background: linear-gradient(180deg, rgba(10, 30, 44, 0.28) 0%, rgba(10, 30, 44, 0) 40%, rgba(10, 30, 44, 0.5) 100%); }
+.hero:has(.hero__canvas.is-ready) h1,
+.hero:has(.hero__canvas.is-ready) .hero__lead,
+.hero:has(.hero__canvas.is-ready) .eyebrow { text-shadow: 0 2px 18px rgba(8, 28, 42, 0.55); }
+.hero:has(.hero__canvas.is-ready) .eyebrow { color: #fff3d6; }
