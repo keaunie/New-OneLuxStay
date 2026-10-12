@@ -301,7 +301,7 @@ ul, ol { margin: 0; padding: 0; }
 .bg-photo__stars span { position: absolute; border-radius: 50%; background: #fff; }
 body.scene-on { background: #0c1b27; }
 body.scene-on .hero { background: none !important; min-height: min(100vh, 900px); }
-body.scene-on .hero__shade { background: linear-gradient(180deg, rgba(10, 30, 44, 0.28) 0%, rgba(10, 30, 44, 0) 40%, rgba(10, 30, 44, 0.45) 100%); }
+body.scene-on .hero__shade { background: linear-gradient(180deg, rgba(10, 30, 44, 0.28) 0%, rgba(10, 30, 44, 0) 35%, rgba(10, 30, 44, 0.5) 62%, rgba(10, 30, 44, 0.42) 80%, rgba(10, 30, 44, 0) 100%); }
 body.scene-on .hero h1,
 body.scene-on .hero__lead,
 body.scene-on .eyebrow--light,
