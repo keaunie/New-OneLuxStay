@@ -179,6 +179,265 @@ function Ocean({ sunDir, segments }) {
   );
 }
 
+
+// A wooden pier running out into the surf: deck, pilings, railings, lamps and an end building.
+const PIER = { x: 7.5, startZ: 7, endZ: -52, deckY: 1.7, width: 2.6 };
+
+function Pier() {
+  const length = PIER.startZ - PIER.endZ;
+  const midZ = (PIER.startZ + PIER.endZ) / 2;
+  const bays = Math.floor(length / 2.4);
+  const wood = "#8a6540";
+  const darkWood = "#4a3524";
+
+  const posts = useMemo(() => {
+    const list = [];
+    for (let i = 0; i <= bays; i += 1) list.push(PIER.startZ - i * (length / bays));
+    return list;
+  }, [bays, length]);
+
+  return (
+    <group position={[PIER.x, 0, 0]}>
+      {/* Deck */}
+      <mesh position={[0, PIER.deckY, midZ]}>
+        <boxGeometry args={[PIER.width, 0.16, length]} />
+        <meshStandardMaterial color={wood} roughness={0.9} />
+      </mesh>
+      {/* Cross beams under the deck */}
+      {posts.map((z) => (
+        <mesh key={`beam-${z}`} position={[0, PIER.deckY - 0.24, z]}>
+          <boxGeometry args={[PIER.width + 0.3, 0.14, 0.2]} />
+          <meshStandardMaterial color={darkWood} roughness={1} />
+        </mesh>
+      ))}
+      {/* Pilings, in pairs, running from the sea floor up to the deck */}
+      {posts.flatMap((z) =>
+        [-1, 1].map((side) => (
+          <mesh key={`pile-${z}-${side}`} position={[side * (PIER.width / 2 - 0.15), (PIER.deckY - 2.2) / 2, z]}>
+            <cylinderGeometry args={[0.13, 0.15, PIER.deckY + 2.2, 8]} />
+            <meshStandardMaterial color={darkWood} roughness={1} />
+          </mesh>
+        )),
+      )}
+      {/* Railings and lamps */}
+      {[-1, 1].map((side) => (
+        <group key={`rail-${side}`} position={[side * (PIER.width / 2 - 0.05), PIER.deckY, 0]}>
+          <mesh position={[0, 0.95, midZ]}>
+            <boxGeometry args={[0.07, 0.07, length]} />
+            <meshStandardMaterial color={wood} roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 0.5, midZ]}>
+            <boxGeometry args={[0.04, 0.04, length]} />
+            <meshStandardMaterial color={wood} roughness={0.9} />
+          </mesh>
+          {posts.map((z) => (
+            <mesh key={`post-${z}`} position={[0, 0.5, z]}>
+              <boxGeometry args={[0.08, 1.0, 0.08]} />
+              <meshStandardMaterial color={wood} roughness={0.9} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {posts
+        .filter((_, i) => i % 3 === 0)
+        .map((z) => (
+          <group key={`lamp-${z}`} position={[0, PIER.deckY, z]}>
+            <mesh position={[0, 1.4, 0]}>
+              <cylinderGeometry args={[0.04, 0.05, 2.8, 6]} />
+              <meshStandardMaterial color="#2c2c30" roughness={0.6} />
+            </mesh>
+            <mesh position={[0, 2.85, 0]}>
+              <sphereGeometry args={[0.16, 12, 8]} />
+              <meshStandardMaterial color="#fff2c9" emissive="#ffe6a8" emissiveIntensity={0.9} />
+            </mesh>
+          </group>
+        ))}
+      {/* Building and widened platform at the end of the pier */}
+      <mesh position={[0, PIER.deckY, PIER.endZ - 4]}>
+        <boxGeometry args={[8, 0.16, 9]} />
+        <meshStandardMaterial color={wood} roughness={0.9} />
+      </mesh>
+      {[-3.4, 3.4].flatMap((x) =>
+        [-3.4, 3.4].map((dz) => (
+          <mesh key={`end-pile-${x}-${dz}`} position={[x, (PIER.deckY - 2.2) / 2, PIER.endZ - 4 + dz]}>
+            <cylinderGeometry args={[0.16, 0.18, PIER.deckY + 2.2, 8]} />
+            <meshStandardMaterial color={darkWood} roughness={1} />
+          </mesh>
+        )),
+      )}
+      <mesh position={[0, PIER.deckY + 1.5, PIER.endZ - 4]}>
+        <boxGeometry args={[5.2, 3, 5.2]} />
+        <meshStandardMaterial color="#e9dcc3" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, PIER.deckY + 3.55, PIER.endZ - 4]} rotation-y={Math.PI / 4}>
+        <coneGeometry args={[4.3, 1.5, 4]} />
+        <meshStandardMaterial color="#b4523a" roughness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+// --- Palm trees: a bent trunk and drooping fronds, built from a handful of shapes each ---
+function makeFrondGeometry(length, width) {
+  const rows = 8;
+  const pos = [];
+  const idx = [];
+  for (let i = 0; i <= rows; i += 1) {
+    const t = i / rows;
+    const w = Math.sin(Math.PI * (t * 0.92 + 0.04)) * width;
+    const y = -t * t * length * 0.5;
+    pos.push(-w, y, t * length, w, y, t * length);
+    if (i < rows) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function Palm({ position, scale = 1, lean = 0.2, phase = 0 }) {
+  const crown = useRef();
+  const trunk = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(lean * 0.4, 1.6, 0),
+      new THREE.Vector3(lean * 1.2, 3.2, 0),
+      new THREE.Vector3(lean * 2.2, 4.6, 0),
+    ]);
+    return { geo: new THREE.TubeGeometry(curve, 10, 0.13, 7, false), top: curve.getPoint(1) };
+  }, [lean]);
+  const frond = useMemo(() => makeFrondGeometry(2.3, 0.3), []);
+  const fronds = useMemo(() => Array.from({ length: 9 }, (_, i) => ({ yaw: (i / 9) * Math.PI * 2 + i * 0.3, tilt: 0.25 + (i % 3) * 0.1 })), []);
+
+  useFrame(({ clock }) => {
+    if (crown.current) crown.current.rotation.z = Math.sin(clock.elapsedTime * 0.8 + phase) * 0.03;
+  });
+
+  return (
+    <group position={position} scale={scale}>
+      <mesh geometry={trunk.geo}>
+        <meshStandardMaterial color="#7b5b3d" roughness={1} />
+      </mesh>
+      <group ref={crown} position={trunk.top}>
+        {fronds.map((f, i) => (
+          <group key={i} rotation={[0, f.yaw, 0]}>
+            <mesh geometry={frond} rotation={[-f.tilt, 0, 0]}>
+              <meshStandardMaterial color={i % 2 ? "#3f8a3d" : "#2f7a35"} roughness={0.8} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+        ))}
+        <mesh position={[0, -0.12, 0]}>
+          <sphereGeometry args={[0.2, 8, 6]} />
+          <meshStandardMaterial color="#5a4128" roughness={1} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// --- Seagulls: a few birds circling over the water, wings flapping ---
+const GULLS = [
+  { cx: -2, cz: -18, r: 9, y: 6.2, speed: 0.22, phase: 0 },
+  { cx: 4, cz: -26, r: 12, y: 8.0, speed: 0.17, phase: 2 },
+  { cx: -6, cz: -14, r: 6, y: 4.6, speed: 0.3, phase: 4 },
+  { cx: 1, cz: -34, r: 14, y: 9.5, speed: 0.14, phase: 1 },
+  { cx: -9, cz: -24, r: 8, y: 7.2, speed: 0.2, phase: 5 },
+];
+
+function Gulls() {
+  const birds = useRef([]);
+  const wingGeo = useMemo(() => {
+    // One wing as a swept triangle strip; the mirrored wing reuses it with a negative scale.
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, -0.18, 0, 0, 0.22, 1.1, 0.05, 0.25], 3));
+    geo.setIndex([0, 1, 2]);
+    geo.computeVertexNormals();
+    return geo;
+  }, []);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    birds.current.forEach((bird, i) => {
+      if (!bird) return;
+      const g = GULLS[i];
+      const a = t * g.speed + g.phase;
+      bird.position.set(g.cx + Math.cos(a) * g.r, g.y + Math.sin(a * 2.3) * 0.5, g.cz + Math.sin(a) * g.r * 0.6);
+      bird.rotation.y = -a + Math.PI; // face the direction of travel
+      const flap = Math.sin(t * 5.5 + g.phase * 3) * 0.55;
+      bird.children[1].rotation.z = flap;
+      bird.children[2].rotation.z = -flap;
+    });
+  });
+
+  return (
+    <group>
+      {GULLS.map((g, i) => (
+        <group key={i} ref={(el) => { birds.current[i] = el; }} scale={0.9}>
+          <mesh scale={[0.35, 0.16, 0.16]}>
+            <sphereGeometry args={[1, 8, 6]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.55} roughness={0.9} />
+          </mesh>
+          <mesh geometry={wingGeo}>
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.45} roughness={0.9} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh geometry={wingGeo} scale={[-1, 1, 1]}>
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.45} roughness={0.9} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// --- Pier reflection: soft dark streaks on the water under the pier, wobbling with the swell ---
+const reflectionVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const reflectionFragment = /* glsl */ `
+  uniform float uTime;
+  uniform float uHalfWidth;
+  uniform float uLength;
+  varying vec2 vUv;
+  ${NOISE}
+  void main() {
+    float x = (vUv.x - 0.5) * 2.0 * uHalfWidth; // metres from the pier centre line
+    float along = vUv.y * uLength;              // metres along the pier from the beach end
+    float wob = (noise(vec2(along * 1.6, uTime * 0.7)) - 0.5) * 0.35 + sin(along * 0.9 - uTime * 1.4) * 0.08;
+    float pile = 1.15;
+    float streaks = exp(-pow((x - pile + wob) / 0.17, 2.0)) + exp(-pow((x + pile + wob) / 0.17, 2.0));
+    float deck = exp(-pow((x + wob * 0.6) / 1.3, 2.0)) * 0.45;
+    float breakup = smoothstep(0.25, 0.75, noise(vec2(x * 3.0, along * 0.8 - uTime * 0.5)));
+    float fade = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+    float a = (streaks * 0.5 + deck * 0.5) * (0.5 + 0.5 * breakup) * fade;
+    gl_FragColor = vec4(vec3(0.02, 0.10, 0.16), a * 0.55);
+    #include <colorspace_fragment>
+  }
+`;
+
+function PierReflection() {
+  const mat = useRef();
+  const length = PIER.startZ - PIER.endZ - 4;
+  useFrame(({ clock }) => {
+    mat.current.uniforms.uTime.value = clock.elapsedTime;
+  });
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uHalfWidth: { value: 3 }, uLength: { value: length } }), [length]);
+  return (
+    <mesh rotation-x={-Math.PI / 2} position={[PIER.x, 0.35, 1.5 - length / 2]} renderOrder={2} frustumCulled={false}>
+      <planeGeometry args={[6, length]} />
+      <shaderMaterial ref={mat} transparent depthWrite={false} uniforms={uniforms} vertexShader={reflectionVertex} fragmentShader={reflectionFragment} />
+    </mesh>
+  );
+}
+
 function Rig({ heroRef }) {
   const { camera } = useThree();
   const pointer = useRef({ x: 0, y: 0 });
@@ -248,7 +507,15 @@ export default function BeachScene() {
         gl={{ antialias: !small, powerPreference: "high-performance", toneMapping: THREE.NoToneMapping }}
         onCreated={() => requestAnimationFrame(() => setReady(true))}
       >
+        <fog attach="fog" args={[new THREE.Color().setRGB(0.8, 0.9, 0.97, THREE.LinearSRGBColorSpace), 45, 150]} />
+        <hemisphereLight args={["#bfe0ff", "#d9c29a", 1.5]} />
+        <directionalLight position={[sunDir.x * 60, sunDir.y * 60, sunDir.z * 60]} intensity={2.4} color="#fff1d6" />
         <Sky sunDir={sunDir} />
+        <Pier />
+        <PierReflection />
+        <Palm position={[2.7, 0, 4.2]} scale={0.5} lean={0.3} phase={0} />
+        <Palm position={[4.1, 0, 3.8]} scale={0.38} lean={-0.25} phase={1.7} />
+        <Gulls />
         <Ocean sunDir={sunDir} segments={small ? 128 : 256} />
         <Rig heroRef={heroRef} />
       </Canvas>
