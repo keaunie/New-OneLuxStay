@@ -1,4 +1,4 @@
-import { BUILDINGS, SITE } from "../data/content.js";
+import { BUILDINGS, SITE, UNITS } from "../data/content.js";
 
 const clean = (value = "") => String(value ?? "").replace(/\s+/g, " ").trim();
 
@@ -73,38 +73,43 @@ export const groupResidences = (listings = []) => {
     groups.set(key, existing);
   });
 
-  return [...groups.values()]
-    .map((group) => ({
-      ...group,
-      name: `${bedroomLabel(group.bedrooms)} Residence`,
-      title: `${bedroomLabel(group.bedrooms)} Residence · ${group.building.name}`,
-      amenities: AMENITY_PRIORITY.filter((item) => group.amenities.has(item)),
-      // "Downtown" is a location tag in the listing data, not a feature of the home.
-      allAmenities: [...group.amenities].filter((item) => item && !/^downtown$/i.test(item)).sort(),
-    }))
-    .sort((a, b) => a.bedrooms - b.bedrooms || a.building.name.localeCompare(b.building.name));
+  const plans = [...groups.values()].map((group) => ({
+    ...group,
+    amenities: AMENITY_PRIORITY.filter((item) => group.amenities.has(item)),
+    // "Downtown" is a location tag in the listing data, not a feature of the home.
+    allAmenities: [...group.amenities].filter((item) => item && !/^downtown$/i.test(item)).sort(),
+  }));
+  // All of our homes share one floor plan, so the listing with the most photos is the template.
+  const template = plans.sort((x, y) => y.photos.length - x.photos.length)[0];
+  return template ? expandUnits(template) : [];
 };
+
+// One residence per home we offer (see UNITS), each at its own address.
+const expandUnits = (template) =>
+  UNITS.map((unit) => {
+    const building = BUILDINGS.find((item) => item.key === unit.building);
+    const label = `${building.name} #${unit.number}`;
+    return {
+      ...template,
+      slug: `${building.key}-unit-${unit.number}`,
+      building: { ...building, name: label },
+      name: `${bedroomLabel(template.bedrooms)} Residence · Unit ${unit.number}`,
+      title: `${bedroomLabel(template.bedrooms)} Residence · ${label}`,
+      units: 1,
+    };
+  });
 
 // Shown if the listings service can't be reached, so the site never looks empty. Photos are
 // omitted; cards fall back to a branded placeholder.
-export const FALLBACK_RESIDENCES = [
-  { bedrooms: 1, bathrooms: 1, sleeps: 4, units: 8, building: "north-broadway" },
-].map((plan) => {
-  const building = BUILDINGS.find((b) => b.key === plan.building);
-  return {
-    slug: `${building.key}-${plan.bedrooms}br`,
-    building,
-    bedrooms: plan.bedrooms,
-    bathrooms: plan.bathrooms,
-    sleeps: plan.sleeps,
-    units: plan.units,
-    photos: [],
-    name: `${bedroomLabel(plan.bedrooms)} Residence`,
-    title: `${bedroomLabel(plan.bedrooms)} Residence · ${building.name}`,
-    amenities: ["Wireless Internet", "Washer", "Dryer", "Dishwasher", "Kitchen", "TV", "Towels provided", "Bed linens"],
-    allAmenities: [],
-    listingIds: [],
-  };
+export const FALLBACK_RESIDENCES = expandUnits({
+  bedrooms: 1,
+  bathrooms: 1,
+  sleeps: 4,
+  units: 1,
+  photos: [],
+  amenities: ["Wireless Internet", "Washer", "Dryer", "Dishwasher", "Kitchen", "TV", "Towels provided", "Bed linens"],
+  allAmenities: [],
+  listingIds: [],
 });
 
 export const fetchResidences = async (signal) => {

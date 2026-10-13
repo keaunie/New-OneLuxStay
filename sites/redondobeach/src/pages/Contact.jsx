@@ -34,7 +34,7 @@ export default function Contact() {
               <li><span>WhatsApp</span><a href={`https://wa.me/${SITE.whatsapp.digits}`} target="_blank" rel="noreferrer">{SITE.whatsapp.display}</a></li>
               <li><span>Email</span><a href={`mailto:${SITE.email}`}>{SITE.email}</a></li>
             </ul>
-            <h3>Our building</h3>
+            <h3>Our buildings</h3>
             <ul className="contact-list">
               {BUILDINGS.map((building) => (
                 <li key={building.key}><span>{building.name}</span>{building.street}</li>

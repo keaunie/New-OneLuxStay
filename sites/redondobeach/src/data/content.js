@@ -26,16 +26,31 @@ export const IMAGES = {
   food: "/images/redondo-food.jpg",
 };
 
-// The building. `match` is tested against a listing's street address.
+// The two buildings. `match` is tested against a listing's street address.
 export const BUILDINGS = [
   {
-    key: "north-broadway",
-    name: "North Broadway",
+    key: "407-north-broadway",
+    name: "407 N Broadway",
     street: "407 North Broadway, Redondo Beach, CA 90277",
-    match: /broadway/i,
+    match: /407 north broadway/i,
     blurb: "One-bedroom homes with free on-site parking, a short stroll from the pier and the marina.",
     highlights: ["Free parking on premises", "Washer & dryer", "Dishwasher"],
   },
+  {
+    key: "419-north-broadway",
+    name: "419 N Broadway",
+    street: "419 North Broadway, Redondo Beach, CA 90277",
+    match: /419 north broadway/i,
+    blurb: "A one-bedroom home a short stroll from the pier and the marina.",
+    highlights: ["Washer & dryer", "Dishwasher"],
+  },
+];
+
+// The homes we offer, all one-bedroom. Photos and amenities come from our one-bedroom listings.
+export const UNITS = [
+  { number: "1", building: "407-north-broadway" },
+  { number: "5", building: "419-north-broadway" },
+  { number: "16", building: "407-north-broadway" },
 ];
 
 export const WHY_LONG_TERM = [
@@ -84,7 +99,7 @@ export const FAQS = [
   },
   {
     q: "Is there parking?",
-    a: "The building has free parking on the premises.",
+    a: "The 407 N Broadway building has free parking on the premises. For 419 N Broadway, ask us about parking for your stay.",
   },
   {
     q: "Can I bring pets?",
@@ -215,7 +230,7 @@ export const EXPLORE = [
 
 export const QUICK_FACTS = [
   { label: "Stay length", value: `${SITE.minNights}+ nights` },
-  { label: "Homes", value: "Furnished" },
-  { label: "Building", value: "North Broadway" },
+  { label: "Setup", value: "Fully furnished" },
+  { label: "Homes", value: "3 one-bedrooms" },
   { label: "Pricing", value: "Monthly, seasonal" },
 ];
