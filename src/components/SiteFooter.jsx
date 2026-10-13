@@ -277,6 +277,14 @@ function SiteFooter() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <a
+                  href="https://redondobeach.oneluxstay.com/"
+                  className="policy-footer-list-link policy-footer-list-link--minimal"
+                >
+                  Redondo Beach Monthly Stays
+                </a>
+              </li>
             </ul>
           </div>
 
