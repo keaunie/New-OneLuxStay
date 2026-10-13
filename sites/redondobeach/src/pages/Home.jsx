@@ -17,7 +17,7 @@ const wants3d = () => new URLSearchParams(window.location.search).get("scene") =
 export default function Home() {
   usePageMeta(
     null,
-    "Furnished long-term rentals in Redondo Beach, California. Stay 31 nights or more in a fully furnished home near the pier, the marina and the beach.",
+    "Furnished 1-bedroom apartment in Redondo Beach, CA for stays of 31+ nights. Short walk to the pier, marina and beach. Free parking. Get a monthly quote.",
   );
   const { residences, loading } = useResidences();
 
