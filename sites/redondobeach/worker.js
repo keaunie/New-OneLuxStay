@@ -3,7 +3,9 @@
 // Static pages are served from ./dist by Cloudflare's asset handler. This small script only adds one
 // rule: alternate hostnames guests might type (like redondo.oneluxstay.com) are permanently redirected
 // to the main address, keeping the page and query string. One official address is better for search
-// engines than two identical copies of the site.
+// engines than two identical copies of the site. It also serves POST /api/inquiry, the inquiry form.
+
+import { handleInquiry } from "./inquiry.js";
 
 export const CANONICAL_HOST = "redondobeach.oneluxstay.com";
 export const ALIAS_HOSTS = ["redondo.oneluxstay.com"];
@@ -22,6 +24,7 @@ export default {
   async fetch(request, env) {
     const target = canonicalRedirectUrl(request.url);
     if (target) return Response.redirect(target, 301);
+    if (new URL(request.url).pathname === "/api/inquiry") return handleInquiry(request, env);
     return env.ASSETS.fetch(request);
   },
 };

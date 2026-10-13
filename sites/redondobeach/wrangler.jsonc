@@ -12,6 +12,8 @@
   // The main address, plus alternate addresses that redirect to it (see worker.js).
   // Each hostname must not already have a DNS record in the Cloudflare zone; Cloudflare creates
   // the record when this is deployed.
+  // Sender for the inquiry form emails. RESEND_API_KEY is a secret set in the Cloudflare dashboard.
+  "vars": { "RESEND_FROM_EMAIL": "OneLuxStay <no-reply@oneluxstay.com>" },
   "routes": [
     { "pattern": "redondobeach.oneluxstay.com", "custom_domain": true },
     { "pattern": "redondo.oneluxstay.com", "custom_domain": true }

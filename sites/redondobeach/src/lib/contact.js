@@ -19,5 +19,5 @@ export const inquiryMailto = ({ fullName, email, phone, moveIn, stayLength, gues
     `${email}${phone ? ` · ${phone}` : ""}`,
   ].filter((line, index, all) => line !== "" || all[index - 1] !== "");
   const subject = `Long-term stay inquiry — Redondo Beach${residence ? ` (${residence})` : ""}`;
-  return `mailto:${SITE.inquiryTo.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+  return `mailto:${SITE.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
 };
