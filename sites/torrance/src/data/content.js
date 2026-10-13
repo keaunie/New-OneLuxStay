@@ -25,10 +25,12 @@ export const IMAGES = {
   food: "/images/torrance-dining.jpg",
 };
 
-// The buildings. `match` is tested against a listing's street address.
+// The buildings. `match` is tested against a listing's street address. `bedrooms` and `bathrooms`, when set, override the listing data.
 export const BUILDINGS = [
   {
     key: "anza-23451",
+    bedrooms: 2,
+    bathrooms: 1.5,
     name: "23451 Anza Avenue",
     street: "23451 Anza Avenue, Torrance, CA 90505",
     match: /23451\s+anza/i,
@@ -37,6 +39,8 @@ export const BUILDINGS = [
   },
   {
     key: "anza-23621",
+    bedrooms: 2,
+    bathrooms: 2,
     name: "23621 Anza Avenue",
     street: "23621 Anza Avenue, Torrance, CA 90505",
     match: /23621\s+anza/i,
@@ -45,6 +49,8 @@ export const BUILDINGS = [
   },
   {
     key: "anza-23817",
+    bedrooms: 2,
+    bathrooms: 1,
     name: "23817 Anza Avenue",
     street: "23817 Anza Avenue, Torrance, CA 90505",
     match: /23817\s+anza/i,

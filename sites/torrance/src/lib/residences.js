@@ -47,8 +47,8 @@ export const groupResidences = (listings = []) => {
   listings.forEach((listing) => {
     const building = buildingFor(listing);
     if (!building) return;
-    const bedrooms = Number(listing.bedrooms) || 1;
-    const bathrooms = Number(listing.bathrooms) || 1;
+    const bedrooms = building.bedrooms ?? (Number(listing.bedrooms) || 1);
+    const bathrooms = building.bathrooms ?? (Number(listing.bathrooms) || 1);
     const key = `${building.key}-${bedrooms}br`;
     const photos = photoUrls(listing);
     const existing = groups.get(key) || {
@@ -86,7 +86,7 @@ export const groupResidences = (listings = []) => {
 // Shown if the listings service can't be reached, so the site never looks empty. Photos are
 // omitted; cards fall back to a branded placeholder.
 export const FALLBACK_RESIDENCES = [
-  { bedrooms: 2, bathrooms: 1, sleeps: 6, units: 3, building: "anza-23451" },
+  { bedrooms: 2, bathrooms: 1.5, sleeps: 6, units: 3, building: "anza-23451" },
   { bedrooms: 2, bathrooms: 2, sleeps: 6, units: 2, building: "anza-23621" },
   { bedrooms: 2, bathrooms: 1, sleeps: 5, units: 6, building: "anza-23817" },
 ].map((plan) => {
