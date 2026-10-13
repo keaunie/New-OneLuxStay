@@ -9,7 +9,7 @@ export default function ResidenceCard({ residence, loading = false }) {
     <article className="residence-card">
       <Link to={`/residences/${residence.slug}`} className="residence-card__media" aria-label={`View ${residence.title}`}>
         {cover ? (
-          <PhotoImage key={cover} src={resizePhoto(cover, 800)} alt={`${residence.title} living area`} />
+          <PhotoImage key={cover} src={resizePhoto(cover, 800)} alt={`Furnished apartment in Redondo Beach: ${residence.title}`} />
         ) : loading ? (
           <span className="photo photo--loading" aria-busy="true">
             <span className="photo__spinner" role="status" aria-label="Loading photo" />

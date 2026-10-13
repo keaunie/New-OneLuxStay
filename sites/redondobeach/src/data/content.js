@@ -7,8 +7,8 @@ export const SITE = {
   domain: "https://redondobeach.oneluxstay.com",
   mainSite: "https://oneluxstay.com",
   minNights: 31,
-  monthlyRange: "$4,500 – $6,500 per month",
-  monthlyNote: "Seasonal monthly pricing",
+  monthlyRange: "$3,900 per month",
+  monthlyNote: "Simple monthly pricing",
   phone: { display: "+1 213 866 3589", href: "tel:+12138663589" },
   whatsapp: { display: "+1 213 866 3589", digits: "12138663589" },
   email: "reservations@oneluxstay.com",
@@ -41,8 +41,8 @@ export const BUILDINGS = [
     name: "419 N Broadway",
     street: "419 North Broadway, Redondo Beach, CA 90277",
     match: /419 north broadway/i,
-    blurb: "A one-bedroom home a short stroll from the pier and the marina.",
-    highlights: ["Washer & dryer", "Dishwasher"],
+    blurb: "A one-bedroom home with a parking space, a short stroll from the pier and the marina.",
+    highlights: ["Free parking on premises", "Washer & dryer", "Dishwasher"],
   },
 ];
 
@@ -91,7 +91,7 @@ export const FAQS = [
   },
   {
     q: "How is pricing structured?",
-    a: `Pricing is monthly and seasonal, typically ${SITE.monthlyRange}. The exact rate depends on the home and your dates, so send us your plans and we'll quote you.`,
+    a: `Pricing is monthly: ${SITE.monthlyRange} for every home. Send us your dates and we'll confirm availability and your rate.`,
   },
   {
     q: "Are the homes furnished?",
@@ -99,7 +99,7 @@ export const FAQS = [
   },
   {
     q: "Is there parking?",
-    a: "The 407 N Broadway building has free parking on the premises. For 419 N Broadway, ask us about parking for your stay.",
+    a: "Both buildings, 407 and 419 N Broadway, have free parking on the premises.",
   },
   {
     q: "Can I bring pets?",
@@ -232,5 +232,5 @@ export const QUICK_FACTS = [
   { label: "Stay length", value: `${SITE.minNights}+ nights` },
   { label: "Setup", value: "Fully furnished" },
   { label: "Homes", value: "3 one-bedrooms" },
-  { label: "Pricing", value: "Monthly, seasonal" },
+  { label: "Pricing", value: "$3,900 per month" },
 ];

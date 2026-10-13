@@ -5,7 +5,7 @@ import { FAQS, SITE, STEPS, WHO_FOR, WHY_LONG_TERM } from "../data/content.js";
 export default function LongTermStays() {
   usePageMeta(
     "Long-term stays",
-    `How long-term stays work at OneLuxStay Redondo Beach: furnished homes, ${SITE.minNights}-night minimum, monthly seasonal pricing, and answers to common questions.`,
+    `Furnished rentals in Redondo Beach for long stays: ${SITE.minNights}-night minimum, simple monthly pricing, executive-style furnished apartments and answers to common questions.`,
   );
 
   return (

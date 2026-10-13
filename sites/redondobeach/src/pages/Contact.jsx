@@ -5,7 +5,7 @@ import { BUILDINGS, SITE } from "../data/content.js";
 export default function Contact() {
   usePageMeta(
     "Contact & inquiries",
-    `Ask about availability and monthly pricing for a furnished long-term stay (${SITE.minNights}+ nights) in Redondo Beach. Call, WhatsApp, email or send an inquiry.`,
+    `Ask about availability and monthly pricing for a furnished apartment in Redondo Beach (${SITE.minNights}+ nights). Call, WhatsApp, email or send an inquiry.`,
   );
 
   return (

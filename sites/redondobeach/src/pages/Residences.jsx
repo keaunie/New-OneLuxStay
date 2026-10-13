@@ -6,8 +6,8 @@ import { BUILDINGS, SITE } from "../data/content.js";
 
 export default function Residences() {
   usePageMeta(
-    "Furnished residences",
-    "Browse furnished one-bedroom homes in Redondo Beach, California, available for stays of 31 nights or more.",
+    "Furnished apartments in Redondo Beach",
+    "Furnished apartments and modern 1-bedroom rentals in Redondo Beach, California, for stays of 31 nights or more. Executive-style suites near the pier and marina, $3,900 per month.",
   );
   const { residences, loading, live } = useResidences();
 
@@ -18,7 +18,7 @@ export default function Residences() {
           <p className="eyebrow">Residences</p>
           <h1>Furnished homes for {SITE.minNights}+ night stays</h1>
           <p className="page-head__lead">
-            Furnished one-bedroom homes in Redondo Beach. Every home is fully furnished and ready to live in.
+            Modern furnished apartments in Redondo Beach, each a one-bedroom suite ready to live in.
           </p>
         </div>
       </section>
@@ -52,7 +52,7 @@ export default function Residences() {
           </div>
 
           <p className="section__note">
-            {SITE.monthlyNote}: typically {SITE.monthlyRange}. Send us your dates for an exact quote.{" "}
+            {SITE.monthlyNote}: {SITE.monthlyRange} for every home. Send us your dates to check availability.{" "}
             <Link to="/contact" className="link-arrow">Ask about availability</Link>
           </p>
         </div>

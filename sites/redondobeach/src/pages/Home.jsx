@@ -17,7 +17,7 @@ const wants3d = () => new URLSearchParams(window.location.search).get("scene") =
 export default function Home() {
   usePageMeta(
     null,
-    "Furnished 1-bedroom apartment in Redondo Beach, CA for stays of 31+ nights. Short walk to the pier, marina and beach. Free parking. Get a monthly quote.",
+    "Furnished apartments in Redondo Beach, CA: modern 1-bedroom rentals for stays of 31+ nights, a short walk to the pier, marina and beach. Free parking. $3,900 per month.",
   );
   const { residences, loading } = useResidences();
 
@@ -32,9 +32,9 @@ export default function Home() {
         <div className="hero__shade" />
         <div className="container hero__content">
           <p className="eyebrow eyebrow--light">Redondo Beach, California</p>
-          <h1>Live by the water. Stay a month, or longer.</h1>
+          <h1>Furnished apartments in Redondo Beach. Stay a month, or longer.</h1>
           <p className="hero__lead">
-            Fully furnished homes for stays of {SITE.minNights} nights or more, close to the pier, the marina and
+            Modern furnished rentals for stays of {SITE.minNights} nights or more, close to the pier, the marina and
             the beach, with the comforts of home already in place.
           </p>
           <div className="hero__actions">
@@ -94,8 +94,8 @@ export default function Home() {
             ))}
           </div>
           <p className="section__note">
-            Monthly pricing is seasonal and depends on the home and your dates. Tell us when you&rsquo;d like to move
-            in and we&rsquo;ll send an exact quote.
+            Every home is {SITE.monthlyRange}. Tell us when you&rsquo;d like to move in and we&rsquo;ll confirm
+            availability.
           </p>
         </div>
       </section>

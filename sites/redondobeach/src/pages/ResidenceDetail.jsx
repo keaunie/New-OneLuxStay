@@ -45,7 +45,7 @@ export default function ResidenceDetail() {
   usePageMeta(
     residence ? residence.title : "Residence",
     residence
-      ? `${residence.name} in ${residence.building.name}, Redondo Beach. ${residence.bedrooms} bedroom, ${residence.bathrooms} bath, sleeps ${residence.sleeps}. Furnished, for stays of ${SITE.minNights} nights or more.`
+      ? `Furnished ${residence.bedrooms}-bedroom apartment at ${residence.building.name}, Redondo Beach. ${residence.bathrooms} bath, sleeps ${residence.sleeps}, free parking, for stays of ${SITE.minNights} nights or more. ${SITE.monthlyRange}.`
       : undefined,
   );
 
@@ -89,7 +89,7 @@ export default function ResidenceDetail() {
           <div className={`gallery gallery--${Math.min(gallery.length, 5)}`}>
             {gallery.map((photo, index) => (
               <button key={photo} type="button" className="gallery__item" onClick={() => setLightboxIndex(index)} aria-label={`Open photo ${index + 1}`}>
-                <PhotoImage key={photo} src={resizePhoto(photo, index === 0 ? 1200 : 700)} alt={index === 0 ? `${residence.title} interior` : ""} eager={index === 0} />
+                <PhotoImage key={photo} src={resizePhoto(photo, index === 0 ? 1200 : 700)} alt={index === 0 ? `Furnished apartment in Redondo Beach: ${residence.title} interior` : ""} eager={index === 0} />
               </button>
             ))}
             {photos.length > 5 && (
@@ -136,7 +136,7 @@ export default function ResidenceDetail() {
           <aside className="booking-card" id="inquire">
             <p className="booking-card__badge">{SITE.minNights}+ nights only</p>
             <p className="booking-card__price">{SITE.monthlyRange}</p>
-            <p className="booking-card__note">{SITE.monthlyNote}. Share your dates for an exact quote.</p>
+            <p className="booking-card__note">{SITE.monthlyNote}. Share your dates to check availability.</p>
             <InquiryForm residence={residence.title} compact />
           </aside>
         </div>
