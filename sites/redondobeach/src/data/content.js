@@ -12,6 +12,8 @@ export const SITE = {
   phone: { display: "+1 213 866 3589", href: "tel:+12138663589" },
   whatsapp: { display: "+1 618 881 2613", digits: "16188812613" },
   email: "reservations@oneluxstay.com",
+  // Every website inquiry is addressed to all of these.
+  inquiryTo: ["reservations@oneluxstay.com", "ash@oneluxstay.com"],
   apiBase: "https://admin.oneluxstay.com/.netlify/functions",
 };
 
