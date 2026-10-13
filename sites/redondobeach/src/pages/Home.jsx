@@ -84,7 +84,7 @@ export default function Home() {
           <header className="section__head section__head--row">
             <div>
               <p className="eyebrow">Our residences</p>
-              <h2>Furnished homes in two Redondo Beach buildings</h2>
+              <h2>Furnished one-bedroom homes in Redondo Beach</h2>
             </div>
             <Link to="/residences" className="link-arrow">View all residences</Link>
           </header>

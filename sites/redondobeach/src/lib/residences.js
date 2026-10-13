@@ -48,6 +48,8 @@ export const groupResidences = (listings = []) => {
     const building = buildingFor(listing);
     if (!building) return;
     const bedrooms = Number(listing.bedrooms) || 1;
+    // We only offer the one-bedroom homes on this site.
+    if (bedrooms !== 1) return;
     const bathrooms = Number(listing.bathrooms) || 1;
     const key = `${building.key}-${bedrooms}br`;
     const photos = photoUrls(listing);
@@ -87,8 +89,6 @@ export const groupResidences = (listings = []) => {
 // omitted; cards fall back to a branded placeholder.
 export const FALLBACK_RESIDENCES = [
   { bedrooms: 1, bathrooms: 1, sleeps: 4, units: 8, building: "north-broadway" },
-  { bedrooms: 2, bathrooms: 2, sleeps: 6, units: 3, building: "barbara-street" },
-  { bedrooms: 3, bathrooms: 2, sleeps: 7, units: 6, building: "barbara-street" },
 ].map((plan) => {
   const building = BUILDINGS.find((b) => b.key === plan.building);
   return {

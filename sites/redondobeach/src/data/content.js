@@ -26,7 +26,7 @@ export const IMAGES = {
   food: "/images/redondo-food.jpg",
 };
 
-// The two buildings. `match` is tested against a listing's street address.
+// The building. `match` is tested against a listing's street address.
 export const BUILDINGS = [
   {
     key: "north-broadway",
@@ -35,14 +35,6 @@ export const BUILDINGS = [
     match: /broadway/i,
     blurb: "One-bedroom homes with free on-site parking, a short stroll from the pier and the marina.",
     highlights: ["Free parking on premises", "Washer & dryer", "Dishwasher"],
-  },
-  {
-    key: "barbara-street",
-    name: "Barbara Street",
-    street: "1113 Barbara Street, Redondo Beach, CA 90277",
-    match: /barbara/i,
-    blurb: "Larger two- and three-bedroom homes with air conditioning, room for families, teams and extended work stays.",
-    highlights: ["Air conditioning", "Washer & dryer", "Dishwasher"],
   },
 ];
 
@@ -92,7 +84,7 @@ export const FAQS = [
   },
   {
     q: "Is there parking?",
-    a: "The North Broadway building has free parking on the premises. For Barbara Street, ask us about parking for your stay.",
+    a: "The building has free parking on the premises.",
   },
   {
     q: "Can I bring pets?",
@@ -224,6 +216,6 @@ export const EXPLORE = [
 export const QUICK_FACTS = [
   { label: "Stay length", value: `${SITE.minNights}+ nights` },
   { label: "Homes", value: "Furnished" },
-  { label: "Buildings", value: "2 in Redondo Beach" },
+  { label: "Building", value: "North Broadway" },
   { label: "Pricing", value: "Monthly, seasonal" },
 ];
