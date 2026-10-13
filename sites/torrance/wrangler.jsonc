@@ -1,0 +1,21 @@
+{
+  "name": "oneluxstay-torrance",
+  "main": "./worker.js",
+  "compatibility_date": "2026-10-06",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // Lets worker.js redirect alternate hostnames before any page is served.
+    "run_worker_first": true
+  },
+  // The main address, plus alternate addresses that redirect to it (see worker.js).
+  // Each hostname must not already have a DNS record in the Cloudflare zone; Cloudflare creates
+  // the record when this is deployed.
+  // Sender for the inquiry form emails. RESEND_API_KEY is a secret set on the worker (wrangler secret put).
+  "vars": { "RESEND_FROM_EMAIL": "OneLuxStay <no-reply@oneluxstay.com>" },
+  "routes": [
+    { "pattern": "torrance.oneluxstay.com", "custom_domain": true },
+    { "pattern": "torrance-ca.oneluxstay.com", "custom_domain": true }
+  ]
+}
