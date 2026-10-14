@@ -47,10 +47,12 @@ export const BUILDINGS = [
 ];
 
 // The homes we offer, all one-bedroom. Photos and amenities come from our one-bedroom listings.
+// A unit with `photoCount` uses its own photos from /images/units/unit-<number>/01.webp, 02.webp, ...
+// (made by scripts/optimize-unit-photos.mjs). Units without it use the shared listing photos.
 export const UNITS = [
-  { number: "1", building: "407-north-broadway" },
-  { number: "5", building: "419-north-broadway" },
-  { number: "16", building: "407-north-broadway" },
+  { number: "1", building: "407-north-broadway", photoCount: 62 },
+  { number: "5", building: "419-north-broadway", photoCount: 69 },
+  { number: "16", building: "407-north-broadway", photoCount: 57 },
 ];
 
 export const WHY_LONG_TERM = [

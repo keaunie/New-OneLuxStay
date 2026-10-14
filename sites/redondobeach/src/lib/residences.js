@@ -5,6 +5,8 @@ const clean = (value = "") => String(value ?? "").replace(/\s+/g, " ").trim();
 // Guesty's photo CDN resizes on the fly: a 335 KB original becomes ~40 KB at card size.
 export const resizePhoto = (url, width = 900) => {
   const value = clean(url);
+  // Our own unit photos come in two sizes: 1600px wide, and 800px wide with an "-sm" suffix.
+  if (/^\/images\/units\/.+\/\d+\.webp$/.test(value)) return width <= 900 ? value.replace(/\.webp$/, "-sm.webp") : value;
   if (!value.includes("/image/upload/")) return value;
   return value.replace("/image/upload/", `/image/upload/c_limit,w_${width},q_auto,f_auto/`);
 };
@@ -96,6 +98,14 @@ const expandUnits = (template) =>
       name: `${bedroomLabel(template.bedrooms)} Residence · Unit ${unit.number}`,
       title: `${bedroomLabel(template.bedrooms)} Residence · ${label}`,
       units: 1,
+      ...(unit.photoCount
+        ? {
+            photos: Array.from(
+              { length: unit.photoCount },
+              (_, i) => `/images/units/unit-${unit.number}/${String(i + 1).padStart(2, "0")}.webp`,
+            ),
+          }
+        : {}),
     };
   });
 
