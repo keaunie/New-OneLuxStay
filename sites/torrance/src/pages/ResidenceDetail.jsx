@@ -43,7 +43,7 @@ export default function ResidenceDetail() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   usePageMeta(
-    residence ? residence.title : "Residence",
+    residence ? `${residence.name}, Torrance CA` : "Residence",
     residence
       ? `${residence.name} in ${residence.building.name}, Torrance. ${residence.bedrooms} bedroom, ${residence.bathrooms} bath, sleeps ${residence.sleeps}. Furnished apartment in Torrance, CA for stays of ${SITE.minNights} nights or more.`
       : undefined,

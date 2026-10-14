@@ -29,6 +29,7 @@ export const IMAGES = {
 export const BUILDINGS = [
   {
     key: "anza-23451",
+    headline: "Cozy 2BR Furnished Apartment in South Torrance",
     bedrooms: 2,
     bathrooms: 1.5,
     name: "23451 Anza Avenue",
@@ -39,6 +40,7 @@ export const BUILDINGS = [
   },
   {
     key: "anza-23621",
+    headline: "Spacious 2BR/2BA Furnished Apartment in Torrance",
     bedrooms: 2,
     bathrooms: 2,
     name: "23621 Anza Avenue",
@@ -49,6 +51,7 @@ export const BUILDINGS = [
   },
   {
     key: "anza-23817",
+    headline: "Coastal 2BR Furnished Apartment near Torrance Beach",
     bedrooms: 2,
     bathrooms: 1,
     name: "23817 Anza Avenue",

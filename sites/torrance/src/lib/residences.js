@@ -74,8 +74,8 @@ export const groupResidences = (listings = []) => {
   return [...groups.values()]
     .map((group) => ({
       ...group,
-      name: `${bedroomLabel(group.bedrooms)} Furnished Apartment`,
-      title: `${bedroomLabel(group.bedrooms)} Furnished Apartment - ${group.building.name}`,
+      name: group.building.headline || `${bedroomLabel(group.bedrooms)} Furnished Apartment`,
+      title: `${group.building.headline || `${bedroomLabel(group.bedrooms)} Furnished Apartment`} - ${group.building.name}`,
       amenities: AMENITY_PRIORITY.filter((item) => group.amenities.has(item)),
       // "Downtown" is a location tag in the listing data, not a feature of the home.
       allAmenities: [...group.amenities].filter((item) => item && !/^downtown$/i.test(item)).sort(),
@@ -99,8 +99,8 @@ export const FALLBACK_RESIDENCES = [
     sleeps: plan.sleeps,
     units: plan.units,
     photos: [],
-    name: `${bedroomLabel(plan.bedrooms)} Furnished Apartment`,
-    title: `${bedroomLabel(plan.bedrooms)} Furnished Apartment - ${building.name}`,
+    name: building.headline || `${bedroomLabel(plan.bedrooms)} Furnished Apartment`,
+    title: `${building.headline || `${bedroomLabel(plan.bedrooms)} Furnished Apartment`} - ${building.name}`,
     amenities: ["Wireless Internet", "Washer", "Dryer", "Dishwasher", "Kitchen", "TV", "Towels provided", "Bed linens"],
     allAmenities: [],
     listingIds: [],
