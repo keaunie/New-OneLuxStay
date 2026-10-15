@@ -28,6 +28,7 @@ export default function HeroCards({ residences }) {
               ) : (
                 <span className="hero-card__placeholder">OneLuxStay</span>
               )}
+              <span className="hero-card__badge">{SITE.minNights}+ nights</span>
             </span>
             <span className="hero-card__body">
               <span className="hero-card__eyebrow">{residence.building.name}</span>
