@@ -7,8 +7,8 @@ export const SITE = {
   domain: "https://redondobeach.oneluxstay.com",
   mainSite: "https://oneluxstay.com",
   minNights: 31,
-  monthlyRange: "$3,900 per month",
-  monthlyStarts: "Starts from $3,900 per month",
+  monthlyRange: "$3,600 per month",
+  monthlyStarts: "Starting at $3,600 per month (6-month contract)",
   monthlyNote: "Simple monthly pricing",
   phone: { display: "+1 213 866 3589", href: "tel:+12138663589" },
   whatsapp: { display: "+1 213 866 3589", digits: "12138663589" },
@@ -94,7 +94,7 @@ export const FAQS = [
   },
   {
     q: "How is pricing structured?",
-    a: `Pricing is monthly: homes start from ${SITE.monthlyRange}. Send us your dates and we'll confirm availability and your rate.`,
+    a: `Pricing is monthly: homes start from ${SITE.monthlyRange} on a 6-month contract. Send us your dates and we'll confirm availability and your rate.`,
   },
   {
     q: "Are the homes furnished?",
@@ -234,6 +234,6 @@ export const EXPLORE = [
 export const QUICK_FACTS = [
   { label: "Stay length", value: `${SITE.minNights}+ nights` },
   { label: "Setup", value: "Fully furnished" },
-  { label: "Homes", value: "3 one-bedrooms" },
-  { label: "Pricing", value: "Starts from $3,900 per month" },
+  { label: "Homes", value: "Fully furnished 1-bedroom residences" },
+  { label: "Pricing", value: SITE.monthlyStarts },
 ];

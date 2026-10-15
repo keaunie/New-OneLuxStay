@@ -17,7 +17,7 @@ const wants3d = () => new URLSearchParams(window.location.search).get("scene") =
 export default function Home() {
   usePageMeta(
     null,
-    "Furnished apartments in Redondo Beach, CA: modern 1-bedroom rentals for stays of 31+ nights, a short walk to the pier, marina and beach. Free parking. Pricing starts from $3,900 per month.",
+    "Furnished apartments in Redondo Beach, CA: modern 1-bedroom rentals for stays of 31+ nights, a short walk to the pier, marina and beach. Free parking. Pricing starting at $3,600 per month on a 6-month contract.",
   );
   const { residences, loading } = useResidences();
 
@@ -94,7 +94,7 @@ export default function Home() {
             ))}
           </div>
           <p className="section__note">
-            Homes start from {SITE.monthlyRange}. Tell us when you&rsquo;d like to move in and we&rsquo;ll confirm
+            Homes start from {SITE.monthlyRange} on a 6-month contract. Tell us when you&rsquo;d like to move in and we&rsquo;ll confirm
             availability.
           </p>
         </div>

@@ -7,7 +7,7 @@ import { BUILDINGS, SITE } from "../data/content.js";
 export default function Residences() {
   usePageMeta(
     "Furnished apartments in Redondo Beach",
-    "Furnished apartments and modern 1-bedroom rentals in Redondo Beach, California, for stays of 31 nights or more. Executive-style suites near the pier and marina. Pricing starts from $3,900 per month.",
+    "Furnished apartments and modern 1-bedroom rentals in Redondo Beach, California, for stays of 31 nights or more. Executive-style suites near the pier and marina. Pricing starting at $3,600 per month on a 6-month contract.",
   );
   const { residences, loading, live } = useResidences();
 
@@ -52,7 +52,7 @@ export default function Residences() {
           </div>
 
           <p className="section__note">
-            {SITE.monthlyNote}: homes start from {SITE.monthlyRange}. Send us your dates to check availability.{" "}
+            {SITE.monthlyNote}: homes start from {SITE.monthlyRange} on a 6-month contract. Send us your dates to check availability.{" "}
             <Link to="/contact" className="link-arrow">Ask about availability</Link>
           </p>
         </div>
