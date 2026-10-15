@@ -59,7 +59,7 @@ export const UNITS = [
 // Same floor plan in every home.
 export const SLEEPING = [
   { room: "Bedroom", beds: "2 queen beds" },
-  { room: "Living room", beds: "1 sofa bed" },
+  { room: "Living room", beds: "2 sofa beds" },
 ];
 
 // Listing amenities that belong under "Bathroom" on a residence page.
