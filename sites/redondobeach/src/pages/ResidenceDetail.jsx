@@ -45,7 +45,7 @@ export default function ResidenceDetail() {
   usePageMeta(
     residence ? residence.title : "Residence",
     residence
-      ? `Furnished ${residence.bedrooms}-bedroom apartment at ${residence.building.name}, Redondo Beach. ${residence.bathrooms} bath, sleeps ${residence.sleeps}, free parking, for stays of ${SITE.minNights} nights or more. ${SITE.monthlyRange}.`
+      ? `Furnished ${residence.bedrooms}-bedroom apartment at ${residence.building.name}, Redondo Beach. ${residence.bathrooms} bath, sleeps ${residence.sleeps}, free parking, for stays of ${SITE.minNights} nights or more. ${SITE.monthlyStarts}.`
       : undefined,
   );
 
@@ -135,7 +135,7 @@ export default function ResidenceDetail() {
 
           <aside className="booking-card" id="inquire">
             <p className="booking-card__badge">{SITE.minNights}+ nights only</p>
-            <p className="booking-card__price">{SITE.monthlyRange}</p>
+            <p className="booking-card__price">{SITE.monthlyStarts}</p>
             <p className="booking-card__note">{SITE.monthlyNote}. Share your dates to check availability.</p>
             <InquiryForm residence={residence.title} compact />
           </aside>

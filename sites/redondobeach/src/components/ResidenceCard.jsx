@@ -31,7 +31,7 @@ export default function ResidenceCard({ residence, loading = false }) {
           <p className="residence-card__amenities">{residence.amenities.slice(0, 4).join(" · ")}</p>
         )}
         <div className="residence-card__footer">
-          <span className="residence-card__price">{SITE.monthlyRange}</span>
+          <span className="residence-card__price">{SITE.monthlyStarts}</span>
           <Link to={`/residences/${residence.slug}`} className="link-arrow">View residence</Link>
         </div>
       </div>

@@ -39,7 +39,7 @@ export default function LongTermStays() {
           <div>
             <p className="eyebrow">Pricing</p>
             <h2>{SITE.monthlyNote}</h2>
-            <p className="price-line">{SITE.monthlyRange}</p>
+            <p className="price-line">{SITE.monthlyStarts}</p>
             <p>
               Rates move with the season and depend on the home you choose and the length of your stay. Send us your
               dates and we&rsquo;ll quote you exactly, including what&rsquo;s included in your monthly rate and any
