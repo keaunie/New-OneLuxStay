@@ -4,6 +4,7 @@ import { prefersReducedMotion } from "../lib/motion.js";
 import usePageMeta from "../lib/usePageMeta.js";
 import useResidences from "../lib/useResidences.js";
 import ResidenceCard from "../components/ResidenceCard.jsx";
+import HeroCards from "../components/HeroCards.jsx";
 import InquiryForm from "../components/InquiryForm.jsx";
 import { EXPLORE, FAQS, IMAGES, QUICK_FACTS, SITE, STEPS, WHO_FOR, WHY_LONG_TERM } from "../data/content.js";
 
@@ -42,6 +43,7 @@ export default function Home() {
             <Link to="/contact" className="btn btn--light">Ask about monthly rates</Link>
           </div>
         </div>
+        <HeroCards residences={residences} />
       </section>
 
       <section className="facts-bar" aria-label="At a glance">

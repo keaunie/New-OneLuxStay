@@ -233,7 +233,6 @@ export const EXPLORE = [
 
 export const QUICK_FACTS = [
   { label: "Stay length", value: `${SITE.minNights}+ nights` },
-  { label: "Setup", value: "Fully furnished" },
   { label: "Homes", value: "Fully furnished 1-bedroom residences" },
   { label: "Pricing", value: SITE.monthlyStarts },
 ];
