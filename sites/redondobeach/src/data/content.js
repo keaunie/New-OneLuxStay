@@ -56,6 +56,15 @@ export const UNITS = [
   { number: "16", building: "407-north-broadway", photoCount: 57 },
 ];
 
+// Same floor plan in every home.
+export const SLEEPING = [
+  { room: "Bedroom", beds: "2 queen beds" },
+  { room: "Living room", beds: "1 sofa bed" },
+];
+
+// Listing amenities that belong under "Bathroom" on a residence page.
+export const BATHROOM_AMENITY = /towels|shampoo|conditioner|body soap|shower gel|hair dryer|hot water/i;
+
 export const WHY_LONG_TERM = [
   {
     title: "Move in with a suitcase",

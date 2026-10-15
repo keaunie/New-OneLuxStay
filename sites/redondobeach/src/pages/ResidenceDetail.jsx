@@ -5,7 +5,7 @@ import useResidences from "../lib/useResidences.js";
 import InquiryForm from "../components/InquiryForm.jsx";
 import PhotoImage from "../components/PhotoImage.jsx";
 import { resizePhoto } from "../lib/residences.js";
-import { SITE } from "../data/content.js";
+import { BATHROOM_AMENITY, SITE, SLEEPING } from "../data/content.js";
 import NotFound from "./NotFound.jsx";
 
 function Lightbox({ photos, index, onClose, onChange }) {
@@ -57,6 +57,7 @@ export default function ResidenceDetail() {
   const photos = residence.photos;
   const gallery = photos.slice(0, 5);
   const amenities = residence.allAmenities.length ? residence.allAmenities : residence.amenities;
+  const bathroomItems = amenities.filter((item) => BATHROOM_AMENITY.test(item));
 
   return (
     <>
@@ -117,12 +118,25 @@ export default function ResidenceDetail() {
                 : "Ask us about availability for your dates."}
             </p>
 
+            <h3>Sleeping arrangements</h3>
+            <ul className="amenities">
+              {SLEEPING.map((item) => (
+                <li key={item.room}><strong>{item.room}:</strong> {item.beds}</li>
+              ))}
+            </ul>
+
+            <h3>Bathroom</h3>
+            <ul className="amenities">
+              <li><strong>{residence.bathrooms} bathroom{residence.bathrooms === 1 ? "" : "s"}</strong></li>
+              {bathroomItems.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+
             <h3>Amenities</h3>
             {loading ? (
               <p className="section__note" role="status">Loading amenities…</p>
             ) : (
               <ul className="amenities">
-                {amenities.map((item) => <li key={item}>{item}</li>)}
+                {amenities.filter((item) => !BATHROOM_AMENITY.test(item)).map((item) => <li key={item}>{item}</li>)}
               </ul>
             )}
 
