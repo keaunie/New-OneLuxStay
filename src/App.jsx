@@ -14,7 +14,6 @@ const LandingPage = lazy(routePreloaders.landing);
 const AntwerpLandingPage = lazy(routePreloaders.antwerp);
 const PropertyStoryPage = lazy(routePreloaders.propertyStory);
 const LosAngelesLandingPage = lazy(routePreloaders.losAngeles);
-const RedondoBeachPrimaryPage = lazy(routePreloaders.redondoBeach);
 const RedondoBeachLegacyPage = lazy(routePreloaders.redondoBeachLegacy);
 const DubaiLandingPage = lazy(routePreloaders.dubai);
 const MiamiBeachLandingPage = lazy(routePreloaders.miamiBeach);
@@ -57,12 +56,21 @@ const CITY_ROOT_PATHS = new Set([
   "/los-angeles",
   "/losangeles",
   "/redondo",
-  "/redondo-beach",
   "/redondo-beach-legacy",
   "/dubai",
 ]);
 
 const isCityRootPath = (path = "") => CITY_ROOT_PATHS.has(path.toLowerCase());
+
+// Redondo Beach now has its own site. In-app links to /redondo-beach (chips, footer, search, blog
+// buttons) leave for it; the Cloudflare redirect rule does the same for direct visits.
+const REDONDO_SITE_URL = "https://redondobeach.oneluxstay.com";
+function ExternalRedirect({ to }) {
+  useLayoutEffect(() => {
+    window.location.replace(to);
+  }, [to]);
+  return null;
+}
 
 const useCityRouteLoading = () => {
   const location = useLocation();
@@ -185,6 +193,7 @@ function AppRoutes() {
           <Route path="/" element={<RootRoute />} />
           <Route path="/miami" element={renderLazyRoute(MiamiBeachLandingPage)} />
           <Route path="/miami-beach" element={renderLazyRoute(MiamiBeachLandingPage)} />
+          <Route path="/redondo-beach/attractions" element={<ExternalRedirect to={REDONDO_SITE_URL} />} />
           <Route path="/:citySlug/attractions" element={renderLazyRoute(CityAttractionsPage)} />
           <Route path="/antwerpen" element={renderLazyRoute(AntwerpLandingPage)} />
           <Route path="/antwerp" element={renderLazyRoute(AntwerpLandingPage)} />
@@ -220,18 +229,18 @@ function AppRoutes() {
           <Route path="/miami/listing/:listingId/:checkIn/:checkOut/:guests" element={renderLazyRoute(MiamiBeachLandingPage)} />
           <Route path="/miami-beach/listing/:listingId" element={renderLazyRoute(MiamiBeachLandingPage)} />
           <Route path="/miami/listing/:listingId" element={renderLazyRoute(MiamiBeachLandingPage)} />
-          <Route path="/redondo-beach" element={renderLazyRoute(RedondoBeachPrimaryPage)} />
+          <Route path="/redondo-beach" element={<ExternalRedirect to={REDONDO_SITE_URL} />} />
           <Route path="/redondo-beach-legacy" element={renderLazyRoute(RedondoBeachLegacyPage)} />
           <Route path="/redondo" element={renderLazyRoute(RedondoBeachLegacyPage)} />
           <Route path="/redondo-beach-legacy/:areaSlug/:bookingBundle" element={renderLazyRoute(RedondoBeachLegacyPage)} />
           <Route path="/redondo/:areaSlug/:bookingBundle" element={renderLazyRoute(RedondoBeachLegacyPage)} />
-          <Route path="/redondo-beach/:areaSlug/:bookingBundle" element={renderLazyRoute(RedondoBeachLegacyPage)} />
+          <Route path="/redondo-beach/:areaSlug/:bookingBundle" element={<ExternalRedirect to={REDONDO_SITE_URL} />} />
           <Route path="/redondo-beach-legacy/:areaSlug" element={renderLazyRoute(RedondoBeachLegacyPage)} />
           <Route path="/redondo/:areaSlug" element={renderLazyRoute(RedondoBeachLegacyPage)} />
-          <Route path="/redondo-beach/:areaSlug" element={renderLazyRoute(RedondoBeachLegacyPage)} />
+          <Route path="/redondo-beach/:areaSlug" element={<ExternalRedirect to={REDONDO_SITE_URL} />} />
           <Route path="/redondo-beach-legacy/listing/:listingId" element={renderLazyRoute(RedondoBeachLegacyPage)} />
           <Route path="/redondo/listing/:listingId" element={renderLazyRoute(RedondoBeachLegacyPage)} />
-          <Route path="/redondo-beach/listing/:listingId" element={renderLazyRoute(RedondoBeachLegacyPage)} />
+          <Route path="/redondo-beach/listing/:listingId" element={<ExternalRedirect to={REDONDO_SITE_URL} />} />
           <Route path="/dubai" element={renderLazyRoute(DubaiLandingPage)} />
           <Route path="/dubai/:areaSlug/:bookingBundle" element={renderLazyRoute(DubaiLandingPage)} />
           <Route path="/dubai/:areaSlug" element={renderLazyRoute(DubaiLandingPage)} />

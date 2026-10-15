@@ -1025,18 +1025,23 @@ function LandingPage() {
     "Redondo Beach": "/redondo-beach",
     Dubai: "/dubai",
   };
+  // Cities that now live on their own site: the chip leaves oneluxstay.com instead of routing in-app.
+  const externalCityUrls = {
+    "Redondo Beach": "https://redondobeach.oneluxstay.com",
+  };
   const formatCityLabel = (city) => CITY_DISPLAY_LABELS[city] || city;
   const prefetchCityByName = (city) => {
     const route = cityRoutes[city];
-    if (!route) return;
+    if (!route || externalCityUrls[city]) return;
     prefetchCityRoute(route);
   };
 
   const handleCityClick = (city) => {
     const route = cityRoutes[city];
+    const externalUrl = externalCityUrls[city];
     if (route) {
       setCityNotice("");
-      prefetchCityRoute(route);
+      if (!externalUrl) prefetchCityRoute(route);
       trackCityView({
         cityName: city,
         sourcePage: window.location.pathname + window.location.search,
@@ -1044,10 +1049,14 @@ function LandingPage() {
       });
       trackGuestCityClick({
         city,
-        destinationPath: route,
+        destinationPath: externalUrl || route,
         sourceSection: "hero_shortcuts",
         sourceLabel: "landing_chip",
       });
+      if (externalUrl) {
+        window.location.assign(externalUrl);
+        return;
+      }
       navigate(route);
       return;
     }
