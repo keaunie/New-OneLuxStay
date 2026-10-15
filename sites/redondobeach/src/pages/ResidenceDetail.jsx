@@ -8,10 +8,10 @@ import { resizePhoto } from "../lib/residences.js";
 import { BATHROOM_AMENITY, SITE, SLEEPING } from "../data/content.js";
 import NotFound from "./NotFound.jsx";
 
-// Same OpenStreetMap embed the main oneluxstay.com site uses (shared coordinates for both buildings).
-const MAP_COORDS = { lat: 33.8458, lng: -118.3884 };
-const MAP_SPAN = 0.0125;
-const MAP_EMBED_URL = `https://www.openstreetmap.org/export/embed.html?bbox=${MAP_COORDS.lng - MAP_SPAN}%2C${MAP_COORDS.lat - MAP_SPAN}%2C${MAP_COORDS.lng + MAP_SPAN}%2C${MAP_COORDS.lat + MAP_SPAN}&layer=mapnik&marker=${MAP_COORDS.lat}%2C${MAP_COORDS.lng}`;
+// Same OpenStreetMap embed the main oneluxstay.com site uses, centred on the building's own coordinates.
+const MAP_SPAN = 0.0035;
+const buildMapUrl = ({ lat, lng }) =>
+  `https://www.openstreetmap.org/export/embed.html?bbox=${lng - MAP_SPAN}%2C${lat - MAP_SPAN}%2C${lng + MAP_SPAN}%2C${lat + MAP_SPAN}&layer=mapnik&marker=${lat}%2C${lng}`;
 
 function Lightbox({ photos, index, onClose, onChange }) {
   useEffect(() => {
@@ -150,7 +150,7 @@ export default function ResidenceDetail() {
             <div className="location-map">
               <iframe
                 title={`Map showing ${residence.building.street}`}
-                src={MAP_EMBED_URL}
+                src={buildMapUrl(residence.building.coords)}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
               />
