@@ -100,6 +100,9 @@ const isPublicSitemapRoute = (routePath = "") => {
   if (normalized === "/admins-ols/audit") return false;
   if (normalized === "/admins-ols/guest-journeys") return false;
   if (normalized.startsWith("/private/")) return false;
+  // Redondo Beach moved to redondobeach.oneluxstay.com; these paths now redirect there.
+  if (normalized === "/redondo-beach") return false;
+  if (normalized.startsWith("/redondo-beach/")) return false;
   if (normalized === "/redondo-beach-legacy") return false;
   if (normalized.startsWith("/redondo-beach-legacy/")) return false;
   if (normalized === "/redondo") return false;
