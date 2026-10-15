@@ -8,6 +8,11 @@ import { resizePhoto } from "../lib/residences.js";
 import { BATHROOM_AMENITY, SITE, SLEEPING } from "../data/content.js";
 import NotFound from "./NotFound.jsx";
 
+// Same OpenStreetMap embed the main oneluxstay.com site uses (shared coordinates for both buildings).
+const MAP_COORDS = { lat: 33.8458, lng: -118.3884 };
+const MAP_SPAN = 0.0125;
+const MAP_EMBED_URL = `https://www.openstreetmap.org/export/embed.html?bbox=${MAP_COORDS.lng - MAP_SPAN}%2C${MAP_COORDS.lat - MAP_SPAN}%2C${MAP_COORDS.lng + MAP_SPAN}%2C${MAP_COORDS.lat + MAP_SPAN}&layer=mapnik&marker=${MAP_COORDS.lat}%2C${MAP_COORDS.lng}`;
+
 function Lightbox({ photos, index, onClose, onChange }) {
   useEffect(() => {
     const onKey = (event) => {
@@ -142,6 +147,14 @@ export default function ResidenceDetail() {
 
             <h3>Location</h3>
             <p>{residence.building.street}</p>
+            <div className="location-map">
+              <iframe
+                title={`Map showing ${residence.building.street}`}
+                src={MAP_EMBED_URL}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
             <p>
               <Link to="/explore" className="link-arrow">See what&rsquo;s nearby in Redondo Beach</Link>
             </p>
