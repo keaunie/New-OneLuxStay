@@ -146,7 +146,11 @@ export default function ResidenceDetail() {
             )}
 
             <h3>Location</h3>
-            <p>{residence.building.street}</p>
+            <p>
+              <a href={residence.building.mapsUrl} target="_blank" rel="noopener noreferrer" className="link-arrow">
+                {residence.building.street}
+              </a>
+            </p>
             <div className="location-map">
               <iframe
                 title={`Map showing ${residence.building.street}`}

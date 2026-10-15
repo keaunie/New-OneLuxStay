@@ -42,7 +42,7 @@ export default function Residences() {
             {BUILDINGS.map((building) => (
               <article key={building.key} className="info-card">
                 <p className="eyebrow">{building.name}</p>
-                <h3>{building.street}</h3>
+                <h3><a href={building.mapsUrl} target="_blank" rel="noopener noreferrer">{building.street}</a></h3>
                 <p>{building.blurb}</p>
                 <ul className="chips">
                   {building.highlights.map((item) => <li key={item}>{item}</li>)}
