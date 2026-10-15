@@ -48,7 +48,7 @@ export default function Layout() {
                 {item.label}
               </NavLink>
             ))}
-            <Link to="/contact" onClick={() => setMenuOpen(false)} className="btn btn--small btn--primary primary-nav__cta">Inquire</Link>
+            <Link to="/contact" onClick={() => setMenuOpen(false)} className="btn btn--small btn--primary primary-nav__cta">Book now</Link>
           </nav>
         </div>
       </header>
