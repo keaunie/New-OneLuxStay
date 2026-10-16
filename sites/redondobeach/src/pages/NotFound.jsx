@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import usePageMeta from "../lib/usePageMeta.js";
 
 export default function NotFound() {
-  usePageMeta("Page not found");
+  usePageMeta("Page not found", undefined, { noindex: true });
   return (
     <section className="section">
       <div className="container container--narrow center">
