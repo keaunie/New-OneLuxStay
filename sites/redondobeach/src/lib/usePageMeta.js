@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { SITE } from "../data/content.js";
 
 const SUFFIX = "OneLuxStay Redondo Beach";
-const DEFAULT_TITLE = "Furnished Apartment in Redondo Beach, CA | OneLuxStay";
+const DEFAULT_TITLE = "Furnished Apartments in Redondo Beach, CA | Monthly Rentals";
 const SHARE_IMAGE = `${SITE.domain}/images/redondo-waterfront.jpg`;
 
 const setTag = (selector, attrs) => {

@@ -4,8 +4,8 @@ import { EXPLORE, SITE } from "../data/content.js";
 
 export default function Explore() {
   usePageMeta(
-    "Explore Redondo Beach",
-    "A local guide to Redondo Beach: the pier, King Harbor marina, The Strand bike path, Riviera Village, the South Bay beach towns, parks and where to eat.",
+    "Things to Do in Redondo Beach: Pier, Beaches & Attractions",
+    "What to do in Redondo Beach, CA: the pier, King Harbor marina, The Strand bike path, Riviera Village, beaches, parks and where to eat. A local guide from OneLuxStay, with furnished monthly stays nearby.",
   );
 
   return (
@@ -13,7 +13,7 @@ export default function Explore() {
       <section className="page-head">
         <div className="container">
           <p className="eyebrow">Explore Redondo Beach</p>
-          <h1>Where the Pacific breeze meets laid-back South Bay living</h1>
+          <h1>Things to do in Redondo Beach: where the Pacific breeze meets laid-back South Bay living</h1>
           <p className="page-head__lead">
             Redondo Beach is one of LA&rsquo;s beloved South Bay beach towns, quieter and more residential than Santa
             Monica, with a working pier, a marina, ocean-path cycling and fresh seafood close by.
