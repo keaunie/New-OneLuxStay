@@ -6,8 +6,8 @@ import { BUILDINGS, SITE } from "../data/content.js";
 
 export default function Residences() {
   usePageMeta(
-    "Furnished apartments in Redondo Beach",
-    "Furnished apartments and modern 1-bedroom rentals in Redondo Beach, California, for stays of 31 nights or more. Executive-style suites near the pier and marina. Pricing starting at $3,600 per month on a 6-month contract.",
+    "Monthly Furnished Apartments in Redondo Beach",
+    "Furnished 1-bedroom apartments in Redondo Beach, California, for monthly and mid-term stays of 31 nights or more. Executive-style suites near the pier and marina. From $3,600 per month on a 6-month contract.",
   );
   const { residences, loading, live } = useResidences();
 

@@ -4,7 +4,7 @@ import { FAQS, SITE, STEPS, WHO_FOR, WHY_LONG_TERM } from "../data/content.js";
 
 export default function LongTermStays() {
   usePageMeta(
-    "Long-term stays",
+    "31+ Night Furnished Stays in Redondo Beach",
     `Furnished rentals in Redondo Beach for long stays: ${SITE.minNights}-night minimum, simple monthly pricing, executive-style furnished apartments and answers to common questions.`,
   );
 

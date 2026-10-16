@@ -4,8 +4,8 @@ import { EXPLORE, SITE } from "../data/content.js";
 
 export default function Explore() {
   usePageMeta(
-    "Things to Do in Redondo Beach: Pier, Beaches & Attractions",
-    "What to do in Redondo Beach, CA: the pier, King Harbor marina, The Strand bike path, Riviera Village, beaches, parks and where to eat. A local guide from OneLuxStay, with furnished monthly stays nearby.",
+    "Things to Do in Redondo Beach | Monthly Stay Guide",
+    "What to do in Redondo Beach, CA: the pier, King Harbor marina, The Strand bike path, Riviera Village, beaches, parks and where to eat. A local guide for guests on furnished monthly stays of 31+ nights.",
   );
 
   return (
