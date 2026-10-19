@@ -8,7 +8,7 @@ export const SITE = {
   mainSite: "https://oneluxstay.com",
   minNights: 31,
   monthlyRange: "$4,500 per month",
-  monthlyStarts: "Starting at $4,500 per month (6-month contract)",
+  monthlyStarts: "Starting at $4,500 per month",
   monthlyNote: "Simple monthly pricing",
   phone: { display: "+1 213 866 3589", href: "tel:+12138663589" },
   whatsapp: { display: "+1 213 866 3589", digits: "12138663589" },
@@ -107,7 +107,7 @@ export const FAQS = [
   },
   {
     q: "How is pricing structured?",
-    a: `Pricing is monthly: homes start from ${SITE.monthlyRange} on a 6-month contract. Send us your dates and we'll confirm availability and your rate.`,
+    a: `Pricing is monthly: homes start from ${SITE.monthlyRange}. Send us your dates and we'll confirm availability and your rate.`,
   },
   {
     q: "Are the homes furnished?",
