@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { SITE } from "../data/content.js";
 import { inquiryMailto, whatsappLink } from "../lib/contact.js";
+import { INQUIRY_SENT_KEY } from "../pages/ThankYou.jsx";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,6 +19,7 @@ export default function InquiryForm({ residence = "", compact = false }) {
     message: "",
     website: "", // honeypot: hidden from people, filled in by bots
   });
+  const navigate = useNavigate();
   const [error, setError] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent | failed
 
@@ -47,6 +50,12 @@ export default function InquiryForm({ residence = "", compact = false }) {
         throw new Error("send failed");
       }
       setStatus("sent");
+      try {
+        window.sessionStorage.setItem(INQUIRY_SENT_KEY, form.email.trim());
+      } catch {
+        // storage blocked: the thank-you page falls back to the homepage
+      }
+      navigate("/thank-you");
     } catch {
       setStatus("failed");
     }

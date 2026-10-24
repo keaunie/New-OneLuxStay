@@ -6,6 +6,7 @@ import ResidenceDetail from "./pages/ResidenceDetail.jsx";
 import Explore from "./pages/Explore.jsx";
 import LongTermStays from "./pages/LongTermStays.jsx";
 import Contact from "./pages/Contact.jsx";
+import ThankYou from "./pages/ThankYou.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="explore" element={<Explore />} />
         <Route path="long-term-stays" element={<LongTermStays />} />
         <Route path="contact" element={<Contact />} />
+        <Route path="thank-you" element={<ThankYou />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
