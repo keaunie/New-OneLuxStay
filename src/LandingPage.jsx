@@ -41,9 +41,10 @@ const CITY_DISPLAY_LABELS = {
   Hollywood: "Hollywood, CA",
   "Los Angeles": "Los Angeles, CA",
   "Redondo Beach": "Redondo Beach, CA",
+  Torrance: "Torrance, CA",
 };
 
-const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach"];
+const HERO_CITY_SHORTCUTS = ["Antwerp", "Dubai", "Los Angeles", "Hollywood", "Redondo Beach", "Torrance"];
 
 const PROPERTY_FALLBACK_IMAGES = {
   Antwerp: "https://assets.guesty.com/image/upload/v1747520363/production/666b3af27fc6d5653142b0af/ihcbdtwkdiaq9xyezgrs.jpg",
@@ -56,11 +57,14 @@ const PROPERTY_FALLBACK_IMAGES = {
 const normalizeApaleoCity = (property = {}) => {
   const city = String(property?.city || property?.location?.city || "").trim();
   const description = `${property?.title || ""} ${property?.description || ""}`.toLowerCase();
+  // Checked first and on the city field only, so a Torrance description that
+  // mentions nearby Redondo Beach or LA doesn't file it under those cities.
+  if (/torrance/.test(city.toLowerCase())) return "Torrance";
   if (/antwerp|antwerpen/.test(city.toLowerCase()) || /antwerp/.test(description)) return "Antwerp";
   if (/redondo/.test(city.toLowerCase()) || /redondo/.test(description)) return "Redondo Beach";
   if (/hollywood/.test(city.toLowerCase()) || /hollywood/.test(description)) return "Hollywood";
   if (/dubai/.test(city.toLowerCase()) || /dubai/.test(description)) return "Dubai";
-  if (/los angeles|torrance/.test(city.toLowerCase()) || /los angeles|hwh|la plaza/.test(description)) return "Los Angeles";
+  if (/los angeles/.test(city.toLowerCase()) || /los angeles|hwh|la plaza/.test(description)) return "Los Angeles";
   return city;
 };
 
@@ -1024,6 +1028,8 @@ function LandingPage() {
     "Los Angeles": "/losangeles",
     "Redondo Beach": "/redondo-beach",
     Dubai: "/dubai",
+    // No dedicated Torrance page yet; the global units page filters by ?city.
+    Torrance: "/global?city=Torrance",
   };
   // Cities that now live on their own site: the chip leaves oneluxstay.com instead of routing in-app.
   const externalCityUrls = {
@@ -1644,6 +1650,8 @@ function LandingPage() {
       if (cityParam === "Antwerp") return "/antwerp";
       if (cityParam === "Redondo Beach") return "/redondo-beach";
       if (cityParam === "Dubai") return "/dubai";
+      // Torrance (and any city without its own page) lands on /global, which
+      // filters to that city from the ?city= param set above.
       return "/global";
     })();
     const hash = targetRoute === "/listings" ? "#listings" : "";
