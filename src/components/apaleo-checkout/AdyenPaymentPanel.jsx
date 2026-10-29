@@ -28,7 +28,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
 
     const mount = async () => {
       try {
-        const [{ AdyenCheckout, Dropin, Card, PayPal, GooglePay }] = await Promise.all([
+        const [{ AdyenCheckout, Dropin, Card, PayPal, GooglePay, ApplePay }] = await Promise.all([
           import("@adyen/adyen-web"),
           import("@adyen/adyen-web/styles/adyen.css"),
         ]);
@@ -102,7 +102,7 @@ export default function AdyenPaymentPanel({ flow, onAuthorized, onDeclined }) {
         // ("Hotel bookings should not offer deferred payment methods"), even if Adyen's
         // /paymentMethods response includes them for this merchant account/country.
         dropinRef.current = new Dropin(checkoutInstance, {
-          paymentMethodComponents: [Card, PayPal, GooglePay],
+          paymentMethodComponents: [Card, PayPal, GooglePay, ApplePay],
           removePaymentMethods: [
             "klarna_paynow", "klarna", "klarna_b2b", "klarna_account",
             "ratepay", "ratepay_directdebit",
