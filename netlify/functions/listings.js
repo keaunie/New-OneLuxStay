@@ -741,7 +741,7 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
         }
 
         let orderedResults = onlyIds.map((id) => onlyIdMap.get(String(id))).filter(Boolean);
-        orderedResults = await markApaleoMappedListings(orderedResults);
+        orderedResults = (await markApaleoMappedListings(orderedResults)).filter((listing) => !isHiddenUnit(listing));
         orderedResults = await enrichListingsWithSecurityDeposits(orderedResults);
         return {
             results: orderedResults,
@@ -775,7 +775,8 @@ const buildSupabaseListingResponse = async (rawQueryParams = {}) => {
         }
     }
 
-    enrichedResults = await markApaleoMappedListings(enrichedResults);
+    // Re-check hidden units now that Apaleo property IDs are attached (see HIDDEN_APALEO_PROPERTY_IDS).
+    enrichedResults = (await markApaleoMappedListings(enrichedResults)).filter((listing) => !isHiddenUnit(listing));
     enrichedResults = await enrichListingsWithSecurityDeposits(enrichedResults);
 
     return {
