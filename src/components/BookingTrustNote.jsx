@@ -3,9 +3,10 @@ import "./BookingTrustNote.css";
 // Shown under the price breakdown in every city booking panel so guests see the
 // cancellation terms and why to book direct before they open the checkout — the
 // policy was previously only reachable through a link inside the checkout's
-// signature step. Keep the wording in sync with src/TermsConditions.jsx.
+// signature step. Mirrors the Apaleo "Flexible" cancellation policy that is
+// actually applied to bookings; keep in sync with src/TermsConditions.jsx.
 export const CANCELLATION_SUMMARY =
-  "Free cancellation for 1 hour after booking. After that: 50% charged if you cancel 31+ days before arrival, 75% at 15–30 days, 100% within 14 days.";
+  "Free cancellation until 14 days before check-in. Cancelling within 14 days of check-in, or not showing up, is charged the full accommodation cost.";
 
 export default function BookingTrustNote() {
   return (

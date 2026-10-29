@@ -66,7 +66,7 @@ export const conciergeKnowledge = {
   policies: {
     checkIn: "Standard check-in time is 3:00 PM. Early check-in can often be arranged — guests should contact the team in advance to request it, subject to availability.",
     checkOut: "Standard check-out time is 11:00 AM. Late check-out can sometimes be arranged — guests should request it with the team ahead of time, subject to availability.",
-    cancellation: "One Lux Stay has a strict cancellation policy. There is a 1-hour grace period after booking. After that: cancelling 31 or more days before arrival is charged 50% of the total price; 15-30 days before arrival is charged 75%; within 14 days of arrival is charged 100% (no refund). Non-refundable rates are charged 100% if cancelled. Full terms are on the Terms & Conditions page.",
+    cancellation: "Cancellation is free until 14 days before check-in. Cancelling within 14 days of check-in, or not showing up, is charged the full accommodation cost (no refund). Non-refundable rates are charged 100% if cancelled. Full terms are on the Terms & Conditions page.",
     pets: "Pets are generally not permitted at One Lux Stay properties unless the specific listing explicitly states otherwise. Guests traveling with a service animal should inform the team before booking.",
     parking: "Parking availability varies by property and city. Contact the team or check the listing page for parking details specific to your unit.",
     smoking: "All One Lux Stay properties are strictly non-smoking indoors. Please check with the team about outdoor smoking areas for your specific property.",

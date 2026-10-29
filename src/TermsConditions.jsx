@@ -101,12 +101,11 @@ function TermsConditions() {
           <p>Please note:</p>
           <ul className="policy-list">
             <li>The full amount will be charged on the date of booking if arrival is less than 14 days away.</li>
-            <li>Guests will be charged 100% of the total price if they cancel within 14 days of arrival.</li>
-            <li>Guests will be charged 75% of the total price if they cancel 15-30 days before arrival.</li>
-            <li>Guests will be charged 50% of the total price if they cancel 31 or more days before arrival.</li>
+            <li>Cancellation is free of charge until 14 days before the check-in date.</li>
+            <li>Guests will be charged the full accommodation cost if they cancel within 14 days of arrival.</li>
+            <li>No-shows will be charged the full accommodation cost.</li>
             <li>Non-Refundable: guests will be charged 100% of the total rate if they cancel a non-refundable stay.</li>
           </ul>
-          <p>There is a 1-hour grace period from the time of booking. This is a very strict cancellation policy.</p>
         </section>
 
         <section className="policy-section">

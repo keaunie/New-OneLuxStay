@@ -303,7 +303,7 @@ const buildPropertyFaqDoc = () => {
       key: "cancellation",
       title: "Cancellation Policy",
       content:
-        "One Lux Stay has a strict cancellation policy. There is a 1-hour grace period after booking. After that: cancelling 31 or more days before arrival is charged 50% of the total price; 15-30 days before arrival is charged 75%; within 14 days of arrival is charged 100% (no refund). Non-refundable rates are charged 100% if cancelled. Guests can contact reservations@oneluxstay.com about their specific reservation.",
+        "Cancellation is free until 14 days before check-in. Cancelling within 14 days of check-in, or not showing up, is charged the full accommodation cost (no refund). Non-refundable rates are charged 100% if cancelled. Guests can contact reservations@oneluxstay.com about their specific reservation.",
     },
     {
       key: "checkin-process",
