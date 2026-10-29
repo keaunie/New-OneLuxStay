@@ -14,6 +14,7 @@ import {
   OPENROUTER_CHAT_URL as OPENAI_API_URL,
   OPENROUTER_REFERER,
   buildChatModelFields,
+  loadLiveChatModels,
   resolveChatModel,
 } from "./_shared/openRouterChat.js";
 import { buildPropertyKnowledgeText, retrievePropertyKnowledge } from "./_shared/propertyKnowledge.js";
@@ -4886,6 +4887,8 @@ export async function handler(event) {
     return jsonResponse(400, { error: "A user message is required" }, event);
   }
 
+  // Started early so the OpenRouter model check overlaps the knowledge lookups.
+  const liveModelsReady = loadLiveChatModels();
   const conciergeKnowledge = await getConciergeKnowledge();
   const supportedCities = getSupportedCities(conciergeKnowledge);
   const languageProfile = detectGuestLanguageProfile({ latestUserMessage, messages });
@@ -4900,6 +4903,7 @@ export async function handler(event) {
   const sentimentLearningText = buildSentimentLearningText(sentimentLessons);
 
   const apiKey = getEnv("OPENROUTER_API_KEY");
+  await liveModelsReady;
   const model = resolveChatModel();
   // Embeddings still go straight to OpenAI (see OPENAI_EMBEDDINGS_URL), so
   // they need the original OpenAI key, not the OpenRouter one `apiKey` now

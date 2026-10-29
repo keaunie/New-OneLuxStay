@@ -11,6 +11,7 @@ import {
   OPENROUTER_CHAT_URL,
   OPENROUTER_REFERER,
   buildChatModelFields,
+  loadLiveChatModels,
   resolveChatModel,
 } from "./_shared/openRouterChat.js";
 import { buildPropertyKnowledgeText, retrievePropertyKnowledge } from "./_shared/propertyKnowledge.js";
@@ -1131,6 +1132,7 @@ const buildKnowledgeFallbackAnswer = (rows = []) => {
 // Primary path: OpenRouter with the same model list and fallbacks as the
 // guest concierge.
 const requestOpenRouterReply = async ({ apiKey, instructions, input }) => {
+  await loadLiveChatModels();
   const model = resolveChatModel("OPENROUTER_EXECUTIVE_OLS_MODEL", "OPENAI_EXECUTIVE_OLS_MODEL");
   const response = await fetchWithTimeout(
     OPENROUTER_CHAT_URL,
