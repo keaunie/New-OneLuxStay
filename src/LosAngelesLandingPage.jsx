@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useId, useCallback } from "react";
+import BookingTrustNote, { formatRatePlanLabel } from "./components/BookingTrustNote";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
@@ -7073,9 +7074,9 @@ const applyCheckoutPromoCode = () => {
             <div className="la-unit-modal__sidebar">
               <div className="la-unit-modal__card la-unit-modal__booking-panel" id="la-rooms" aria-label="Availability check">
                 <div className="la-unit-modal__bp-price">
-                  <strong>{formatCurrency(displayDailyRate, displayDailyRateCurrency)}</strong>
+                  <strong>{averageNightlyRate === null ? "From " : ""}{formatCurrency(displayDailyRate, displayDailyRateCurrency)}</strong>
                   <small>
-                    {averageNightlyRate !== null ? "avg per night" : "per night \u00b7 taxes at checkout"}
+                    {averageNightlyRate !== null ? "avg per night \u00b7 total below" : "per night \u00b7 pick dates for your total"}
                   </small>
                 </div>
                 <div className="la-unit-modal__bp-divider" />
@@ -7210,6 +7211,7 @@ const applyCheckoutPromoCode = () => {
                     <p>Check availability to view pricing breakdown.</p>
                   )}
                 </div>
+                {availability !== false && <BookingTrustNote />}
                 {selectedPromoShortfall > 0 && (
                   <div className="la-unit-modal__promo-warning" role="status">
                     <strong>More nights needed for {selectedPlan.label.split(" (")[0]}</strong>
@@ -7230,7 +7232,7 @@ const applyCheckoutPromoCode = () => {
                     >
                       {planOptions.map((planOption) => (
                         <option key={planOption.id} value={planOption.id}>
-                          {planOption.label}
+                          {formatRatePlanLabel(planOption.label)}
                         </option>
                       ))}
                     </select>
@@ -10254,6 +10256,7 @@ const applyCheckoutPromoCode = () => {
                           <p>Check availability to view pricing breakdown.</p>
                         )}
                       </div>
+                      {availability !== false && <BookingTrustNote />}
                       {!isStayTooShort && availability !== false && sectionAvailabilityActive && planOptions.length > 0 && (
                         <div className="la-unit-modal__rate-plan">
                           <label htmlFor={`la-listing-rate-plan-${listingId || "active"}`}>Promos</label>
@@ -10268,7 +10271,7 @@ const applyCheckoutPromoCode = () => {
                           >
                             {planOptions.map((planOption) => (
                               <option key={planOption.id} value={planOption.id}>
-                                {planOption.label}
+                                {formatRatePlanLabel(planOption.label)}
                               </option>
                             ))}
                           </select>

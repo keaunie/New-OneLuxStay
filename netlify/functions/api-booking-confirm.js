@@ -113,9 +113,10 @@ export async function handler(event) {
       addressLine1: clean(guest.addressLine1, 240), postalCode: clean(guest.postalCode, 40),
       city: clean(guest.city, 120), countryCode,
     };
-    if (!address.addressLine1 || !address.postalCode || !address.city || !/^[A-Z]{2}$/.test(countryCode)) {
-      return jsonResponse(400, { message: "A complete guest address and two-letter country code are required" });
-    }
+    // The checkout no longer asks for a street address (it was costing bookings), so
+    // the address is optional. Apaleo needs every address field once one is sent,
+    // so an incomplete address is left off the booker rather than rejected.
+    const hasFullAddress = Boolean(address.addressLine1 && address.postalCode && address.city && /^[A-Z]{2}$/.test(countryCode));
     const paymentMetadata = session.payment_metadata || {};
     const isStripeCard = session.payment_provider === "stripe";
     if (isStripeCard && session.guarantee_type === "CreditCard") {
@@ -138,7 +139,7 @@ export async function handler(event) {
       } : {}),
     };
     const bookingRequest = {
-      booker: { ...primaryGuest, address }, reservations: [reservation],
+      booker: { ...primaryGuest, ...(hasFullAddress ? { address } : {}) }, reservations: [reservation],
       ...(!isStripeCard && session.guarantee_type === "Prepayment" && session.payment_reference ? { transactionReference: session.payment_reference } : {}),
       ...(!isStripeCard && session.guarantee_type === "CreditCard" && paymentMetadata.payerReference && paymentMetadata.storedPaymentMethodId ? {
         paymentAccount: { payerReference: paymentMetadata.payerReference, storedPaymentMethodId: paymentMetadata.storedPaymentMethodId },

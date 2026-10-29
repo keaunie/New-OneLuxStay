@@ -6,8 +6,11 @@ import AdyenPaymentPanel from "./AdyenPaymentPanel";
 import StripePaymentPanel from "./StripePaymentPanel";
 import { COUNTRIES } from "../../utils/countries";
 import { PAYMENTS_DISABLED, PAYMENTS_DISABLED_CONTACT } from "../../config/paymentsConfig";
+import { CANCELLATION_SUMMARY } from "../BookingTrustNote";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const CONSENT_TEXT =
+  "I authorize OneLuxStay to process this reservation and I accept the rental terms and policies, including the cancellation policy.";
 
 const emptyGuest = { firstName: "", lastName: "", email: "", phone: "", addressLine1: "", postalCode: "", city: "", countryCode: "" };
 
@@ -17,7 +20,7 @@ function ConfirmationPanel({ confirmation, listingTitle, onClose }) {
       <div className="apaleo-checkout-modal__confirmation">
         <h2>Request sent</h2>
         <p>
-          {listingTitle ? `Your details and signature for ${listingTitle} were sent to our reservations team.` : "Your details and signature were sent to our reservations team."}{" "}
+          {listingTitle ? `Your details for ${listingTitle} were sent to our reservations team.` : "Your details were sent to our reservations team."}{" "}
           We&rsquo;ll call or email you shortly to take payment and confirm your stay.
         </p>
         <p>
@@ -64,7 +67,9 @@ function ConfirmationPanel({ confirmation, listingTitle, onClose }) {
 }
 
 // Guest-facing wizard for the Apaleo booking-session + Adyen payment flow: pick a stay,
-// enter guest details, accept consent, pay (or skip if pay-at-property), confirm.
+// enter guest details and accept the terms, pay (or skip if pay-at-property), confirm.
+// Kept to two steps on purpose: a separate address + drawn-signature step lost almost
+// every guest before payment (1 of ~130 checkout sessions reached it, Aug–Oct 2026).
 // Mirrors the existing Stepper-based checkoutGuestModal pattern used by the legacy
 // Guesty/Stripe flow in each landing page, but talks to useApaleoBookingFlow instead.
 export default function ApaleoCheckoutModal({
@@ -83,11 +88,7 @@ export default function ApaleoCheckoutModal({
   const [sessionStarting, setSessionStarting] = useState(false);
   const [guest, setGuest] = useState(emptyGuest);
   const [consentAccepted, setConsentAccepted] = useState(false);
-  const [consentSignerName, setConsentSignerName] = useState("");
-  const [consentSignatureDataUrl, setConsentSignatureDataUrl] = useState("");
   const [confirmError, setConfirmError] = useState("");
-  const canvasRef = useRef(null);
-  const isSigningRef = useRef(false);
   const sessionStartRef = useRef(false);
 
   useEffect(() => {
@@ -96,8 +97,6 @@ export default function ApaleoCheckoutModal({
       setCurrentStep(1);
       setGuest(emptyGuest);
       setConsentAccepted(false);
-      setConsentSignerName("");
-      setConsentSignatureDataUrl("");
       setConfirmError("");
       sessionStartRef.current = false;
     }
@@ -121,7 +120,7 @@ export default function ApaleoCheckoutModal({
   const handleStepChange = async (step) => {
     setCurrentStep(step);
     if (PAYMENTS_DISABLED) return;
-    if (step === 3 && flow.session?.payment_state !== "NOT_REQUIRED" && !flow.paymentMethodsConfig) {
+    if (step === 2 && flow.session?.payment_state !== "NOT_REQUIRED" && !flow.paymentMethodsConfig) {
       try {
         await flow.loadPaymentMethods({ countryCode: guest.countryCode, shopperLocale: navigator.language || "en-US" });
       } catch {
@@ -130,48 +129,18 @@ export default function ApaleoCheckoutModal({
     }
   };
 
-  const canvasPoint = (event) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const point = event.touches?.[0] || event;
-    return { x: point.clientX - rect.left, y: point.clientY - rect.top };
-  };
-  const startSignatureDraw = (event) => {
-    isSigningRef.current = true;
-    const ctx = canvasRef.current.getContext("2d");
-    const { x, y } = canvasPoint(event);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-  const drawSignature = (event) => {
-    if (!isSigningRef.current) return;
-    event.preventDefault();
-    const ctx = canvasRef.current.getContext("2d");
-    const { x, y } = canvasPoint(event);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = "#3f3326";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  };
-  const endSignatureDraw = () => {
-    if (!isSigningRef.current) return;
-    isSigningRef.current = false;
-    setConsentSignatureDataUrl(canvasRef.current.toDataURL("image/png"));
-  };
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    setConsentSignatureDataUrl("");
-  };
-
+  // Street address is no longer asked for; country stays because the payment
+  // provider uses it to pick and verify payment methods.
   const isGuestValid =
     guest.firstName.trim() && guest.lastName.trim() && EMAIL_RE.test(guest.email) && guest.phone.trim() &&
-    guest.addressLine1.trim() && guest.postalCode.trim() && guest.city.trim() && /^[A-Za-z]{2}$/.test(guest.countryCode.trim());
-  const isConsentValid = consentAccepted && consentSignerName.trim() && Boolean(consentSignatureDataUrl);
+    /^[A-Za-z]{2}$/.test(guest.countryCode.trim());
 
+  // The ticked terms checkbox is the consent record; the guest's name stands in
+  // as signer (the consent PDF handles a missing drawn signature).
   const buildConsentPayload = () => ({
-    signerName: consentSignerName.trim(),
-    signatureDataUrl: consentSignatureDataUrl,
+    signerName: `${guest.firstName} ${guest.lastName}`.trim(),
+    signatureDataUrl: "",
+    consentText: CONSENT_TEXT,
     acceptedAt: new Date().toISOString(),
   });
 
@@ -194,7 +163,7 @@ export default function ApaleoCheckoutModal({
   };
 
   // Kill-switch while the Apaleo/Adyen checkout is being finished: guest details and
-  // consent/signature are still collected as normal, but instead of an Adyen payment
+  // consent are still collected as normal, but instead of an Adyen payment
   // this sends the signed request straight to the reservations team to finish by phone.
   const handleManualRequest = async () => {
     setConfirmError("");
@@ -241,10 +210,7 @@ export default function ApaleoCheckoutModal({
     );
   }
 
-  const nextDisabled =
-    (currentStep === 1 && !isGuestValid) ||
-    (currentStep === 2 && !isConsentValid) ||
-    currentStep === 3;
+  const nextDisabled = (currentStep === 1 && !(isGuestValid && consentAccepted)) || currentStep === 2;
 
   return (
     <div className="apaleo-checkout-modal__overlay" role="dialog" aria-modal="true">
@@ -255,11 +221,12 @@ export default function ApaleoCheckoutModal({
         <Stepper
           onStepChange={handleStepChange}
           nextButtonProps={{ disabled: nextDisabled }}
+          nextButtonText={PAYMENTS_DISABLED ? "Continue" : "Continue to payment"}
           advanceOnFinalStep={false}
           onFinalStepCompleted={() => {}}
         >
           <Step>
-            <h3 className="apaleo-checkout-modal__step-title">Guest details</h3>
+            <h3 className="apaleo-checkout-modal__step-title">Your details</h3>
             {sessionStarting && <p className="apaleo-checkout-modal__hint">Holding your rate…</p>}
             {flow.error && <p className="apaleo-checkout-modal__error">{flow.error.message}</p>}
             <div className="apaleo-checkout-modal__field-grid">
@@ -280,18 +247,6 @@ export default function ApaleoCheckoutModal({
                 <input type="tel" value={guest.phone} onChange={(e) => setGuest((g) => ({ ...g, phone: e.target.value }))} required />
               </label>
               <label className="is-wide">
-                <span>Street address</span>
-                <input value={guest.addressLine1} onChange={(e) => setGuest((g) => ({ ...g, addressLine1: e.target.value }))} required />
-              </label>
-              <label>
-                <span>City</span>
-                <input value={guest.city} onChange={(e) => setGuest((g) => ({ ...g, city: e.target.value }))} required />
-              </label>
-              <label>
-                <span>Postal code</span>
-                <input value={guest.postalCode} onChange={(e) => setGuest((g) => ({ ...g, postalCode: e.target.value }))} required />
-              </label>
-              <label>
                 <span>Country</span>
                 <select
                   value={guest.countryCode}
@@ -304,39 +259,18 @@ export default function ApaleoCheckoutModal({
                   ))}
                 </select>
                 <small className="apaleo-checkout-modal__field-hint">
-                  The country on your billing address — used to verify your payment.
+                  The country of your card — used to show the right payment options.
                 </small>
               </label>
             </div>
-          </Step>
-
-          <Step>
-            <h3 className="apaleo-checkout-modal__step-title">Consent &amp; signature</h3>
-            <label className="apaleo-checkout-modal__field">
-              <span>Full name (as signature)</span>
-              <input value={consentSignerName} onChange={(e) => setConsentSignerName(e.target.value)} required />
-            </label>
-            <canvas
-              ref={canvasRef}
-              className="apaleo-checkout-modal__signature-pad"
-              width={420}
-              height={140}
-              onMouseDown={startSignatureDraw}
-              onMouseMove={drawSignature}
-              onMouseUp={endSignatureDraw}
-              onMouseLeave={endSignatureDraw}
-              onTouchStart={startSignatureDraw}
-              onTouchMove={drawSignature}
-              onTouchEnd={endSignatureDraw}
-            />
-            <button type="button" className="apaleo-checkout-modal__link-button" onClick={clearSignature}>
-              Clear signature
-            </button>
+            <p className="apaleo-checkout-modal__field-hint">
+              <strong>Cancellation:</strong> {CANCELLATION_SUMMARY}
+            </p>
             <label className="apaleo-checkout-modal__consent-checkbox">
               <input type="checkbox" checked={consentAccepted} onChange={(e) => setConsentAccepted(e.target.checked)} />
               <span>
-                I authorize OneLuxStay to process this reservation and I accept the{" "}
-                <a href="/terms" target="_blank" rel="noreferrer">rental terms and policies</a>.
+                I accept the{" "}
+                <a href="/terms" target="_blank" rel="noreferrer">rental terms and cancellation policy</a>.
               </span>
             </label>
           </Step>
