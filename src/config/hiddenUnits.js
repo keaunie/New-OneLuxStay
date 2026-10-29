@@ -15,6 +15,11 @@ export const HIDDEN_UNIT_IDS = [
   // "68e6d144a5e35f00237b6bc3"
 ];
 
+// Apaleo properties whose listings can't be booked. LAPLAZA (LA Plaza, 555 N
+// Broadway) no longer exists in Apaleo, so its calendar and offers fail; remove
+// it from this list once the property is set up in Apaleo again.
+export const HIDDEN_APALEO_PROPERTY_IDS = ["LAPLAZA"];
+
 export const HIDDEN_CITY_TERMS = ["miami", "miami beach", "south beach", "brickell", "wynwood"];
 
 const normalizeHiddenText = (value = "") =>
@@ -77,7 +82,13 @@ export const isHiddenUnit = (unit) => {
     unit;
   const normalizedId = String(id || "").trim();
 
-  return HIDDEN_UNIT_IDS.includes(normalizedId) || isHiddenCityUnit(unit);
+  const apaleoPropertyId = String(unit?.apaleoPropertyId || "").trim().toUpperCase();
+
+  return (
+    HIDDEN_UNIT_IDS.includes(normalizedId) ||
+    (apaleoPropertyId && HIDDEN_APALEO_PROPERTY_IDS.includes(apaleoPropertyId)) ||
+    isHiddenCityUnit(unit)
+  );
 };
 
 export const filterVisibleUnits = (units = []) =>
