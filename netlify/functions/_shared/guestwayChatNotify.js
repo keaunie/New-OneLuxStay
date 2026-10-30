@@ -21,8 +21,10 @@ const HUMAN_REQUEST_PATTERN =
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
+const getEnv = (name) => process.env[name] || globalThis.Netlify?.env?.get?.(name) || "";
+
 const fromAddress = () => {
-  const configured = String(process.env.RESEND_FROM_EMAIL || "").trim();
+  const configured = String(getEnv("RESEND_FROM_EMAIL")).trim();
   return (configured.match(/<([^>]+)>/) || [null, configured])[1].trim();
 };
 
@@ -49,10 +51,14 @@ const notificationReason = ({ messages, latestUserMessage, mode }) => {
 };
 
 export const notifyGuestwayOfWebsiteChat = async ({ messages = [], pageContext = {}, chatSessionId = "", reply = "", mode = "" }) => {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = getEnv("RESEND_API_KEY");
   const from = fromAddress();
-  const inbox = String(process.env.GUESTWAY_INBOX_EMAIL || DEFAULT_GUESTWAY_INBOX).trim();
-  if (!apiKey || !from || !inbox || process.env.GUESTWAY_CHAT_NOTIFY === "off") return;
+  const inbox = String(getEnv("GUESTWAY_INBOX_EMAIL") || DEFAULT_GUESTWAY_INBOX).trim();
+  if (!apiKey || !from || !inbox) {
+    console.warn("[guestway-chat] not sent: RESEND_API_KEY or RESEND_FROM_EMAIL is missing");
+    return;
+  }
+  if (getEnv("GUESTWAY_CHAT_NOTIFY") === "off") return;
 
   const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
   const reason = notificationReason({ messages, latestUserMessage, mode });
