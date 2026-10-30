@@ -156,23 +156,31 @@ const linkList = (links) =>
 
 // ---------------------------------------------------------------- listings
 
+// The listings function can briefly return a partial list (e.g. while Netlify is
+// redeploying), so retry until we get as many listings as it reports.
 const fetchListings = async () => {
   for (const origin of LISTINGS_ORIGINS) {
-    try {
-      const all = [];
-      for (let skip = 0; skip < 2000; skip += 200) {
-        const response = await fetch(`${origin}/.netlify/functions/listings?limit=200&skip=${skip}`, {
-          headers: { Accept: "application/json" },
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = await response.json();
-        const results = Array.isArray(payload?.results) ? payload.results : [];
-        all.push(...results);
-        if (results.length < 200) break;
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      try {
+        const all = [];
+        let expected = null;
+        for (let skip = 0; skip < 2000; skip += 200) {
+          const response = await fetch(`${origin}/.netlify/functions/listings?limit=200&skip=${skip}`, {
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const payload = await response.json();
+          const results = Array.isArray(payload?.results) ? payload.results : [];
+          if (expected == null && Number.isFinite(Number(payload?.count))) expected = Number(payload.count);
+          all.push(...results);
+          if (results.length < 200) break;
+        }
+        if (expected != null && all.length < expected) throw new Error(`got ${all.length} of ${expected} listings`);
+        return all;
+      } catch (error) {
+        console.warn(`[seo] Listing fetch from ${origin} (attempt ${attempt}) failed: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 3000));
       }
-      return all;
-    } catch (error) {
-      console.warn(`[seo] Listing fetch from ${origin} failed: ${error.message}`);
     }
   }
   return [];
@@ -553,6 +561,12 @@ const main = async () => {
   if (!listings.length) console.warn("[seo] No listings fetched; writing city and static pages only.");
 
   const pages = buildPages(listings);
+  // Never ship the public site without the listing pages: they are most of what search
+  // engines index. Netlify (admin site + functions) only warns so its deploys aren't blocked.
+  const listingPages = pages.filter((page) => page.path.includes("/listing/")).length;
+  if (listingPages < 20 && process.env.NETLIFY !== "true" && !process.env.SEO_ALLOW_FEW_LISTINGS) {
+    throw new Error(`only ${listingPages} listing pages from ${listings.length} listings; refusing to build (set SEO_ALLOW_FEW_LISTINGS=1 to override)`);
+  }
   for (const page of pages) {
     const file = pageFile(page.path);
     await fs.mkdir(path.dirname(file), { recursive: true });
