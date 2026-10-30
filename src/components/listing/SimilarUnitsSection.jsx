@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { filterVisibleUnits } from "../../config/hiddenUnits";
+import { sizedImageUrl } from "../../utils/imageQuality";
 
 export default function SimilarUnitsSection({
   listings,
@@ -110,7 +111,7 @@ export default function SimilarUnitsSection({
             <div key={id || path} className="ols-similar__item" role="listitem">
               <Link to={path} className="ols-similar__card" onClick={onListingClick}>
                 <div className="ols-similar__media">
-                  <img src={imgSrc} alt={title} className="ols-similar__img" loading="lazy" onError={handleImageError} draggable={false} />
+                  <img src={sizedImageUrl(imgSrc, 600)} alt={title} className="ols-similar__img" loading="lazy" onError={handleImageError} draggable={false} />
                   <span className="ols-similar__badge">Available now</span>
                   <button
                     type="button"

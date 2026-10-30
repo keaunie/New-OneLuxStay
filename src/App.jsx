@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { routePreloaders } from "./utils/routePreloaders";
 import ChatConcierge from "./components/ChatConcierge";
@@ -9,7 +9,6 @@ import ProtectedSuperAdminRoute from "./components/ProtectedSuperAdminRoute";
 import { trackGuestPageView } from "./utils/guestAnalytics";
 import "./App.css";
 
-const LoadingScreen = lazy(() => import("./components/LoadingScreen"));
 const LandingPage = lazy(routePreloaders.landing);
 const AntwerpLandingPage = lazy(routePreloaders.antwerp);
 const PropertyStoryPage = lazy(routePreloaders.propertyStory);
@@ -50,18 +49,6 @@ const AdminPropertiesPage   = lazy(() => import("./pages/AdminPropertiesPage"));
 const AdminAiBubble         = lazy(() => import("./executiveOls/AdminAiBubble"));
 const MaintenancePage       = lazy(routePreloaders.maintenance);
 
-const CITY_ROOT_PATHS = new Set([
-  "/antwerp",
-  "/antwerpen",
-  "/los-angeles",
-  "/losangeles",
-  "/redondo",
-  "/redondo-beach-legacy",
-  "/dubai",
-]);
-
-const isCityRootPath = (path = "") => CITY_ROOT_PATHS.has(path.toLowerCase());
-
 // Redondo Beach now has its own site. In-app links to /redondo-beach (chips, footer, search, blog
 // buttons) leave for it; the Cloudflare redirect rule does the same for direct visits.
 const REDONDO_SITE_URL = "https://redondobeach.oneluxstay.com";
@@ -71,39 +58,6 @@ function ExternalRedirect({ to }) {
   }, [to]);
   return null;
 }
-
-const useCityRouteLoading = () => {
-  const location = useLocation();
-  const shouldShowLoader = useMemo(
-    () =>
-      isCityRootPath(location.pathname) &&
-      !location.state?.skipCityLoader,
-    [location.pathname, location.state],
-  );
-  const [appLoaded, setAppLoaded] = useState(() => !shouldShowLoader);
-
-  useLayoutEffect(() => {
-    let active = true;
-    if (!shouldShowLoader) {
-      setAppLoaded(true);
-      return () => {
-        active = false;
-      };
-    }
-
-    setAppLoaded(false);
-    const timer = setTimeout(() => {
-      if (active) setAppLoaded(true);
-    }, 4000);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [shouldShowLoader, location.pathname]);
-
-  return { appLoaded, shouldShowLoader };
-};
 
 function RootRoute() {
   const location = useLocation();
@@ -121,7 +75,6 @@ function RootRoute() {
 function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { appLoaded, shouldShowLoader } = useCityRouteLoading();
   const pathname = String(location.pathname || "").toLowerCase();
   const isAiAgentConsoleEnabled =
     import.meta.env.DEV ||
@@ -181,14 +134,9 @@ function AppRoutes() {
 
   return (
     <>
-      {shouldShowLoader && (
-        <Suspense fallback={null}>
-          <LoadingScreen active={!appLoaded} />
-        </Suspense>
-      )}
       <AnalyticsTracker />
       <ScrollToTop />
-      <div className={`app-shell${appLoaded ? " is-ready" : ""}`}>
+      <div className="app-shell is-ready">
         <Routes>
           <Route path="/" element={<RootRoute />} />
           <Route path="/miami" element={renderLazyRoute(MiamiBeachLandingPage)} />

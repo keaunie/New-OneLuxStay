@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import "./App.css";
 import "./PropertyStoryPage.css";
 import SiteFooter from "./components/SiteFooter";
+import CityGuide from "./components/CityGuide";
 import MasonryGalleryModal from "./components/MasonryGalleryModal";
 import SimilarUnitsSection from "./components/listing/SimilarUnitsSection";
 import ApaleoCheckoutModal from "./components/apaleo-checkout/ApaleoCheckoutModal";
@@ -10,6 +11,7 @@ import useDocumentMeta from "./hooks/useDocumentMeta";
 import apiBase from "./utils/apiBase";
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
 import { filterVisibleUnits, isListingActiveForShowcase } from "./config/hiddenUnits";
+import { sizedImageUrl } from "./utils/imageQuality";
 
 /* ─────────────────────────── Antwerp property data ───────────────────────────
    Curated per-address content. Kept local to this page (rather than shared with
@@ -520,10 +522,10 @@ export default function PropertyStoryPage() {
 
       <section className="pstory-hero">
         <div className="pstory-hero__media">
-          <img src={heroImage} alt={`${story.label} by One Lux Stay`} onError={handleImageError} draggable={false} />
+          <img src={sizedImageUrl(heroImage, 1400)} alt={`${story.label} by One Lux Stay`} onError={handleImageError} draggable={false} />
           <div className="pstory-hero__side">
             {sideImages.map((src, idx) => (
-              <img key={src + idx} src={src} alt="" onError={handleImageError} draggable={false} />
+              <img key={src + idx} src={sizedImageUrl(src, 700)} alt="" onError={handleImageError} draggable={false} />
             ))}
           </div>
           {galleryImages.length > 1 && (
@@ -772,6 +774,7 @@ export default function PropertyStoryPage() {
           defaultTitle="One Lux Stay Antwerp"
           defaultCurrency="EUR"
         />
+        <CityGuide cityKey="antwerp" areaSlug={areaSlug} />
       </main>
 
       <SiteFooter />

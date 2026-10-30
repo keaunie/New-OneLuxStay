@@ -6,6 +6,7 @@ import "./App.css";
 import CardSwap, { Card } from "./components/CardSwap";
 import BounceCards from "./components/BounceCards";
 import SiteFooter from "./components/SiteFooter";
+import CityGuide from "./components/CityGuide";
 import ListingLoadingScreen from "./components/ListingLoadingScreen";
 import CitySearchLoadingOverlay from "./components/CitySearchLoadingOverlay";
 import MasonryGalleryModal from "./components/MasonryGalleryModal";
@@ -18,7 +19,7 @@ import getBedDetails, { splitBedDetailLine } from "./utils/bedDetails";
 import apiBase from "./utils/apiBase";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
 import { buildWhatsAppHref, buildWhatsAppLabel, resolveListingContactProfile } from "./utils/contactConfig";
-import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
+import { filterLowQualityImages, getImageKeyFromUrl, sizedImageUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
@@ -2905,7 +2906,7 @@ function SimilarUnitsSection({ listings, buildListingPath, onListingClick }) {
               <Link to={path} className="ols-similar__card" onClick={onListingClick}>
                 <div className="ols-similar__media">
                   <img
-                    src={imgSrc}
+                    src={sizedImageUrl(imgSrc, 600)}
                     alt={title}
                     className="ols-similar__img"
                     loading="lazy"
@@ -7082,7 +7083,7 @@ const applyCheckoutPromoCode = () => {
                       aria-label="View all photos"
                     >
                       <img
-                        src={mainImage}
+                        src={sizedImageUrl(mainImage, 1400)}
                         alt={sanitizeText(activeListing.title)}
                         loading="eager"
                         onError={handleImageError}
@@ -9045,7 +9046,7 @@ const applyCheckoutPromoCode = () => {
                           <img
                             key={`${listingKey}-image-${safeCardImageIndex}`}
                             className="la-unit-listing-card__media-image"
-                            src={imageUrl || FALLBACK_IMAGE}
+                            src={sizedImageUrl(imageUrl, 720) || FALLBACK_IMAGE}
                             alt={sanitizeText(listing?.title || "One Lux Stay Antwerp")}
                             loading="lazy"
                             onError={handleImageError}
@@ -9146,6 +9147,7 @@ const applyCheckoutPromoCode = () => {
                     })}
                   </div>
                 )}
+              <CityGuide cityKey="antwerp" areaSlug={routeAreaSlug} />
             </div>
             <aside
               className={`la-units-aside la-units-aside--map${isMobileMapOpen ? " is-mobile-open" : ""}`}
@@ -9317,7 +9319,7 @@ const applyCheckoutPromoCode = () => {
                           }}
                         >
                           <img
-                            src={mainImage}
+                            src={sizedImageUrl(mainImage, 1400)}
                             alt={`${activeSection.label} featured`}
                             loading="eager"
                             width="1200"
@@ -9342,7 +9344,7 @@ const applyCheckoutPromoCode = () => {
                             }}
                           >
                             <img
-                              src={src}
+                              src={sizedImageUrl(src, 700)}
                               alt=""
                               loading={idx === 0 ? "eager" : "lazy"}
                               width="600"
@@ -9719,7 +9721,7 @@ const applyCheckoutPromoCode = () => {
                             <div className="la-booking-table__title">
                               {image ? (
                                 <img
-                                  src={image}
+                                  src={sizedImageUrl(image, 240)}
                                   alt=""
                                   loading={index === 0 ? "eager" : "lazy"}
                                   width="120"

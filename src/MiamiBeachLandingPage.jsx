@@ -20,7 +20,7 @@ import apiBase from "./utils/apiBase";
 import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
 import { buildCheckoutVerificationPayload } from "./utils/checkoutVerificationPayload";
 import { PRIMARY_US_WHATSAPP_CONTACT, PRIMARY_US_WHATSAPP_LABEL, buildWhatsAppHref } from "./utils/contactConfig";
-import { filterLowQualityImages, getImageKeyFromUrl } from "./utils/imageQuality";
+import { filterLowQualityImages, getImageKeyFromUrl, sizedImageUrl } from "./utils/imageQuality";
 import { buildEmbedMapUrl, buildStaticMapUrl, loadLeafletMaps } from "./utils/leafletMapsAdapter";
 import { getAverageNightlyFromTotal, getPayableTotalFromBreakdown } from "./utils/pricingDisplay";
 import { formatRatePlanName, SIGNATURE_STAYS_RATE_LABEL } from "./utils/ratePlanLabels";
@@ -6178,7 +6178,7 @@ const applyCheckoutPromoCode = () => {
                       aria-label="View all photos"
                     >
                       <img
-                        src={mainImage}
+                        src={sizedImageUrl(mainImage, 1400)}
                         alt={sanitizeText(activeListing.title)}
                         loading="eager"
                         onError={handleImageError}
@@ -8058,7 +8058,7 @@ const applyCheckoutPromoCode = () => {
                           <img
                             key={`${listingKey}-image-${safeCardImageIndex}`}
                             className="la-unit-listing-card__media-image"
-                            src={imageUrl || FALLBACK_IMAGE}
+                            src={sizedImageUrl(imageUrl, 720) || FALLBACK_IMAGE}
                             alt={sanitizeText(listing?.title || "One Lux Stay Miami")}
                             loading="lazy"
                             onError={handleImageError}
@@ -8349,7 +8349,7 @@ const applyCheckoutPromoCode = () => {
                             openMasonryGallery(images, safeIndex);
                           }}
                         >
-                          <img src={mainImage} alt={`${activeSection.label} featured`} loading="eager" />
+                          <img src={sizedImageUrl(mainImage, 1400)} alt={`${activeSection.label} featured`} loading="eager" />
                         </button>
                       ) : (
                         <div className="la-unit-modal__placeholder">Image loading</div>
@@ -8368,7 +8368,7 @@ const applyCheckoutPromoCode = () => {
                               openMasonryGallery(images, nextIndex);
                             }}
                           >
-                            <img src={src} alt="" loading={idx === 0 ? "eager" : "lazy"} />
+                            <img src={sizedImageUrl(src, 700)} alt="" loading={idx === 0 ? "eager" : "lazy"} />
                           </button>
                         ) : (
                           <div key={`side-${idx}`} className="la-unit-modal__placeholder">
@@ -8732,7 +8732,7 @@ const applyCheckoutPromoCode = () => {
                           <div className="la-booking-table__cell" role="cell">
                             <div className="la-booking-table__title">
                               {image ? (
-                                <img src={image} alt="" loading={index === 0 ? "eager" : "lazy"} />
+                                <img src={sizedImageUrl(image, 240)} alt="" loading={index === 0 ? "eager" : "lazy"} />
                               ) : (
                                 <div className="la-booking-table__placeholder" aria-hidden="true" />
                               )}

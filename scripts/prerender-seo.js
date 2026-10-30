@@ -14,6 +14,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { blogPosts } from "../src/data/blogPosts.js";
 import { CITY_ATTRACTIONS } from "../src/data/cityAttractions.js";
+import { getCityGuide } from "../src/data/cityGuides.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = path.join(projectRoot, "dist");
@@ -96,8 +97,8 @@ const AREAS = [
     copy: "Furnished apartments in the heart of Hollywood, some with Hollywood Sign, pool or city views, close to the Walk of Fame, studios and Sunset Boulevard.",
   },
   {
-    city: "los-angeles", slug: "hwh", propertyIds: ["HWH"], label: "HWH Los Angeles",
-    copy: "Stylish 1 and 2-bedroom furnished apartments at HWH in Los Angeles, a practical base for work trips, production schedules and longer stays.",
+    city: "los-angeles", slug: "hwh", propertyIds: ["HWH"], label: "Downtown Los Angeles (HWH)",
+    copy: "Stylish 1 and 2-bedroom furnished apartments at HWH on Spring Street in the Historic Core of Downtown Los Angeles, steps from Grand Central Market and a practical base for work trips and longer stays.",
   },
   {
     city: "dubai", slug: "downtowndubai", propertyIds: ["DUBAI"], label: "Downtown Dubai",
@@ -148,6 +149,17 @@ const breadcrumbLd = (crumbs) => ({
     item: absolute(crumbPath),
   })),
 });
+
+// Same guide text the city and neighbourhood pages show under their listings.
+const guideHtml = (cityKey, areaSlug) => {
+  const guide = getCityGuide(cityKey, areaSlug);
+  if (!guide) return "";
+  const sections = guide.sections
+    .map((section) => `${section.heading ? `<h3>${escapeHtml(section.heading)}</h3>` : ""}${section.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("")}`)
+    .join("\n");
+  const faqs = (guide.faqs || []).map((faq) => `<h4>${escapeHtml(faq.q)}</h4><p>${escapeHtml(faq.a)}</p>`).join("");
+  return `<h2>${escapeHtml(guide.title)}</h2>\n${sections}${faqs ? `\n<h3>Good to know</h3>${faqs}` : ""}`;
+};
 
 const linkList = (links) =>
   links.length
@@ -338,7 +350,7 @@ ${linkList([
 ${cityAreas.length ? `<h2>Neighbourhoods</h2>${linkList(cityAreas.map((area) => [`${area.label}, ${city.name}`, `${city.path}/${area.slug}`]))}` : ""}
 ${cityGroups.length ? `<h2>Apartments in ${escapeHtml(city.name)}</h2>${linkList(listingLinks(cityGroups))}` : ""}
 ${attractions ? `<p><a href="/${cityKey}/attractions">Things to do in ${escapeHtml(city.name)}</a></p>` : ""}
-<p>${escapeHtml(CANCELLATION)}</p>`,
+${guideHtml(cityKey)}`,
       jsonLd: [
         breadcrumbLd([[BRAND, "/"], [city.name, city.path]]),
         {
@@ -386,7 +398,7 @@ ${linkList(listingLinks(hollywoodGroups))}
       bodyHtml: `<p>${escapeHtml(area.copy)}</p>
 <h2>Apartments in ${escapeHtml(area.label)}</h2>${linkList(listingLinks(areaGroups))}
 <p><a href="${city.path}">All ${escapeHtml(city.name)} apartments</a></p>
-<p>${escapeHtml(CANCELLATION)}</p>`,
+${guideHtml(area.city, area.slug)}`,
       jsonLd: [breadcrumbLd([[BRAND, "/"], [city.name, city.path], [area.label, areaPath]])],
     });
   }

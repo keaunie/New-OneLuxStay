@@ -65,3 +65,30 @@ export const filterLowQualityImages = (urls = [], minSize = 360) => {
   });
   return filtered.length ? filtered : urls;
 };
+
+// Listing photos come from Guesty's image CDN at full camera size (often 300 KB+).
+// Ask the CDN for a copy no wider than the slot it fills; other hosts pass through.
+const IMAGE_TRANSFORM_TOKEN = /(^|,)(w|h|c|q|f|g|dpr|ar)_/i;
+
+export const sizedImageUrl = (url, width = 800) => {
+  if (!url || typeof url !== "string") return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "images.unsplash.com") {
+      parsed.searchParams.set("w", String(width));
+      parsed.searchParams.set("q", "75");
+      parsed.searchParams.set("auto", "format");
+      return parsed.toString();
+    }
+    if (parsed.hostname !== "assets.guesty.com" && parsed.hostname !== "res.cloudinary.com") return url;
+    const marker = "/image/upload/";
+    const index = parsed.pathname.indexOf(marker);
+    if (index === -1) return url;
+    const segments = parsed.pathname.slice(index + marker.length).split("/");
+    if (IMAGE_TRANSFORM_TOKEN.test(segments[0])) segments.shift();
+    parsed.pathname = `${parsed.pathname.slice(0, index + marker.length)}w_${width},c_limit,q_auto,f_auto/${segments.join("/")}`;
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+};

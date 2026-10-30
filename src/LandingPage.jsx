@@ -4,7 +4,7 @@ import "./App.css";
 import "./LandingPage.css";
 import SiteFooter from "./components/SiteFooter";
 import apiBase from "./utils/apiBase";
-import { filterLowQualityImages } from "./utils/imageQuality";
+import { filterLowQualityImages, sizedImageUrl } from "./utils/imageQuality";
 import { prefetchCityRoute, prefetchRouteByPath } from "./utils/routePreloaders";
 import { trackGuestCityClick, trackGuestListingClick, trackGuestJourneyEvent } from "./utils/guestAnalytics";
 import { isHiddenUnit, isListingActiveForShowcase } from "./config/hiddenUnits";
@@ -18,7 +18,6 @@ import {
   trackGuestCountChanged,
 } from "./lib/analytics";
 
-const Silk = lazy(() => import("./components/Silk"));
 const CircularGallery = lazy(() => import("./components/CircularGallery"));
 
 // Temporarily keep the experimental hero property carousel out of production.
@@ -388,7 +387,7 @@ const optimizeLandingImage = (url, width = 1600) => {
   if (!url) return "";
   const value = String(url);
   if (value.includes("images.unsplash.com")) {
-    return `${value}&w=${width}&q=72`;
+    return sizedImageUrl(value, width);
   }
   const marker = "/image/upload/";
   if (value.includes("assets.guesty.com") && value.includes(marker) && !/\/image\/upload\/(?:[^/]*,)?(?:f_|q_|w_)/.test(value)) {
@@ -1010,7 +1009,7 @@ function LandingPage() {
         const href = `${basePath}${query ? `?${query}` : ""}${hash}`;
 
         return {
-          image: getListingImage(listing),
+          image: sizedImageUrl(getListingImage(listing), 800),
           text: formatGalleryLabel(listing, quotePricing[listingId], quoteLoading),
           city: cityParam || city || "",
           listingId,
@@ -1130,7 +1129,7 @@ function LandingPage() {
         const allUnits = [];
         parentResults.forEach((listing) => {
           const id = getListingId(listing);
-          const image = getListingImage(listing);
+          const image = sizedImageUrl(getListingImage(listing), 800);
           if (!id || !image) return;
           if (seen.has(id)) return;
           seen.add(id);
@@ -1190,7 +1189,7 @@ function LandingPage() {
         const groups = new Map();
         curated.forEach((listing) => {
           const id = getListingId(listing);
-          const image = getListingImage(listing);
+          const image = sizedImageUrl(getListingImage(listing), 800);
           if (!id || !image) return;
           const key = buildingGroupKey(listing);
           if (!groups.has(key)) groups.set(key, []);
@@ -1208,7 +1207,7 @@ function LandingPage() {
             return cheapest;
           }, groupListings[0]);
           const id = getListingId(representative);
-          const image = getListingImage(representative);
+          const image = sizedImageUrl(getListingImage(representative), 800);
           const city = normalizeListingCity(representative);
           const citySlug = citySlugFromName(city);
           const title =
@@ -1695,14 +1694,10 @@ function LandingPage() {
 
   return (
     <div className="landing-page text-white has-silk">
+      {/* Static backdrop: every section paints over it, so the old animated WebGL
+          version cost a full-screen redraw each frame without being visible. */}
       <div className="landing-silk" aria-hidden="true">
-        {shouldUseHeroEnhancements ? (
-          <Suspense fallback={<div className="silk-background silk-background--fallback" />}>
-            <Silk speed={4.5} scale={1.1} color="#8fb8ae" noiseIntensity={1.2} rotation={0.15} />
-          </Suspense>
-        ) : (
-          <div className="silk-background silk-background--fallback" />
-        )}
+        <div className="silk-background silk-background--fallback" />
       </div>
       <div className="landing-silk-overlay" aria-hidden="true" />
       <header id="hero" className="landing-hero relative landing-animate">
