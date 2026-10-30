@@ -13,10 +13,7 @@ const DEFAULT_GUESTWAY_INBOX = "archie-stay@in.gstw.io";
 const SITE_URL = "https://oneluxstay.com";
 const SEND_TIMEOUT_MS = 4000;
 
-const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
-const PHONE_PATTERN = /(?:\+|00)?\d[\d\s().-]{7,}\d/;
-const HUMAN_REQUEST_PATTERN =
-  /\b(real person|human|agent|representative|someone from (the|your) team|talk to (someone|a person|the team)|call me|phone me|front desk|manager)\b/i;
+import { findGuestEmail, findGuestPhone, isTeamRequest } from "./guestContact.js";
 
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -28,25 +25,16 @@ const fromAddress = () => {
   return (configured.match(/<([^>]+)>/) || [null, configured])[1].trim();
 };
 
-// Phone numbers have at least 9 digits; dates such as 2026-11-20 or 20/11/2026 are removed first.
-const findPhone = (text) => {
-  const withoutDates = String(text || "").replace(/\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b/g, " ");
-  const candidate = (withoutDates.match(new RegExp(PHONE_PATTERN, "g")) || []).find(
-    (match) => match.replace(/\D/g, "").length >= 9,
-  );
-  return candidate ? candidate.trim() : "";
-};
-
 const notificationReason = ({ messages, latestUserMessage, mode }) => {
   const userMessages = messages.filter((message) => message.role === "user");
   const latest = String(latestUserMessage?.content || "");
   const earlier = userMessages.slice(0, -1).map((message) => String(message.content || "")).join("\n");
 
   if (userMessages.length === 1) return "New website chat";
+  if (findGuestEmail(latest) && !findGuestEmail(earlier)) return "Guest shared an email address";
+  if (findGuestPhone(latest) && !findGuestPhone(earlier)) return "Guest shared a phone number";
   if (mode === "needs_attention") return "Lucy handed this chat to the team";
-  if (HUMAN_REQUEST_PATTERN.test(latest)) return "Guest asked for the team";
-  if (EMAIL_PATTERN.test(latest) && !EMAIL_PATTERN.test(earlier)) return "Guest shared an email address";
-  if (findPhone(latest) && !findPhone(earlier)) return "Guest shared a phone number";
+  if (isTeamRequest(latest)) return "Guest asked for the team";
   return "";
 };
 
@@ -65,8 +53,8 @@ export const notifyGuestwayOfWebsiteChat = async ({ messages = [], pageContext =
   if (!reason) return;
 
   const allGuestText = messages.filter((message) => message.role === "user").map((message) => message.content).join("\n");
-  const guestEmail = (allGuestText.match(EMAIL_PATTERN) || [])[0] || "";
-  const guestPhone = findPhone(allGuestText);
+  const guestEmail = findGuestEmail(allGuestText);
+  const guestPhone = findGuestPhone(allGuestText);
   const visitor = `Visitor ${String(chatSessionId || "").replace(/[^a-z0-9]/gi, "").slice(-4).toUpperCase() || "new"}`;
   const city = pageContext.city || "";
   const pageUrl = `${SITE_URL}${pageContext.pathname || "/"}`;

@@ -19,6 +19,7 @@ import {
 } from "./_shared/openRouterChat.js";
 import { buildPropertyKnowledgeText, retrievePropertyKnowledge } from "./_shared/propertyKnowledge.js";
 import { notifyGuestwayOfWebsiteChat } from "./_shared/guestwayChatNotify.js";
+import { withContactRequest } from "./_shared/guestContact.js";
 
 dotenv.config();
 
@@ -1486,7 +1487,12 @@ const extractStrictReservationCode = (text = "") => {
 };
 
 const extractReservationCodeFromPrompt = (prompt = "") => {
-  const source = String(prompt || "");
+  // Email addresses and web domains ("kurt@oneluxstay.com" -> "oneluxstay.com") would
+  // otherwise pass the code check below and be looked up as a booking.
+  const source = String(prompt || "")
+    .replace(/[^\s@]+@[^\s@]+/g, " ")
+    .replace(/\bhttps?:\/\/\S+/gi, " ")
+    .replace(/\b[\w-]+(\.[a-z]{2,})+\b/gi, " ");
   const patterns = [
     /\bres\.?\s*([A-Za-z0-9._-]{5,64})\b/i,
     /\b(?:reservation|booking|confirmation)\s*(?:id|code|number)?\s*[:#]?\s*([A-Za-z0-9._-]{5,64})\b/i,
@@ -4858,20 +4864,33 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
 // it returns; it never changes or blocks the reply the guest gets.
 export async function handler(event) {
   const response = await handleChat(event);
-  if (event.httpMethod === "POST" && response?.statusCode === 200) {
-    try {
-      const payload = JSON.parse(event.body || "{}");
-      const result = JSON.parse(response.body || "{}");
-      await notifyGuestwayOfWebsiteChat({
-        messages: sanitizeMessages(payload?.messages),
-        pageContext: sanitizePageContext(payload?.pageContext),
-        chatSessionId: sanitizeIdentifier(payload?.chatSessionId, 120),
-        reply: typeof result?.reply === "string" ? result.reply : "",
-        mode: result?.mode || "",
-      });
-    } catch (error) {
-      console.warn(`[guestway-chat] skipped: ${error?.message || error}`);
+  if (event.httpMethod !== "POST" || response?.statusCode !== 200) return response;
+
+  try {
+    const payload = JSON.parse(event.body || "{}");
+    const result = JSON.parse(response.body || "{}");
+    const messages = sanitizeMessages(payload?.messages);
+    const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
+
+    // Ask for an email or WhatsApp number so the team can follow up (see _shared/guestContact.js).
+    if (typeof result?.reply === "string") {
+      const language = detectGuestLanguageProfile({ latestUserMessage, messages })?.code || "en";
+      const reply = withContactRequest({ messages, reply: result.reply, mode: result.mode || "", language });
+      if (reply !== result.reply) {
+        result.reply = reply;
+        response.body = JSON.stringify(result);
+      }
     }
+
+    await notifyGuestwayOfWebsiteChat({
+      messages,
+      pageContext: sanitizePageContext(payload?.pageContext),
+      chatSessionId: sanitizeIdentifier(payload?.chatSessionId, 120),
+      reply: typeof result?.reply === "string" ? result.reply : "",
+      mode: result?.mode || "",
+    });
+  } catch (error) {
+    console.warn(`[guestway-chat] skipped: ${error?.message || error}`);
   }
   return response;
 }
