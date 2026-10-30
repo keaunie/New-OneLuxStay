@@ -18,6 +18,7 @@ import {
   resolveChatModel,
 } from "./_shared/openRouterChat.js";
 import { buildPropertyKnowledgeText, retrievePropertyKnowledge } from "./_shared/propertyKnowledge.js";
+import { notifyGuestwayOfWebsiteChat } from "./_shared/guestwayChatNotify.js";
 
 dotenv.config();
 
@@ -4852,7 +4853,30 @@ const fetchWithTimeout = async (url, options = {}, timeout = 20_000) => {
   }
 };
 
+// Website chats also go to the Guestway inbox (see _shared/guestwayChatNotify.js). This
+// runs once the reply is ready and is awaited, because a function is frozen as soon as
+// it returns; it never changes or blocks the reply the guest gets.
 export async function handler(event) {
+  const response = await handleChat(event);
+  if (event.httpMethod === "POST" && response?.statusCode === 200) {
+    try {
+      const payload = JSON.parse(event.body || "{}");
+      const result = JSON.parse(response.body || "{}");
+      await notifyGuestwayOfWebsiteChat({
+        messages: sanitizeMessages(payload?.messages),
+        pageContext: sanitizePageContext(payload?.pageContext),
+        chatSessionId: sanitizeIdentifier(payload?.chatSessionId, 120),
+        reply: typeof result?.reply === "string" ? result.reply : "",
+        mode: result?.mode || "",
+      });
+    } catch (error) {
+      console.warn(`[guestway-chat] skipped: ${error?.message || error}`);
+    }
+  }
+  return response;
+}
+
+async function handleChat(event) {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: getCorsHeaders(event), body: "" };
   }
