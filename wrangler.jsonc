@@ -1,9 +1,13 @@
 {
   "name": "oneluxstay",
   "compatibility_date": "2026-10-06",
+  // Files in dist/ are served first; worker/index.js only handles requests that match
+  // no file (redirects, dated listing URLs, app routes and real 404s).
+  "main": "./worker/index.js",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "none"
   },
   // Serve the public site from Cloudflare. Attaching a custom domain only works once
   // the hostname has no existing DNS record in the Cloudflare zone (delete the old
