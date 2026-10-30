@@ -1283,8 +1283,19 @@ const DateRangePicker = ({
     return null;
   };
 
+  // While a check-in is picked and the check-out isn't, days that would make the
+  // stay shorter than that check-in's minimum are greyed out, so guests can't pick
+  // a too-short stay and hit the minimum-nights error afterwards.
+  const selectingCheckOut = Boolean(showMinNights && startDate && !endDate);
+  const checkInMinNights = selectingCheckOut
+    ? normalizeMinNights(dayPrices?.get(toISODate(startDate))?.restrictions?.minNights ?? fallbackMinNights ?? null)
+    : 1;
+  const isTooShortCheckOut = (day) =>
+    Boolean(day && selectingCheckOut && day > startDate && diffNights(toISODate(startDate), toISODate(day)) < checkInMinNights);
+
   const handleDayClick = (day) => {
     if (!day || day < today) return;
+    if (isTooShortCheckOut(day)) return;
     const iso = toISODate(day);
     const priceInfo = dayPrices?.get(iso) || null;
     const dayAvailable = getDayAvailability(iso, priceInfo);
@@ -1482,7 +1493,8 @@ const DateRangePicker = ({
                           ((hasAvailabilityMap || hasCalendarPricing) && !priceInfo && dayAvailable !== true)
                         )
                       );
-                      const disabled = !day || day < today || isUnavailable;
+                      const tooShortCheckOut = isTooShortCheckOut(day);
+                      const disabled = !day || day < today || isUnavailable || tooShortCheckOut;
                       const isPast = Boolean(day && day < today);
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
                       const between = inRange(day) && !selected;
@@ -1516,6 +1528,8 @@ const DateRangePicker = ({
                         : "";
                       const dayAria = isUnavailable
                         ? `${dayLabel}. Unavailable.`
+                        : tooShortCheckOut
+                          ? `${dayLabel}. Check-out not available: minimum stay is ${checkInMinNights} nights.`
                         : priceLabel
                           ? `${dayLabel}. ${priceLabel} per night.`
                           : dayLabel;
@@ -3202,6 +3216,9 @@ const [checkoutPromoCode, setCheckoutPromoCode] = useState("");
     }
   }, [sectionGuests, sectionMaxGuests, sectionGuestOptions]);
 
+  // Cheapest night per listing/guest count, captured from the first calendar data
+  // so the "From" price doesn't shift as more calendar months load.
+  const fromPriceDayRef = useRef({});
   const calendarDayMap = useMemo(() => {
     if (!Array.isArray(calendarPrices?.days)) return new Map();
     return new Map(calendarPrices.days.map((day) => [day.date, day]));
@@ -7047,11 +7064,23 @@ const applyCheckoutPromoCode = () => {
             : 0;
         const breakdown = selectedPlan?.breakdown || quote?.breakdown || quote?.pricing?.breakdown || null;
         const priceCurrency = selectedPlan?.currency || quote?.currency || activeListing.currency || "USD";
-        const targetDailyRateDate = sectionCheckIn || toISODate(new Date());
-        const dailyRateDay =
-          calendarDayMap.get(targetDailyRateDate) ||
-          sectionCalendarDayMap.get(targetDailyRateDate) ||
+        // Before dates are complete the headline reads "From <price>": the cheapest
+        // bookable night from today on, so it stays put while the guest clicks around
+        // the calendar instead of echoing whichever check-in night was clicked.
+        const todayIso = toISODate(new Date());
+        const cheapestCalendarDay =
+          [calendarDayMap, sectionCalendarDayMap]
+            .map((dayMap) => [...dayMap.values()].filter((day) => (
+              day?.date >= todayIso && day.available !== false && Number(day.price) > 0
+            )))
+            .find((days) => days.length)
+            ?.reduce((cheapest, day) => (Number(day.price) < Number(cheapest.price) ? day : cheapest)) ||
           null;
+        const fromPriceKey = `${getListingId(activeListing) || ""}:${sectionGuests}`;
+        if (cheapestCalendarDay && !fromPriceDayRef.current[fromPriceKey]) {
+          fromPriceDayRef.current[fromPriceKey] = cheapestCalendarDay;
+        }
+        const dailyRateDay = fromPriceDayRef.current[fromPriceKey] || cheapestCalendarDay;
         const dailyRate = firstNumber(
           dailyRateDay?.price,
           selectedPlan?.nightly,

@@ -1013,8 +1013,19 @@ const DateRangePicker = ({
     return null;
   };
 
+  // While a check-in is picked and the check-out isn't, days that would make the
+  // stay shorter than that check-in's minimum are greyed out, so guests can't pick
+  // a too-short stay and hit the minimum-nights error afterwards.
+  const selectingCheckOut = Boolean(showMinNights && startDate && !endDate);
+  const checkInMinNights = selectingCheckOut
+    ? normalizeMinNights(dayPrices?.get(toISODate(startDate))?.restrictions?.minNights ?? fallbackMinNights ?? null)
+    : 1;
+  const isTooShortCheckOut = (day) =>
+    Boolean(day && selectingCheckOut && day > startDate && diffNights(toISODate(startDate), toISODate(day)) < checkInMinNights);
+
   const handleDayClick = (day) => {
     if (!day || day < today) return;
+    if (isTooShortCheckOut(day)) return;
     const iso = toISODate(day);
     const priceInfo = dayPrices?.get(iso) || null;
     const dayAvailable = getDayAvailability(iso, priceInfo);
@@ -1212,7 +1223,8 @@ const DateRangePicker = ({
                           ((hasAvailabilityMap || hasCalendarPricing) && !priceInfo && dayAvailable !== true)
                         )
                       );
-                      const disabled = !day || day < today || isUnavailable;
+                      const tooShortCheckOut = isTooShortCheckOut(day);
+                      const disabled = !day || day < today || isUnavailable || tooShortCheckOut;
                       const isPast = Boolean(day && day < today);
                       const selected = (startDate && isSameDay(day, startDate)) || (endDate && isSameDay(day, endDate));
                       const between = inRange(day) && !selected;
@@ -1252,6 +1264,8 @@ const DateRangePicker = ({
                         : "";
                       const dayAria = isUnavailable
                         ? `${dayLabel}. Unavailable.`
+                        : tooShortCheckOut
+                          ? `${dayLabel}. Check-out not available: minimum stay is ${checkInMinNights} nights.`
                         : priceLabel
                           ? `${dayLabel}. ${priceLabel} per night.`
                           : dayLabel;
